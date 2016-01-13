@@ -23,13 +23,14 @@ UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
     pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
 }
 
-UA_EXPORT UA_UInt32 UA_random(void) {
-    return (UA_UInt32)pcg32_random_r(&UA_rng);
-}
-
 /*****************/
 /* Builtin Types */
 /*****************/
+
+UA_EXPORT UA_UInt32 UA_UInt32_random(void) {
+    return (UA_UInt32)pcg32_random_r(&UA_rng);
+}
+
 UA_String UA_String_fromChars(char const src[]) {
     UA_String str = UA_STRING_NULL;
     size_t length = strlen(src);
@@ -52,41 +53,44 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 }
 
 /* DateTime */
-#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
-#define HUNDRED_NANOSEC_PER_USEC 10LL
-#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
-
-#if defined(__MINGW32__) && !defined(_TIMEZONE_DEFINED)
-# define _TIMEZONE_DEFINED
-struct timezone {
-  int tz_minuteswest;
-  int tz_dsttime;
-};
-#endif
-
+UA_DateTime UA_DateTime_now(void) {
 #ifdef _WIN32
-static const UA_UInt64 epoch = 116444736000000000;
-int gettimeofday(struct timeval *tp, struct timezone *tzp);
-int gettimeofday(struct timeval *tp, struct timezone *tzp) {
-    FILETIME       ft;
-    SYSTEMTIME     st;
-    ULARGE_INTEGER ul;
+    /* Windows filetime has the same definition as UA_DateTime */
+    FILETIME ft;
+    SYSTEMTIME st;
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
-    ul.LowPart  = ft.dwLowDateTime;
+    ULARGE_INTEGER ul;
+    ul.LowPart = ft.dwLowDateTime;
     ul.HighPart = ft.dwHighDateTime;
-    tp->tv_sec  = (long)((ul.QuadPart - epoch) / 10000000L);
-    tp->tv_usec = st.wMilliseconds * 1000;
-    return 0;
-}
-#endif
-
-UA_DateTime UA_DateTime_now(void) {
-    UA_DateTime dateTime;
+    return (UA_DateTime)ul.QuadPart;
+#else
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    dateTime = (tv.tv_sec + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC + tv.tv_usec * HUNDRED_NANOSEC_PER_USEC;
-    return dateTime;
+    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
+#endif
+}
+
+UA_DateTime UA_DateTime_nowMonotonic(void) {
+#ifdef _WIN32
+    LARGE_INTEGER freq, ticks;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&ticks);
+    UA_Double ticks2dt = UA_SEC_TO_DATETIME;
+    ticks2dt /= freq.QuadPart;
+    return (UA_DateTime)(ticks.QuadPart * ticks2dt);
+#elif defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
+    clock_serv_t cclock;
+    mach_timespec_t mts;
+    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
+    clock_get_time(cclock, &mts);
+    mach_port_deallocate(mach_task_self(), cclock);
+    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+#endif
 }
 
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
@@ -97,7 +101,7 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
     dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch = (atime/10000000) - UNIX_EPOCH_BIAS_SEC;
+    time_t secSinceUnixEpoch = (atime - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
@@ -149,7 +153,7 @@ UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return UA_FALSE;
 }
 
-UA_Guid UA_Guid_random(UA_UInt32 *seed) {
+UA_Guid UA_Guid_random(void) {
     UA_Guid result;
     result.data1 = (UA_UInt32)pcg32_random_r(&UA_rng);
     UA_UInt32 r = (UA_UInt32)pcg32_random_r(&UA_rng);
@@ -230,6 +234,22 @@ UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
         return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
     }
     return UA_FALSE;
+}
+
+/* ExpandedNodeId */
+static void ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p, const UA_DataType *_) {
+    NodeId_deleteMembers(&p->nodeId, _);
+    UA_String_deleteMembers(&p->namespaceUri);
+}
+
+static UA_StatusCode
+ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst, const UA_DataType *_) {
+    UA_StatusCode retval = NodeId_copy(&src->nodeId, &dst->nodeId, NULL);
+    retval |= UA_String_copy(&src->namespaceUri, &dst->namespaceUri);
+    dst->serverIndex = src->serverIndex;
+    if(retval != UA_STATUSCODE_GOOD)
+        ExpandedNodeId_deleteMembers(dst, NULL);
+    return retval;
 }
 
 /* ExtensionObject */
@@ -536,6 +556,19 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
     return UA_STATUSCODE_GOOD;
 }
 
+/* LocalizedText */
+static void LocalizedText_deleteMembers(UA_LocalizedText *p, const UA_DataType *_) {
+    UA_String_deleteMembers(&p->locale);
+    UA_String_deleteMembers(&p->text);
+}
+
+static UA_StatusCode
+LocalizedText_copy(UA_LocalizedText const *src, UA_LocalizedText *dst, const UA_DataType *_) {
+    UA_StatusCode retval = UA_String_copy(&src->locale, &dst->locale);
+    retval |= UA_String_copy(&src->text, &dst->text);
+    return retval;
+}
+
 /* DataValue */
 static void DataValue_deleteMembers(UA_DataValue *p, const UA_DataType *_) {
     Variant_deletemembers(&p->value, NULL);
@@ -593,44 +626,64 @@ void * UA_new(const UA_DataType *type) {
     return p;
 }
 
-static UA_StatusCode UA_copyFixedSize(const void *src, void *dst, const UA_DataType *type) {
+static UA_StatusCode copyByte(const void *src, void *dst, const UA_DataType *_) {
+    memcpy(dst, src, sizeof(UA_Byte));
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode copy2Byte(const void *src, void *dst, const UA_DataType *_) {
+    memcpy(dst, src, sizeof(UA_UInt16));
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode copy4Byte(const void *src, void *dst, const UA_DataType *_) {
+    memcpy(dst, src, sizeof(UA_UInt32));
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode copy8Byte(const void *src, void *dst, const UA_DataType *_) {
+    memcpy(dst, src, sizeof(UA_UInt64));
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode copyFixedSize(const void *src, void *dst, const UA_DataType *type) {
     memcpy(dst, src, type->memSize);
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode UA_copyNoInit(const void *src, void *dst, const UA_DataType *type);
+static UA_StatusCode copyNoInit(const void *src, void *dst, const UA_DataType *type);
 
 typedef UA_StatusCode (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
 static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
-    (UA_copySignature)UA_copyFixedSize, // Boolean
-    (UA_copySignature)UA_copyFixedSize, // SByte
-    (UA_copySignature)UA_copyFixedSize, // Byte
-    (UA_copySignature)UA_copyFixedSize, // Int16
-    (UA_copySignature)UA_copyFixedSize, // UInt16 
-    (UA_copySignature)UA_copyFixedSize, // Int32 
-    (UA_copySignature)UA_copyFixedSize, // UInt32 
-    (UA_copySignature)UA_copyFixedSize, // Int64
-    (UA_copySignature)UA_copyFixedSize, // UInt64 
-    (UA_copySignature)UA_copyFixedSize, // Float 
-    (UA_copySignature)UA_copyFixedSize, // Double 
-    (UA_copySignature)UA_copyNoInit, // String
-    (UA_copySignature)UA_copyFixedSize, // DateTime
-    (UA_copySignature)UA_copyFixedSize, // Guid 
-    (UA_copySignature)UA_copyNoInit, // ByteString
-    (UA_copySignature)UA_copyNoInit, // XmlElement
+    (UA_copySignature)copyByte, // Boolean
+    (UA_copySignature)copyByte, // SByte
+    (UA_copySignature)copyByte, // Byte
+    (UA_copySignature)copy2Byte, // Int16
+    (UA_copySignature)copy2Byte, // UInt16 
+    (UA_copySignature)copy4Byte, // Int32 
+    (UA_copySignature)copy4Byte, // UInt32 
+    (UA_copySignature)copy8Byte, // Int64
+    (UA_copySignature)copy8Byte, // UInt64 
+    (UA_copySignature)copy4Byte, // Float 
+    (UA_copySignature)copy8Byte, // Double 
+    (UA_copySignature)copyNoInit, // String
+    (UA_copySignature)copy8Byte, // DateTime
+    (UA_copySignature)copyFixedSize, // Guid 
+    (UA_copySignature)copyNoInit, // ByteString
+    (UA_copySignature)copyNoInit, // XmlElement
     (UA_copySignature)NodeId_copy,
-    (UA_copySignature)UA_copyNoInit, // ExpandedNodeId
-    (UA_copySignature)UA_copyFixedSize, // StatusCode
-    (UA_copySignature)UA_copyNoInit, // QualifiedName
-    (UA_copySignature)UA_copyNoInit, // LocalizedText
+    (UA_copySignature)ExpandedNodeId_copy,
+    (UA_copySignature)copy4Byte, // StatusCode
+    (UA_copySignature)copyNoInit, // QualifiedName
+    (UA_copySignature)LocalizedText_copy, // LocalizedText
     (UA_copySignature)ExtensionObject_copy,
     (UA_copySignature)DataValue_copy,
     (UA_copySignature)Variant_copy,
     (UA_copySignature)DiagnosticInfo_copy,
-    (UA_copySignature)UA_copyNoInit,
+    (UA_copySignature)copyNoInit // all others
 };
 
-static UA_StatusCode UA_copyNoInit(const void *src, void *dst, const UA_DataType *type) {
+static UA_StatusCode copyNoInit(const void *src, void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
@@ -668,7 +721,7 @@ static UA_StatusCode UA_copyNoInit(const void *src, void *dst, const UA_DataType
 
 UA_StatusCode UA_copy(const void *src, void *dst, const UA_DataType *type) {
     memset(dst, 0, type->memSize);
-    return UA_copyNoInit(src, dst, type);
+    return copyNoInit(src, dst, type);
 }
 
 typedef void (*UA_deleteMembersSignature)(void *p, const UA_DataType *type);
@@ -692,10 +745,10 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)UA_deleteMembers, // ByteString
     (UA_deleteMembersSignature)UA_deleteMembers, // XmlElement
     (UA_deleteMembersSignature)NodeId_deleteMembers,
-    (UA_deleteMembersSignature)UA_deleteMembers, // ExpandedNodeId
+    (UA_deleteMembersSignature)ExpandedNodeId_deleteMembers, // ExpandedNodeId
     (UA_deleteMembersSignature)nopDeleteMembers, // StatusCode
     (UA_deleteMembersSignature)UA_deleteMembers, // QualifiedName
-    (UA_deleteMembersSignature)UA_deleteMembers, // LocalizedText
+    (UA_deleteMembersSignature)LocalizedText_deleteMembers, // LocalizedText
     (UA_deleteMembersSignature)ExtensionObject_deleteMembers,
     (UA_deleteMembersSignature)DataValue_deleteMembers,
     (UA_deleteMembersSignature)Variant_deletemembers,

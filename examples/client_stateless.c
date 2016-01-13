@@ -14,8 +14,7 @@
 #include "ua_types_generated_encoding_binary.h"
 
 
-int main(int argc , char *argv[])
-{
+int main(int argc , char *argv[]) {
 	int sock;
 	struct sockaddr_in server;
 	UA_ByteString message;
@@ -26,13 +25,12 @@ int main(int argc , char *argv[])
 	unsigned int messagepos = 0;
 
 	//Create socket
-#ifdef EXTENSION_UDP
+#ifdef UA_ENABLE_NONSTANDARD_UDP
 	sock = socket(AF_INET , SOCK_DGRAM , 0);
 #else
 	sock = socket(AF_INET , SOCK_STREAM , 0);
 #endif
-	if (sock == -1)
-	{
+	if(sock == -1) {
 		printf("Could not create socket");
 	}
 	server.sin_addr.s_addr = inet_addr("127.0.0.1");
@@ -40,12 +38,10 @@ int main(int argc , char *argv[])
 	server.sin_port = htons( 16664 );
 
 	//Connect to remote server
-	if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
-	{
+	if(connect(sock, (struct sockaddr *)&server, sizeof(server)) < 0) {
 		perror("connect failed. Error");
 		return 1;
 	}
-
 
 	UA_TcpMessageHeader reqTcpHeader;
 	UA_UInt32 reqSecureChannelId = 0;
@@ -60,7 +56,6 @@ int main(int argc , char *argv[])
 	UA_NodeId_init(&reqRequestType);
 	reqRequestType.identifierType = UA_NODEIDTYPE_NUMERIC;
 	reqRequestType.identifier.numeric = 631; //read request
-
 
 	UA_SequenceHeader_init(&reqSequenceHeader);
 	reqSequenceHeader.sequenceNumber = 42;
@@ -82,7 +77,6 @@ int main(int argc , char *argv[])
 	req.nodesToRead[0].nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
 	req.nodesToRead[0].nodeId.identifier.numeric = 2255;
 	UA_QualifiedName_init(&(req.nodesToRead[0].dataEncoding));
-
 
 	/**messageEncodedLength = UA_TcpMessageHeader_calcSizeBinary(&reqTcpHeader) +
 			UA_UInt32_calcSizeBinary(&reqSecureChannelId)+
@@ -110,24 +104,21 @@ int main(int argc , char *argv[])
     UA_NodeId_encodeBinary(&reqRequestType, &message, &messagepos);
     UA_ReadRequest_encodeBinary(&req, &message, &messagepos);
 
-
 	//Send some data
-	if( send(sock , message.data, messagepos , 0) < 0)
-	{
+	if(send(sock , message.data, messagepos , 0) < 0) {
 		puts("Send failed");
 		return 1;
 	}
 
 	//Receive a reply from the server
 	int received = recv(sock , server_reply , 2000 , 0);
-	if(received < 0)
-	{
+	if(received < 0) {
 		puts("recv failed");
 		return 1;
 	}
 
 
-	for(int i=0;i<received;i++){
+	for(int i=0;i<received;i++) {
 		  //show only printable ascii
 		  if(server_reply[i] >= 32 && server_reply[i]<= 126)
 			  printf("%c",server_reply[i]);

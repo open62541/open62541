@@ -15,12 +15,13 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static UA_StatusCode
-helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
-                 UA_Variant *output, void *handle) {
+
+helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
+                 size_t outputSize, UA_Variant *output) {
         UA_String *inputStr = (UA_String*)input->data;
         UA_String tmp = UA_STRING_ALLOC("Hello ");
         if(inputStr->length > 0) {
@@ -35,8 +36,8 @@ helloWorldMethod(const UA_NodeId objectId, const UA_Variant *input,
 } 
 
 static UA_StatusCode
-IncInt32ArrayValuesMethod(const UA_NodeId objectId, const UA_Variant *input,
-                          UA_Variant *output, void *handle) {
+IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize, UA_Variant *output) {
 	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
 	for(size_t i = 0; i< input->arrayLength; i++)
 		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
@@ -52,9 +53,12 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     /* initialize the server */
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     //EXAMPLE 1
     /* add the method node with the callback */
@@ -80,8 +84,8 @@ int main(int argc, char** argv) {
     UA_MethodAttributes_init(&helloAttr);
     helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
     helloAttr.displayName = UA_LOCALIZEDTEXT("en_US","Hello World");
-    helloAttr.executable = UA_TRUE;
-    helloAttr.userExecutable = UA_TRUE;
+    helloAttr.executable = true;
+    helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -121,8 +125,8 @@ int main(int argc, char** argv) {
     UA_MethodAttributes_init(&incAttr);
     incAttr.description = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
     incAttr.displayName = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
-    incAttr.executable = UA_TRUE;
-    incAttr.userExecutable = UA_TRUE;
+    incAttr.executable = true;
+    incAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
@@ -132,12 +136,13 @@ int main(int argc, char** argv) {
     //END OF EXAMPLE 2
 
     /* start server */
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
 
     /* ctrl-c received -> clean up */
     UA_UInt32_delete(pInputDimensions);
     UA_UInt32_delete(pOutputDimensions);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
     return retval;
 }

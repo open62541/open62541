@@ -116,7 +116,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
 void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
-                             UA_AddNodesResult *result);
+                             UA_AddNodesResult *result, UA_InstantiationCallback *instantiationCallback);
 
 /** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session,
@@ -173,6 +173,8 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
 void Service_BrowseNext(UA_Server *server, UA_Session *session,
                         const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response);
+void UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
+                                 const UA_ByteString *continuationPoint, UA_BrowseResult *result);
 
 /** Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
@@ -216,7 +218,7 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  */
 
 /* Mock-Up of the function signature for Unit Tests */
-#ifdef BUILD_UNIT_TESTS
+#ifdef UA_BUILD_UNIT_TESTS
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
@@ -262,15 +264,19 @@ Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue
  *
  * @{
  */
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 void
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
              UA_CallResponse *response);
+void
+Service_Call_single(UA_Server *server, UA_Session *session,
+                    const UA_CallMethodRequest *request,
+                    UA_CallMethodResult *result);
 #endif
 /** @} */
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 /**
  * @name MonitoredItem Service Set
  *
@@ -327,8 +333,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                      
 void
 Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request,
-                UA_PublishResponse *response);
+                const UA_PublishRequest *request, UA_UInt32 requestId);
 
 void
 Service_Republish(UA_Server *server, UA_Session *session,

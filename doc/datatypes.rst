@@ -89,6 +89,13 @@ An integer value between 0 and 4,294,967,295.
 
   typedef uint32_t UA_UInt32;
 
+The following functions and definitions are used with UA_UInt32.
+
+.. code-block:: c
+
+  /* do not use for cryptographic entropy */
+  UA_UInt32 UA_UInt32_random(void);
+
 UA_Int64
 ^^^^^^^^
 
@@ -154,9 +161,9 @@ The following functions and definitions are used with UA_DateTime.
       UA_UInt16 year;
   } UA_DateTimeStruct;
 
-  UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+  UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime time);
 
-  UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
+  UA_String UA_DateTime_toString(UA_DateTime time);
 
 UA_Guid
 ^^^^^^^
@@ -178,7 +185,8 @@ The following functions and definitions are used with UA_Guid.
 
   UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-  UA_Guid UA_Guid_random(UA_UInt32 *seed);
+  /* do not use for cryptographic entropy */
+  UA_Guid UA_Guid_random();
 
 UA_String
 ^^^^^^^^^

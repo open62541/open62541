@@ -66,18 +66,10 @@ UInt16_encodeBinary(UA_UInt16 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt16) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     UA_UInt16 le_uint16 = htole16(*src);
     src = &le_uint16;
-#endif
-
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    dst->data[(*offset)++] = (*src & 0x00FF) >> 0;
-    dst->data[(*offset)++] = (*src & 0xFF00) >> 8;
-#else
-    *(UA_UInt16*)&dst->data[*offset] = *src;
+    memcpy(&dst->data[*offset], src, sizeof(UA_UInt16));
     *offset += 2;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -91,17 +83,9 @@ UInt16_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_UInt16 *dst, const UA_DataType *_) {
     if(*offset + sizeof(UA_UInt16) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    *dst = (UA_UInt16) src->data[(*offset)++] << 0;
-    *dst |= (UA_UInt16) src->data[(*offset)++] << 8;
-#else
-    *dst = *((UA_UInt16*) &src->data[*offset]);
+    memcpy(dst, &src->data[*offset], sizeof(UA_UInt16));
     *offset += 2;
-#endif
-
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     *dst = le16toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -116,20 +100,10 @@ UInt32_encodeBinary(UA_UInt32 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt32) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     UA_UInt32 le_uint32 = htole32(*src);
     src = &le_uint32;
-#endif
-
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    dst->data[(*offset)++] = (*src & 0x000000FF) >> 0;
-    dst->data[(*offset)++] = (*src & 0x0000FF00) >> 8;
-    dst->data[(*offset)++] = (*src & 0x00FF0000) >> 16;
-    dst->data[(*offset)++] = (*src & 0xFF000000) >> 24;
-#else
-    *(UA_UInt32*) &dst->data[*offset] = *src;
+    memcpy(&dst->data[*offset], src, sizeof(UA_UInt32));
     *offset += 4;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -149,19 +123,9 @@ UInt32_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_UInt32 *dst, const UA_DataType *_) {
     if(*offset + sizeof(UA_UInt32) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    *dst = (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF));
-    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 8);
-    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 16);
-    *dst |= (UA_UInt32)((UA_Byte)(src->data[(*offset)++] & 0xFF) << 24);
-#else
-    *dst = *((UA_UInt32*) &src->data[*offset]);
+    memcpy(dst, &src->data[*offset], sizeof(UA_UInt32));
     *offset += 4;
-#endif
-
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     *dst = le32toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -182,24 +146,10 @@ UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *_,
                     UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(*offset + sizeof(UA_UInt64) > dst->length)
         return UA_STATUSCODE_BADENCODINGERROR;
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     UA_UInt64 le_uint64 = htole64(*src);
     src = &le_uint64;
-#endif
-
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    dst->data[(*offset)++] = (*src & 0x00000000000000FF) >> 0;
-    dst->data[(*offset)++] = (*src & 0x000000000000FF00) >> 8;
-    dst->data[(*offset)++] = (*src & 0x0000000000FF0000) >> 16;
-    dst->data[(*offset)++] = (*src & 0x00000000FF000000) >> 24;
-    dst->data[(*offset)++] = (*src & 0x000000FF00000000) >> 32;
-    dst->data[(*offset)++] = (*src & 0x0000FF0000000000) >> 40;
-    dst->data[(*offset)++] = (*src & 0x00FF000000000000) >> 48;
-    dst->data[(*offset)++] = (*src & 0xFF00000000000000) >> 56;
-#else
-    *(UA_UInt64*) &dst->data[*offset] = *src;
+    memcpy(&dst->data[*offset], src, sizeof(UA_UInt64));
     *offset += 8;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -219,23 +169,9 @@ UInt64_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
                     UA_UInt64 *dst, const UA_DataType *_) {
     if(*offset + sizeof(UA_UInt64) > src->length)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifdef UA_ALIGNED_MEMORY_ACCESS
-    *dst  = (UA_UInt64) src->data[(*offset)++];
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 8;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 16;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 24;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 32;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 40;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 48;
-    *dst |= (UA_UInt64) src->data[(*offset)++] << 56;
-#else
-    *dst = *((UA_UInt64*) &src->data[*offset]);
+    memcpy(dst, &src->data[*offset], sizeof(UA_UInt64));
     *offset += 8;
-#endif
-
-#if defined(UA_NON_LITTLEENDIAN_ARCHITECTURE) && !defined(UA_ALIGNED_MEMORY_ACCESS)
     *dst = le64toh(*dst);
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -348,7 +284,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type,
     else if(src == UA_EMPTY_ARRAY_SENTINEL)
         signed_length = 0;
     UA_StatusCode retval = Int32_encodeBinary(&signed_length, NULL, dst, offset);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
 #ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
@@ -964,11 +900,11 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_,
     if(src->hasSourceTimestamp)
         retval |= DateTime_encodeBinary(&src->sourceTimestamp, NULL, dst, offset);
     if(src->hasSourcePicoseconds)
-        retval |= Int16_encodeBinary(&src->sourcePicoseconds, NULL, dst, offset);
+        retval |= UInt16_encodeBinary(&src->sourcePicoseconds, NULL, dst, offset);
     if(src->hasServerTimestamp)
         retval |= DateTime_encodeBinary(&src->serverTimestamp, NULL, dst, offset);
     if(src->hasServerPicoseconds)
-        retval |= Int16_encodeBinary(&src->serverPicoseconds, NULL, dst, offset);
+        retval |= UInt16_encodeBinary(&src->serverPicoseconds, NULL, dst, offset);
     return retval;
 }
 
@@ -986,14 +922,14 @@ DataValue_decodeBinary(UA_ByteString const *src, size_t *UA_RESTRICT offset,
     if(dst->hasSourceTimestamp)
         retval |= DateTime_decodeBinary(src, offset, &dst->sourceTimestamp, NULL);
     if(dst->hasSourcePicoseconds) {
-        retval |= Int16_decodeBinary(src, offset, &dst->sourcePicoseconds, NULL);
+        retval |= UInt16_decodeBinary(src, offset, &dst->sourcePicoseconds, NULL);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
     if(dst->hasServerTimestamp)
         retval |= DateTime_decodeBinary(src, offset, &dst->serverTimestamp, NULL);
     if(dst->hasServerPicoseconds) {
-        retval |= Int16_decodeBinary(src, offset, &dst->serverPicoseconds, NULL);
+        retval |= UInt16_decodeBinary(src, offset, &dst->serverPicoseconds, NULL);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }

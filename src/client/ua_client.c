@@ -35,7 +35,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
     client->config = config;
     client->scExpiresAt = 0;
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     client->monitoredItemHandles = 0;
     LIST_INIT(&client->pendingNotificationsAcks);
     LIST_INIT(&client->subscriptions);
@@ -58,7 +58,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
         LIST_REMOVE(n, listEntry);
@@ -201,11 +201,11 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to renew the SecureChannel");
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_ByteString_init(&client->channel.clientNonce);
-        UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
-        opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
         UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to open a SecureChannel");
     }
+
+    UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
+    opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     UA_ByteString message;
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
@@ -288,15 +288,13 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "SecureChannel could not be opened / renewed");
-    else if(!renew) {
+    else {
         UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
         /* if the handshake is repeated, replace the old nonce */
         UA_ByteString_deleteMembers(&client->channel.serverNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel.serverNonce);
-        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
-    } else
-        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
-
+        UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened/renewed");
+    }
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
     return retval;

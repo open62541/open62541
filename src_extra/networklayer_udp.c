@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h> // memset
 #include "networklayer_udp.h"
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # include <urcu/uatomic.h>
 #endif
 

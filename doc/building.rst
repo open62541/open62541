@@ -87,72 +87,11 @@ Follow Ubuntu instructions without the ``apt-get`` commands as these are taken c
 Build Options
 -------------
 
-Generic CMake options
-~~~~~~~~~~~~~~~~~~~~~
-
 **CMAKE_BUILD_TYPE**
   - RelWithDebInfo: -O2 optimization with debug symbols
   - Release: -O2 optimization without debug symbols
   - Debug: -O0 optimization with debug symbols
   - MinSizeRel: -Os optimization without debug symbols
-
-BUILD_* group
-~~~~~~~~~~~~~
-
-By default only the shared object libopen62541.so or the library open62541.dll
-and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
-specified by the following options:
-
-**BUILD_DOCUMENTATION**
-   Generate documentation with doxygen
-**BUILD_EXAMPLECLIENT**
-   Compile example clients from client.c. There are a static and a dynamic binary client and client_static, respectively
-**BUILD_EXAMPLESERVER**
-   Compile example server from server.c There are a static and a dynamic binary server and server_static, respectively
-**BUILD_UNIT_TESTS**
-   Compile unit tests with Check framework. The tests can be executed with make test
-**BUILD_EXAMPLES**
-   Compile specific examples from https://github.com/acplt/open62541/blob/master/examples/
-
-ENABLE_* group
-~~~~~~~~~~~~~~
-
-This group contains build options related to the supported OPC UA features.
-
-**ENABLE_NODEMANAGEMENT**
-   Node management services (adding and removing nodes and references) in server and client
-**ENABLE_AMALGAMATION**
-   Compile a single-file release files open62541.c and open62541.h
-**ENABLE_COVERAGE**
-   Measure the coverage of unit tests
-**ENABLE_EXTERNAL_NAMESPACES**
-   Enable external namespaces in server
-**ENABLE_GNERATE_NAMESPACE0**
-   Enable automatic generation of NS0
-**GENERATE_NAMESPACE0_FILE**
-   File for NS0 generation from namespace0 folder. Default value is Opc.Ua.NodeSet2.xml
-**ENABLE_METHODCALL**
-   Enable method calls in server and client
-**ENABLE_MULTITHREADING**
-   Enable multi-threading support (experimental)
-**ENABLE_SUBSCRIPTIONS**
-   Enable subscriptions
-**GENERATE_SELFSIGNED**
-   Generate a self-signed certificate for the server (openSSL required)
-
-EXTENSION_* group
-~~~~~~~~~~~~~~~~~
-
-Extensions mark experimental extensions that are not compliant with IEC 62541 or
-other OPC UA clients
-
-**EXTENSION_STATELESS**
-   Stateless service calls
-**EXTENSION_UDP**
-   UDP network layer
-
-UA_* group
-~~~~~~~~~~
 
 **UA_LOGLEVEL**
    The level of logging events that are reported
@@ -163,15 +102,62 @@ UA_* group
    - 200: Debug and all below
    - 100: Trace and all below
 
-C precompiler configuration options
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Options that are not inherited from the CMake configuration are defined in
-ua_config.h. Usually there is no need to adjust them.
+Further options that are not inherited from the CMake configuration are defined
+in ua_config.h. Usually there is no need to adjust them.
 
 **UA_NON_LITTLEENDIAN_ARCHITECTURE**
    Big-endian or mixed endian platform
 **UA_MIXED_ENDIAN**
    Mixed-endian platform (e.g., ARM7TDMI)
-**UA_ALIGNED_MEMORY_ACCESS**
-   Platform with aligned memory access only (some ARM processors, e.g. Cortex M3/M4 ARM7TDMI etc.)
+
+UA_BUILD_* group
+~~~~~~~~~~~~~
+
+By default only the shared object libopen62541.so or the library open62541.dll
+and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
+specified by the following options:
+
+**UA_BUILD_DOCUMENTATION**
+   Generate documentation with doxygen
+**UA_BUILD_EXAMPLECLIENT**
+   Compile example clients from client.c. There are a static and a dynamic binary client and client_static, respectively
+**UA_BUILD_EXAMPLESERVER**
+   Compile example server from server.c There are a static and a dynamic binary server and server_static, respectively
+**UA_BUILD_UNIT_TESTS**
+   Compile unit tests with Check framework. The tests can be executed with make test
+**UA_BUILD_EXAMPLES**
+   Compile specific examples from https://github.com/acplt/open62541/blob/master/examples/
+**UA_BUILD_SELFIGNED_CERTIFICATE**
+   Generate a self-signed certificate for the server (openSSL required)
+
+UA_ENABLE_* group
+~~~~~~~~~~~~~~
+
+This group contains build options related to the supported OPC UA features.
+
+**UA_ENABLE_SUBSCRIPTIONS**
+   Enable subscriptions
+**UA_ENABLE_METHODCALLS**
+   Enable method calls in server and client
+**UA_ENABLE_NODEMANAGEMENT**
+   Node management services (adding and removing nodes and references) at runtime in server and client
+**UA_ENABLE_AMALGAMATION**
+   Compile a single-file release files open62541.c and open62541.h
+**UA_ENABLE_MULTITHREADING**
+   Enable multi-threading support (experimental)
+**UA_ENABLE_COVERAGE**
+   Measure the coverage of unit tests
+
+Some options are marked as advanced. The advanced options need to be toggled to
+be visible in the cmake GUIs.
+
+**UA_ENABLE_EXTERNAL_NAMESPACES**
+   Enable external namespaces in server
+**UA_ENABLE_GENERATE_NAMESPACE0**
+   Enable automatic generation of NS0
+**UA_ENABLE_GENERATE_NAMESPACE0_FILE**
+   File for NS0 generation from namespace0 folder. Default value is Opc.Ua.NodeSet2.xml
+**UA_ENABLE_NONSTANDARD_STATELESS**
+   Stateless service calls
+**UA_ENABLE_NONSTANDARD_UDP**
+   UDP network layer

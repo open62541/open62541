@@ -48,7 +48,7 @@
 /* Thread Local Storage */
 /************************/
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # ifdef __GNUC__
 #  define UA_THREAD_LOCAL __thread
 # elif defined(_MSC_VER)
@@ -64,13 +64,22 @@
 /* System Libraries */
 /********************/
 
-#include <time.h>
 #ifdef _WIN32
 # include <winsock2.h> //needed for amalgation
 # include <windows.h>
 # undef SLIST_ENTRY
+#endif
+
+#include <time.h>
+#ifdef _WIN32
+int gettimeofday(struct timeval *tp, struct timezone *tzp);
 #else
 # include <sys/time.h>
+#endif
+
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/clock.h>
+#include <mach/mach.h>
 #endif
 
 /*************************/
@@ -79,7 +88,7 @@
 
 #include "queue.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
 # include <urcu.h>
 # include <urcu/wfcqueue.h>

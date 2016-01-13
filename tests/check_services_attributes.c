@@ -12,7 +12,7 @@
 #include "ua_util.h"
 #include "server/ua_server_internal.h"
 
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #include <urcu.h>
 #endif
@@ -34,7 +34,20 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
+	
+    /* DataSource VariableNode */
+    UA_VariableAttributes_init(&vattr);
+    UA_DataSource temperatureDataSource = (UA_DataSource) {
+                                           .handle = NULL, .read = NULL, .write = NULL};
+    vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
+    vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
+    UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+					UA_QUALIFIEDNAME(1, "cpu temperature"),
+                                        UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
+
     
     /* VariableNode with array */
     UA_VariableAttributes_init(&vattr);
@@ -50,7 +63,7 @@ static UA_Server* makeTestSequence(void) {
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
@@ -62,7 +75,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Demo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr, NULL);
+                            obj_attr, NULL, NULL);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
@@ -72,9 +85,9 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL);
+                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
 
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
 	/* MethodNode */
     UA_MethodAttributes ma;
     UA_MethodAttributes_init(&ma);
@@ -538,7 +551,7 @@ START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -559,7 +572,7 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     UA_Server *server = makeTestSequence();
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -577,6 +590,57 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     UA_ReadRequest_deleteMembers(&rReq);
     UA_Server_delete(server);
 #endif
+} END_TEST
+
+START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST (ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
 /* Tests for writeValue method */
@@ -908,6 +972,20 @@ START_TEST(WriteSingleAttributeUserExecutable) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(WriteSingleDataSourceAttributeValue) {
+    UA_Server *server = makeTestSequence();
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 testValue = 0;
+    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.nodeId = UA_NODEID_STRING(1, "cpu.temperature");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    wValue.value.hasValue = UA_TRUE;
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+    UA_Server_delete(server);
+} END_TEST
+
 START_TEST(numericRange) {
     UA_NumericRange range;
     const UA_String str = (UA_String){9, (UA_Byte*)"1:2,0:3,5"};
@@ -950,6 +1028,9 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeHistorizingWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 
 	suite_add_tcase(s, tc_readSingleAttributes);
 
@@ -976,6 +1057,7 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
 	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
 	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
+	tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
 
 	suite_add_tcase(s, tc_writeSingleAttributes);
 

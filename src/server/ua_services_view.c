@@ -33,7 +33,7 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
     return retval;
 }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 static const UA_Node *
 returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
                            const UA_ReferenceNode *reference) {
@@ -109,7 +109,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
             return NULL;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     /* return the node from an external namespace*/
 	for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
 		if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
@@ -302,7 +302,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
                                                descr->resultMask, &result->references[referencesCount]);
             referencesCount++;
         }
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         /* relevant_node returns a node malloced with UA_ObjectNode_new
            if it is external (there is no UA_Node_new function) */
         if(isExternal == UA_TRUE)
@@ -350,8 +350,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         cp->maxReferences = maxrefs;
         cp->continuationIndex = referencesCount;
         UA_Guid *ident = UA_Guid_new();
-        UA_UInt32 seed = (uintptr_t)cp;
-        *ident = UA_Guid_random(&seed);
+        *ident = UA_Guid_random();
         cp->identifier.data = (UA_Byte*)ident;
         cp->identifier.length = sizeof(UA_Guid);
         UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
@@ -385,7 +384,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
     response->resultsSize = size;
     
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
@@ -412,11 +411,28 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
 #endif
 
     for(size_t i = 0; i < size; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
             Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
                                   request->requestedMaxReferencesPerNode, &response->results[i]);
+    }
+}
+
+void
+UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
+                            const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
+    result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
+    struct ContinuationPointEntry *cp, *temp;
+    LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
+        if(UA_ByteString_equal(&cp->identifier, continuationPoint)) {
+            result->statusCode = UA_STATUSCODE_GOOD;
+            if(!releaseContinuationPoint)
+                Service_Browse_single(server, session, cp, NULL, 0, result);
+            else
+                removeCp(cp, session);
+            break;
+        }
     }
 }
 
@@ -437,20 +453,9 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
    }
 
    response->resultsSize = size;
-   for(size_t i = 0; i < size; i++) {
-       response->results[i].statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
-       struct ContinuationPointEntry *cp, *temp;
-       LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
-           if(UA_ByteString_equal(&cp->identifier, &request->continuationPoints[i])) {
-               response->results[i].statusCode = UA_STATUSCODE_GOOD;
-               if(!request->releaseContinuationPoints)
-                   Service_Browse_single(server, session, cp, NULL, 0, &response->results[i]);
-               else
-                   removeCp(cp, session);
-               break;
-           }
-       }
-   }
+   for(size_t i = 0; i < size; i++)
+       UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
+                                   &request->continuationPoints[i], &response->results[i]);
 }
 
 /***********************/
@@ -579,7 +584,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
         return;
     }
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
@@ -607,7 +612,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 
     response->resultsSize = size;
     for(size_t i = 0; i < size; i++) {
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     	if(!isExternal[i])
 #endif
     		Service_TranslateBrowsePathsToNodeIds_single(server, session, &request->browsePaths[i],

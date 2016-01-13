@@ -316,7 +316,6 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     UA_Boolean samplingError = UA_TRUE; 
     UA_DataValue sourceDataValue;
     UA_DataValue_init(&sourceDataValue);
-    const UA_VariableNode *srcAsVariableNode = (const UA_VariableNode*)src;
   
     // FIXME: Not all attributeIDs can be monitored yet
     switch(attributeID) {
@@ -368,17 +367,18 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     case UA_ATTRIBUTEID_VALUE: 
         if(src->nodeClass == UA_NODECLASS_VARIABLE) {
             const UA_VariableNode *vsrc = (const UA_VariableNode*)src;
-            if(srcAsVariableNode->valueSource == UA_VALUESOURCE_VARIANT) {
+            if(vsrc->valueSource == UA_VALUESOURCE_VARIANT) {
+                if(vsrc->value.variant.callback.onRead)
+                    vsrc->value.variant.callback.onRead(vsrc->value.variant.callback.handle, vsrc->nodeId,
+                                                        &dst->value, NULL);
                 UA_Variant_copy(&vsrc->value.variant.value, &dst->value);
                 dst->hasValue = UA_TRUE;
-                //no onRead callback here since triggered by a subscription
                 samplingError = UA_FALSE;
             } else {
-                if(srcAsVariableNode->valueSource != UA_VALUESOURCE_DATASOURCE)
+                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE || vsrc->value.dataSource.read == NULL)
                     break;
-                // todo: handle numeric ranges
-                if(srcAsVariableNode->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE, NULL,
-                                                            &sourceDataValue) != UA_STATUSCODE_GOOD)
+                if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE,
+                                               NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
                 if(sourceDataValue.value.data) {
@@ -470,6 +470,9 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
     UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
+    newValueAsByteString.length = encodingOffset;
+
     if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_deleteMembers(&newValueAsByteString);
   

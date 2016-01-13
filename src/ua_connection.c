@@ -130,7 +130,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
 }
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     UA_SecureChannel *channel = connection->channel;
     if(channel)
         uatomic_cmpxchg(&channel->connection, connection, NULL);
@@ -143,7 +143,7 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 }
 
 void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
         uatomic_set(&connection->channel, channel);
 #else

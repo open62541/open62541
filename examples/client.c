@@ -21,7 +21,7 @@ static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
     
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
     UA_UInt32 subId;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     // Take another look at the.answer... this should call the handler.
     UA_Client_Subscriptions_manuallySendPublishRequest(client);
     
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
         printf("Subscription removed\n");
 #endif
     
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
        FIXME: Provide a namespace 0 independant example on the server side
      */
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
 
 #endif
 
-#ifdef ENABLE_NODEMANAGEMENT 
+#ifdef UA_ENABLE_NODEMANAGEMENT 
     /* New ReferenceType */
     UA_NodeId ref_id;
     UA_ReferenceTypeAttributes ref_attr;

@@ -8,7 +8,7 @@
 
 #define MAXCONTINUATIONPOINTS 5
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "server/ua_subscription_manager.h"
 #endif
 
@@ -36,7 +36,7 @@ struct UA_Session {
     UA_UInt32         maxResponseMessageSize;
     UA_Int64          timeout; // [ms]
     UA_DateTime       validTill;
-    #ifdef ENABLE_SUBSCRIPTIONS
+    #ifdef UA_ENABLE_SUBSCRIPTIONS
         UA_SubscriptionManager subscriptionManager;
     #endif
     UA_SecureChannel *channel;

@@ -16,34 +16,7 @@ void SubscriptionManager_init(UA_Session *session) {
     manager->globalQueueSize = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
     LIST_INIT(&manager->serverSubscriptions);
     manager->lastSessionID = (UA_UInt32) UA_DateTime_now();
-    
-    // Initialize a GUID with a 2^64 time dependant part, then fold the time in on itself to provide a more randomish
-    // Counter
-    // NOTE: On a 32 bit plattform, assigning 64 bit (2 regs) is allowed by the compiler, but shifting though multiple
-    //       regs is usually not. To support both 32 and 64bit, the struct splits the 64Bit timestamp into two parts.
-    typedef union {
-        struct {
-            UA_UInt32 ui32h;
-            UA_UInt32 ui32l;
-        } individual;
-        UA_UInt64 ui64;
-    } guidInit;
-    guidInit guidInitH;
-    guidInitH.ui64 = (UA_UInt64) UA_DateTime_now();
-    manager->lastJobGuid.data1 = guidInitH.individual.ui32h;
-    manager->lastJobGuid.data2 = (UA_UInt16) (guidInitH.individual.ui32l >> 16);
-    manager->lastJobGuid.data3 = (UA_UInt16) (guidInitH.individual.ui32l);
-
-    guidInit guidInitL;
-    guidInitL.ui64 = (UA_UInt64) UA_DateTime_now();
-    manager->lastJobGuid.data4[0] = (UA_Byte) guidInitL.individual.ui32l;
-    manager->lastJobGuid.data4[1] = (UA_Byte) (guidInitL.individual.ui32l >> 8);
-    manager->lastJobGuid.data4[2] = (UA_Byte) (guidInitL.individual.ui32l >> 16);
-    manager->lastJobGuid.data4[3] = (UA_Byte) (guidInitL.individual.ui32l >> 24);
-    manager->lastJobGuid.data4[4] = (UA_Byte) (manager->lastJobGuid.data4[0]) ^ (guidInitL.individual.ui32h);
-    manager->lastJobGuid.data4[5] = (UA_Byte) (manager->lastJobGuid.data4[0]) ^ (guidInitL.individual.ui32h >> 8);
-    manager->lastJobGuid.data4[6] = (UA_Byte) (manager->lastJobGuid.data4[1]) ^ (guidInitL.individual.ui32h >> 16);
-    manager->lastJobGuid.data4[7] = (UA_Byte) (manager->lastJobGuid.data4[0]) ^ (guidInitL.individual.ui32h >> 24);
+    manager->lastJobGuid = UA_Guid_random();
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server) {

@@ -99,7 +99,7 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
     */
 
     /* anonymous login */
-    if(server->config.Login_enableAnonymous &&
+    if(server->config.enableAnonymousLogin &&
        request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
         const UA_AnonymousIdentityToken *token = request->userIdentityToken.content.decoded.data;
         if(token->policyId.data && !UA_String_equal(&token->policyId, &ap)) {
@@ -115,7 +115,7 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
     }
 
     /* username login */
-    if(server->config.Login_enableUsernamePassword &&
+    if(server->config.enableUsernamePasswordLogin &&
        request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *token = request->userIdentityToken.content.decoded.data;
         if(!UA_String_equal(&token->policyId, &up)) {
@@ -128,10 +128,10 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
             return;
         }
         /* ok, trying to match the username */
-        for(size_t i = 0; i < server->config.Login_loginsCount; ++i) {
-            UA_String user = UA_STRING(server->config.Login_usernames[i]);
-            UA_String pw = UA_STRING(server->config.Login_passwords[i]);
-            if(!UA_String_equal(&token->userName, &user) || !UA_String_equal(&token->password, &pw))
+        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
+            UA_String *user = &server->config.usernamePasswordLogins[i].username;
+            UA_String *pw = &server->config.usernamePasswordLogins[i].password;
+            if(!UA_String_equal(&token->userName, user) || !UA_String_equal(&token->password, pw))
                 continue;
             /* success - activate */
             if(foundSession->channel && foundSession->channel != channel)

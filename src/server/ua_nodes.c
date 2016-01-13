@@ -328,7 +328,7 @@ UA_MethodNode * UA_MethodNode_new(void) {
 }
 
 void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     p->attachedMethod = NULL;
 #endif
     UA_Node_deleteMembers((UA_Node*)p);
@@ -336,7 +336,7 @@ void UA_MethodNode_deleteMembers(UA_MethodNode *p) {
 
 void UA_MethodNode_delete(UA_MethodNode *p) {
     UA_MethodNode_deleteMembers(p);
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     p->methodHandle   = NULL;
     p->attachedMethod = NULL;
 #endif
@@ -349,7 +349,7 @@ UA_StatusCode UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
         return retval;
     dst->executable = src->executable;
     dst->userExecutable = src->userExecutable;
-#ifdef ENABLE_METHODCALLS
+#ifdef UA_ENABLE_METHODCALLS
     dst->methodHandle  = src->methodHandle;
     dst->attachedMethod = src->attachedMethod;
 #endif

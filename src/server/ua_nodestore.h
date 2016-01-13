@@ -26,7 +26,7 @@
  */
 
 /* For multithreading, nodes in the nodestore are immutable */
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
 # define UA_MT_CONST const
 #else
 # define UA_MT_CONST

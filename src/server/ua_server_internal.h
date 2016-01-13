@@ -8,15 +8,14 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription_manager.h"
 #endif
 
-#define PRODUCT_URI "http://open62541.org"
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
@@ -26,25 +25,24 @@ typedef struct UA_ExternalNamespace {
 } UA_ExternalNamespace;
 #endif
 
-struct UA_Server {
-    /* Config */
-    UA_ServerConfig config;
-    UA_Logger logger;
-    UA_UInt32 random_seed;
+#ifdef UA_ENABLE_MULTITHREADING
+typedef struct {
+    UA_Server *server;
+    pthread_t thr;
+    UA_UInt32 counter;
+    volatile UA_Boolean running;
+    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
+                 sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
+} UA_Worker;
+#endif
 
+struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
-    UA_DateTime buildDate;
-    UA_ApplicationDescription description;
     size_t endpointDescriptionsSize;
     UA_EndpointDescription *endpointDescriptions;
 
-    /* Communication */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer **networkLayers;
-
     /* Security */
-    UA_ByteString serverCertificate;
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
@@ -53,7 +51,7 @@ struct UA_Server {
     size_t namespacesSize;
     UA_String *namespaces;
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 #endif
@@ -61,23 +59,20 @@ struct UA_Server {
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
     
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
 	struct cds_wfcq_head dispatchQueue_head;
-
-    UA_Boolean *running;
-    UA_UInt16 nThreads;
-    UA_UInt32 **workerCounters;
-    pthread_t *thr;
-
+    UA_Worker *workers; /* there are nThread workers in a running server */
     struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
-
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-    /* Dispatch queue tail for the worker threads */
-	struct cds_wfcq_tail dispatchQueue_tail;
+	struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
+
+    /* Config is the last element so that MSVC allows the usernamePasswordLogins
+       field with zero-sized array */
+    UA_ServerConfig config;
 };
 
 /* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */

@@ -6,20 +6,50 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
+#ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
 #endif
 
-const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
-    .Login_enableAnonymous = UA_TRUE,
-    .Login_enableUsernamePassword = UA_TRUE,
-    .Login_usernames = (char *[]){"user1","user2"},
-    .Login_passwords = (char *[]){"password","password1"},
-    .Login_loginsCount = 2,
-    .Application_applicationURI = "urn:unconfigured:open62541:open62541Server",
-    .Application_applicationName = "open62541" };
+#define MANUFACTURER_NAME "open62541"
+#define PRODUCT_NAME "open62541 OPC UA Server"
+#define PRODUCT_URI "urn:unconfigured:open62541"
+#define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
+#define UA_STRING_STATIC_NULL {0, NULL}
 
-#if defined(UA_MULTITHREADING) && !defined(NDEBUG)
+const UA_ServerConfig UA_ServerConfig_standard = {
+    .nThreads = 1,
+    .logger = NULL,
+
+    .buildInfo = {
+        .productUri = UA_STRING_STATIC(PRODUCT_URI),
+        .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
+        .productName = UA_STRING_STATIC(PRODUCT_NAME),
+        .softwareVersion = UA_STRING_STATIC("0"),
+        .buildNumber = UA_STRING_STATIC("0"),
+        .buildDate = 0},
+    .applicationDescription = {
+        .applicationUri = UA_STRING_STATIC("urn:unconfigured:application"),
+        .productUri = UA_STRING_STATIC("urn:unconfigured:product"),
+        .applicationName = { .locale = UA_STRING_STATIC(""), .text = UA_STRING_STATIC("open62541Server") },
+        .applicationType = UA_APPLICATIONTYPE_SERVER,
+        .gatewayServerUri = UA_STRING_STATIC_NULL,
+        .discoveryProfileUri = UA_STRING_STATIC_NULL,
+        .discoveryUrlsSize = 0,
+        .discoveryUrls = NULL
+    },
+    .serverCertificate = UA_STRING_STATIC_NULL,
+
+    .networkLayersSize = 0, .networkLayers = NULL,
+
+    .enableAnonymousLogin = UA_TRUE,
+    .enableUsernamePasswordLogin = UA_TRUE,
+    .usernamePasswordLogins =
+    { { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
+      { UA_STRING_STATIC("uset2"), UA_STRING_STATIC("password1") } },
+    .usernamePasswordLoginsSize = 2
+};
+
+#if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = UA_FALSE;
 #endif
 
@@ -44,7 +74,7 @@ static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
                .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
     .namespaceUri = {.length = -1, .data = NULL}, .serverIndex = 0};
 
-#ifndef ENABLE_GENERATE_NAMESPACE0
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
         .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
         .identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES};
@@ -54,7 +84,7 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
@@ -96,7 +126,7 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
     server->externalNamespacesSize++;
     return UA_STATUSCODE_GOOD;
 }
-#endif /* UA_EXTERNAL_NAMESPACES*/
+#endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     server->namespaces = UA_realloc(server->namespaces,
@@ -106,8 +136,8 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     return (UA_UInt16)server->namespacesSize - 1;
 }
 
-UA_StatusCode UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
-                                   UA_Boolean deleteReferences) {
+UA_StatusCode
+UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
     UA_RCU_LOCK();
     UA_StatusCode retval = Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
     UA_RCU_UNLOCK();
@@ -192,7 +222,8 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                    const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+                    const UA_DataType *attributeType, 
+                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.parentNodeId.nodeId = parentNodeId;
@@ -206,7 +237,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
-    Service_AddNodes_single(server, &adminSession, &item, &result);
+    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback);
     UA_RCU_UNLOCK();
 
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
@@ -214,48 +245,6 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     else
         UA_AddNodesResult_deleteMembers(&result);
     return result.statusCode;
-}
-
-/*****************/
-/* Configuration */
-/*****************/
-
-void UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer) {
-    UA_ServerNetworkLayer **newlayers =
-        UA_realloc(server->networkLayers, sizeof(void*)*(server->networkLayersSize+1));
-    if(!newlayers) {
-        UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Networklayer added");
-        return;
-    }
-    server->networkLayers = newlayers;
-    server->networkLayers[server->networkLayersSize] = networkLayer;
-    server->networkLayersSize++;
-
-    UA_String* newUrls = UA_realloc(server->description.discoveryUrls,
-                                    sizeof(UA_String)*(server->description.discoveryUrlsSize+1));
-    if(!newUrls) {
-        UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Adding discoveryUrl");
-        return;
-    }
-    server->description.discoveryUrls = newUrls;
-    UA_String_copy(&networkLayer->discoveryUrl,
-                   &server->description.discoveryUrls[server->description.discoveryUrlsSize]);
-    server->description.discoveryUrlsSize++;
-    for(size_t i = 0; i < server->endpointDescriptionsSize; i++) {
-        if(!server->endpointDescriptions[i].endpointUrl.data)
-            UA_String_copy(&networkLayer->discoveryUrl,
-                           &server->endpointDescriptions[i].endpointUrl);
-    }
-}
-
-void UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate) {
-    for(size_t i = 0; i < server->endpointDescriptionsSize; i++)
-        UA_ByteString_copy(&certificate,
-                           &server->endpointDescriptions[i].serverCertificate);
-}
-
-void UA_Server_setLogger(UA_Server *server, UA_Logger logger) {
-    server->logger = logger;
 }
 
 /**********/
@@ -269,29 +258,18 @@ void UA_Server_delete(UA_Server *server) {
     UA_Server_deleteAllRepeatedJobs(server);
 
     // Delete all internal data
-    UA_ApplicationDescription_deleteMembers(&server->description);
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager, server);
     UA_NodeStore_delete(server->nodestore);
-#ifdef UA_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
 #endif
-    UA_ByteString_deleteMembers(&server->serverCertificate);
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
-    // Delete the network layers
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_String_deleteMembers(&server->networkLayers[i]->discoveryUrl);
-        server->networkLayers[i]->deleteMembers(server->networkLayers[i]);
-        UA_free(server->networkLayers[i]);
-    }
-    UA_free(server->networkLayers);
-
     UA_RCU_UNLOCK();
-#ifdef UA_MULTITHREADING
-    /* so the workers don't spin if the queue is empty */
+#ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
    	rcu_unregister_thread();
@@ -304,22 +282,6 @@ static void UA_Server_cleanup(UA_Server *server, void *nothing) {
     UA_DateTime now = UA_DateTime_now();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, server, now);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
-}
-
-#define MANUFACTURER_NAME "open62541"
-#define PRODUCT_NAME "open62541 OPC UA Server"
-#define STRINGIFY(x) #x //some magic
-#define TOSTRING(x) STRINGIFY(x) //some magic
-#define SOFTWARE_VERSION TOSTRING(VERSION)
-#define BUILD_NUMBER "0"
-
-static void getBuildInfo(const UA_Server* server, UA_BuildInfo *buildInfo) {
-    buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
-    buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
-    buildInfo->softwareVersion = UA_STRING_ALLOC(SOFTWARE_VERSION);
-    buildInfo->buildNumber = UA_STRING_ALLOC(BUILD_NUMBER);
-    buildInfo->buildDate = server->buildDate;
 }
 
 static UA_StatusCode
@@ -336,7 +298,6 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     status->startTime = server->startTime;
     status->currentTime = UA_DateTime_now();
     status->state = UA_SERVERSTATE_RUNNING;
-    getBuildInfo(server, &status->buildInfo);
     status->secondsTillShutdown = 0;
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
@@ -444,16 +405,15 @@ addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletyp
     addNodeInternal(server, (UA_Node*)variabletype, UA_NODEID_NUMERIC(0, parent), nodeIdHasSubType);
 }
 
-UA_Server * UA_Server_new(UA_ServerConfig config) {
+UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Server *server = UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    //FIXME: config contains strings, for now its okay, but consider copying them aswell
     server->config = config;
 
     LIST_INIT(&server->repeatedJobs);
-#ifdef UA_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
    	rcu_register_thread();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -461,65 +421,54 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_RCU_LOCK();
 #endif
 
-    // random seed
-    server->random_seed = (UA_UInt32)UA_DateTime_now();
-
-    // mockup application description
-    UA_ApplicationDescription_init(&server->description);
-    server->description.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    server->description.applicationUri = UA_STRING_ALLOC(server->config.Application_applicationURI);
-
-    server->description.applicationName =
-        UA_LOCALIZEDTEXT_ALLOC("en_US", server->config.Application_applicationName);
-    server->description.applicationType = UA_APPLICATIONTYPE_SERVER;
+    /* uncomment for non-reproducible server runs */
+    //UA_random_seed(UA_DateTime_now());
 
     /* ns0 and ns1 */
     server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->description.applicationUri, &server->namespaces[1]);
+    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
 
-    UA_EndpointDescription *endpoint = UA_EndpointDescription_new(); // todo: check return code
-    if(endpoint) {
+    server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
+                                                &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    server->endpointDescriptionsSize = server->config.networkLayersSize;
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
         endpoint->securityPolicyUri =
             UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
         endpoint->transportProfileUri =
             UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-        int size = 0;
-        if(server->config.Login_enableAnonymous){
-            size++;
-        }
-        if(server->config.Login_enableUsernamePassword){
-            size++;
-        }
-        endpoint->userIdentityTokensSize = size;
-        endpoint->userIdentityTokens = UA_Array_new(size, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        size_t policies = 0;
+        if(server->config.enableAnonymousLogin)
+            policies++;
+        if(server->config.enableUsernamePasswordLogin)
+            policies++;
+        endpoint->userIdentityTokensSize = policies;
+        endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
-        int currentIndex = 0;
-        if(server->config.Login_enableAnonymous){
+        size_t currentIndex = 0;
+        if(server->config.enableAnonymousLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY); // defined per server
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
             currentIndex++;
         }
-
-        if(server->config.Login_enableUsernamePassword){
+        if(server->config.enableUsernamePasswordLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY); // defined per server
-            currentIndex++;
+            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
         }
 
         /* The standard says "the HostName specified in the Server Certificate is the
            same as the HostName contained in the endpointUrl provided in the
            EndpointDescription */
-        /* UA_String_copy(endpointUrl, &endpoint->endpointUrl); */
-        /* UA_String_copy(&server->serverCertificate, &endpoint->serverCertificate); */
-        UA_ApplicationDescription_copy(&server->description, &endpoint->server);
-        server->endpointDescriptions = endpoint;
-        server->endpointDescriptionsSize = 1;
+        UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
+        UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
+
+        UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
     } 
 
 #define MAXCHANNELCOUNT 100
@@ -545,46 +494,11 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     /**********************/
 
     server->startTime = UA_DateTime_now();
-    static struct tm ct;
-    ct.tm_year = (__DATE__[7] - '0') * 1000 + (__DATE__[8] - '0') * 100 +
-        (__DATE__[9] - '0') * 10 + (__DATE__[10] - '0')- 1900;
-
-    if(__DATE__[0]=='J' && __DATE__[1]=='a' && __DATE__[2]=='n') ct.tm_mon = 1-1;
-    else if(__DATE__[0]=='F' && __DATE__[1]=='e' && __DATE__[2]=='b') ct.tm_mon = 2-1;
-    else if(__DATE__[0]=='M' && __DATE__[1]=='a' && __DATE__[2]=='r') ct.tm_mon = 3-1;
-    else if(__DATE__[0]=='A' && __DATE__[1]=='p' && __DATE__[2]=='r') ct.tm_mon = 4-1;
-    else if(__DATE__[0]=='M' && __DATE__[1]=='a' && __DATE__[2]=='y') ct.tm_mon = 5-1;
-    else if(__DATE__[0]=='J' && __DATE__[1]=='u' && __DATE__[2]=='n') ct.tm_mon = 6-1;
-    else if(__DATE__[0]=='J' && __DATE__[1]=='u' && __DATE__[2]=='l') ct.tm_mon = 7-1;
-    else if(__DATE__[0]=='A' && __DATE__[1]=='u' && __DATE__[2]=='g') ct.tm_mon = 8-1;
-    else if(__DATE__[0]=='S' && __DATE__[1]=='e' && __DATE__[2]=='p') ct.tm_mon = 9-1;
-    else if(__DATE__[0]=='O' && __DATE__[1]=='c' && __DATE__[2]=='t') ct.tm_mon = 10-1;
-    else if(__DATE__[0]=='N' && __DATE__[1]=='o' && __DATE__[2]=='v') ct.tm_mon = 11-1;
-    else if(__DATE__[0]=='D' && __DATE__[1]=='e' && __DATE__[2]=='c') ct.tm_mon = 12-1;
-
-    // special case to handle __DATE__ not inserting leading zero on day of month
-    // if Day of month is less than 10 - it inserts a blank character
-    // this results in a negative number for tm_mday
-
-    if(__DATE__[4] == ' ')
-        ct.tm_mday = __DATE__[5]-'0';
-    else
-        ct.tm_mday = (__DATE__[4]-'0')*10 + (__DATE__[5]-'0');
-    ct.tm_hour = ((__TIME__[0] - '0') * 10 + __TIME__[1] - '0');
-    ct.tm_min = ((__TIME__[3] - '0') * 10 + __TIME__[4] - '0');
-    ct.tm_sec = ((__TIME__[6] - '0') * 10 + __TIME__[7] - '0');
-    ct.tm_isdst = -1; // information is not available.
-
-    //FIXME: next 3 lines are copy-pasted from ua_types.c
-#define UNIX_EPOCH_BIAS_SEC 11644473600LL // Number of seconds from 1 Jan. 1601 00:00 to 1 Jan 1970 00:00 UTC
-#define HUNDRED_NANOSEC_PER_USEC 10LL
-#define HUNDRED_NANOSEC_PER_SEC (HUNDRED_NANOSEC_PER_USEC * 1000000LL)
-    server->buildDate = (mktime(&ct) + UNIX_EPOCH_BIAS_SEC) * HUNDRED_NANOSEC_PER_SEC;
     
     /**************/
     /* References */
     /**************/
-#ifndef ENABLE_GENERATE_NAMESPACE0
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
     /* Bootstrap by manually inserting "references" and "hassubtype" */
     UA_ReferenceTypeNode *references = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)references, "References");
@@ -916,7 +830,7 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
                                 UA_NS0ID_BASEVARIABLETYPE, UA_FALSE);
 #endif
 
-#ifdef ENABLE_GENERATE_NAMESPACE0
+#ifdef UA_ENABLE_GENERATE_NAMESPACE0
     //load the generated namespace
     ua_namespaceinit_generated(server);
 #endif
@@ -948,11 +862,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *serverArray = UA_VariableNode_new();
     copyNames((UA_Node*)serverArray, "ServerArray");
     serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
-    serverArray->value.variant.value.data = UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-    serverArray->value.variant.value.arrayLength = 1;
-    serverArray->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
-    *(UA_String *)serverArray->value.variant.value.data =
-        UA_STRING_ALLOC(server->config.Application_applicationURI);
+    UA_Variant_setArrayCopy(&serverArray->value.variant.value,
+                            &server->config.applicationDescription.applicationUri, 1,
+                            &UA_TYPES[UA_TYPES_STRING]);
     serverArray->valueRank = 1;
     serverArray->minimumSamplingInterval = 1.0;
     addNodeInternal(server, (UA_Node*)serverArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty);
@@ -1000,13 +912,13 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_UInt16 profileArraySize = 0;
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NanoEmbeddedDevice");
 
-#ifdef ENABLE_SERVICESET_NODEMANAGEMENT
+#ifdef UA_ENABLE_SERVICESET_NODEMANAGEMENT
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
 #endif
-#ifdef ENABLE_SERVICESET_METHOD
+#ifdef UA_ENABLE_SERVICESET_METHOD
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/Methods");
 #endif
-#ifdef ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
 #endif
 
@@ -1092,9 +1004,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *buildinfo = UA_VariableNode_new();
     copyNames((UA_Node*)buildinfo, "BuildInfo");
     buildinfo->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
-    buildinfo->value.variant.value.data = UA_BuildInfo_new();
-    buildinfo->value.variant.value.type = &UA_TYPES[UA_TYPES_BUILDINFO];
-    getBuildInfo(server, (UA_BuildInfo*)buildinfo->value.variant.value.data);
+    UA_Variant_setScalarCopy(&buildinfo->value.variant.value,
+                             &server->config.buildInfo,
+                             &UA_TYPES[UA_TYPES_BUILDINFO]);
     addNodeInternal(server, (UA_Node*)buildinfo,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO),
@@ -1114,9 +1026,9 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *manufacturername = UA_VariableNode_new();
     copyNames((UA_Node*)manufacturername, "ManufacturererName");
     manufacturername->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME);
-    manufacturername->value.variant.value.data = UA_String_new();
-    *((UA_String*)manufacturername->value.variant.value.data) = UA_STRING_ALLOC(MANUFACTURER_NAME);
-    manufacturername->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
+    UA_Variant_setScalarCopy(&manufacturername->value.variant.value,
+                             &server->config.buildInfo.manufacturerName,
+                             &UA_TYPES[UA_TYPES_STRING]);
     addNodeInternal(server, (UA_Node*)manufacturername,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME),
@@ -1125,9 +1037,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *productname = UA_VariableNode_new();
     copyNames((UA_Node*)productname, "ProductName");
     productname->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME);
-    productname->value.variant.value.data = UA_String_new();
-    *((UA_String*)productname->value.variant.value.data) = UA_STRING_ALLOC(PRODUCT_NAME);
-    productname->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
+    UA_Variant_setScalarCopy(&productname->value.variant.value, &server->config.buildInfo.productName,
+                             &UA_TYPES[UA_TYPES_STRING]);
     addNodeInternal(server, (UA_Node*)productname,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME),
@@ -1136,9 +1047,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *softwareversion = UA_VariableNode_new();
     copyNames((UA_Node*)softwareversion, "SoftwareVersion");
     softwareversion->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION);
-    softwareversion->value.variant.value.data = UA_String_new();
-    *((UA_String*)softwareversion->value.variant.value.data) = UA_STRING_ALLOC(SOFTWARE_VERSION);
-    softwareversion->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
+    UA_Variant_setScalarCopy(&softwareversion->value.variant.value, &server->config.buildInfo.softwareVersion,
+                             &UA_TYPES[UA_TYPES_STRING]);
     addNodeInternal(server, (UA_Node*)softwareversion,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION),
@@ -1147,9 +1057,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *buildnumber = UA_VariableNode_new();
     copyNames((UA_Node*)buildnumber, "BuildNumber");
     buildnumber->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER);
-    buildnumber->value.variant.value.data = UA_String_new();
-    *((UA_String*)buildnumber->value.variant.value.data) = UA_STRING_ALLOC(BUILD_NUMBER);
-    buildnumber->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
+    UA_Variant_setScalarCopy(&buildnumber->value.variant.value, &server->config.buildInfo.buildNumber,
+                             &UA_TYPES[UA_TYPES_STRING]);
     addNodeInternal(server, (UA_Node*)buildnumber,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER),
@@ -1158,9 +1067,8 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
     UA_VariableNode *builddate = UA_VariableNode_new();
     copyNames((UA_Node*)builddate, "BuildDate");
     builddate->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE);
-    builddate->value.variant.value.storageType = UA_VARIANT_DATA_NODELETE;
-    builddate->value.variant.value.data = &server->buildDate;
-    builddate->value.variant.value.type = &UA_TYPES[UA_TYPES_DATETIME];
+    UA_Variant_setScalarCopy(&builddate->value.variant.value, &server->config.buildInfo.buildDate,
+                             &UA_TYPES[UA_TYPES_DATETIME]);
     addNodeInternal(server, (UA_Node*)builddate,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER),
@@ -1190,25 +1098,28 @@ UA_Server * UA_Server_new(UA_ServerConfig config) {
 }
 
 UA_StatusCode
-__UA_Server_writeAttribute(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_AttributeId attributeId, const UA_DataType *type,
-                             const void *value) {
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, const UA_DataType *type,
+                  const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = nodeId;
+    wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE)
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, type);
-    else
+    else {
+        if(type != &UA_TYPES[UA_TYPES_VARIANT])
+            return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;
+    }
     wvalue.value.hasValue = UA_TRUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
     return retval;
 }
 
-static UA_StatusCode setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node,
-                                      UA_ValueCallback *callback) {
+static UA_StatusCode
+setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_ValueCallback *callback) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->value.variant.callback = *callback;
@@ -1251,18 +1162,17 @@ setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_Obje
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                        UA_ObjectLifecycleManagement olm) {
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
 }
 
 UA_StatusCode
-__UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_AttributeId attributeId, void *v) {
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeId attributeId, void *v) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
-    item.nodeId = nodeId;
+    item.nodeId = *nodeId;
     item.attributeId = attributeId;
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -1277,7 +1187,8 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
         UA_DataValue_deleteMembers(&dv);
         return retval;
     }
-    if(attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
         memcpy(v, &dv.value, sizeof(UA_Variant));
     else {
         memcpy(v, dv.value.data, dv.value.type->memSize);
@@ -1287,3 +1198,30 @@ __UA_Server_readAttribute(UA_Server *server, const UA_NodeId nodeId,
     }
     return UA_STATUSCODE_GOOD;
 }
+
+UA_BrowseResult
+UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    Service_Browse_single(server, &adminSession, NULL, descr, maxrefs, &result);
+    return result;
+}
+
+UA_BrowseResult
+UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
+                     const UA_ByteString *continuationPoint) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    UA_Server_browseNext_single(server, &adminSession, releaseContinuationPoint,
+                                continuationPoint, &result);
+    return result;
+}
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    Service_Call_single(server, &adminSession, request, &result);
+    return result;
+}
+#endif
