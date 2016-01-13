@@ -224,8 +224,8 @@ typedef struct {
 } UA_ObjectLifecycleManagement;
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                        UA_ObjectLifecycleManagement olm);
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm);
 
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
    function for each child node */
