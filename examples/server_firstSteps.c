@@ -23,7 +23,7 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(16664);
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
     config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;

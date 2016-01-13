@@ -39,8 +39,6 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     },
     .serverCertificate = UA_STRING_STATIC_NULL,
 
-    .connectionConfig = {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
-                         .maxMessageSize = 65536, .maxChunkCount = 1},
     .networkLayersSize = 0, .networkLayers = NULL,
 
     .enableAnonymousLogin = UA_TRUE,

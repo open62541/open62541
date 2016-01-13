@@ -51,7 +51,7 @@ int main(int argc, char** argv)
 
     /* init the server */
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT, logger);
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
     config.logger = logger;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
