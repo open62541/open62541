@@ -7,6 +7,8 @@ project(open62541 C)
 ######################
 
 # Find Python and Python-lxml
+find_program(PYTHON_EXECUTABLE python # take the python version in the current environment PATH
+             PATHS ENV PATH NO_DEFAULT_PATH)
 find_package(PythonInterp REQUIRED)
 execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
                 OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
