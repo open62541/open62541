@@ -12,6 +12,7 @@ env:
 sudo: false
 install:
   - pip install --user coveralls
+  - pip install --user lxml
 #  - pip install sphinx
   - pip install --user sphinx_rtd_theme
 addons:
@@ -30,7 +31,6 @@ addons:
       - cmake
       - check
       - valgrind
-      - python-lxml
       - gcc-mingw-w64-i686
       - gcc-multilib
       - zip
