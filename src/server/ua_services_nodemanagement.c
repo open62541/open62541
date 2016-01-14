@@ -92,11 +92,14 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *variable,
                      const UA_NodeId *referenceType, const UA_NodeId *parent, UA_InstantiationCallback *instantiationCallback) {
-    const UA_VariableNode *node = (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, variable);
-    if(!node)
+    UA_VariableNode *node = UA_VariableNode_new();
+    const UA_VariableNode *storednode = (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, variable);
+    if(!storednode)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(node->nodeClass != UA_NODECLASS_VARIABLE)
+    if(storednode->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
+    
+    UA_VariableNode_copy(storednode, node);
     
     // copy the variable attributes
     UA_VariableAttributes attr;
@@ -148,6 +151,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
       instantiationCallback->method(res.addedNodeId, node->nodeId, instantiationCallback->handle);
     
     UA_AddNodesResult_deleteMembers(&res);
+    UA_VariableNode_delete(node);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -157,12 +161,14 @@ static UA_StatusCode
 copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *variable,
                    const UA_NodeId *referenceType, const UA_NodeId *parent, 
                    UA_InstantiationCallback *instantiationCallback) {
-    const UA_ObjectNode *node = (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, variable);
+    UA_ObjectNode *node = UA_ObjectNode_new();
+    const UA_ObjectNode *storednode = (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, variable);  
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
     if(node->nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-
+    UA_ObjectNode_copy(storednode, node);
+    
     // copy the variable attributes
     UA_ObjectAttributes attr;
     UA_ObjectAttributes_init(&attr);
@@ -205,6 +211,7 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
       instantiationCallback->method(res.addedNodeId, node->nodeId, instantiationCallback->handle);
     
     UA_AddNodesResult_deleteMembers(&res);
+    UA_ObjectNode_delete(node);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -220,11 +227,13 @@ static UA_StatusCode
 instantiateObjectNode(UA_Server *server, UA_Session *session,
                       const UA_NodeId *nodeId, const UA_NodeId *typeId, 
                       UA_InstantiationCallback *instantiationCallback) {   
-    const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
-    if(!type)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    if(type->nodeClass != UA_NODECLASS_OBJECTTYPE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
+    UA_ObjectTypeNode *type = UA_ObjectTypeNode_new();
+    const UA_ObjectTypeNode *storedtype = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
+    if(!storedtype)
+      return UA_STATUSCODE_BADNODEIDINVALID;
+    if(storedtype->nodeClass != UA_NODECLASS_OBJECTTYPE)
+      return UA_STATUSCODE_BADNODECLASSINVALID;
+    UA_ObjectTypeNode_copy(storedtype, type);
     
     /* Add all the child nodes */
     UA_BrowseDescription browseChildren;
@@ -274,6 +283,8 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     if(olm->constructor)
         UA_Server_editNode(server, session, nodeId,
                            (UA_EditNodeCallback)setObjectInstanceHandle, olm->constructor(*nodeId));
+    
+    UA_ObjectTypeNode_delete(type);
     return UA_STATUSCODE_GOOD;
 }
 
