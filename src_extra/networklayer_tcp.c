@@ -478,7 +478,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    ServerNetworkLayerTCP *layer = malloc(sizeof(ServerNetworkLayerTCP));
+    ServerNetworkLayerTCP *layer = calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
     
