@@ -95,7 +95,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         /* currently, only the client uses timeouts */
 #ifndef _WIN32
         UA_UInt32 timeout_usec = timeout * 1000;
-        struct timeval tmptv = {timeout_usec / 1000000, timeout_usec % 1000000};
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
 #else
         DWORD timeout_dw = timeout;
