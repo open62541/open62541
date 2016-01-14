@@ -16,21 +16,32 @@
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket(S)
 # define ssize_t long
+# define fd_set FD_SET
+# define fd_isset FD_ISSET
 #else
 # include <fcntl.h>
 # include <sys/select.h>
 # include <netinet/in.h>
-#ifndef __CYGWIN__
-    # include <netinet/tcp.h>
-#endif
+# ifndef __CYGWIN__
+#  include <netinet/tcp.h>
+# endif
 # include <sys/ioctl.h>
 # include <netdb.h> //gethostbyname for the client
 # include <unistd.h> // read, write, close
 # include <arpa/inet.h>
-#ifdef __QNX__
-#include <sys/socket.h>
-#endif
+# ifdef __QNX__
+#  include <sys/socket.h>
+# endif
 # define CLOSESOCKET(S) close(S)
+/* workaround a glibc bug where an integer conversion is required */
+# include <features.h>
+# if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
+# define fd_set(fd, fds) FD_SET(fd, fds)
+# define fd_isset(fd, fds) FD_ISSET(fd, fds)
+# else
+# define fd_set(fd, fds) FD_SET((unsigned long)fd, fds)
+# define fd_isset(fd, fds) FD_ISSET((unsigned long)fd, fds)
+# endif
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -222,10 +233,10 @@ ServerNetworkLayerReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *bu
 static UA_Int32
 setFDSet(ServerNetworkLayerTCP *layer, fd_set *fdset) {
     FD_ZERO(fdset);
-    FD_SET((UA_UInt32)layer->serversockfd, fdset);
+    fd_set(layer->serversockfd, fdset);
     UA_Int32 highestfd = layer->serversockfd;
     for(size_t i = 0; i < layer->mappingsSize; i++) {
-        FD_SET((UA_UInt32)layer->mappings[i].sockfd, fdset);
+        fd_set(layer->mappings[i].sockfd, fdset);
         if(layer->mappings[i].sockfd > highestfd)
             highestfd = layer->mappings[i].sockfd;
     }
@@ -356,7 +367,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     }
 
     /* accept new connections (can only be a single one) */
-    if(FD_ISSET(layer->serversockfd, &fdset)) {
+    if(fd_isset(layer->serversockfd, &fdset)) {
         resultsize--;
         struct sockaddr_in cli_addr;
         socklen_t cli_len = sizeof(cli_addr);
@@ -380,7 +391,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
     for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
-        if(!(FD_ISSET(layer->mappings[i].sockfd, &fdset)))
+        if(!fd_isset(layer->mappings[i].sockfd, &fdset))
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
