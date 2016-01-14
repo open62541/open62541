@@ -34,7 +34,7 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 	
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
@@ -63,7 +63,7 @@ static UA_Server* makeTestSequence(void) {
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
@@ -75,7 +75,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Demo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr, NULL);
+                            obj_attr, NULL, NULL);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
@@ -85,7 +85,7 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL);
+                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
 
 #ifdef UA_ENABLE_METHODCALLS
 	/* MethodNode */

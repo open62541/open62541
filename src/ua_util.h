@@ -77,6 +77,11 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp);
 # include <sys/time.h>
 #endif
 
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 /*************************/
 /* External Dependencies */
 /*************************/

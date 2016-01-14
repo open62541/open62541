@@ -137,7 +137,7 @@ class open62541_MacroHelper():
       code.append("       , typeDefinition")
     
     if nodetype != "Method":
-      code.append("       , attr, NULL);")
+      code.append("       , attr, NULL, NULL);")
     else:
       # FIXME:  Semantic of inputArgumentSize = -1 is used to signal the suppression of argument creation.
       #         This should be replaced with a properly generated struct for the arguments.

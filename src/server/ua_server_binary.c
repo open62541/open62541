@@ -328,7 +328,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(tokenId != channel->securityToken.tokenId) {
         if(tokenId != channel->nextSecurityToken.tokenId) {
             /* close the securechannel but keep the connection open */
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SECURECHANNEL,
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                         "Request with a wrong security token. Closing the SecureChannel %i.",
                         channel->securityToken.channelId);
             Service_CloseSecureChannel(server, channel->securityToken.channelId);
@@ -353,11 +353,12 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(!requestType) {
         /* The service is not supported */
         if(requestTypeId.identifier.numeric==787)
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Client requested a subscription that are not supported, "
                         "the message will be skipped");
         else
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Unknown request: NodeId(ns=%d, i=%d)",
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "Unknown request: NodeId(ns=%d, i=%d)",
                         requestTypeId.namespaceIndex, requestTypeId.identifier.numeric);
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
@@ -394,14 +395,16 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
     /* Test if the session is valid */
     if(!session->activated && requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST) {
-        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service with a non-activated session");
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Client tries to call a service with a non-activated session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(session == &anonymousSession &&
        requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
-        UA_LOG_INFO(server->logger, UA_LOGCATEGORY_SERVER, "Client tries to call a service without a session");
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Client tries to call a service without a session");
         sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         return;
     }
@@ -458,7 +461,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) {
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK, "Decoding of message header failed");
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding of message header failed");
             connection->close(connection);
             break;
         }
@@ -485,13 +488,13 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             connection->close(connection);
             return;
         default:
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "Unknown request type on Connection %i", connection->sockfd);
         }
 
         UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
         if(pos != targetpos) {
-            UA_LOG_INFO(server->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "Message on Connection %i was not entirely processed. "
                         "Arrived at position %i, skip after the announced length to position %i",
                         connection->sockfd, pos, targetpos);

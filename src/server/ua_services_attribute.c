@@ -335,7 +335,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
 
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing ReadRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     if(request->nodesToReadSize <= 0) {
@@ -693,7 +693,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
     UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing WriteRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 
