@@ -13,8 +13,11 @@ struct UA_NodeStore {
 
 #include "ua_nodestore_hash.inc"
 
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+
 static void deleteEntry(struct rcu_head *head) {
-    struct nodeEntry *entry = caa_container_of(head, struct nodeEntry, rcu_head);
+    struct nodeEntry *entry = container_of(head, struct nodeEntry, rcu_head);
     switch(entry->node.nodeClass) {
     case UA_NODECLASS_OBJECT:
         UA_ObjectNode_deleteMembers((UA_ObjectNode*)&entry->node);

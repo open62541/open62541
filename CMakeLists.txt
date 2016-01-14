@@ -59,8 +59,7 @@ list(APPEND open62541_LIBRARIES "")
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -march=native -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
-                    -Wmultichar -Wstrict-overflow=4 -Wtrampolines
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
+                    -Wmultichar -Wstrict-overflow=4 -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
                     -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
 
   # library linking

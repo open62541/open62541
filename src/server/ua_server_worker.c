@@ -499,6 +499,12 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         dw = dw->next;
     }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         processJobs(server, dw->jobs, dw->jobsCount);
@@ -507,6 +513,10 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         UA_free(dw->workerCounters);
         dw = next;
     }
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 #endif
