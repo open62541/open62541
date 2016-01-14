@@ -60,13 +60,13 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -march=native -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
                     -Wmultichar -Wstrict-overflow=4 -Wtrampolines
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes -Wshadow
+                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
                     -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
 
   # library linking
   set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
   if(NOT WIN32 AND NOT CYGWIN)
-	add_definitions(-Wconversion -fvisibility=hidden -fPIC)
+	add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     if(NOT APPLE)
       set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()

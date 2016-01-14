@@ -35,7 +35,7 @@ extern "C" {
 /* Builtin Type Definitions */
 /****************************/
 
-#define UA_BUILTIN_TYPES_COUNT 25
+#define UA_BUILTIN_TYPES_COUNT 25U
 
 /** Boolean: A two-state logical value (true or false) */
 typedef bool UA_Boolean;

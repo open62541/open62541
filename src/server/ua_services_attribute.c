@@ -46,14 +46,14 @@ readDimension(UA_Byte *buf, size_t buflen, struct UA_NumericRangeDimension *dim)
 static
 #endif
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
-    size_t index = 0;
+    size_t idx = 0;
     size_t dimensionsMax = 0;
     struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t pos = 0;
     do {
         /* alloc dimensions */
-        if(index >= dimensionsMax) {
+        if(idx >= dimensionsMax) {
             struct UA_NumericRangeDimension *newds;
             newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
             if(!newds) {
@@ -65,22 +65,22 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         }
 
         /* read the dimension */
-        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[index]);
+        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[idx]);
         if(progress == 0) {
-            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
+            retval = UA_STATUSCODE_BADIDXRANGEINVALID;
             break;
         }
         pos += progress;
-        index++;
+        idx++;
 
         /* loop into the next dimension */
         if(pos >= str->length)
             break;
     } while(str->data[pos] == ',' && pos++);
 
-    if(retval == UA_STATUSCODE_GOOD && index > 0) {
+    if(retval == UA_STATUSCODE_GOOD && idx > 0) {
         range->dimensions = dimensions;
-        range->dimensionsSize = index;
+        range->dimensionsSize = idx;
     } else
         UA_free(dimensions);
 
