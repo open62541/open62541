@@ -535,27 +535,29 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     const UA_Variant *newV = &wvalue->value.value;
     UA_Variant *oldV = &node->value.variant.value;
     UA_Variant cast_v;
-    if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
-        cast_v = wvalue->value.value;
-        newV = &cast_v;
-        enum type_equivalence te1 = typeEquivalence(oldV->type);
-        enum type_equivalence te2 = typeEquivalence(newV->type);
-        if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
-            /* An enum was sent as an int32, or an opaque type as a bytestring. This is
-               detected with the typeIndex indicated the "true" datatype. */
-            cast_v.type = oldV->type;
-        } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
-                  newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
-            /* a string is written to a byte array */
-            UA_ByteString *str = (UA_ByteString*) newV->data;
-            cast_v.arrayLength = str->length;
-            cast_v.data = str->data;
-            cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
-        } else {
-            if(rangeptr)
-                UA_free(range.dimensions);
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
+    if (oldV->type != NULL) { // Don't run NodeId_equal on a NULL pointer (happens if the variable never held a variant)
+      if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
+          cast_v = wvalue->value.value;
+          newV = &cast_v;
+          enum type_equivalence te1 = typeEquivalence(oldV->type);
+          enum type_equivalence te2 = typeEquivalence(newV->type);
+          if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+              /* An enum was sent as an int32, or an opaque type as a bytestring. This is
+                detected with the typeIndex indicated the "true" datatype. */
+              cast_v.type = oldV->type;
+          } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
+                    newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
+              /* a string is written to a byte array */
+              UA_ByteString *str = (UA_ByteString*) newV->data;
+              cast_v.arrayLength = str->length;
+              cast_v.data = str->data;
+              cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
+          } else {
+              if(rangeptr)
+                  UA_free(range.dimensions);
+              return UA_STATUSCODE_BADTYPEMISMATCH;
+          }
+      }
     }
     
     if(!rangeptr) {
