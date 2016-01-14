@@ -10,10 +10,10 @@ env:
   - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
   - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
 sudo: false
+virtualenv:
+    system_site_packages: true
 install:
   - pip install --user coveralls
-  - pip install --user lxml
-#  - pip install sphinx
   - pip install --user sphinx_rtd_theme
 addons:
   coverity_scan:
@@ -31,6 +31,7 @@ addons:
       - cmake
       - check
       - valgrind
+      - python-lxml
       - gcc-mingw-w64-i686
       - gcc-multilib
       - zip
@@ -43,10 +44,10 @@ matrix:
       compiler: gcc
 before_install:
 #- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
+#- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
 script:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_script.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_script.sh; fi
+#- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_script.sh; fi
 after_success:
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_doc.sh; fi
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_coverity.sh; fi
