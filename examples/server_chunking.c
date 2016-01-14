@@ -214,12 +214,13 @@ int main(int argc, char** argv) {
     pthread_rwlock_init(&writeLock, 0);
 #endif
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
-    UA_ByteString certificate = loadCertificate();
-    UA_Server_setServerCertificate(server, certificate);
-    UA_ByteString_deleteMembers(&certificate);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+    UA_ServerConfig config = UA_ServerConfig_standard;
+        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+        config.serverCertificate = loadCertificate();
+        config.logger = Logger_Stdout;
+        config.networkLayers = &nl;
+        config.networkLayersSize = 1;
+        UA_Server *server = UA_Server_new(config);
 
     // add node with the datetime data source
     UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
@@ -296,7 +297,7 @@ int main(int argc, char** argv) {
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
-                              myIntegerName, UA_NODEID_NULL, myVar, NULL);
+                              myIntegerName, UA_NODEID_NULL, myVar, NULL,NULL);
     UA_Variant_deleteMembers(&myVar.value);
 
     //add a static variable node with a big string value
@@ -319,7 +320,7 @@ int main(int argc, char** argv) {
     UA_NodeId parNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myStringNodeId, parNodeId, parReferenceNodeId,
-            myStringName, UA_NODEID_NULL, myStringVar, NULL);
+            myStringName, UA_NODEID_NULL, myStringVar, NULL,NULL);
     UA_Variant_deleteMembers(&myStringVar.value);
     UA_String_deleteMembers(&myString);
     /**************/
@@ -334,7 +335,7 @@ int main(int argc, char** argv) {
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Demo"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL,NULL);
 
 #define SCALARID 50001
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Scalar");
@@ -342,7 +343,7 @@ int main(int argc, char** argv) {
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID),
                             UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Scalar"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL,NULL);
 
 #define ARRAYID 50002
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Array");
@@ -350,14 +351,14 @@ int main(int argc, char** argv) {
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID),
                             UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Array"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL,NULL);
 
 #define MATRIXID 50003
     object_attr.description = UA_LOCALIZEDTEXT("en_US","Matrix");
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Matrix");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL);
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL,NULL);
 
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
@@ -377,7 +378,7 @@ int main(int argc, char** argv) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  qualifiedName, UA_NODEID_NULL, attr, NULL);
+                                  qualifiedName, UA_NODEID_NULL, attr, NULL,NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an array node for every built-in type */
@@ -386,7 +387,7 @@ int main(int argc, char** argv) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  qualifiedName, UA_NODEID_NULL, attr, NULL);
+                                  qualifiedName, UA_NODEID_NULL, attr, NULL,NULL);
         UA_Variant_deleteMembers(&attr.value);
 
         /* add an matrix node for every built-in type */
@@ -401,7 +402,7 @@ int main(int argc, char** argv) {
         UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, MATRIXID),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                  qualifiedName, UA_NODEID_NULL, attr, NULL);
+                                  qualifiedName, UA_NODEID_NULL, attr, NULL,NULL);
         UA_Variant_deleteMembers(&attr.value);
     }
 
@@ -448,7 +449,7 @@ int main(int argc, char** argv) {
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
 
     //start server
-    UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
+    UA_StatusCode retval = UA_Server_run(server, &running); //blocks until running=false
 
     //ctrl-c received -> clean up
     UA_Server_delete(server);
