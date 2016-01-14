@@ -32,7 +32,9 @@ addons:
       - check
       - valgrind
       - python-lxml
+      - binutils-mingw-w64-i686
       - gcc-mingw-w64-i686
+      - mingw-w64
       - gcc-multilib
       - zip
       - liburcu4
