@@ -14,7 +14,7 @@
 #endif
 
 UA_Boolean running = UA_TRUE;
-static void stopHandler(int signal) {
+static void stopHandler(int sig) {
     running = UA_FALSE;
 }
 

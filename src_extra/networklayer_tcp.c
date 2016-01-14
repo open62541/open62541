@@ -15,6 +15,7 @@
 # include <winsock2.h>
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket(S)
+# define ssize_t long
 #else
 # include <fcntl.h>
 # include <sys/select.h>
