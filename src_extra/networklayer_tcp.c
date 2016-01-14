@@ -36,11 +36,11 @@
 /* workaround a glibc bug where an integer conversion is required */
 # include <features.h>
 # if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
-# define fd_set(fd, fds) FD_SET(fd, fds)
-# define fd_isset(fd, fds) FD_ISSET(fd, fds)
+#  define fd_set(fd, fds) FD_SET(fd, fds)
+#  define fd_isset(fd, fds) FD_ISSET(fd, fds)
 # else
-# define fd_set(fd, fds) FD_SET((unsigned long)fd, fds)
-# define fd_isset(fd, fds) FD_ISSET((unsigned long)fd, fds)
+#  define fd_set(fd, fds) FD_SET((unsigned long)fd, fds)
+#  define fd_isset(fd, fds) FD_ISSET((unsigned long)fd, fds)
 # endif
 #endif
 
