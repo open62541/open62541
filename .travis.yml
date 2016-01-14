@@ -11,9 +11,9 @@ env:
   - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
 sudo: false
 install:
-  - pip install coveralls
-  - pip install sphinx
-  - pip install sphinx_rtd_theme
+  - pip install --user coveralls
+#  - pip install sphinx
+  - pip install --user sphinx_rtd_theme
 addons:
   coverity_scan:
     project:
