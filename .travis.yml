@@ -27,6 +27,7 @@ addons:
   apt:
     sources:
       - lttng
+      - kalakris/cmake
     packages:
       - cmake
       - check
