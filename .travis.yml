@@ -4,12 +4,16 @@ compiler:
 #- clang
 os:
 - linux
-- osx
-sudo: true
+#- osx
 env:
   global:
   - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
   - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
+sudo: false
+install:
+  - pip install coveralls
+  - pip install sphinx
+  - pip install sphinx_rtd_theme
 addons:
   coverity_scan:
     project:
@@ -19,13 +23,25 @@ addons:
     build_command_prepend: mkdir build && cd build && cmake ..
     build_command: make
     branch_pattern: coverity_scan
+  apt:
+    sources:
+      - lttng
+    packages:
+      - cmake
+      - check
+      - valgrind
+      - gcc-mingw-w64-i686
+      - gcc-multilib
+      - zip
+      - liburcu4
+      - liburcu-dev
 matrix:
   # This excludes OSX GCC builds.
   exclude:
     - os: osx
       compiler: gcc
 before_install:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
+#- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
 script:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_script.sh; fi
