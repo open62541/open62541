@@ -282,7 +282,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return retval;
     }
 
-    client->scExpiresAt = UA_DateTime_now() + response.securityToken.revisedLifetime * 10000;
+    //response.securityToken.revisedLifetime is UInt32 we need to cast it to DateTime=Int64
+    client->scExpiresAt = UA_DateTime_now() + (UA_DateTime)response.securityToken.revisedLifetime * 10000;
     retval = response.responseHeader.serviceResult;
 
     if(retval != UA_STATUSCODE_GOOD)
