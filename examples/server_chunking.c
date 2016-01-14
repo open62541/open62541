@@ -309,7 +309,7 @@ int main(int argc, char** argv) {
     size_t stringSize = 16384;
     myString.data = malloc(stringSize);
     myString.length = stringSize;
-    for(size_t i;i<myString.length;i++){
+    for(size_t i=0;i<myString.length;i++){
         myString.data[i] = 'A';
     }
 
