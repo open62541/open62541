@@ -34,7 +34,7 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 	
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
@@ -63,7 +63,7 @@ static UA_Server* makeTestSequence(void) {
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
@@ -75,7 +75,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Demo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr, NULL);
+                            obj_attr, NULL, NULL);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
@@ -85,7 +85,7 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL);
+                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
 
 #ifdef UA_ENABLE_METHODCALLS
 	/* MethodNode */
@@ -609,6 +609,40 @@ START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
+START_TEST (ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
+} END_TEST
+
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -995,6 +1029,8 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
+	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 
 	suite_add_tcase(s, tc_readSingleAttributes);
 

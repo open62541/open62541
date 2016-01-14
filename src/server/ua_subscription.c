@@ -377,7 +377,7 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                 dst->hasValue = UA_TRUE;
                 samplingError = UA_FALSE;
             } else {
-                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE)
+                if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE || vsrc->value.dataSource.read == NULL)
                     break;
                 if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE,
                                                NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
@@ -472,6 +472,9 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
     UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
+    newValueAsByteString.length = encodingOffset;
+
     if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_deleteMembers(&newValueAsByteString);
   

@@ -38,6 +38,7 @@ With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server
 
 #define PORT 16664
 
+UA_Logger logger = Logger_Stdout;
 UA_Boolean running = UA_TRUE;
 void signalHandler(int sign) {
     running = UA_FALSE;
@@ -50,9 +51,11 @@ int main(int argc, char** argv)
 
     /* init the server */
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = Logger_Stdout;
+    config.logger = logger;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT);
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
 
     /* add a variable node */
     /* 1) set the variable attributes (no memory allocations here) */
@@ -77,6 +80,7 @@ int main(int argc, char** argv)
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
     return retval;
 }
 ```
@@ -89,8 +93,8 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

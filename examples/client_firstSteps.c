@@ -49,5 +49,5 @@ int main(void) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return 0;
+    return UA_STATUSCODE_GOOD;
 }

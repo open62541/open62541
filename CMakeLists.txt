@@ -132,7 +132,6 @@ option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType str
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
 option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
-mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)

@@ -222,7 +222,8 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                    const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+                    const UA_DataType *attributeType, 
+                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.parentNodeId.nodeId = parentNodeId;
@@ -236,7 +237,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
-    Service_AddNodes_single(server, &adminSession, &item, &result);
+    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback);
     UA_RCU_UNLOCK();
 
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
@@ -1161,8 +1162,8 @@ setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_Obje
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                        UA_ObjectLifecycleManagement olm) {
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm) {
     return UA_Server_editNode(server, &adminSession, &nodeId,
                               (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
 }

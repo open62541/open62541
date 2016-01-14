@@ -54,7 +54,7 @@ int main() {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL);
+                              UA_NODEID_NULL, attr, NULL, NULL);
 
     /* allocations on the heap need to be freed */
     UA_VariableAttributes_deleteMembers(&attr);

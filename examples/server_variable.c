@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
@@ -56,7 +56,7 @@ int main(int argc, char** argv) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL);
+                              UA_NODEID_NULL, attr, NULL, NULL);
 
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
     UA_Server_setVariableNode_valueCallback(server, myIntegerNodeId, callback);

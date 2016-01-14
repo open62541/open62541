@@ -363,7 +363,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing BrowseRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     if(!UA_NodeId_isNull(&request->view.viewId)) {
@@ -438,7 +438,7 @@ UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean r
 
 void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing BrowseNextRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
    if(request->continuationPointsSize <= 0) {
@@ -569,7 +569,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing TranslateBrowsePathsToNodeIdsRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 	if(request->browsePathsSize <= 0) {
@@ -622,7 +622,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing RegisterNodesRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 
@@ -641,7 +641,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_Regi
 
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing UnRegisterNodesRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 
