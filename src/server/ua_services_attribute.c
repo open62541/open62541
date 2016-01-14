@@ -67,7 +67,7 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         /* read the dimension */
         size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[idx]);
         if(progress == 0) {
-            retval = UA_STATUSCODE_BADIDXRANGEINVALID;
+            retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
         pos += progress;
