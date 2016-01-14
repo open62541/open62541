@@ -27,7 +27,7 @@ addons:
   apt:
     sources:
       - lttng
-      - kalakris/cmake
+      - kubuntu-ppa/backports
     packages:
       - cmake
       - check
