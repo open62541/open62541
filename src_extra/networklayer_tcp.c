@@ -16,8 +16,6 @@
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket(S)
 # define ssize_t long
-# define fd_set FD_SET
-# define fd_isset FD_ISSET
 #else
 # include <fcntl.h>
 # include <sys/select.h>
@@ -33,15 +31,21 @@
 #  include <sys/socket.h>
 # endif
 # define CLOSESOCKET(S) close(S)
+#endif
+
 /* workaround a glibc bug where an integer conversion is required */
+#if !defined(_WIN32)
 # include <features.h>
 # if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
 #  define fd_set(fd, fds) FD_SET(fd, fds)
 #  define fd_isset(fd, fds) FD_ISSET(fd, fds)
 # else
-#  define fd_set(fd, fds) FD_SET((unsigned long)fd, fds)
-#  define fd_isset(fd, fds) FD_ISSET((unsigned long)fd, fds)
+#  define fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
+#  define fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 # endif
+#else
+# define fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
+# define fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
