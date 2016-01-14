@@ -30,6 +30,7 @@ addons:
       - cmake
       - check
       - valgrind
+      - python-lxml
       - gcc-mingw-w64-i686
       - gcc-multilib
       - zip
