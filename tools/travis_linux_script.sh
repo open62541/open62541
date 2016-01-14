@@ -45,18 +45,18 @@ cp open62541.h ../../ #copy single file-release
 cp open62541.c ../../ #copy single file-release
 cd .. && rm build -rf 
 
-echo "Upgrade to gcc 4.8"
-sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
-sudo apt-get update -qq
-sudo apt-get install -qq gcc-4.8 g++-4.8 valgrind
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-sudo update-alternatives --config gcc
+# echo "Upgrade to gcc 4.8"
+# sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+# sudo apt-get update -qq
+# sudo apt-get install -qq gcc-4.8 g++-4.8 valgrind
+# sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+# sudo update-alternatives --config gcc
 
 echo "Building the C++ example"
 mkdir -p build && cd build
 cp ../../open62541.* .
 gcc -std=c99 -c open62541.c
-g++-4.8 ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
+g++ ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
 cd .. && rm build -rf 
 
 echo "Compile multithreaded version"
@@ -72,5 +72,5 @@ cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_METHODCALLS=ON
 make && make test ARGS="-V"
 echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
 (valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
-coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
+coveralls --gcov /usr/bin/gcov -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
 cd .. && rm build -rf
