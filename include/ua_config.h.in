@@ -55,7 +55,12 @@
 # define le32toh(x) (x)
 # define le64toh(x) (x)
 #else
-# if defined(__linux__)
+# if defined(__ANDROID__)
+#  include <endian.h>
+#  define le16toh(x) letoh16(x)
+#  define le32toh(x) letoh32(x)
+#  define le64toh(x) letoh64(x)
+# elif defined(__linux__)
 #  include <endian.h>
 # elif defined(__OpenBSD__)
 #  include <sys/endian.h>
