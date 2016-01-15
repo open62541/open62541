@@ -11,7 +11,6 @@
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
     { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 30000,
-      .timeToRenewSecureChannel = 2000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -169,7 +168,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
 static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     /* Check if sc is still valid */
-    if(renew && client->scRenewAt - UA_DateTime_now() > client->config.timeToRenewSecureChannel * 10000)
+    if(renew && client->scRenewAt - UA_DateTime_now() > 0)
         return UA_STATUSCODE_GOOD;
 
     UA_Connection *c = &client->connection;
