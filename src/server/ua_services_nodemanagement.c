@@ -681,10 +681,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_Server_addExistingNode(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &result);
     UA_RCU_UNLOCK();
-    if(result.statusCode != UA_STATUSCODE_GOOD) {
-        UA_MethodNode_delete(node);
+    if(result.statusCode != UA_STATUSCODE_GOOD)
         return result.statusCode;
-    }
     
     UA_ExpandedNodeId parent;
     UA_ExpandedNodeId_init(&parent);
