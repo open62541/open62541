@@ -23,8 +23,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->clientNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken); //FIXME: not really needed
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken); //FIXME: not really needed
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_Connection *c = channel->connection;
     if(c) {
         UA_Connection_detachSecureChannel(c);

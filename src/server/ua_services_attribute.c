@@ -435,24 +435,23 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
                                  UA_EditNodeCallback callback, const void *data) {
     UA_StatusCode retval;
     do {
-        UA_MT_CONST UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+#ifndef UA_ENABLE_MULTITHREADING
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
-#ifndef UA_ENABLE_MULTITHREADING
-        retval = callback(server, session, node, data);
+        UA_Node *editNode = (UA_Node*)(uintptr_t)node; // dirty cast. use only here.
+        retval = callback(server, session, editNode, data);
         return retval;
 #else
-        UA_Node *copy = UA_Node_copyAnyNodeClass(node);
+        UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Node_deleteAnyNodeClass(copy);
+            UA_NodeStore_deleteNode(copy);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, node, copy, NULL);
-        if(retval != UA_STATUSCODE_GOOD)
-            UA_Node_deleteAnyNodeClass(copy);
+        retval = UA_NodeStore_replace(server->nodestore, copy);
 #endif
     } while(retval != UA_STATUSCODE_GOOD);
     return UA_STATUSCODE_GOOD;
@@ -514,7 +513,6 @@ static enum type_equivalence typeEquivalence(const UA_DataType *type) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
-/* In the multithreaded case, node is a copy */
 static UA_StatusCode
 CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
