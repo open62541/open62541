@@ -1070,7 +1070,8 @@ class opcua_node_variable_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
   
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
@@ -1095,6 +1096,7 @@ class opcua_node_variable_t(opcua_node_t):
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
     code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
+    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 class opcua_node_method_t(opcua_node_t):
@@ -1325,7 +1327,8 @@ class opcua_node_variableType_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_Variant_new();")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
   
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
@@ -1348,6 +1351,7 @@ class opcua_node_variableType_t(opcua_node_t):
     
     # The variant is guaranteed to exist by SubtypeEarly()
     code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
+    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 class opcua_node_dataType_t(opcua_node_t):

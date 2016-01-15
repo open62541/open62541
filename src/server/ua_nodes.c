@@ -205,9 +205,9 @@ UA_VariableNode * UA_VariableNode_new(void) {
 }
 
 void UA_VariableNode_deleteMembers(UA_VariableNode *p) {
-    UA_Node_deleteMembers((UA_Node*)p);
     if(p->valueSource == UA_VALUESOURCE_VARIANT)
         UA_Variant_deleteMembers(&p->value.variant.value);
+    UA_Node_deleteMembers((UA_Node*)p);
 }
 
 void UA_VariableNode_delete(UA_VariableNode *p) {
@@ -250,9 +250,9 @@ UA_VariableTypeNode * UA_VariableTypeNode_new(void) {
 }
 
 void UA_VariableTypeNode_deleteMembers(UA_VariableTypeNode *p) {
-    UA_Node_deleteMembers((UA_Node*)p);
     if(p->valueSource == UA_VALUESOURCE_VARIANT)
         UA_Variant_deleteMembers(&p->value.variant.value);
+    UA_Node_deleteMembers((UA_Node*)p);
 }
 
 void UA_VariableTypeNode_delete(UA_VariableTypeNode *p) {
