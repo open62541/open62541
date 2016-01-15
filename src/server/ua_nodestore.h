@@ -5,32 +5,9 @@
 #include "ua_nodes.h"
 
 /**
- * @ingroup server
- *
- * @defgroup nodestore NodeStore
- *
- * @brief Stores the nodes in the address space. Internally, it is based on a
- * hash-map that maps nodes to their nodeid.
- *
- * Nodes need to be allocated on the heap before adding them to the nodestore
- * with. When adding, the node is copied to a new (managed) location in the
- * nodestore and the original memory is freed. The nodes in the nodestore are
- * immutable. To change the content of a node, it needs to be replaced as a
- * whole.
- *
- * Every node you _get from the nodestore needs to be _released when it is no
- * longer needed. In the background, reference counting is used to know if
- * somebody still uses the node in multi-threaded environments.
- *
- * @{
+ * Stores the nodes in the address space. Internally, it is based on a hash-map
+ * that maps nodes to their nodeid.
  */
-
-/* For multithreading, nodes in the nodestore are immutable */
-#ifdef UA_ENABLE_MULTITHREADING
-# define UA_MT_CONST const
-#else
-# define UA_MT_CONST
-#endif
 
 struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
@@ -42,37 +19,46 @@ UA_NodeStore * UA_NodeStore_new(void);
     critical section (multithreading). */
 void UA_NodeStore_delete(UA_NodeStore *ns);
 
+/** Create an editable node of the given NodeClass. */
+UA_Node * UA_NodeStore_newNode(UA_NodeClass class);
+#define UA_ObjectNode_new() (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
+#define UA_VariableNode_new() (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
+#define UA_MethodNode_new() (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)
+#define UA_ObjectTypeNode_new() (UA_ObjectTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECTTYPE)
+#define UA_VariableTypeNode_new() (UA_VariableTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLETYPE)
+#define UA_ReferenceTypeNode_new() (UA_ReferenceTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_REFERENCETYPE)
+#define UA_DataTypeNode_new() (UA_DataTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_DATATYPE)
+#define UA_ViewNode_new() (UA_ViewNode*)UA_NodeStore_newNode(UA_NODECLASS_VIEW)
+
+/** Delete an editable node. */
+void UA_NodeStore_deleteNode(UA_Node *node);
+
 /**
  * Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
- * numeric nodeid from nodestore 1 is assigned. The memory of the original node
- * is freed and the content is moved to a managed (immutable) node. If inserted
- * is not NULL, then a pointer to the managed node is returned (and must be
- * released).
+ * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
+ * deleted.
  */
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_MT_CONST UA_Node **inserted);
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node);
 
 /**
- * Replace an existing node in the nodestore. If the node was already replaced,
- * UA_STATUSCODE_BADINTERNALERROR is returned. A pointer to the inserted node is
- * returned. It is important that oldNode is not used afterwards in the same
- * thread.
+ * To replace, get an editable copy, edit and use this function. If the node was
+ * already replaced since the copy was made, UA_STATUSCODE_BADINTERNALERROR is
+ * returned. If the nodeid is not found, UA_STATUSCODE_BADNODEIDUNKNOWN is
+ * returned. In both error cases, the editable node is deleted.
  */
-UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_MT_CONST UA_Node *oldNode,
-                                   UA_Node *node, UA_MT_CONST UA_Node **inserted);
+UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node);
 
-/**
- * Remove a node from the nodestore. Always succeeds, even if the node was not
- * found.
- */
+/** Remove a node in the nodestore. */
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /**
- * Retrieve a managed node (read-only) from the nodestore. Nodes are reference-
- * counted (for garbage collection) and immutable. They can only be replaced
- * entirely. After the node is no longer used, it needs to be released to decrease
- * the reference count.
+ * The returned pointer is only valid as long as the node has not been replaced
+ * or removed (in the same thread).
  */
-UA_MT_CONST UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid);
+const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid);
+
+/** Returns the copy of a node. */
+UA_Node * UA_NodeStore_getCopy(const UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /**
  * A function that can be evaluated on all entries in a nodestore via
@@ -82,7 +68,5 @@ typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
 
 /** Iterate over all nodes in a nodestore. */
 void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
-
-/** @} */
 
 #endif /* UA_NODESTORE_H_ */

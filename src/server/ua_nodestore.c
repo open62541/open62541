@@ -1,26 +1,17 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 #include "ua_statuscodes.h"
+#include <stdio.h>
 
 #define UA_NODESTORE_MINSIZE 64
 
-typedef struct {
-    UA_Boolean taken;
-    union {
-        UA_Node node;
-        UA_ObjectNode objectNode;
-        UA_ObjectTypeNode objectTypeNode;
-        UA_VariableNode variableNode;
-        UA_VariableTypeNode variableTypeNode;
-        UA_ReferenceTypeNode referenceTypeNode;
-        UA_MethodNode methodeNode;
-        UA_ViewNode viewNode;
-        UA_DataTypeNode dataTypeNode;
-    } node;
+typedef struct UA_NodeStoreEntry {
+    struct UA_NodeStoreEntry *orig; // the entry this was copied from
+    UA_Node node;
 } UA_NodeStoreEntry;
 
 struct UA_NodeStore {
-    UA_NodeStoreEntry *entries;
+    UA_NodeStoreEntry **entries;
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
@@ -51,22 +42,64 @@ static UA_Int16 higher_prime_index(hash_t n) {
     return low;
 }
 
+static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass class) {
+    size_t size = sizeof(UA_NodeStoreEntry) - sizeof(UA_Node);
+    switch(class) {
+    case UA_NODECLASS_OBJECT:
+        size += sizeof(UA_ObjectNode);
+        break;
+    case UA_NODECLASS_VARIABLE:
+        size += sizeof(UA_VariableNode);
+        break;
+    case UA_NODECLASS_METHOD:
+        size += sizeof(UA_MethodNode);
+        break;
+    case UA_NODECLASS_OBJECTTYPE:
+        size += sizeof(UA_ObjectTypeNode);
+        break;
+    case UA_NODECLASS_VARIABLETYPE:
+        size += sizeof(UA_VariableTypeNode);
+        break;
+    case UA_NODECLASS_REFERENCETYPE:
+        size += sizeof(UA_ReferenceTypeNode);
+        break;
+    case UA_NODECLASS_DATATYPE:
+        size += sizeof(UA_DataTypeNode);
+        break;
+    case UA_NODECLASS_VIEW:
+        size += sizeof(UA_ViewNode);
+        break;
+    default:
+        return NULL;
+    }
+    UA_NodeStoreEntry *entry = UA_calloc(1, size);
+    if(!entry)
+        return NULL;
+    entry->node.nodeClass = class;
+    return entry;
+}
+
+static void deleteEntry(UA_NodeStoreEntry *entry) {
+    UA_Node_deleteMembersAnyNodeClass(&entry->node);
+    UA_free(entry);
+}
+
 /* Returns UA_TRUE if an entry was found under the nodeid. Otherwise, returns
    false and sets slot to a pointer to the next free slot. */
 static UA_Boolean
-containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry **entry) {
-    hash_t         h     = hash(nodeid);
-    UA_UInt32      size  = ns->size;
-    hash_t         index = mod(h, size);
-    UA_NodeStoreEntry *e = &ns->entries[index];
+containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry ***entry) {
+    hash_t h = hash(nodeid);
+    UA_UInt32 size = ns->size;
+    hash_t index = mod(h, size);
+    UA_NodeStoreEntry *e = ns->entries[index];
 
-    if(!e->taken) {
-        *entry = e;
+    if(!e) {
+        *entry = &ns->entries[index];
         return UA_FALSE;
     }
 
-    if(UA_NodeId_equal(&e->node.node.nodeId, nodeid)) {
-        *entry = e;
+    if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
+        *entry = &ns->entries[index];
         return UA_TRUE;
     }
 
@@ -75,13 +108,13 @@ containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntr
         index += hash2;
         if(index >= size)
             index -= size;
-        e = &ns->entries[index];
-        if(!e->taken) {
-            *entry = e;
+        e = ns->entries[index];
+        if(!e) {
+            *entry = &ns->entries[index];
             return UA_FALSE;
         }
-        if(UA_NodeId_equal(&e->node.node.nodeId, nodeid)) {
-            *entry = e;
+        if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
+            *entry = &ns->entries[index];
             return UA_TRUE;
         }
     }
@@ -90,82 +123,37 @@ containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntr
     return UA_TRUE;
 }
 
-/* The following function changes size of memory allocated for the entries and
-   repeatedly inserts the table elements. The occupancy of the table after the
-   call will be about 50%. */
+/* The occupancy of the table after the call will be about 50% */
 static UA_StatusCode expand(UA_NodeStore *ns) {
     UA_UInt32 osize = ns->size;
     UA_UInt32 count = ns->count;
-    /* Resize only when table after removal of unused elements is either too full or too empty.  */
+    /* Resize only when table after removal of unused elements is either too full or too empty  */
     if(count * 2 < osize && (count * 8 > osize || osize <= UA_NODESTORE_MINSIZE))
         return UA_STATUSCODE_GOOD;
 
+    UA_NodeStoreEntry **oentries = ns->entries;
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_Int32 nsize = primes[nindex];
-    UA_NodeStoreEntry *nentries;
-    if(!(nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry))))
+    UA_NodeStoreEntry **nentries;
+    if(!(nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry*))))
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_NodeStoreEntry *oentries = ns->entries;
     ns->entries = nentries;
-    ns->size    = nsize;
+    ns->size = nsize;
     ns->sizePrimeIndex = nindex;
 
-    // recompute the position of every entry and insert the pointer
+    /* recompute the position of every entry and insert the pointer */
     for(size_t i = 0, j = 0; i < osize && j < count; i++) {
-        if(!oentries[i].taken)
+        if(!oentries[i])
             continue;
-        UA_NodeStoreEntry *e;
-        containsNodeId(ns, &oentries[i].node.node.nodeId, &e);  /* We know this returns an empty entry here */
+        UA_NodeStoreEntry **e;
+        containsNodeId(ns, &oentries[i]->node.nodeId, &e);  /* We know this returns an empty entry here */
         *e = oentries[i];
         j++;
     }
 
     UA_free(oentries);
     return UA_STATUSCODE_GOOD;
-}
-
-/* Marks the entry dead and deletes if necessary. */
-static UA_INLINE void
-deleteEntry(UA_NodeStoreEntry *entry) {
-    UA_Node_deleteMembersAnyNodeClass(&entry->node.node);
-    entry->taken = UA_FALSE;
-}
-
-/** Copies the node into the entry. Then free the original node (but not its content). */
-static void fillEntry(UA_NodeStoreEntry *entry, UA_Node *node) {
-    size_t nodesize = 0;
-    switch(node->nodeClass) {
-    case UA_NODECLASS_OBJECT:
-        nodesize = sizeof(UA_ObjectNode);
-        break;
-    case UA_NODECLASS_VARIABLE:
-        nodesize = sizeof(UA_VariableNode);
-        break;
-    case UA_NODECLASS_METHOD:
-        nodesize = sizeof(UA_MethodNode);
-        break;
-    case UA_NODECLASS_OBJECTTYPE:
-        nodesize = sizeof(UA_ObjectTypeNode);
-        break;
-    case UA_NODECLASS_VARIABLETYPE:
-        nodesize = sizeof(UA_VariableTypeNode);
-        break;
-    case UA_NODECLASS_REFERENCETYPE:
-        nodesize = sizeof(UA_ReferenceTypeNode);
-        break;
-    case UA_NODECLASS_DATATYPE:
-        nodesize = sizeof(UA_DataTypeNode);
-        break;
-    case UA_NODECLASS_VIEW:
-        nodesize = sizeof(UA_ViewNode);
-        break;
-    default:
-        UA_assert(UA_FALSE);
-    }
-    memcpy(&entry->node, node, nodesize);
-    UA_free(node);
-    entry->taken = UA_TRUE;
 }
 
 /**********************/
@@ -179,7 +167,7 @@ UA_NodeStore * UA_NodeStore_new(void) {
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
-    if(!(ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry)))) {
+    if(!(ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*)))) {
         UA_free(ns);
         return NULL;
     }
@@ -188,29 +176,40 @@ UA_NodeStore * UA_NodeStore_new(void) {
 
 void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32 size = ns->size;
-    UA_NodeStoreEntry *entries = ns->entries;
-    for(UA_UInt32 i = 0;i < size;i++) {
-        if(entries[i].taken)
-            deleteEntry(&entries[i]);
+    UA_NodeStoreEntry **entries = ns->entries;
+    for(UA_UInt32 i = 0; i < size; i++) {
+        if(entries[i])
+            deleteEntry(entries[i]);
     }
     UA_free(ns->entries);
     UA_free(ns);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_Node **inserted) {
+UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
+    UA_NodeStoreEntry *entry = instantiateEntry(class);
+    if(!entry)
+        return NULL;
+    return (UA_Node*)&entry->node;
+}
+
+void UA_NodeStore_deleteNode(UA_Node *node) {
+    deleteEntry(container_of(node, UA_NodeStoreEntry, node));
+}
+
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     if(ns->size * 3 <= ns->count * 4) {
         if(expand(ns) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_NodeStoreEntry *entry;
     UA_NodeId tempNodeid;
     tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
+    UA_NodeStoreEntry **entry;
     if(UA_NodeId_isNull(&tempNodeid)) {
-        /* find a free nodeid */
-        if(node->nodeId.namespaceIndex == 0) //original request for ns=0 should yield ns=1
+        if(node->nodeId.namespaceIndex == 0)
             node->nodeId.namespaceIndex = 1;
+        /* find a free nodeid */
         UA_Int32 identifier = ns->count+1; // start value
         UA_Int32 size = ns->size;
         hash_t increase = mod2(identifier, size);
@@ -223,45 +222,61 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_Node **ins
                 identifier -= size;
         }
     } else {
-        if(containsNodeId(ns, &node->nodeId, &entry))
+        if(containsNodeId(ns, &node->nodeId, &entry)) {
+            deleteEntry(container_of(node, UA_NodeStoreEntry, node));
             return UA_STATUSCODE_BADNODEIDEXISTS;
+        }
     }
 
-    fillEntry(entry, node);
+    *entry = container_of(node, UA_NodeStoreEntry, node);
     ns->count++;
-    if(inserted)
-        *inserted = &entry->node.node;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *oldNode,
-                     UA_Node *node, UA_Node **inserted) {
-    UA_NodeStoreEntry *slot;
-    if(!containsNodeId(ns, &node->nodeId, &slot))
+UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
+    UA_NodeStoreEntry **entry;
+    if(!containsNodeId(ns, &node->nodeId, &entry))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    /* that is not the node you are looking for */
-    if(&slot->node.node != oldNode)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    deleteEntry(slot);
-    fillEntry(slot, node);
-    if(inserted)
-        *inserted = &slot->node.node;
+    UA_NodeStoreEntry *newEntry = container_of(node, UA_NodeStoreEntry, node);
+    if(*entry != newEntry->orig) {
+        deleteEntry(newEntry);
+        return UA_STATUSCODE_BADINTERNALERROR; // the node was replaced since the copy was made
+    }
+    deleteEntry(*entry);
+    *entry = newEntry;
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    UA_NodeStoreEntry *slot;
+const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_NodeStoreEntry **entry;
+    if(!containsNodeId(ns, nodeid, &entry))
+        return NULL;
+    return (const UA_Node*)&(*entry)->node;
+}
+
+UA_Node * UA_NodeStore_getCopy(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_NodeStoreEntry **slot;
     if(!containsNodeId(ns, nodeid, &slot))
         return NULL;
-    return &slot->node.node;
+    UA_NodeStoreEntry *entry = *slot;
+    UA_NodeStoreEntry *new = instantiateEntry(entry->node.nodeClass);
+    if(!new)
+        return NULL;
+    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(new);
+        return NULL;
+    }
+    new->orig = entry;
+    return &new->node;
 }
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    UA_NodeStoreEntry *slot;
+    UA_NodeStoreEntry **slot;
     if(!containsNodeId(ns, nodeid, &slot))
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    deleteEntry(slot);
+    deleteEntry(*slot);
+    *slot = NULL;
     ns->count--;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
@@ -270,8 +285,8 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 }
 
 void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
-    for(UA_UInt32 i = 0;i < ns->size;i++) {
-        if(ns->entries[i].taken)
-            visitor(&ns->entries[i].node.node);
+    for(UA_UInt32 i = 0; i < ns->size; i++) {
+        if(ns->entries[i])
+            visitor((UA_Node*)&ns->entries[i]->node);
     }
 }

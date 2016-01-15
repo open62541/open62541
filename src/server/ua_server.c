@@ -507,7 +507,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     references->symmetric = UA_TRUE;
     references->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "References");
     /* The reference to root is later inserted */
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)references, NULL);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)references);
 
     UA_ReferenceTypeNode *hassubtype = UA_ReferenceTypeNode_new();
     copyNames((UA_Node*)hassubtype, "HasSubtype");
@@ -516,7 +516,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric = UA_FALSE;
     /* The reference to root is later inserted */
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)hassubtype, NULL);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)hassubtype);
 
     /* Continue adding reference types with normal "addnode" */
     UA_ReferenceTypeNode *hierarchicalreferences = UA_ReferenceTypeNode_new();
@@ -707,7 +707,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_ObjectNode *root = UA_ObjectNode_new();
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
-    UA_NodeStore_insert(server->nodestore, (UA_Node*)root, NULL);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)root);
 
     UA_ObjectNode *objects = UA_ObjectNode_new();
     copyNames((UA_Node*)objects, "Objects");

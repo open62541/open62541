@@ -44,6 +44,9 @@
 # endif
 #endif
 
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+
 /************************/
 /* Thread Local Storage */
 /************************/
