@@ -248,14 +248,14 @@ UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
     return UA_STATUSCODE_GOOD;
 }
 
-const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_NodeStoreEntry **entry;
     if(!containsNodeId(ns, nodeid, &entry))
         return NULL;
     return (const UA_Node*)&(*entry)->node;
 }
 
-UA_Node * UA_NodeStore_getCopy(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
+UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_NodeStoreEntry **slot;
     if(!containsNodeId(ns, nodeid, &slot))
         return NULL;
@@ -284,7 +284,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
+void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     for(UA_UInt32 i = 0; i < ns->size; i++) {
         if(ns->entries[i])
             visitor((UA_Node*)&ns->entries[i]->node);

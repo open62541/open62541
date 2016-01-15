@@ -72,7 +72,7 @@ static const UA_NodeId nodeIdOrganizes = {
 static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
     .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
                .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
-    .namespaceUri = {.length = -1, .data = NULL}, .serverIndex = 0};
+    .namespaceUri = {.length = 0, .data = NULL}, .serverIndex = 0};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
@@ -204,7 +204,10 @@ addReferenceInternal(UA_Server *server, const UA_NodeId sourceId, const UA_NodeI
     item.referenceTypeId = refTypeId;
     item.isForward = isForward;
     item.targetNodeId = targetId;
-    return Service_AddReferences_single(server, &adminSession, &item);
+    UA_RCU_LOCK();
+    UA_StatusCode retval = Service_AddReferences_single(server, &adminSession, &item);
+    UA_RCU_UNLOCK();
+    return retval;
 }
 
 static UA_AddNodesResult
@@ -212,8 +215,10 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
                 const UA_NodeId referenceTypeId) {
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
+    UA_RCU_LOCK();
     UA_Server_addExistingNode(server, &adminSession, node, &parentNodeId,
                               &referenceTypeId, &res);
+    UA_RCU_UNLOCK();
     return res;
 }
 
@@ -254,13 +259,14 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
-    UA_RCU_LOCK();
     UA_Server_deleteAllRepeatedJobs(server);
 
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager, server);
+    UA_RCU_LOCK();
     UA_NodeStore_delete(server->nodestore);
+    UA_RCU_UNLOCK();
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
 #endif
@@ -268,11 +274,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
-    UA_RCU_UNLOCK();
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
-    rcu_barrier(); // wait for all scheduled call_rcu work to complete
-   	rcu_unregister_thread();
 #endif
     UA_free(server);
 }
@@ -411,14 +414,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         return NULL;
 
     server->config = config;
-
+    server->nodestore = UA_NodeStore_new();
     LIST_INIT(&server->repeatedJobs);
+
 #ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
-   	rcu_register_thread();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
     cds_lfs_init(&server->mainLoopJobs);
-    UA_RCU_LOCK();
 #endif
 
     /* uncomment for non-reproducible server runs */
@@ -483,8 +485,6 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #define STARTSESSIONID 1
     UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME, STARTSESSIONID);
 
-    server->nodestore = UA_NodeStore_new();
-
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
@@ -507,7 +507,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     references->symmetric = UA_TRUE;
     references->inverseName = UA_LOCALIZEDTEXT_ALLOC("en_US", "References");
     /* The reference to root is later inserted */
+    UA_RCU_LOCK();
     UA_NodeStore_insert(server->nodestore, (UA_Node*)references);
+    UA_RCU_UNLOCK();
 
     UA_ReferenceTypeNode *hassubtype = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)hassubtype, "HasSubtype");
@@ -516,7 +518,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hassubtype->isAbstract = UA_FALSE;
     hassubtype->symmetric = UA_FALSE;
     /* The reference to root is later inserted */
+    UA_RCU_LOCK();
     UA_NodeStore_insert(server->nodestore, (UA_Node*)hassubtype);
+    UA_RCU_UNLOCK();
 
     /* Continue adding reference types with normal "addnode" */
     UA_ReferenceTypeNode *hierarchicalreferences = UA_NodeStore_newReferenceTypeNode();
@@ -707,7 +711,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_ObjectNode *root = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
+    UA_RCU_LOCK();
     UA_NodeStore_insert(server->nodestore, (UA_Node*)root);
+    UA_RCU_UNLOCK();
 
     UA_ObjectNode *objects = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)objects, "Objects");
@@ -1093,7 +1099,6 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON),
                          nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype, UA_TRUE);
-    UA_RCU_UNLOCK();
     return server;
 }
 
@@ -1114,7 +1119,9 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
         wvalue.value.value = *(const UA_Variant*)value;
     }
     wvalue.value.hasValue = UA_TRUE;
+    UA_RCU_LOCK();
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1129,8 +1136,11 @@ setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node, 
 UA_StatusCode UA_EXPORT
 UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
                                         const UA_ValueCallback callback) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setValueCallback, &callback);
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setValueCallback, &callback);
+    UA_RCU_UNLOCK();
+    return retval;
 }
 
 static UA_StatusCode
@@ -1148,8 +1158,11 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setDataSource, &dataSource);
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setDataSource, &dataSource);
+    UA_RCU_UNLOCK();
+    return retval;
 }
 
 static UA_StatusCode
@@ -1164,8 +1177,11 @@ setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_Obje
 UA_StatusCode UA_EXPORT
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm) {
-    return UA_Server_editNode(server, &adminSession, &nodeId,
-                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
+    UA_RCU_UNLOCK();
+    return retval;
 }
 
 UA_StatusCode
@@ -1176,8 +1192,10 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeI
     item.attributeId = attributeId;
     UA_DataValue dv;
     UA_DataValue_init(&dv);
+    UA_RCU_LOCK();
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER,
                         &item, &dv);
+    UA_RCU_UNLOCK();
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dv.hasStatus)
         retval = dv.hasStatus;
@@ -1203,7 +1221,9 @@ UA_BrowseResult
 UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
+    UA_RCU_LOCK();
     Service_Browse_single(server, &adminSession, NULL, descr, maxrefs, &result);
+    UA_RCU_UNLOCK();
     return result;
 }
 
@@ -1212,8 +1232,10 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
+    UA_RCU_LOCK();
     UA_Server_browseNext_single(server, &adminSession, releaseContinuationPoint,
                                 continuationPoint, &result);
+    UA_RCU_UNLOCK();
     return result;
 }
 
@@ -1221,7 +1243,9 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
+    UA_RCU_LOCK();
     Service_Call_single(server, &adminSession, request, &result);
+    UA_RCU_UNLOCK();
     return result;
 }
 #endif

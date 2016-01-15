@@ -104,7 +104,7 @@ static UA_Server* makeTestSequence(void) {
 }
 
 static UA_VariableNode* makeCompareSequence(void) {
-	UA_VariableNode *node = UA_VariableNode_new();
+	UA_VariableNode *node = UA_NodeStore_newVariableNode();
 
 	UA_Int32 myInteger = 42;
 	UA_Variant_setScalarCopy(&node->value.variant.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -244,7 +244,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -266,7 +266,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 
@@ -527,7 +527,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 

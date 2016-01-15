@@ -68,10 +68,10 @@ UA_NodeStore * UA_NodeStore_new() {
 
 /* do not call with read-side critical section held!! */
 void UA_NodeStore_delete(UA_NodeStore *ns) {
+    UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    struct cds_lfht_iter  iter;
+    struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
-    rcu_read_lock();
     while(iter.node) {
         if(!cds_lfht_del(ht, iter.node)) {
             /* points to the htn entry, which is first */
@@ -80,7 +80,6 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         }
         cds_lfht_next(ht, &iter);
     }
-    rcu_read_unlock();
     cds_lfht_destroy(ht, NULL);
     UA_free(ns);
 }
@@ -93,12 +92,13 @@ UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
 }
 
 void UA_NodeStore_deleteNode(UA_Node *node) {
-    struct nodeEntry *entry = container_of(node, struct nodeEntry, rcu_head);
+    struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
     deleteEntry(&entry->rcu_head);
 }
 
 UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
-    struct nodeEntry *entry = container_of(node, struct nodeEntry, rcu_head);
+    UA_ASSERT_RCU_LOCKED();
+    struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     cds_lfht_node_init(&entry->htn);
     struct cds_lfht_node *result;
@@ -141,7 +141,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
 }
 
 UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
-    struct nodeEntry *entry = container_of(node, struct nodeEntry, rcu_head);
+    UA_ASSERT_RCU_LOCKED();
+    struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
     struct cds_lfht *ht = (struct cds_lfht*)ns;
 
     /* Get the current version */
@@ -169,6 +170,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 }
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
@@ -181,6 +183,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 }
 
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
@@ -192,6 +195,7 @@ const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 }
 
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
+    UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
@@ -211,6 +215,7 @@ UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 }
 
 void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
+    UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
