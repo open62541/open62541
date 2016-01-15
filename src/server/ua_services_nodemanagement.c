@@ -290,7 +290,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                        const UA_NodeId *typeId, UA_InstantiationCallback *instantiationCallback) {
+    const UA_NodeId *typeId, UA_InstantiationCallback *instantiationCallback) {
     const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
     if(!type)
         return UA_STATUSCODE_BADNODEIDINVALID;

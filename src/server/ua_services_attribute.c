@@ -162,10 +162,12 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
+        val.hasValue = UA_FALSE; // always assume we are not given a value by userspace
         retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        if (val.hasValue && val.value.type != NULL)
+          retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
         UA_DataValue_deleteMembers(&val);
     }
     return retval;
