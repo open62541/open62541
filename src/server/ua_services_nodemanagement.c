@@ -318,7 +318,7 @@ copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item, const UA_Node
 
 static UA_Node *
 variableNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableAttributes *attr) {
-    UA_VariableNode *vnode = UA_VariableNode_new();
+    UA_VariableNode *vnode = UA_NodeStore_newVariableNode();
     if(!vnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)vnode, item, (const UA_NodeAttributes*)attr);
@@ -338,7 +338,7 @@ variableNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableAttribu
 
 static UA_Node *
 objectNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectAttributes *attr) {
-    UA_ObjectNode *onode = UA_ObjectNode_new();
+    UA_ObjectNode *onode = UA_NodeStore_newObjectNode();
     if(!onode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)onode, item, (const UA_NodeAttributes*)attr);
@@ -352,7 +352,7 @@ objectNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectAttributes 
 
 static UA_Node *
 referenceTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ReferenceTypeAttributes *attr) {
-    UA_ReferenceTypeNode *rtnode = UA_ReferenceTypeNode_new();
+    UA_ReferenceTypeNode *rtnode = UA_NodeStore_newReferenceTypeNode();
     if(!rtnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)rtnode, item, (const UA_NodeAttributes*)attr);
@@ -368,7 +368,7 @@ referenceTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ReferenceT
 
 static UA_Node *
 objectTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectTypeAttributes *attr) {
-    UA_ObjectTypeNode *otnode = UA_ObjectTypeNode_new();
+    UA_ObjectTypeNode *otnode = UA_NodeStore_newObjectTypeNode();
     if(!otnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)otnode, item, (const UA_NodeAttributes*)attr);
@@ -382,7 +382,7 @@ objectTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_ObjectTypeAtt
 
 static UA_Node *
 variableTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableTypeAttributes *attr) {
-    UA_VariableTypeNode *vtnode = UA_VariableTypeNode_new();
+    UA_VariableTypeNode *vtnode = UA_NodeStore_newVariableTypeNode();
     if(!vtnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)vtnode, item, (const UA_NodeAttributes*)attr);
@@ -400,7 +400,7 @@ variableTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_VariableTyp
 
 static UA_Node *
 viewNodeFromAttributes(const UA_AddNodesItem *item, const UA_ViewAttributes *attr) {
-    UA_ViewNode *vnode = UA_ViewNode_new();
+    UA_ViewNode *vnode = UA_NodeStore_newViewNode();
     if(!vnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)vnode, item, (const UA_NodeAttributes*)attr);
@@ -415,7 +415,7 @@ viewNodeFromAttributes(const UA_AddNodesItem *item, const UA_ViewAttributes *att
 
 static UA_Node *
 dataTypeNodeFromAttributes(const UA_AddNodesItem *item, const UA_DataTypeAttributes *attr) {
-    UA_DataTypeNode *dtnode = UA_DataTypeNode_new();
+    UA_DataTypeNode *dtnode = UA_NodeStore_newDataTypeNode();
     if(!dtnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)dtnode, item, (const UA_NodeAttributes*)attr);
@@ -502,15 +502,14 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
     /* add it to the server */
     UA_Server_addExistingNode(server, session, node, &item->parentNodeId.nodeId,
                               &item->referenceTypeId, result);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_NodeStore_deleteNode(node);
+    if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
-    }
     
     /* instantiate if it has a type */
     if(!UA_NodeId_isNull(&item->typeDefinition.nodeId)) {
         if (instantiationCallback != NULL)
-          instantiationCallback->method(result->addedNodeId, item->typeDefinition.nodeId, instantiationCallback->handle); 
+          instantiationCallback->method(result->addedNodeId, item->typeDefinition.nodeId,
+                                        instantiationCallback->handle); 
         
         if(item->nodeClass == UA_NODECLASS_OBJECT)
             result->statusCode = instantiateObjectNode(server, session, &result->addedNodeId,
@@ -605,7 +604,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
         return result.statusCode;
     }
 
-    UA_VariableNode *node = UA_VariableNode_new();
+    UA_VariableNode *node = UA_NodeStore_newVariableNode();
     if(!node) {
         UA_AddNodesItem_deleteMembers(&item);
         UA_VariableAttributes_deleteMembers(&attrCopy);
@@ -625,9 +624,6 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                               &item.referenceTypeId, &result);
     UA_AddNodesItem_deleteMembers(&item);
     UA_VariableAttributes_deleteMembers(&attrCopy);
-
-    if(result.statusCode != UA_STATUSCODE_GOOD)
-        UA_NodeStore_deleteNode((UA_Node*)node);
 
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
         *outNewNodeId = result.addedNodeId;
@@ -664,7 +660,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         return result.statusCode;
     }
 
-    UA_MethodNode *node = UA_MethodNode_new();
+    UA_MethodNode *node = UA_NodeStore_newMethodNode();
     if(!node) {
         result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_AddNodesItem_deleteMembers(&item);
@@ -702,7 +698,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
      */
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     if (inputArgumentsSize >= 0) {
-      UA_VariableNode *inputArgumentsVariableNode = UA_VariableNode_new();
+      UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
       inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
       inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
       inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
@@ -720,7 +716,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     /* create OutputArguments */
     /* FIXME:   See comment in inputArguments */
     if (outputArgumentsSize >= 0) {
-      UA_VariableNode *outputArgumentsVariableNode  = UA_VariableNode_new();
+      UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
       outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
       outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
       outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");

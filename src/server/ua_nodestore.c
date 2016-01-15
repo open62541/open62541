@@ -6,7 +6,7 @@
 #define UA_NODESTORE_MINSIZE 64
 
 typedef struct UA_NodeStoreEntry {
-    struct UA_NodeStoreEntry *orig; // the entry this was copied from
+    struct UA_NodeStoreEntry *orig; // the version this is a copy from (or NULL)
     UA_Node node;
 } UA_NodeStoreEntry;
 

@@ -511,7 +511,6 @@ static enum type_equivalence typeEquivalence(const UA_DataType *type) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
-/* In the multithreaded case, node is a copy */
 static UA_StatusCode
 CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);

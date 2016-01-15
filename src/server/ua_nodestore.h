@@ -21,14 +21,14 @@ void UA_NodeStore_delete(UA_NodeStore *ns);
 
 /** Create an editable node of the given NodeClass. */
 UA_Node * UA_NodeStore_newNode(UA_NodeClass class);
-#define UA_ObjectNode_new() (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
-#define UA_VariableNode_new() (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
-#define UA_MethodNode_new() (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)
-#define UA_ObjectTypeNode_new() (UA_ObjectTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECTTYPE)
-#define UA_VariableTypeNode_new() (UA_VariableTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLETYPE)
-#define UA_ReferenceTypeNode_new() (UA_ReferenceTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_REFERENCETYPE)
-#define UA_DataTypeNode_new() (UA_DataTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_DATATYPE)
-#define UA_ViewNode_new() (UA_ViewNode*)UA_NodeStore_newNode(UA_NODECLASS_VIEW)
+#define UA_NodeStore_newObjectNode() (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
+#define UA_NodeStore_newVariableNode() (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
+#define UA_NodeStore_newMethodNode() (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)
+#define UA_NodeStore_newObjectTypeNode() (UA_ObjectTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECTTYPE)
+#define UA_NodeStore_newVariableTypeNode() (UA_VariableTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLETYPE)
+#define UA_NodeStore_newReferenceTypeNode() (UA_ReferenceTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_REFERENCETYPE)
+#define UA_NodeStore_newDataTypeNode() (UA_DataTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_DATATYPE)
+#define UA_NodeStore_newViewNode() (UA_ViewNode*)UA_NodeStore_newNode(UA_NODECLASS_VIEW)
 
 /** Delete an editable node. */
 void UA_NodeStore_deleteNode(UA_Node *node);
@@ -55,10 +55,10 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
  * The returned pointer is only valid as long as the node has not been replaced
  * or removed (in the same thread).
  */
-const UA_Node * UA_NodeStore_get(const UA_NodeStore *ns, const UA_NodeId *nodeid);
+const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /** Returns the copy of a node. */
-UA_Node * UA_NodeStore_getCopy(const UA_NodeStore *ns, const UA_NodeId *nodeid);
+UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid);
 
 /**
  * A function that can be evaluated on all entries in a nodestore via
@@ -67,6 +67,6 @@ UA_Node * UA_NodeStore_getCopy(const UA_NodeStore *ns, const UA_NodeId *nodeid);
 typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
 
 /** Iterate over all nodes in a nodestore. */
-void UA_NodeStore_iterate(const UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
+void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
 
 #endif /* UA_NODESTORE_H_ */
