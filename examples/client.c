@@ -88,7 +88,7 @@ int main(int argc, char *argv[]) {
     printf("\nReading the value of node (1, \"the.answer\"):\n");
     UA_ReadRequest rReq;
     UA_ReadRequest_init(&rReq);
-    rReq.nodesToRead =  UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 1);
+    rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     rReq.nodesToReadSize = 1;
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
