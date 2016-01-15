@@ -77,7 +77,7 @@ struct UA_Client {
     /* Config */
     UA_Logger logger;
     UA_ClientConfig config;
-    UA_DateTime scExpiresAt;
+    UA_DateTime scRenewAt;
 };
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
