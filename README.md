@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
     /* create a readrequest with one entry */
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
-    req.nodesToRead = UA_ReadValueId_new();
+    req.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 1);
     req.nodesToReadSize = 1;
     
     /* define the node and attribute to be read */

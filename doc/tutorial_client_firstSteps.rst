@@ -144,7 +144,7 @@ Let us extend the client with with an action reading node's value:
 
       UA_ReadRequest rReq;
       UA_ReadRequest_init(&rReq);
-      rReq.nodesToRead = UA_ReadValueId_new();
+      rReq.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 1);
       rReq.nodesToReadSize = 1;
       rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
       rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
