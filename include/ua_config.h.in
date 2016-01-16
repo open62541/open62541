@@ -90,7 +90,7 @@
 #  define le32toh(x) ENDIAN_LE32(x)
 #  define le64toh(x) ENDIAN_LE64(x)
 # endif
-# if ( __BYTE_ORDER != __LITTLE_ENDIAN )
+# if ( __BYTE_ORDER != __LITTLE_ENDIAN ) && (_BYTE_ORDER != _LITTLE_ENDIAN)
 #  define UA_NON_LITTLEENDIAN_ARCHITECTURE
 # endif
 #endif
