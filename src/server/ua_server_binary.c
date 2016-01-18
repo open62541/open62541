@@ -364,8 +364,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         /* The service is not supported */
         if(requestTypeId.identifier.numeric==787)
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Client requested a subscription that are not supported, "
-                        "the message will be skipped");
+                        "Client requested a subscription, but those are not enabled "
+                        "in the build. The message will be skipped");
         else
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Unknown request: NodeId(ns=%d, i=%d)",
