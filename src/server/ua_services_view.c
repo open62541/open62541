@@ -58,7 +58,7 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
                    indicesSize, readNodesResults, UA_FALSE, diagnosticInfos);
 
     /* create and fill a dummy nodeStructure */
-    UA_Node *node = (UA_Node*) UA_ObjectNode_new();
+    UA_Node *node = (UA_Node*) UA_NodeStore_newObjectNode();
     UA_NodeId_copy(&(reference->targetId.nodeId), &(node->nodeId));
     if(readNodesResults[0].status == UA_STATUSCODE_GOOD)
         UA_NodeClass_copy((UA_NodeClass*)readNodesResults[0].value.data, &(node->nodeClass));
@@ -77,7 +77,7 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
     UA_Array_delete(readNodesResults, &UA_TYPES[UA_TYPES_DATAVALUE], 6);
     UA_Array_delete(diagnosticInfos, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], 6);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
-        UA_ObjectNode_delete((UA_ObjectNode*)node);
+        UA_NodeStore_deleteNode(node);
         return NULL;
     }
     return node;
@@ -303,7 +303,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
             referencesCount++;
         }
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-        /* relevant_node returns a node malloced with UA_ObjectNode_new
+        /* relevant_node returns a node malloced by the nodestore.
            if it is external (there is no UA_Node_new function) */
         if(isExternal == UA_TRUE)
         	UA_ObjectNode_delete((UA_ObjectNode*)(uintptr_t)current);
