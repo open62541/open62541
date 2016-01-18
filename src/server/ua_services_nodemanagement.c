@@ -16,12 +16,14 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
                           UA_AddNodesResult *result) {
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+        UA_NodeStore_deleteNode(node);
         return;
     }
 
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
         result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        UA_NodeStore_deleteNode(node);
         return;
     }
 
@@ -29,16 +31,19 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
         (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_NodeStore_deleteNode(node);
         return;
     }
 
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_NodeStore_deleteNode(node);
         return;
     }
 
     if(referenceType->isAbstract == UA_TRUE) {
         result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED;
+        UA_NodeStore_deleteNode(node);
         return;
     }
 
