@@ -650,7 +650,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
         size_t old_offset = *offset; // jump back to encode the length
         *offset += 4;
         const UA_DataType *type = src->content.decoded.type;
-        size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        const size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, type, dst, offset);
         size_t length = *offset - old_offset - 4;
         if(length > UA_INT32_MAX)
@@ -774,9 +774,9 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_,
                      UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     if(!src->type)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
-    UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
-    UA_Boolean isBuiltin = src->type->builtin;
+    const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    const UA_Boolean isBuiltin = src->type->builtin;
     UA_Byte encodingByte = 0;
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
@@ -817,7 +817,7 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_,
     }
 
     uintptr_t ptr = (uintptr_t)src->data;
-    UA_UInt16 memSize = src->type->memSize;
+    const UA_UInt16 memSize = src->type->memSize;
     for(size_t i = 0; i < length; i++) {
         size_t oldoffset; // before encoding the actual content
         if(!isBuiltin) {
@@ -1059,7 +1059,7 @@ UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type, UA_ByteString *dst, size_t *UA_RESTRICT offset) {
     uintptr_t ptr = (uintptr_t)src;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Byte membersSize = type->membersSize;
+    const UA_Byte membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
@@ -1085,7 +1085,7 @@ UA_decodeBinaryNoInit(const UA_ByteString *src, size_t *UA_RESTRICT offset,
                       void *dst, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Byte membersSize = type->membersSize;
+    const UA_Byte membersSize = type->membersSize;
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
