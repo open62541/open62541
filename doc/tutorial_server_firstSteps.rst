@@ -101,27 +101,33 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    :> cd myServerApp
    :myServerApp> mkdir include
    :myServerApp> cp ../open62541/include/* ./include
-   :myServerApp> cp ../open62541/examples/*.h ./include
+   :myServerApp> cp ../open62541/src_extra/*.h ./include
    :myServerApp> cp ../open62541/build/src_generated/*.h ./include
    :myServerApp> cp ../open62541/build/*.so .
    :myServerApp> tree
    .
-   |-- include
-   |   |-- logger_stdout.h
-   |   |-- networklayer_tcp.h
-   |   |-- networklayer_udp.h
-   |   |-- ua_client.h
-   |   |-- ua_config.h
-   |   |-- ua_config.h.in
-   |   |-- ua_connection.h
-   |   |-- ua_log.h
-   |   |-- ua_nodeids.h
-   |   |-- ua_server.h
-   |   |-- ua_statuscodes.h
-   |   |-- ua_types_generated.h
-   |   `-- ua_types.h
-   |-- libopen62541.so
-   `-- myServer.c
+   ├── include
+   │   ├── logger_stdout.h
+   │   ├── networklayer_tcp.h
+   │   ├── networklayer_udp.h
+   │   ├── ua_client.h
+   │   ├── ua_client_highlevel.h
+   │   ├── ua_config.h
+   │   ├── ua_config.h.in
+   │   ├── ua_connection.h
+   │   ├── ua_job.h
+   │   ├── ua_log.h
+   │   ├── ua_nodeids.h
+   │   ├── ua_server_external_ns.h
+   │   ├── ua_server.h
+   │   ├── ua_statuscodes.h
+   │   ├── ua_transport_generated_encoding_binary.h
+   │   ├── ua_transport_generated.h
+   │   ├── ua_types_generated_encoding_binary.h
+   │   ├── ua_types_generated.h
+   │   └── ua_types.h
+   ├── libopen62541.so
+   └── myServer.c
    :myServerApp> touch myServer.c
 
 Open myServer.c and write/paste your minimal server application:
@@ -136,11 +142,16 @@ Open myServer.c and write/paste your minimal server application:
    # include "networklayer_tcp.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
      running = UA_TRUE;
-     UA_Server_run(server, 1, &running);
+     UA_Server_run(server, &running);
      UA_Server_delete(server);
 
      return 0;
@@ -150,7 +161,7 @@ This is all that is needed to start your OPC UA Server. Compile the the server w
 
    :myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
 
-Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be locates in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
+Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be located in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
 Now execute the server::
 
@@ -170,27 +181,26 @@ We will also make a slight change to our server: We want it to exit cleanly when
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
 
-    UA_Boolean running;
-    UA_Logger logger;
-
+    UA_Boolean running = UA_TRUE;
     static void stopHandler(int signal) {
-      running = UA_FALSE;
+        running = UA_FALSE;
     }
-
+    
     int main(void) {
-      signal(SIGINT,  stopHandler);
-      signal(SIGTERM, stopHandler);
-      
-      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-      logger = Logger_Stdout_new();
-      UA_Server_setLogger(server, logger);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
-      UA_Server_run(server, 1, &running);
-      UA_Server_delete(server);
-      
-      printf("Terminated\n");
-      return 0;
+        signal(SIGINT,  stopHandler);
+        signal(SIGTERM, stopHandler);
+    
+        UA_ServerConfig config = UA_ServerConfig_standard;
+        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
+        config.logger = Logger_Stdout;
+        config.networkLayers = &nl;
+        config.networkLayersSize = 1;
+        UA_Server *server = UA_Server_new(config);
+    
+        UA_StatusCode retval = UA_Server_run(server, &running);
+        UA_Server_delete(server);
+        nl.deleteMembers(&nl);
+        return retval;
     }
 
 Note that this file can be found as "examples/server_firstSteps.c" in the repository.
@@ -268,9 +278,14 @@ Open myServer.c and simplify it to:
    #include "open62541.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
      running = UA_TRUE;
      UA_Server_run(server, 1, &running);
      UA_Server_delete(server);
