@@ -97,14 +97,14 @@ Creating your first server
 Let's build a very rudimentary server. Create a separate folder for your application and copy the necessary source files into an a subfolder named ``include``. Don't forget to also copy the shared library. Then create a new C sourcefile called ``myServer.c``. If you choose to use a shell, the whole process should look like this::
 
    :open62541/build> cd ../../
-   :> mkdir myServerApp
-   :> cd myServerApp
-   :myServerApp> mkdir include
-   :myServerApp> cp ../open62541/include/* ./include
-   :myServerApp> cp ../open62541/src_extra/*.h ./include
-   :myServerApp> cp ../open62541/build/src_generated/*.h ./include
-   :myServerApp> cp ../open62541/build/*.so .
-   :myServerApp> tree
+   :> mkdir myApp
+   :> cd myApp
+   :myApp> mkdir include
+   :myApp> cp ../open62541/include/* ./include
+   :myApp> cp ../open62541/src_extra/*.h ./include
+   :myApp> cp ../open62541/build/src_generated/*.h ./include
+   :myApp> cp ../open62541/build/*.so .
+   :myApp> tree
    .
    ├── include
    │   ├── logger_stdout.h
@@ -128,7 +128,7 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    │   └── ua_types.h
    ├── libopen62541.so
    └── myServer.c
-   :myServerApp> touch myServer.c
+   :myApp> touch myServer.c
 
 Open myServer.c and write/paste your minimal server application:
 
@@ -159,13 +159,13 @@ Open myServer.c and write/paste your minimal server application:
 
 This is all that is needed to start your OPC UA Server. Compile the the server with GCC using the following command::
 
-   :myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
+   :myApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
 
 Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be located in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
 Now execute the server::
 
-   :myServerApp> ./myServer
+   :myApp> ./myServer
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
 
@@ -258,13 +258,13 @@ This one might appear quite mysterious at first... this option will enable a pyt
    Linking C shared library libopen62541.so
    :open62541/build> 
 
-Switch back to your MyServerApp directory and recompile your binary, this time embedding all open62541 functionality in one executable::
+Switch back to your myApp directory and recompile your binary, this time embedding all open62541 functionality in one executable::
 
-   :open62541/build> cd ../../myServerApp
+   :open62541/build> cd ../../myApp
    :open62541/build> cp ../open62541/build/open62541.* .
-   :myServerApp> gcc -std=c99 -I ./ -c ./open62541.c
-   :myServerApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
-   :myServerApp> ./myServer
+   :myApp> gcc -std=c99 -I ./ -c ./open62541.c
+   :myApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
+   :myApp> ./myServer
    
 You can now start the server and browse around as before. As you might have noticed, no shared library is required anymore. That makes the application more portable or runnable on systems without dynamic linking support and allows you to use functions that are not exported by the library (which propably means we haven't documented them as thouroughly...); on the other hand the application is also much bigger, so if you intend to also use a client with open62541, you might be inclined to overthink amalgamation.
 
@@ -295,8 +295,8 @@ Open myServer.c and simplify it to:
    
 It can now also be compiled without the include directory, i.e., ::
 
-   :myServerApp> gcc -std=c99 myServer.c open62541.c -o myServer
-   :myServerApp> ./myServer
+   :myApp> gcc -std=c99 myServer.c open62541.c -o myServer
+   :myApp> ./myServer
 
 Please note that at times the amalgamation script has... well, bugs. It might include files in the wrong order or include features even though the feature is turned off. Please report problems with amalgamation so we can improve it.
 
