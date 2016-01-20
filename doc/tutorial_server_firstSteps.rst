@@ -101,27 +101,33 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    :> cd myServerApp
    :myServerApp> mkdir include
    :myServerApp> cp ../open62541/include/* ./include
-   :myServerApp> cp ../open62541/examples/*.h ./include
+   :myServerApp> cp ../open62541/src_extra/*.h ./include
    :myServerApp> cp ../open62541/build/src_generated/*.h ./include
    :myServerApp> cp ../open62541/build/*.so .
    :myServerApp> tree
    .
-   |-- include
-   |   |-- logger_stdout.h
-   |   |-- networklayer_tcp.h
-   |   |-- networklayer_udp.h
-   |   |-- ua_client.h
-   |   |-- ua_config.h
-   |   |-- ua_config.h.in
-   |   |-- ua_connection.h
-   |   |-- ua_log.h
-   |   |-- ua_nodeids.h
-   |   |-- ua_server.h
-   |   |-- ua_statuscodes.h
-   |   |-- ua_types_generated.h
-   |   `-- ua_types.h
-   |-- libopen62541.so
-   `-- myServer.c
+   ├── include
+   │   ├── logger_stdout.h
+   │   ├── networklayer_tcp.h
+   │   ├── networklayer_udp.h
+   │   ├── ua_client.h
+   │   ├── ua_client_highlevel.h
+   │   ├── ua_config.h
+   │   ├── ua_config.h.in
+   │   ├── ua_connection.h
+   │   ├── ua_job.h
+   │   ├── ua_log.h
+   │   ├── ua_nodeids.h
+   │   ├── ua_server_external_ns.h
+   │   ├── ua_server.h
+   │   ├── ua_statuscodes.h
+   │   ├── ua_transport_generated_encoding_binary.h
+   │   ├── ua_transport_generated.h
+   │   ├── ua_types_generated_encoding_binary.h
+   │   ├── ua_types_generated.h
+   │   └── ua_types.h
+   ├── libopen62541.so
+   └── myServer.c
    :myServerApp> touch myServer.c
 
 Open myServer.c and write/paste your minimal server application:
