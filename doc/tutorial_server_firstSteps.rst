@@ -151,7 +151,7 @@ Open myServer.c and write/paste your minimal server application:
      config.networkLayersSize = 1;
      UA_Server *server = UA_Server_new(config);
      running = UA_TRUE;
-     UA_Server_run(server, 1, &running);
+     UA_Server_run(server, &running);
      UA_Server_delete(server);
 
      return 0;
