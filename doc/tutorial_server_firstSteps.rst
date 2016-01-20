@@ -272,9 +272,14 @@ Open myServer.c and simplify it to:
    #include "open62541.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
      running = UA_TRUE;
      UA_Server_run(server, 1, &running);
      UA_Server_delete(server);
