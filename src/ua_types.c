@@ -530,6 +530,8 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     void *new = UA_malloc(type->memSize);
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!v)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_StatusCode retval = UA_copy(p, new, type);
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_free(new);

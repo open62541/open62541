@@ -37,12 +37,9 @@
 #define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
-/**
- * server:		UA server context
- * jobs: 		pointer to array of jobs or NULL if jobsSize == -1
- * jobsSize: 	nr. of valid jobs or -1
-*/
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
+    UA_ASSERT_RCU_UNLOCKED();
+    UA_RCU_LOCK();
     for(size_t i = 0; i < jobsSize; i++) {
         UA_Job *job = &jobs[i];
         switch(job->type) {
@@ -72,6 +69,7 @@ static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
             break;
         }
     }
+    UA_RCU_UNLOCK();
 }
 
 /*******************************/
@@ -92,34 +90,7 @@ struct DispatchJobsList {
     UA_Job *jobs;
 };
 
-/** Dispatch jobs to workers. Slices the job array up if it contains more than BATCHSIZE items. The jobs
-    array is freed in the worker threads. */
-static void
-dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
-    size_t startIndex = jobsSize; // start at the end
-    while(jobsSize > 0) {
-        size_t size = BATCHSIZE;
-        if(size > jobsSize)
-            size = jobsSize;
-        startIndex = startIndex - size;
-        struct DispatchJobsList *wln = UA_malloc(sizeof(struct DispatchJobsList));
-        if(startIndex > 0) {
-            wln->jobs = UA_malloc(size * sizeof(UA_Job));
-            memcpy(wln->jobs, &jobs[startIndex], size * sizeof(UA_Job));
-            wln->jobsSize = size;
-        } else {
-            /* forward the original array */
-            wln->jobsSize = size;
-            wln->jobs = jobs;
-        }
-        cds_wfcq_node_init(&wln->node);
-        cds_wfcq_enqueue(&server->dispatchQueue_head, &server->dispatchQueue_tail, &wln->node);
-        jobsSize -= size;
-    }
-}
-
-static void *
-workerLoop(UA_Worker *worker) {
+static void * workerLoop(UA_Worker *worker) {
     UA_Server *server = worker->server;
     UA_UInt32 *counter = &worker->counter;
     volatile UA_Boolean *running = &worker->running;
@@ -141,19 +112,43 @@ workerLoop(UA_Worker *worker) {
             pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
             continue;
         }
-        UA_RCU_LOCK();
         processJobs(server, wln->jobs, wln->jobsSize);
         UA_free(wln->jobs);
         UA_free(wln);
-        UA_RCU_UNLOCK();
         uatomic_inc(counter);
     }
 
     pthread_mutex_unlock(&mutex);
     pthread_mutex_destroy(&mutex);
-    rcu_barrier();
+    UA_ASSERT_RCU_UNLOCKED();
+    rcu_barrier(); // wait for all scheduled call_rcu work to complete
    	rcu_unregister_thread();
     return NULL;
+}
+
+/** Dispatch jobs to workers. Slices the job array up if it contains more than
+    BATCHSIZE items. The jobs array is freed in the worker threads. */
+static void dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
+    size_t startIndex = jobsSize; // start at the end
+    while(jobsSize > 0) {
+        size_t size = BATCHSIZE;
+        if(size > jobsSize)
+            size = jobsSize;
+        startIndex = startIndex - size;
+        struct DispatchJobsList *wln = UA_malloc(sizeof(struct DispatchJobsList));
+        if(startIndex > 0) {
+            wln->jobs = UA_malloc(size * sizeof(UA_Job));
+            memcpy(wln->jobs, &jobs[startIndex], size * sizeof(UA_Job));
+            wln->jobsSize = size;
+        } else {
+            /* forward the original array */
+            wln->jobsSize = size;
+            wln->jobs = jobs;
+        }
+        cds_wfcq_node_init(&wln->node);
+        cds_wfcq_enqueue(&server->dispatchQueue_head, &server->dispatchQueue_tail, &wln->node);
+        jobsSize -= size;
+    }
 }
 
 static void
@@ -577,11 +572,9 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 
 UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Run Work in the main loop */
-    processMainLoopJobs(server);
+    processMainLoopJobs(server); /* Run work assigned for the main thread */
 #endif
-    /* Process repeated work */
-    UA_UInt16 timeout = processRepeatedJobs(server);
+    UA_UInt16 timeout = processRepeatedJobs(server); /* Process repeated work */
 
     /* Get work from the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
@@ -603,10 +596,9 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
             jobs[k].type = UA_JOBTYPE_NOTHING;
         }
 
-        /* Dispatch work to the worker threads */
-        dispatchJobs(server, jobs, jobsSize);
+        dispatchJobs(server, jobs, jobsSize); /* Dispatch work to worker threads */
 
-        /* Trigger sleeping worker threads */
+        /* Wake up worker threads */
         if(jobsSize > 0)
             pthread_cond_broadcast(&server->dispatchQueue_condition);
 #else
@@ -615,17 +607,19 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
             UA_free(jobs);
 #endif
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
-    UA_Job *stopJobs;
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_Job *stopJobs;
         size_t stopJobsSize = nl->stop(nl, &stopJobs);
         processJobs(server, stopJobs, stopJobsSize);
         UA_free(stopJobs);
     }
+
 #ifdef UA_ENABLE_MULTITHREADING
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)", server->config.nThreads);
@@ -636,21 +630,12 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     for(size_t i = 0; i < server->config.nThreads; i++)
         pthread_join(server->workers[i].thr, NULL);
     UA_free(server->workers);
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Workers shut down");
 
-    /* Manually finish the work still enqueued */
+    /* Manually finish the work still enqueued.
+       This especially contains delayed frees */
     emptyDispatchQueue(server);
-
-    /* Process the remaining delayed work */
-    struct DelayedJobs *dw = server->delayedJobs;
-    while(dw) {
-        processJobs(server, dw->jobs, dw->jobsCount);
-        struct DelayedJobs *next = dw->next;
-        UA_free(dw->workerCounters);
-        UA_free(dw);
-        dw = next;
-    }
+    UA_ASSERT_RCU_UNLOCKED();
+    rcu_barrier(); // wait for all scheduled call_rcu work to complete
 #endif
     return UA_STATUSCODE_GOOD;
 }

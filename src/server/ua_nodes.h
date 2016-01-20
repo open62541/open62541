@@ -5,12 +5,11 @@
 #include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 
-#define UA_TYPE_HANDLING_FUNCTIONS(TYPE)                             \
-    TYPE UA_EXPORT * TYPE##_new(void);                               \
-    void UA_EXPORT TYPE##_init(TYPE * p);                            \
-    void UA_EXPORT TYPE##_delete(TYPE * p);                          \
-    void UA_EXPORT TYPE##_deleteMembers(TYPE * p);                   \
-    UA_StatusCode UA_EXPORT TYPE##_copy(const TYPE *src, TYPE *dst);
+/*
+ * Most APIs take and return UA_EditNode and UA_ConstNode. By looking up the
+ * nodeclass, nodes can be cast to their "true" class, i.e. UA_VariableNode,
+ * UA_ObjectNode, and so on.
+ */
 
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
@@ -27,9 +26,8 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
 } UA_Node;
 
-void UA_Node_deleteAnyNodeClass(UA_Node *node);
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
-UA_Node * UA_Node_copyAnyNodeClass(const UA_Node *node);
+UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 
 /**************/
 /* ObjectNode */
@@ -40,7 +38,6 @@ typedef struct {
     UA_Byte eventNotifier;
     void *instanceHandle;
 } UA_ObjectNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectNode)
 
 /******************/
 /* ObjectTypeNode */
@@ -51,7 +48,6 @@ typedef struct {
     UA_Boolean isAbstract;
     UA_ObjectLifecycleManagement lifecycleManagement;
 } UA_ObjectTypeNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_ObjectTypeNode)
 
 typedef enum {
     UA_VALUESOURCE_VARIANT,
@@ -83,9 +79,6 @@ typedef struct {
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 } UA_VariableNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_VariableNode)
-/** Make a copy but leave out the references and the variable */
-UA_StatusCode UA_VariableNode_copyWithoutRefsAndVariable(const UA_VariableNode *src, UA_VariableNode *dst);
 
 /********************/
 /* VariableTypeNode */
@@ -105,7 +98,6 @@ typedef struct {
     /* <--- similar to variablenodes up to there--->*/
     UA_Boolean isAbstract;
 } UA_VariableTypeNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_VariableTypeNode)
 
 /*********************/
 /* ReferenceTypeNode */
@@ -117,7 +109,6 @@ typedef struct {
     UA_Boolean symmetric;
     UA_LocalizedText inverseName;
 } UA_ReferenceTypeNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_ReferenceTypeNode)
 
 /**************/
 /* MethodNode */
@@ -127,12 +118,9 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean executable;
     UA_Boolean userExecutable;
-#ifdef UA_ENABLE_METHODCALLS
     void *methodHandle;
     UA_MethodCallback attachedMethod;
-#endif
 } UA_MethodNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_MethodNode)
 
 /************/
 /* ViewNode */
@@ -144,7 +132,6 @@ typedef struct {
     /* <-- the same as objectnode until here --> */
     UA_Boolean containsNoLoops;
 } UA_ViewNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_ViewNode)
 
 /****************/
 /* DataTypeNode */
@@ -154,6 +141,5 @@ typedef struct {
     UA_STANDARD_NODEMEMBERS
     UA_Boolean isAbstract;
 } UA_DataTypeNode;
-UA_TYPE_HANDLING_FUNCTIONS(UA_DataTypeNode)
 
 #endif /* UA_NODES_H_ */
