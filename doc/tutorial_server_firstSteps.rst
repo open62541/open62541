@@ -136,9 +136,14 @@ Open myServer.c and write/paste your minimal server application:
    # include "networklayer_tcp.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
      running = UA_TRUE;
      UA_Server_run(server, 1, &running);
      UA_Server_delete(server);
@@ -150,7 +155,7 @@ This is all that is needed to start your OPC UA Server. Compile the the server w
 
    :myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
 
-Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be locates in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
+Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be located in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
 Now execute the server::
 
