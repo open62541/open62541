@@ -15,6 +15,9 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 typedef UA_StatusCode (*UA_decodeBinarySignature)(bufpos pos, bufend end, void *UA_RESTRICT dst);
 static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
+typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *type);
+static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
+
 UA_THREAD_LOCAL const UA_DataType *type; // used to pass the datatype into the jumptable
 
 /*****************/
@@ -1097,4 +1100,245 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_Da
     UA_StatusCode retval = UA_decodeBinaryInternal(&pos, end, dst);
     *offset = (pos - src->data) / sizeof(UA_Byte);
     return retval;
+}
+
+/******************/
+/* CalcSizeBinary */
+/******************/
+
+static size_t
+Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *contenttype) {
+    size_t s = 4; // length
+    if(contenttype->zeroCopyable) {
+        s += contenttype->memSize * length;
+        return s;
+    }
+    uintptr_t ptr = (uintptr_t)src;
+    size_t encode_index = contenttype->builtin ? contenttype->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    for(size_t i = 0; i < length; i++) {
+        s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, contenttype);
+        ptr += contenttype->memSize;
+    }
+    return s;
+}
+
+static size_t calcSizeBinaryMemSize(const void *UA_RESTRICT p, const UA_DataType *type) {
+    return type->memSize;
+}
+
+static size_t String_calcSizeBinary(const UA_String *UA_RESTRICT p, const UA_DataType *_) {
+    return 4 + p->length;
+}
+
+static size_t Guid_calcSizeBinary(const UA_Guid *UA_RESTRICT p, const UA_DataType *_) {
+    return 16;
+}
+
+static size_t
+NodeId_calcSizeBinary(const UA_NodeId *UA_RESTRICT src, const UA_DataType *_) {
+    size_t s = 1; // encoding byte
+    switch (src->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        if(src->identifier.numeric > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
+            s += 6;
+        } else if(src->identifier.numeric > UA_BYTE_MAX || src->namespaceIndex > 0) {
+            s += 3;
+        } else {
+            s += 1;
+        }
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+    case UA_NODEIDTYPE_STRING:
+        s += 2;
+        s += String_calcSizeBinary(&src->identifier.string, NULL);
+        break;
+    case UA_NODEIDTYPE_GUID:
+        s += 18;
+        break;
+    default:
+        return 0;
+    }
+    return s;
+}
+
+static size_t
+ExpandedNodeId_calcSizeBinary(const UA_ExpandedNodeId *src, const UA_DataType *_) {
+    size_t s = NodeId_calcSizeBinary(&src->nodeId, NULL);
+    if(src->namespaceUri.length > 0)
+        s += String_calcSizeBinary(&src->namespaceUri, NULL);
+    if(src->serverIndex > 0)
+        s += 4;
+    return s;
+}
+
+static size_t
+LocalizedText_calcSizeBinary(const UA_LocalizedText *src, UA_DataType *type) {
+    size_t s = 1; // encoding byte
+    if(src->locale.data)
+        s += String_calcSizeBinary(&src->locale, NULL);
+    if(src->text.data)
+        s += String_calcSizeBinary(&src->text, NULL);
+    return s;
+}
+
+static size_t
+ExtensionObject_calcSizeBinary(const UA_ExtensionObject *src, UA_DataType *_) {
+    size_t s = 1; // encoding byte
+    if(src->encoding > UA_EXTENSIONOBJECT_ENCODED_XML) {
+        if(!src->content.decoded.type || !src->content.decoded.data)
+            return 0;
+        if(src->content.decoded.type->typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+            return 0;
+        s += NodeId_calcSizeBinary(&src->content.decoded.type->typeId, NULL);
+        s += 4; // length
+        size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        s += calcSizeBinaryJumpTable[encode_index](src->content.decoded.data, src->content.decoded.type);
+    } else {
+        s += NodeId_calcSizeBinary(&src->content.encoded.typeId, NULL);
+        switch (src->encoding) {
+        case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
+            break;
+        case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+        case UA_EXTENSIONOBJECT_ENCODED_XML:
+            s += String_calcSizeBinary(&src->content.encoded.body, NULL);
+            break;
+        default:
+            return 0;
+        }
+    }
+    return s;
+}
+
+static size_t
+Variant_calcSizeBinary(UA_Variant const *src, UA_DataType *_) {
+    size_t s = 1; // encoding byte
+
+    if(!src->type)
+        return 0;
+    UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
+    UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
+    UA_Boolean isBuiltin = src->type->builtin;
+
+    UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
+    size_t encode_index = src->type->typeIndex;
+    if(!isBuiltin) {
+        encode_index = UA_BUILTIN_TYPES_COUNT;
+        typeId = src->type->typeId;
+        if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+            return 0;
+    }
+
+    size_t length = src->arrayLength;
+    if(isArray) {
+        s += 4;
+    } else
+        length = 1;
+
+    uintptr_t ptr = (uintptr_t)src->data;
+    ptrdiff_t memSize = src->type->memSize;
+    for(size_t i = 0; i < length; i++) {
+        if(!isBuiltin) {
+            /* The type is wrapped inside an extensionobject */
+            s += NodeId_calcSizeBinary(&typeId, NULL);
+            s += 1 + 4; // encoding byte + length
+        }
+        s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, src->type);
+        ptr += memSize;
+    }
+
+    if(hasDimensions)
+        s += Array_calcSizeBinary(src->arrayDimensions, src->arrayDimensionsSize,
+                                  &UA_TYPES[UA_TYPES_INT32]);
+    return s;
+}
+
+static size_t
+DataValue_calcSizeBinary(const UA_DataValue *src, UA_DataType *_) {
+    size_t s = 1; // encoding byte
+    if(src->hasValue)
+        s += Variant_calcSizeBinary(&src->value, NULL);
+    if(src->hasStatus)
+        s += 4;
+    if(src->hasSourceTimestamp)
+        s += 8;
+    if(src->hasSourcePicoseconds)
+        s += 2;
+    if(src->hasServerTimestamp)
+        s += 8;
+    if(src->hasServerPicoseconds)
+        s += 2;
+    return s;
+}
+
+static size_t
+DiagnosticInfo_calcSizeBinary(const UA_DiagnosticInfo *src, UA_DataType *_) {
+    size_t s = 1; // encoding byte
+    if(src->hasSymbolicId)
+        s += 4;
+    if(src->hasNamespaceUri)
+        s += 4;
+    if(src->hasLocalizedText)
+        s += 4;
+    if(src->hasLocale)
+        s += 4;
+    if(src->hasAdditionalInfo)
+        s += String_calcSizeBinary(&src->additionalInfo, NULL);
+    if(src->hasInnerStatusCode)
+        s += 4;
+    if(src->hasInnerDiagnosticInfo)
+        s += DiagnosticInfo_calcSizeBinary(src->innerDiagnosticInfo, NULL);
+    return s;
+}
+
+static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Byte
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Int16
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Int32
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Int64
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Float
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Double
+    (UA_calcSizeBinarySignature)String_calcSizeBinary,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // DateTime
+    (UA_calcSizeBinarySignature)Guid_calcSizeBinary, 
+    (UA_calcSizeBinarySignature)String_calcSizeBinary, // ByteString
+    (UA_calcSizeBinarySignature)String_calcSizeBinary, // XmlElement
+    (UA_calcSizeBinarySignature)NodeId_calcSizeBinary,
+    (UA_calcSizeBinarySignature)ExpandedNodeId_calcSizeBinary,
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // StatusCode
+    (UA_calcSizeBinarySignature)UA_calcSizeBinary, // QualifiedName
+    (UA_calcSizeBinarySignature)LocalizedText_calcSizeBinary,
+    (UA_calcSizeBinarySignature)ExtensionObject_calcSizeBinary,
+    (UA_calcSizeBinarySignature)DataValue_calcSizeBinary,
+    (UA_calcSizeBinarySignature)Variant_calcSizeBinary,
+    (UA_calcSizeBinarySignature)DiagnosticInfo_calcSizeBinary,
+    (UA_calcSizeBinarySignature)UA_calcSizeBinary
+};
+
+size_t UA_calcSizeBinary(void *p, const UA_DataType *contenttype) {
+    size_t s = 0;
+    uintptr_t ptr = (uintptr_t)p;
+    UA_Byte membersSize = type->membersSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &contenttype[-contenttype->typeIndex] };
+    for(size_t i = 0; i < membersSize; i++) {
+        const UA_DataTypeMember *member = &contenttype->members[i];
+        const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
+        if(!member->isArray) {
+            ptr += member->padding;
+            size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
+            ptr += membertype->memSize;
+        } else {
+            ptr += member->padding;
+            const size_t length = *((const size_t*)ptr);
+            ptr += sizeof(size_t);
+            s += Array_calcSizeBinary(*(void *UA_RESTRICT const *)ptr, length, membertype);
+            ptr += sizeof(void*);
+        }
+    }
+    return s;
 }
