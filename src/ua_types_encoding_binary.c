@@ -401,7 +401,7 @@ String_decodeBinary(bufpos pos, bufend end, UA_String *dst) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(dst->data, *pos, length);
     dst->length = length;
-    *pos += signed_length;
+    *pos += length;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -630,7 +630,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, bufpos pos, bufend e
         type = src->content.decoded.type;
         size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, pos, end);
-        UA_Int32 length = (UA_Int32)(*pos - old_pos - 4) / (UA_Int32)sizeof(UA_Byte);
+        UA_Int32 length = (UA_Int32)(((uintptr_t)*pos - (uintptr_t)old_pos) / sizeof(UA_Byte)) - 4;
         retval |= Int32_encodeBinary(&length, &old_pos, end);
     } else {
         retval = NodeId_encodeBinary(&src->content.encoded.typeId, pos, end);
@@ -677,10 +677,7 @@ ExtensionObject_decodeBinary(bufpos pos, bufend end, UA_ExtensionObject *dst) {
         dst->encoding = encoding;
         dst->content.encoded.typeId = typeId;
         dst->content.encoded.body = UA_BYTESTRING_NULL;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
+    } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
         dst->encoding = encoding;
         dst->content.encoded.typeId = typeId;
         retval = ByteString_decodeBinary(pos, end, &dst->content.encoded.body);
@@ -785,7 +782,7 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
         retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
         if(!isBuiltin) {
             /* Jump back and print the length of the extension object */
-            UA_Int32 encodingLength = (UA_Int32)(**pos - *old_pos) / (UA_Int32)sizeof(UA_Byte);
+            UA_Int32 encodingLength = (UA_Int32)(((uintptr_t)*pos - (uintptr_t)old_pos) / sizeof(UA_Byte));
             old_pos -= 4;
             retval |= Int32_encodeBinary(&encodingLength, &old_pos, end);
         }
@@ -1134,8 +1131,8 @@ Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *contentt
     return s;
 }
 
-static size_t calcSizeBinaryMemSize(const void *UA_RESTRICT p, const UA_DataType *_) {
-    return type->memSize;
+static size_t calcSizeBinaryMemSize(const void *UA_RESTRICT p, const UA_DataType *datatype) {
+    return datatype->memSize;
 }
 
 static size_t String_calcSizeBinary(const UA_String *UA_RESTRICT p, const UA_DataType *_) {
