@@ -31,9 +31,9 @@ static hash_t const primes[] = {
 
 static UA_UInt16 higher_prime_index(hash_t n) {
     UA_UInt16 low  = 0;
-    UA_UInt16 high = sizeof(primes) / sizeof(hash_t);
+    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(hash_t));
     while(low != high) {
-        UA_UInt16 mid = (UA_UInt16)(low + (high - low) / 2);
+        UA_UInt16 mid = (UA_UInt16)(low + ((high - low) / 2));
         if(n > primes[mid])
             low = (UA_UInt16)(mid + 1);
         else
@@ -90,31 +90,31 @@ static UA_Boolean
 containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry ***entry) {
     hash_t h = hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    UA_NodeStoreEntry *e = ns->entries[idx];
+    hash_t index = mod(h, size);
+    UA_NodeStoreEntry *e = ns->entries[index];
 
     if(!e) {
-        *entry = &ns->entries[idx];
+        *entry = &ns->entries[index];
         return UA_FALSE;
     }
 
     if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
-        *entry = &ns->entries[idx];
+        *entry = &ns->entries[index];
         return UA_TRUE;
     }
 
     hash_t hash2 = mod2(h, size);
     for(;;) {
-        idx += hash2;
-        if(idx >= size)
-            idx -= size;
-        e = ns->entries[idx];
+        index += hash2;
+        if(index >= size)
+            index -= size;
+        e = ns->entries[index];
         if(!e) {
-            *entry = &ns->entries[idx];
+            *entry = &ns->entries[index];
             return UA_FALSE;
         }
         if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
-            *entry = &ns->entries[idx];
+            *entry = &ns->entries[index];
             return UA_TRUE;
         }
     }
@@ -209,6 +209,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     if(UA_NodeId_isNull(&tempNodeid)) {
         if(node->nodeId.namespaceIndex == 0)
             node->nodeId.namespaceIndex = 1;
+        /* find a free nodeid */
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
         hash_t increase = mod2(identifier, size);
