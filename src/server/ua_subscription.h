@@ -47,6 +47,7 @@ typedef struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     UA_DateTime lastSampled;
     UA_ByteString lastSampledValue;
+    UA_UInt32 lastSampledSize;
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     TAILQ_HEAD(QueueOfQueueDataValues, MonitoredItem_queuedValue) queue;
