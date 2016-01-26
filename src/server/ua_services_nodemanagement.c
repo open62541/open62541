@@ -209,10 +209,10 @@ static UA_StatusCode
 instantiateObjectNode(UA_Server *server, UA_Session *session,
                       const UA_NodeId *nodeId, const UA_NodeId *typeId, 
                       UA_InstantiationCallback *instantiationCallback) {   
-    const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
-    if(!type)
+    const UA_ObjectTypeNode *typenode = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
+    if(!typenode)
       return UA_STATUSCODE_BADNODEIDINVALID;
-    if(type->nodeClass != UA_NODECLASS_OBJECTTYPE)
+    if(typenode->nodeClass != UA_NODECLASS_OBJECTTYPE)
       return UA_STATUSCODE_BADNODECLASSINVALID;
     
     /* Add all the child nodes */
@@ -259,7 +259,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     Service_AddReferences_single(server, session, &addref);
 
     /* call the constructor */
-    const UA_ObjectLifecycleManagement *olm = &type->lifecycleManagement;
+    const UA_ObjectLifecycleManagement *olm = &typenode->lifecycleManagement;
     if(olm->constructor)
         UA_Server_editNode(server, session, nodeId,
                            (UA_EditNodeCallback)setObjectInstanceHandle, olm->constructor(*nodeId));
@@ -269,10 +269,10 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     const UA_NodeId *typeId, UA_InstantiationCallback *instantiationCallback) {
-    const UA_ObjectTypeNode *type = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
-    if(!type)
+    const UA_ObjectTypeNode *typenode = (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, typeId);
+    if(!typenode)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(type->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(typenode->nodeClass != UA_NODECLASS_VARIABLETYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     
     /* get the references to child properties */
@@ -881,15 +881,15 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_Node
         for(size_t i = 0; i < result.referencesSize; i++) {
             /* call the destructor */
             UA_ReferenceDescription *rd = &result.references[i];
-            const UA_ObjectTypeNode *type =
+            const UA_ObjectTypeNode *typenode =
                 (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
-            if(!type)
+            if(!typenode)
                 continue;
-            if(type->nodeClass != UA_NODECLASS_OBJECTTYPE || !type->lifecycleManagement.destructor)
+            if(typenode->nodeClass != UA_NODECLASS_OBJECTTYPE || !typenode->lifecycleManagement.destructor)
                 continue;
 
             /* if there are several types with lifecycle management, call all the destructors */
-            type->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
+            typenode->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
         }
         UA_BrowseResult_deleteMembers(&result);
     }

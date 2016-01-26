@@ -108,9 +108,9 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /* force cast for zero-copy reading. ensure that the variant is never written into. */
-static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *type) {
+static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
     UA_Variant_init(v);
-    v->type = type;
+    v->type = t;
     v->data = (void*)(uintptr_t)p;
     v->storageType = UA_VARIANT_DATA_NODELETE;
 }
@@ -506,12 +506,12 @@ enum type_equivalence {
     TYPE_EQUIVALENCE_OPAQUE
 };
 
-static enum type_equivalence typeEquivalence(const UA_DataType *type) {
-    if(type->membersSize != 1 || !type->members[0].namespaceZero)
+static enum type_equivalence typeEquivalence(const UA_DataType *t) {
+    if(t->membersSize != 1 || !t->members[0].namespaceZero)
         return TYPE_EQUIVALENCE_NONE;
-    if(type->members[0].memberTypeIndex == UA_TYPES_INT32)
+    if(t->members[0].memberTypeIndex == UA_TYPES_INT32)
         return TYPE_EQUIVALENCE_ENUM;
-    if(type->members[0].memberTypeIndex == UA_TYPES_BYTE && type->members[0].isArray)
+    if(t->members[0].memberTypeIndex == UA_TYPES_BYTE && t->members[0].isArray)
         return TYPE_EQUIVALENCE_OPAQUE;
     return TYPE_EQUIVALENCE_NONE;
 }
@@ -584,7 +584,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     void *value = wvalue->value.value.data;
     void *target = NULL;
-    const UA_DataType *type = NULL;
+    const UA_DataType *attr_type = NULL;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 	switch(wvalue->attributeId) {
@@ -596,17 +596,17 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 	case UA_ATTRIBUTEID_BROWSENAME:
 		CHECK_DATATYPE(QUALIFIEDNAME);
         target = &node->browseName;
-        type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+        attr_type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
 		break;
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->displayName;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_DESCRIPTION:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->description;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_WRITEMASK:
 		CHECK_DATATYPE(UINT32);
@@ -631,7 +631,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &((UA_ReferenceTypeNode*)node)->inverseName;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
@@ -684,9 +684,9 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 		break;
 	}
-    if(type) {
-        UA_deleteMembers(target, type);
-        retval = UA_copy(value, target, type);
+    if(attr_type) {
+        UA_deleteMembers(target, attr_type);
+        retval = UA_copy(value, target, attr_type);
     }
     return retval;
 }

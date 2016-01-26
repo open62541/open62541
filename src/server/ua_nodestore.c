@@ -90,31 +90,31 @@ static UA_Boolean
 containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry ***entry) {
     hash_t h = hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t index = mod(h, size);
-    UA_NodeStoreEntry *e = ns->entries[index];
+    hash_t idx = mod(h, size);
+    UA_NodeStoreEntry *e = ns->entries[idx];
 
     if(!e) {
-        *entry = &ns->entries[index];
+        *entry = &ns->entries[idx];
         return UA_FALSE;
     }
 
     if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
-        *entry = &ns->entries[index];
+        *entry = &ns->entries[idx];
         return UA_TRUE;
     }
 
     hash_t hash2 = mod2(h, size);
     for(;;) {
-        index += hash2;
-        if(index >= size)
-            index -= size;
-        e = ns->entries[index];
+        idx += hash2;
+        if(idx >= size)
+            idx -= size;
+        e = ns->entries[idx];
         if(!e) {
-            *entry = &ns->entries[index];
+            *entry = &ns->entries[idx];
             return UA_FALSE;
         }
         if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
-            *entry = &ns->entries[index];
+            *entry = &ns->entries[idx];
             return UA_TRUE;
         }
     }

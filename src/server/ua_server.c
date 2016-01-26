@@ -1105,7 +1105,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
 UA_StatusCode
 __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId, const UA_DataType *type,
+                  const UA_AttributeId attributeId, const UA_DataType *attr_type,
                   const void *value) {
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
@@ -1113,9 +1113,9 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE)
         /* hacked cast. the target WriteValue is used as const anyway */
-        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, type);
+        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, attr_type);
     else {
-        if(type != &UA_TYPES[UA_TYPES_VARIANT])
+        if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
             return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;
     }
