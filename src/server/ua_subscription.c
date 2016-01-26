@@ -263,6 +263,7 @@ UA_MonitoredItem * UA_MonitoredItem_new() {
     TAILQ_INIT(&new->queue);
     UA_NodeId_init(&new->monitoredNodeId);
     new->lastSampledValue.data = 0;
+    new->lastSampledSize = 512;
     return new;
 }
 
@@ -467,9 +468,18 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     }
   
     // encode the data to find if its different to the previous
-    newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    newValueAsByteString.length = monitoredItem->lastSampledSize; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    newValueAsByteString.data = UA_malloc(newValueAsByteString.length);
+    UA_StatusCode retval;
+
+    do {
+        retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+        if (retval == UA_STATUSCODE_BADENCODINGERROR) {
+            newValueAsByteString.length *= 2;
+            newValueAsByteString.data = UA_realloc(newValueAsByteString.data, newValueAsByteString.length);
+            monitoredItem->lastSampledSize = newValueAsByteString.length;
+        }
+    } while (retval != UA_STATUSCODE_GOOD);
     //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
     newValueAsByteString.length = encodingOffset;
 
