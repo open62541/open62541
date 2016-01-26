@@ -565,6 +565,9 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, server->config.logger);
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            UA_String_copy(&nl->discoveryUrl, &server->endpointDescriptions[j].endpointUrl);
+        }
     }
 
     return result;

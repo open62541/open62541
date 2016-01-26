@@ -467,10 +467,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         /* The standard says "the HostName specified in the Server Certificate is the
            same as the HostName contained in the endpointUrl provided in the
            EndpointDescription */
-        UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
         UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
-
         UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
+        
+        /* copy the discovery url only once the networlayer has been started */
+        // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
     } 
 
 #define MAXCHANNELCOUNT 100

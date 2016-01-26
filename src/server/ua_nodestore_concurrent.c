@@ -10,9 +10,6 @@ struct nodeEntry {
 
 #include "ua_nodestore_hash.inc"
 
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
-
 static void deleteEntry(struct rcu_head *head) {
     struct nodeEntry *entry = container_of(head, struct nodeEntry, rcu_head);
     switch(entry->node.nodeClass) {
