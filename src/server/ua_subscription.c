@@ -381,11 +381,6 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                                                NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
-                if(sourceDataValue.value.data) {
-                    UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
-                    UA_free(sourceDataValue.value.data);
-                    sourceDataValue.value.data = NULL;
-                }
                 UA_DataValue_deleteMembers(&sourceDataValue);
                 samplingError = UA_FALSE;
             }
