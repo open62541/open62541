@@ -48,13 +48,13 @@ typedef struct pcg_state_setseq_64 pcg32_random_t;
 
 #define PCG32_INITIALIZER   { 0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL }
 
-// pcg32_srandom(initstate, initseq)
-// pcg32_srandom_r(rng, initstate, initseq):
+// pcg32_srandom(initial_state, initseq)
+// pcg32_srandom_r(rng, initial_state, initseq):
 //     Seed the rng.  Specified in two parts, state initializer and a
 //     sequence selection constant (a.k.a. stream id)
 
-void pcg32_srandom(uint64_t initstate, uint64_t initseq);
-void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initstate,
+void pcg32_srandom(uint64_t initial_state, uint64_t initseq);
+void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initial_state,
                      uint64_t initseq);
 
 // pcg32_random()

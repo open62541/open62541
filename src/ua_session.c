@@ -2,20 +2,6 @@
 #include "ua_session.h"
 #include "ua_statuscodes.h"
 
-UA_Session anonymousSession = {
-    .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
-                           .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},
-                           .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {0, NULL}, .discoveryProfileUri = {0, NULL},
-                           .discoveryUrlsSize = 0, .discoveryUrls = NULL},
-    .sessionName = {sizeof("Anonymous Session")-1, (UA_Byte*)"Anonymous Session"},
-    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                            .identifier.numeric = 0}, 
-    .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0},
-    .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
-    .continuationPoints = {NULL}};
-
 UA_Session adminSession = {
     .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
                            .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},

@@ -396,14 +396,14 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
+    UA_Byte data[] = { (UA_Byte)UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
     UA_ByteString src = { 5, data };
     UA_Variant dst;
     // when
     UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 5);
+    ck_assert_uint_eq(pos, 5);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
@@ -418,7 +418,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
                        0xFF, 0xFF };
     UA_ByteString src = { 13, data };
@@ -498,7 +499,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 13, data };
     UA_Variant dst;
@@ -514,7 +516,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 4, data };
 

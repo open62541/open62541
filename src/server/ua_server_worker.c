@@ -338,9 +338,9 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     // check if the next repeated job is sooner than the usual timeout
     // calc in 32 bit must be ok
     struct RepeatedJobs *first = LIST_FIRST(&server->repeatedJobs);
-    UA_UInt32 timeout = MAXTIMEOUT;
+    UA_UInt16 timeout = MAXTIMEOUT;
     if(first) {
-        timeout = (UA_UInt32)((first->nextTime - current) / 10);
+        timeout = (UA_UInt16)((first->nextTime - current) / 10);
         if(timeout > MAXTIMEOUT)
             return MAXTIMEOUT;
     }
@@ -494,6 +494,12 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         dw = dw->next;
     }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         processJobs(server, dw->jobs, dw->jobsCount);
@@ -502,6 +508,10 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         UA_free(dw->workerCounters);
         dw = next;
     }
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 #endif
@@ -554,7 +564,10 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        result |= nl->start(nl);
+        result |= nl->start(nl, server->config.logger);
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            UA_String_copy(&nl->discoveryUrl, &server->endpointDescriptions[j].endpointUrl);
+        }
     }
 
     return result;

@@ -16,26 +16,26 @@ typedef struct UA_Client_NotificationsAckNumber_s {
 } UA_Client_NotificationsAckNumber;
 
 typedef struct UA_Client_MonitoredItem_s {
-    UA_UInt32          MonitoredItemId;
-    UA_UInt32          MonitoringMode;
-    UA_NodeId          monitoredNodeId;
-    UA_UInt32          AttributeID;
-    UA_UInt32          ClientHandle;
-    UA_UInt32          SamplingInterval;
-    UA_UInt32          QueueSize;
-    UA_Boolean         DiscardOldest;
-    void               (*handler)(UA_UInt32 handle, UA_DataValue *value, void *context);
-    void               *handlerContext;
+    UA_UInt32  MonitoredItemId;
+    UA_UInt32  MonitoringMode;
+    UA_NodeId  monitoredNodeId;
+    UA_UInt32  AttributeID;
+    UA_UInt32  ClientHandle;
+    UA_Double  SamplingInterval;
+    UA_UInt32  QueueSize;
+    UA_Boolean DiscardOldest;
+    void       (*handler)(UA_UInt32 handle, UA_DataValue *value, void *context);
+    void       *handlerContext;
     LIST_ENTRY(UA_Client_MonitoredItem_s)  listEntry;
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription_s {
-    UA_UInt32    LifeTime;
-    UA_Int32     KeepAliveCount;
-    UA_DateTime  PublishingInterval;
-    UA_UInt32    SubscriptionID;
-    UA_Int32     NotificationsPerPublish;
-    UA_UInt32    Priority;
+    UA_UInt32 LifeTime;
+    UA_UInt32 KeepAliveCount;
+    UA_Double PublishingInterval;
+    UA_UInt32 SubscriptionID;
+    UA_UInt32 NotificationsPerPublish;
+    UA_UInt32 Priority;
     LIST_ENTRY(UA_Client_Subscription_s) listEntry;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
@@ -69,7 +69,7 @@ struct UA_Client {
     UA_UInt32 requestHandle;
     
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Int32 monitoredItemHandles;
+    UA_UInt32 monitoredItemHandles;
     LIST_HEAD(UA_ListOfUnacknowledgedNotificationNumbers, UA_Client_NotificationsAckNumber_s) pendingNotificationsAcks;
     LIST_HEAD(UA_ListOfClientSubscriptionItems, UA_Client_Subscription_s) subscriptions;
 #endif
