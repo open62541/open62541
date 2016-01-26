@@ -10,9 +10,9 @@ struct nodeEntry {
 
 #include "ua_nodestore_hash.inc"
 
-static void deleteEntry(struct rcu_head *head) {
-    struct nodeEntry *entry = container_of(head, struct nodeEntry, rcu_head);
-    switch(entry->node.nodeClass) {
+static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
+    size_t size = sizeof(struct nodeEntry) - sizeof(UA_Node);
+    switch(class) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
         break;
@@ -128,13 +128,13 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         cds_lfht_count_nodes(ht, &before, &identifier, &after); // current amount of nodes stored
         identifier++;
 
-        node->nodeId.identifier.numeric = identifier;
+        node->nodeId.identifier.numeric = (UA_UInt32)identifier;
         while(UA_TRUE) {
             hash_t h = hash(&node->nodeId);
             result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
             if(result == &entry->htn)
                 break;
-            node->nodeId.identifier.numeric += (identifier * 2654435761);
+            node->nodeId.identifier.numeric += (UA_UInt32)(identifier * 2654435761);
         }
     }
     return UA_STATUSCODE_GOOD;
