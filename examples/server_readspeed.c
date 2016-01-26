@@ -32,7 +32,10 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
     config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
@@ -48,7 +51,7 @@ int main(int argc, char** argv) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL);
+                              UA_NODEID_NULL, attr, NULL, NULL);
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -99,6 +102,7 @@ int main(int argc, char** argv) {
 
     retval |= UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
     return retval;
 }

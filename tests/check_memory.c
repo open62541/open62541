@@ -180,6 +180,22 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 }
 END_TEST
 
+START_TEST(calcSizeBinaryShallBeCorrect) {
+	// given
+	void *obj = UA_new(&UA_TYPES[_i]);
+    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
+    UA_ByteString msg;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    size_t offset = 0;
+    retval = UA_encodeBinary(obj, &UA_TYPES[_i], &msg, &offset);
+	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+	ck_assert_int_eq(offset, predicted_size);
+    UA_delete(obj, &UA_TYPES[_i]);
+    UA_ByteString_deleteMembers(&msg);
+}
+END_TEST
+
 int main(void) {
 	int number_failed = 0;
 	SRunner *sr;
@@ -198,6 +214,9 @@ int main(void) {
 	tcase_add_loop_test(tc, decodeScalarBasicTypeFromRandomBufferShallSucceed, UA_TYPES_BOOLEAN, UA_TYPES_DOUBLE);
 	tcase_add_loop_test(tc, decodeComplexTypeFromRandomBufferShallSurvive, UA_TYPES_NODEID, UA_TYPES_COUNT - 1);
 	suite_add_tcase(s, tc);
+
+	tc = tcase_create("Test calcSizeBinary");
+	tcase_add_loop_test(tc, calcSizeBinaryShallBeCorrect, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
 
 	sr = srunner_create(s);
 	srunner_set_fork_status(sr, CK_NOFORK);

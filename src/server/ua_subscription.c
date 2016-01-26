@@ -383,11 +383,6 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                                                NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
-                if(sourceDataValue.value.data) {
-                    UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
-                    UA_free(sourceDataValue.value.data);
-                    sourceDataValue.value.data = NULL;
-                }
                 UA_DataValue_deleteMembers(&sourceDataValue);
                 samplingError = UA_FALSE;
             }
@@ -469,14 +464,21 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     }
   
     // encode the data to find if its different to the previous
-    newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
-    //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
-    newValueAsByteString.length = encodingOffset;
-
-    if(retval != UA_STATUSCODE_GOOD)
+    size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_DataValue_deleteMembers(&newvalue->value);
+        UA_free(newvalue);
+        return;
+    }
+    
+    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
+        UA_DataValue_deleteMembers(&newvalue->value);
+        UA_free(newvalue);
+        return;
+    }
   
     if(!monitoredItem->lastSampledValue.data) { 
         UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);
