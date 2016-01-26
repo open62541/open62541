@@ -39,7 +39,7 @@ With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server
 #define PORT 16664
 
 UA_Boolean running = UA_TRUE;
-void signalHandler(int sign) {
+void signalHandler(int sig) {
     running = UA_FALSE;
 }
 
