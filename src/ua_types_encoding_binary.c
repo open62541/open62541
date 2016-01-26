@@ -1328,10 +1328,9 @@ size_t UA_calcSizeBinary(void *p, const UA_DataType *contenttype) {
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &contenttype->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
-        type = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptr += member->padding;
-            size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+            size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
             ptr += membertype->memSize;
         } else {
