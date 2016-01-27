@@ -1292,6 +1292,7 @@ DiagnosticInfo_calcSizeBinary(const UA_DiagnosticInfo *src, UA_DataType *_) {
 }
 
 static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Boolean
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Byte
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Int16
@@ -1327,6 +1328,7 @@ size_t UA_calcSizeBinary(void *p, const UA_DataType *contenttype) {
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &contenttype->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
+        type = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
             ptr += member->padding;
             size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
