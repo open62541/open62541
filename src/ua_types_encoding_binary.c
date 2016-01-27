@@ -1292,6 +1292,7 @@ DiagnosticInfo_calcSizeBinary(const UA_DiagnosticInfo *src, UA_DataType *_) {
 }
 
 static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+    (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Boolean
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Byte
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Int16
