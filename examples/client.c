@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++){
-        printf("SecurityPolicyUri of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].securityPolicyUri.length, endpointArray[i].securityPolicyUri.data);
+        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
     }
 
     //cleanup array of enpoints

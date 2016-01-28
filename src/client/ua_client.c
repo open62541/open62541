@@ -343,6 +343,9 @@ static UA_StatusCode GetEndpoints(UA_Client *client, size_t* endpointDescription
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
+    
+    request.endpointUrl = client->endpointUrl; //here we assume the endpointUrl is on the stack
+    
     //no filter for endpoints
     request.profileUrisSize = 0;
 
@@ -516,6 +519,12 @@ UA_StatusCode UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnecti
         goto cleanup;
     }
 
+    client->endpointUrl = UA_STRING_ALLOC(serverUrl);
+    if(client->endpointUrl.data == NULL) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+    
     client->connection.localConf = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
