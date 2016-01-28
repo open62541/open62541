@@ -38,7 +38,7 @@ START_TEST(Session_init_ShallWork)
     ck_assert_int_eq(session.maxResponseMessageSize,0);
     ck_assert_int_eq(session.sessionId.identifier.numeric,tmpNodeId.identifier.numeric);
     ck_assert_ptr_eq(session.sessionName.data,NULL);
-    ck_assert_int_eq(session.timeout,0);
+    ck_assert_int_eq((int)session.timeout,0);
     ck_assert_int_eq(session.validTill,tmpDateTime);
 
 
