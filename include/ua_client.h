@@ -15,9 +15,8 @@ struct UA_Client;
 typedef struct UA_Client UA_Client;
 
 typedef struct UA_ClientConfig {
-    UA_Int32 timeout; //sync response timeout
-    UA_Int32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
-    UA_Int32 timeToRenewSecureChannel; //time in ms  before expiration to renew the secure channel
+    UA_UInt32 timeout; //sync response timeout
+    UA_UInt32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
     UA_ConnectionConfig localConnectionConfig;
 } UA_ClientConfig;
 

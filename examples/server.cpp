@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cstring>
 
-#ifdef NOT_AMALGATED
+#ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
@@ -23,7 +23,7 @@
 
 using namespace std;
 
-UA_Boolean running = 1;
+UA_Boolean running = UA_TRUE;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
@@ -34,9 +34,12 @@ static void stopHandler(int sign) {
 int main() {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-    UA_Server_setLogger(server, logger);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr;
@@ -51,15 +54,16 @@ int main() {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL);
+                              UA_NODEID_NULL, attr, NULL, NULL);
 
     /* allocations on the heap need to be freed */
     UA_VariableAttributes_deleteMembers(&attr);
     UA_NodeId_deleteMembers(&myIntegerNodeId);
     UA_QualifiedName_deleteMembers(&myIntegerName);
 
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
 	UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
 	return retval;
 }

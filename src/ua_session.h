@@ -22,7 +22,7 @@ struct ContinuationPointEntry {
     LIST_ENTRY(ContinuationPointEntry) pointers;
     UA_ByteString        identifier;
     UA_BrowseDescription browseDescription;
-    UA_Int32            continuationIndex;
+    UA_UInt32            continuationIndex;
     UA_UInt32            maxReferences;
 };
 
@@ -44,7 +44,6 @@ struct UA_Session {
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 };
 
-extern UA_Session anonymousSession; ///< If anonymous access is allowed, this session is used internally (Session ID: 0)
 extern UA_Session adminSession; ///< Local access to the services (for startup and maintenance) uses this Session with all possible access rights (Session ID: 1)
 
 void UA_Session_init(UA_Session *session);

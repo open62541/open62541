@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include "logger_stdout.h"
-#include "ua_types_generated_encoding_binary.h"
+#include "ua_types_generated.h"
 
 const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
 const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "client", "userland"};
@@ -17,9 +17,9 @@ const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "c
 #endif
 
 void Logger_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...) {
-	UA_String time = UA_DateTime_toString(UA_DateTime_now());
-    printf("[%.23s] %s/%s\t", time.data, LogLevelNames[level], LogCategoryNames[category]);
-	UA_ByteString_deleteMembers(&time);
+	UA_String t = UA_DateTime_toString(UA_DateTime_now());
+    printf("[%.23s] %s/%s\t", t.data, LogLevelNames[level], LogCategoryNames[category]);
+	UA_ByteString_deleteMembers(&t);
     va_list ap;
     va_start(ap, msg);
     vprintf(msg, ap);

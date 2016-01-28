@@ -57,7 +57,9 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     size_t pos = 0;
     size_t delete_at = current->length-1; // garbled message after this point
     while(current->length - pos >= 16) {
-        UA_UInt32 msgtype = current->data[pos] + (current->data[pos+1] << 8) + (current->data[pos+2] << 16);
+        UA_UInt32 msgtype = (UA_UInt32)current->data[pos] +
+            ((UA_UInt32)current->data[pos+1] << 8) +
+            ((UA_UInt32)current->data[pos+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
@@ -67,10 +69,10 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             delete_at = pos; // throw the remaining message away
             break;
         }
-        UA_Int32 length = 0;
+        UA_UInt32 length = 0;
         size_t length_pos = pos + 4;
-        UA_StatusCode retval = UA_Int32_decodeBinary(current, &length_pos, &length);
-        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > (UA_Int32)connection->localConf.maxMessageSize) {
+        UA_StatusCode retval = UA_UInt32_decodeBinary(current, &length_pos, &length);
+        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.maxMessageSize) {
             /* the message size is not allowed. throw the remaining bytestring away */
             delete_at = pos;
             break;
@@ -129,6 +131,13 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return UA_STATUSCODE_GOOD;
 }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
+
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 #ifdef UA_ENABLE_MULTITHREADING
     UA_SecureChannel *channel = connection->channel;
@@ -145,7 +154,7 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
 #ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
-        uatomic_set(&connection->channel, channel);
+        uatomic_set((void**)&connection->channel, (void*)channel);
 #else
     if(channel->connection != NULL)
         return;
@@ -153,3 +162,7 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChann
     connection->channel = channel;
 #endif
 }
+
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif

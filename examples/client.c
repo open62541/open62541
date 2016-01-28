@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_client_getEndpoints(client, ClientNetworkLayerTCP_connect,
+    UA_StatusCode retval = UA_client_getEndpoints(client, UA_ClientConnectionTCP,
             "opc.tcp://localhost:16664", &endpointArraySize, &endpointArray);
 
     //freeing the endpointArray
@@ -38,14 +38,14 @@ int main(int argc, char *argv[]) {
 
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++){
-        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
+        printf("SecurityPolicyUri of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].securityPolicyUri.length, endpointArray[i].securityPolicyUri.data);
     }
 
     //cleanup array of enpoints
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     //connect to a server
-    retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+    retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
     printf("\nReading the value of node (1, \"the.answer\"):\n");
     UA_ReadRequest rReq;
     UA_ReadRequest_init(&rReq);
-    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     rReq.nodesToReadSize = 1;
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
@@ -167,12 +167,12 @@ int main(int argc, char *argv[]) {
     UA_Variant_init(&input);
     UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
     
-    UA_Int32 outputSize;
+    size_t outputSize;
     UA_Variant *output;
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        printf("Method call was successfull, and %zu returned values available.\n", outputSize);
         UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);

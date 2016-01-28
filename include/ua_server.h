@@ -28,51 +28,58 @@ extern "C" {
 #include "ua_job.h"
 #include "ua_connection.h"
 
-/*********************************/
-/* Initialize and run the server */
-/*********************************/
+/*****************/
+/* Server Config */
+/*****************/
 
-typedef struct UA_ServerConfig {
-    UA_Boolean  Login_enableAnonymous;
+struct UA_ServerNetworkLayer; // forwards declaration
+typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;    
 
-    UA_Boolean  Login_enableUsernamePassword;
-    char**      Login_usernames;
-    char**      Login_passwords;
-    UA_UInt32   Login_loginsCount;
+typedef struct {
+    UA_String username;
+    UA_String password;
+} UA_UsernamePasswordLogin;
 
-    char*       Application_applicationURI;
-    char*       Application_applicationName;
+typedef struct {
+    UA_UInt16 nThreads; // only if multithreading is enabled
+    UA_Logger logger;
+
+    UA_BuildInfo buildInfo;
+    UA_ApplicationDescription applicationDescription;
+    UA_ByteString serverCertificate;
+
+    size_t networkLayersSize;
+    UA_ServerNetworkLayer *networkLayers;
+
+    UA_Boolean enableAnonymousLogin;
+    UA_Boolean enableUsernamePasswordLogin;
+    size_t usernamePasswordLoginsSize;
+    UA_UsernamePasswordLogin usernamePasswordLogins[];
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 
-UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
-void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
-void UA_EXPORT UA_Server_delete(UA_Server *server);
+/*********************************/
+/* Initialize and run the server */
+/*********************************/
 
-/** Sets the logger used by the server */
-void UA_EXPORT UA_Server_setLogger(UA_Server *server, UA_Logger logger);
+UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);
+void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /**
  * Runs the main loop of the server. In each iteration, this calls into the networklayers to see if
  * jobs have arrived and checks if repeated jobs need to be triggered.
- *
- * @param server The server object
- * @param nThreads The number of worker threads. Is ignored if MULTITHREADING is not activated.
- * @param running Points to a boolean value on the heap. When running is set to false, the worker
- *        threads and the main loop close and the server is shut down.
- * @return Indicates whether the server shut down cleanly
  */
-UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
+UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, volatile UA_Boolean *running);
 
 /** The prologue part of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running);
-
-/** The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads);
+UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
 
 /** One iteration of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running);
+UA_StatusCode UA_EXPORT UA_Server_run_iterate(UA_Server *server);
+
+/** The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
+UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
 
 /**
  * @param server The server object.
@@ -97,6 +104,9 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
  */
 UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
 
+/** @brief Add a new namespace to the server. Returns the index of the new namespace */
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+
 /**
  * Interface to the binary network layers. This structure is returned from the
  * function that initializes the network layer. The layer is already bound to a
@@ -104,9 +114,9 @@ UA_StatusCode UA_EXPORT UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid j
  * in parallel but only sequentially from the server's main loop. So the network
  * layer does not need to be thread-safe.
  */
-typedef struct UA_ServerNetworkLayer {
+struct UA_ServerNetworkLayer {
+    void *handle; // pointer to internal data
     UA_String discoveryUrl;
-    UA_Logger logger; ///< Set during _start
 
     /**
      * Starts listening on the the networklayer.
@@ -115,7 +125,7 @@ typedef struct UA_ServerNetworkLayer {
      * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code.
      */
-    UA_StatusCode (*start)(struct UA_ServerNetworkLayer *nl, UA_Logger logger);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_Logger logger);
     
     /**
      * Gets called from the main server loop and returns the jobs (accumulated messages and close
@@ -127,7 +137,7 @@ typedef struct UA_ServerNetworkLayer {
      * @param timeout The timeout during which an event must arrive in microseconds
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    size_t (*getJobs)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
+    size_t (*getJobs)(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
 
     /**
      * Closes the network connection and returns all the jobs that need to be finished before the
@@ -138,22 +148,11 @@ typedef struct UA_ServerNetworkLayer {
      * returned size.
      * @return The size of the jobs array. If the result is negative, an error has occurred.
      */
-    size_t (*stop)(struct UA_ServerNetworkLayer *nl, UA_Job **jobs);
+    size_t (*stop)(UA_ServerNetworkLayer *nl, UA_Job **jobs);
 
-    /** Deletes the network layer. Call only after a successful shutdown. */
-    void (*deleteMembers)(struct UA_ServerNetworkLayer *nl);
-} UA_ServerNetworkLayer;
-
-/**
- * Adds a network layer to the server. The network layer is destroyed together
- * with the server. Do not use it after adding it as it might be moved around on
- * the heap.
- */
-void UA_EXPORT UA_Server_addNetworkLayer(UA_Server *server, UA_ServerNetworkLayer *networkLayer);
-
-/** @brief Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
-
+    /** Deletes the network content. Call only after stopping. */
+    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
+};
 
 /**********************/
 /* Set Node Callbacks */
@@ -225,8 +224,8 @@ typedef struct {
 } UA_ObjectLifecycleManagement;
 
 UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_instanceLifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                        UA_ObjectLifecycleManagement olm);
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm);
 
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
    function for each child node */
@@ -240,6 +239,11 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 /*******************/
 /* Node Management */
 /*******************/
+
+typedef struct UA_InstantiationCallback_s {
+  UA_StatusCode (*method)(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
+  void *handle;
+} UA_InstantiationCallback;
 
 UA_StatusCode UA_EXPORT
 UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
@@ -258,70 +262,71 @@ UA_StatusCode UA_EXPORT
 __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId requestedNewNodeId,
                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                    const UA_NodeAttributes *attr, const UA_DataType *attributeType, UA_NodeId *outNewNodeId);
+                    const UA_NodeAttributes *attr, const UA_DataType *attributeType, 
+                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId);
 
 static UA_INLINE UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                           const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                          const UA_VariableAttributes attr, UA_NodeId *outNewNodeId) {
+                          const UA_VariableAttributes attr, UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLE, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                               const UA_QualifiedName browseName, const UA_VariableTypeAttributes attr,
-                              UA_NodeId *outNewNodeId) {
+                              UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addObjectNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                        const UA_ObjectAttributes attr, UA_NodeId *outNewNodeId) {
+                        const UA_ObjectAttributes attr, UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECT, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addObjectTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                             const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                             const UA_QualifiedName browseName, const UA_ObjectTypeAttributes attr,
-                            UA_NodeId *outNewNodeId) {
+                            UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                       const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                       const UA_QualifiedName browseName, const UA_ViewAttributes attr,
-                      UA_NodeId *outNewNodeId) {
+                      UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VIEW, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_VIEWATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_VIEWATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addReferenceTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                const UA_QualifiedName browseName, const UA_ReferenceTypeAttributes attr,
-                               UA_NodeId *outNewNodeId) {
+                               UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_REFERENCETYPE, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 static UA_INLINE UA_StatusCode
 UA_Server_addDataTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                           const UA_QualifiedName browseName, const UA_DataTypeAttributes attr,
-                          UA_NodeId *outNewNodeId) {
+                          UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_DATATYPE, requestedNewNodeId, parentNodeId,
                                referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
-                               &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES], outNewNodeId); }
+                               &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES], instantiationCallback, outNewNodeId); }
 
 UA_StatusCode UA_EXPORT
 UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -330,18 +335,18 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId);
 
-#ifdef UA_ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
                                            size_t inputSize, const UA_Variant *input,
                                            size_t outputSize, UA_Variant *output);
 
+#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method, void *handle,
-                        UA_Int32 inputArgumentsSize, const UA_Argument* inputArguments, 
-                        UA_Int32 outputArgumentsSize, const UA_Argument* outputArguments,
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId);
 #endif
 

@@ -49,11 +49,11 @@ Adding a variable node to the server that contains a user-defined variable
 
 This simple case allows to 'inject' a pre-defined variable into a variable node. The variable is wrapped by a "UA_Variant" before being insterted into the node.
 
-Consider 'examples/server_variable.c' in the repository. The examples are compiled if the Cmake option BUILD_EXAMPLE is turned on.
+Consider 'examples/server_variable.c' in the repository. The examples are compiled if the Cmake option UA_BUILD_EXAMPLE is turned on.
 
 Adding a variable node to the server that contains a user-defined callback
 --------------------------------------------------------------------------
 
 The latter case allows to define callback functions that are executed on read or write of the node. In this case an "UA_DataSource" containing the respective callback pointer is intserted into the node.
 
-Consider 'examples/server_datasource.c' in the repository. The examples are compiled if the Cmake option BUILD_EXAMPLE is turned on.
+Consider 'examples/server_datasource.c' in the repository. The examples are compiled if the Cmake option UA_BUILD_EXAMPLE is turned on.

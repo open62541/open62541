@@ -9,48 +9,51 @@
 /* Read Attribute */
 /******************/
 
-static size_t readNumber(UA_Byte *buf, UA_Int32 buflen, UA_UInt32 *number) {
+static size_t
+readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     UA_UInt32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     UA_Byte c;
-    while((UA_Int32)progress < buflen) {
+    while(progress < buflen) {
         c = buf[progress];
         if('0' > c || '9' < c)
             break;
-        n = (n*10) + (c-'0');
+        n = (n*10) + (UA_UInt32)(c-'0');
         progress++;
     }
     *number = n;
     return progress;
 }
 
-static size_t readDimension(UA_Byte *buf, UA_Int32 buflen, struct UA_NumericRangeDimension *dim) {
+static size_t
+readDimension(UA_Byte *buf, size_t buflen, struct UA_NumericRangeDimension *dim) {
     size_t progress = readNumber(buf, buflen, &dim->min);
     if(progress == 0)
         return 0;
-    if(buflen <= (UA_Int32)progress || buf[progress] != ':') {
+    if(buflen <= progress || buf[progress] != ':') {
         dim->max = dim->min;
         return progress;
     }
-    size_t progress2 = readNumber(&buf[progress+1], buflen - (progress + 1), &dim->max);
+    progress++;
+    size_t progress2 = readNumber(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
-    return progress + progress2 + 1;
+    return progress + progress2;
 }
 
 #ifndef UA_BUILD_UNIT_TESTS
 static
 #endif
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
-    UA_Int32 index = 0;
+    size_t idx = 0;
     size_t dimensionsMax = 0;
     struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t pos = 0;
     do {
         /* alloc dimensions */
-        if(index >= (UA_Int32)dimensionsMax) {
+        if(idx >= dimensionsMax) {
             struct UA_NumericRangeDimension *newds;
             newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
             if(!newds) {
@@ -62,22 +65,22 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         }
 
         /* read the dimension */
-        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[index]);
+        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[idx]);
         if(progress == 0) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
         pos += progress;
-        index++;
+        idx++;
 
         /* loop into the next dimension */
         if(pos >= str->length)
             break;
     } while(str->data[pos] == ',' && pos++);
 
-    if(retval == UA_STATUSCODE_GOOD && index > 0) {
+    if(retval == UA_STATUSCODE_GOOD && idx > 0) {
         range->dimensions = dimensions;
-        range->dimensionsSize = index;
+        range->dimensionsSize = idx;
     } else
         UA_free(dimensions);
 
@@ -105,9 +108,9 @@ static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValu
 }
 
 /* force cast for zero-copy reading. ensure that the variant is never written into. */
-static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *type) {
+static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
     UA_Variant_init(v);
-    v->type = type;
+    v->type = t;
     v->data = (void*)(uintptr_t)p;
     v->storageType = UA_VARIANT_DATA_NODELETE;
 }
@@ -162,10 +165,12 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
+        val.hasValue = UA_FALSE; // always assume we are not given a value by userspace
         retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        if (val.hasValue && val.value.type != NULL)
+          retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
         UA_DataValue_deleteMembers(&val);
     }
     return retval;
@@ -335,7 +340,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
 
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response) {
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing ReadRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     if(request->nodesToReadSize <= 0) {
@@ -433,24 +438,23 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
                                  UA_EditNodeCallback callback, const void *data) {
     UA_StatusCode retval;
     do {
-        UA_MT_CONST UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+#ifndef UA_ENABLE_MULTITHREADING
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
-#ifndef UA_ENABLE_MULTITHREADING
-        retval = callback(server, session, node, data);
+        UA_Node *editNode = (UA_Node*)(uintptr_t)node; // dirty cast. use only here.
+        retval = callback(server, session, editNode, data);
         return retval;
 #else
-        UA_Node *copy = UA_Node_copyAnyNodeClass(node);
+        UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Node_deleteAnyNodeClass(copy);
+            UA_NodeStore_deleteNode(copy);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, node, copy, NULL);
-        if(retval != UA_STATUSCODE_GOOD)
-            UA_Node_deleteAnyNodeClass(copy);
+        retval = UA_NodeStore_replace(server->nodestore, copy);
 #endif
     } while(retval != UA_STATUSCODE_GOOD);
     return UA_STATUSCODE_GOOD;
@@ -502,17 +506,16 @@ enum type_equivalence {
     TYPE_EQUIVALENCE_OPAQUE
 };
 
-static enum type_equivalence typeEquivalence(const UA_DataType *type) {
-    if(type->membersSize != 1 || !type->members[0].namespaceZero)
+static enum type_equivalence typeEquivalence(const UA_DataType *t) {
+    if(t->membersSize != 1 || !t->members[0].namespaceZero)
         return TYPE_EQUIVALENCE_NONE;
-    if(type->members[0].memberTypeIndex == UA_TYPES_INT32)
+    if(t->members[0].memberTypeIndex == UA_TYPES_INT32)
         return TYPE_EQUIVALENCE_ENUM;
-    if(type->members[0].memberTypeIndex == UA_TYPES_BYTE && type->members[0].isArray)
+    if(t->members[0].memberTypeIndex == UA_TYPES_BYTE && t->members[0].isArray)
         return TYPE_EQUIVALENCE_OPAQUE;
     return TYPE_EQUIVALENCE_NONE;
 }
 
-/* In the multithreaded case, node is a copy */
 static UA_StatusCode
 CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
@@ -535,27 +538,29 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     const UA_Variant *newV = &wvalue->value.value;
     UA_Variant *oldV = &node->value.variant.value;
     UA_Variant cast_v;
-    if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
-        cast_v = wvalue->value.value;
-        newV = &cast_v;
-        enum type_equivalence te1 = typeEquivalence(oldV->type);
-        enum type_equivalence te2 = typeEquivalence(newV->type);
-        if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
-            /* An enum was sent as an int32, or an opaque type as a bytestring. This is
-               detected with the typeIndex indicated the "true" datatype. */
-            cast_v.type = oldV->type;
-        } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
-                  newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
-            /* a string is written to a byte array */
-            UA_ByteString *str = (UA_ByteString*) newV->data;
-            cast_v.arrayLength = str->length;
-            cast_v.data = str->data;
-            cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
-        } else {
-            if(rangeptr)
-                UA_free(range.dimensions);
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
+    if (oldV->type != NULL) { // Don't run NodeId_equal on a NULL pointer (happens if the variable never held a variant)
+      if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
+          cast_v = wvalue->value.value;
+          newV = &cast_v;
+          enum type_equivalence te1 = typeEquivalence(oldV->type);
+          enum type_equivalence te2 = typeEquivalence(newV->type);
+          if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+              /* An enum was sent as an int32, or an opaque type as a bytestring. This is
+                detected with the typeIndex indicated the "true" datatype. */
+              cast_v.type = oldV->type;
+          } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
+                    newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
+              /* a string is written to a byte array */
+              UA_ByteString *str = (UA_ByteString*) newV->data;
+              cast_v.arrayLength = str->length;
+              cast_v.data = str->data;
+              cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
+          } else {
+              if(rangeptr)
+                  UA_free(range.dimensions);
+              return UA_STATUSCODE_BADTYPEMISMATCH;
+          }
+      }
     }
     
     if(!rangeptr) {
@@ -579,7 +584,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     void *value = wvalue->value.value.data;
     void *target = NULL;
-    const UA_DataType *type = NULL;
+    const UA_DataType *attr_type = NULL;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 	switch(wvalue->attributeId) {
@@ -591,17 +596,17 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 	case UA_ATTRIBUTEID_BROWSENAME:
 		CHECK_DATATYPE(QUALIFIEDNAME);
         target = &node->browseName;
-        type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
+        attr_type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
 		break;
 	case UA_ATTRIBUTEID_DISPLAYNAME:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->displayName;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_DESCRIPTION:
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->description;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_WRITEMASK:
 		CHECK_DATATYPE(UINT32);
@@ -626,7 +631,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
 		CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &((UA_ReferenceTypeNode*)node)->inverseName;
-        type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
+        attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
 		break;
 	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
 		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
@@ -679,9 +684,9 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
 		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 		break;
 	}
-    if(type) {
-        UA_deleteMembers(target, type);
-        retval = UA_copy(value, target, type);
+    if(attr_type) {
+        UA_deleteMembers(target, attr_type);
+        retval = UA_copy(value, target, attr_type);
     }
     return retval;
 }
@@ -693,7 +698,7 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
     UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
-    UA_LOG_DEBUG(server->logger, UA_LOGCATEGORY_SESSION,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing WriteRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 

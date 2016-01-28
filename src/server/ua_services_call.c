@@ -44,7 +44,7 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     /* The dimension 1 is implicit in the array length */
     UA_UInt32 fakeDims;
     if(!scalar && !varDims) {
-        fakeDims = var->arrayLength;
+        fakeDims = (UA_UInt32)var->arrayLength;
         varDims = &fakeDims;
         varDimsSize = 1;
     }

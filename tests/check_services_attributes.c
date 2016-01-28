@@ -17,6 +17,15 @@
 #include <urcu.h>
 #endif
 
+UA_StatusCode readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+                                        const UA_NumericRange *range, UA_DataValue *dataValue);
+UA_StatusCode readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+                                        const UA_NumericRange *range, UA_DataValue *dataValue) 
+{
+  dataValue->hasValue = UA_TRUE;
+  return UA_STATUSCODE_GOOD;
+}
+
 static UA_Server* makeTestSequence(void) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
 
@@ -34,7 +43,7 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 	
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
@@ -47,8 +56,17 @@ static UA_Server* makeTestSequence(void) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
 					UA_QUALIFIEDNAME(1, "cpu temperature"),
                                         UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
-
     
+    /* DataSource Variable returning no value */
+    UA_DataSource temperatureDataSource1 = (UA_DataSource) {
+                                            .handle = NULL, .read = readCPUTemperature_broken, .write = NULL};
+    vattr.description = UA_LOCALIZEDTEXT("en_US","temperature1");
+    vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature1");
+    UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature1"),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                        UA_QUALIFIEDNAME(1, "cpu temperature bogus"),
+                                        UA_NODEID_NULL, vattr, temperatureDataSource1, NULL);
     /* VariableNode with array */
     UA_VariableAttributes_init(&vattr);
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
@@ -63,7 +81,7 @@ static UA_Server* makeTestSequence(void) {
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL);
+                              UA_NODEID_NULL, vattr, NULL, NULL);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
@@ -75,7 +93,7 @@ static UA_Server* makeTestSequence(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "Demo"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr, NULL);
+                            obj_attr, NULL, NULL);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
@@ -85,7 +103,7 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL);
+                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
 
 #ifdef UA_ENABLE_METHODCALLS
 	/* MethodNode */
@@ -104,7 +122,7 @@ static UA_Server* makeTestSequence(void) {
 }
 
 static UA_VariableNode* makeCompareSequence(void) {
-	UA_VariableNode *node = UA_VariableNode_new();
+	UA_VariableNode *node = UA_NodeStore_newVariableNode();
 
 	UA_Int32 myInteger = 42;
 	UA_Variant_setScalarCopy(&node->value.variant.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -244,7 +262,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -266,7 +284,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 
@@ -527,7 +545,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
-    UA_VariableNode_delete(compNode);
+    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 
@@ -590,6 +608,23 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
     UA_ReadRequest_deleteMembers(&rReq);
     UA_Server_delete(server);
 #endif
+} END_TEST
+
+START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestampFromBrokenSource) {
+    UA_Server *server = makeTestSequence();
+    UA_DataValue resp;
+    UA_DataValue_init(&resp);
+    UA_ReadRequest rReq;
+    UA_ReadRequest_init(&rReq);
+    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToReadSize = 1;
+    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature1");
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
+    UA_Server_delete(server);
+    UA_ReadRequest_deleteMembers(&rReq);
+    UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
@@ -1028,7 +1063,8 @@ static Suite * testSuite_services_attributes(void) {
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeHistorizingWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+        tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestampFromBrokenSource);
+        tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
 	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 

@@ -13,13 +13,13 @@ typedef struct channel_list_entry {
 
 typedef struct UA_SecureChannelManager {
     LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels
-    size_t    maxChannelCount;
+    size_t maxChannelCount;
     size_t currentChannelCount;
-    UA_DateTime maxChannelLifetime;
+    UA_UInt32 maxChannelLifetime;
     UA_MessageSecurityMode securityMode;
     UA_DateTime channelLifeTime;
-    UA_Int32    lastChannelId;
-    UA_UInt32   lastTokenId;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
 } UA_SecureChannelManager;
 
 UA_StatusCode
