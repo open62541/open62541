@@ -17,6 +17,7 @@
     <opc:EnumeratedValue Name="CLOF" Value="1179601987" />
     <opc:EnumeratedValue Name="HELF" Value="1179403592" />
     <opc:EnumeratedValue Name="MSGF" Value="1179079501" />
+    <opc:EnumeratedValue Name="MSGC" Value="1128747853" />
     <opc:EnumeratedValue Name="OPNF" Value="1179537487" />
   </opc:EnumeratedType>
 

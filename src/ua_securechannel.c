@@ -128,34 +128,82 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     seqHeader.requestId = requestId;
 
     UA_ByteString message;
-    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
-                                                     &message);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&message, connection->remoteConf.maxMessageSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     size_t messagePos = 24; // after the headers
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
     retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
-
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &message);
+        UA_ByteString_deleteMembers(&message);
         return retval;
     }
+    size_t messageSize = messagePos - 24;
 
-    /* now write the header with the size */
-    respHeader.messageHeader.messageSize = messagePos;
+    // chunk the message if it doesn't fit within remote's recvBufferSize
+    if (messagePos > connection->remoteConf.recvBufferSize) {
+        size_t chunkSize = connection->remoteConf.recvBufferSize - 24;
+        size_t chunks = messageSize / chunkSize;
+        messagePos = 24;
+
+        for (size_t chunkNo = 0; chunkNo <= chunks; chunkNo++) {
+            UA_ByteString chunk;
+            UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize, &chunk);
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_ByteString_deleteMembers(&message);
+                return retval;
+            }
+
+            if (chunkNo == chunks) {
+                chunkSize = 24 + messageSize - messagePos;
+                respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+            } else {
+                respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGC;
+            }
+
+            memcpy(&chunk.data[24], &message.data[messagePos], chunkSize);
+            messagePos += chunkSize;
+
+            respHeader.messageHeader.messageSize = 24 + chunkSize;
 #ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+        seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+        seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
 #endif
 
-    messagePos = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
-    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
-    UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
-    message.length = respHeader.messageHeader.messageSize;
+            size_t chunkPos = 0;
+            UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &chunk, &chunkPos);
+            UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &chunk, &chunkPos);
+            UA_SequenceHeader_encodeBinary(&seqHeader, &chunk, &chunkPos);
+            chunk.length = respHeader.messageHeader.messageSize;
 
-    retval = connection->send(connection, &message);
-    return retval;
+            retval = connection->send(connection, &chunk);
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_ByteString_deleteMembers(&message);
+                return retval;
+            }
+        }
+
+        UA_ByteString_deleteMembers(&message);
+        return retval;
+    } else {
+        // use the bytebuffer already prepared, connection->send will do cleanup
+        respHeader.messageHeader.messageSize = messagePos;
+        respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+#ifndef UA_ENABLE_MULTITHREADING
+        seqHeader.sequenceNumber = ++channel->sequenceNumber;
+#else
+        seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+#endif
+
+        messagePos = 0;
+        UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &message, &messagePos);
+        UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, &message, &messagePos);
+        UA_SequenceHeader_encodeBinary(&seqHeader, &message, &messagePos);
+        message.length = respHeader.messageHeader.messageSize;
+
+        retval = connection->send(connection, &message);
+        return retval;
+    }
 }
