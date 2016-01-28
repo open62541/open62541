@@ -13,7 +13,7 @@ UA_Session adminSession = {
                             .identifier.numeric = 1},
     .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
     .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
+    .timeout = (UA_Double)UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
     .continuationPoints = {NULL}};
 
 void UA_Session_init(UA_Session *session) {
@@ -54,5 +54,5 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
-    session->validTill = UA_DateTime_now() + session->timeout * 10000; //timeout in ms
+    session->validTill = UA_DateTime_now() + (UA_DateTime)(session->timeout * UA_MSEC_TO_DATETIME);
 }

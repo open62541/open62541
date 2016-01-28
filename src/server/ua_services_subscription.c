@@ -55,9 +55,9 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     SubscriptionManager_addSubscription(&session->subscriptionManager, newSubscription);    
 }
 
-static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                                 const UA_MonitoredItemCreateRequest *request,
-                                 UA_MonitoredItemCreateResult *result) {
+static void
+createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *sub,
+                     const UA_MonitoredItemCreateRequest *request, UA_MonitoredItemCreateResult *result) {
     const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
     if(!target) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
@@ -304,8 +304,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 }
 
 void Service_Republish(UA_Server *server, UA_Session *session,
-                                const UA_RepublishRequest *request,
-                                UA_RepublishResponse *response) {
+                       const UA_RepublishRequest *request, UA_RepublishResponse *response) {
     UA_SubscriptionManager *manager = &session->subscriptionManager;
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
     if (!sub) {
@@ -316,10 +315,10 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     // Find the notification in question
     UA_unpublishedNotification *notification;
     LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-      if (notification->notification.sequenceNumber == request->retransmitSequenceNumber)
-	break;
+        if(notification->notification.sequenceNumber == request->retransmitSequenceNumber)
+            break;
     }
-    if (!notification) {
+    if(!notification) {
       response->responseHeader.serviceResult = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
       return;
     }

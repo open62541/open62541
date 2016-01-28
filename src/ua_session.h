@@ -34,7 +34,7 @@ struct UA_Session {
     UA_NodeId         sessionId;
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
-    UA_Int64          timeout; // [ms]
+    UA_Double         timeout; // [ms]
     UA_DateTime       validTill;
     #ifdef UA_ENABLE_SUBSCRIPTIONS
         UA_SubscriptionManager subscriptionManager;
