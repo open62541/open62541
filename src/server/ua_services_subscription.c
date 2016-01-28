@@ -228,9 +228,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponse_deleteMembers(&response);
 }
 
-void Service_ModifySubscription(UA_Server *server, UA_Session *session,
-                                 const UA_ModifySubscriptionRequest *request,
-                                 UA_ModifySubscriptionResponse *response) {
+void
+Service_ModifySubscription(UA_Server *server, UA_Session *session, const UA_ModifySubscriptionRequest *request,
+                           UA_ModifySubscriptionResponse *response) {
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
                                                                    request->subscriptionId);
     if(!sub) {
@@ -259,6 +259,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     sub->notificationsPerPublish = request->maxNotificationsPerPublish;
     sub->priority                = request->priority;
     
+    Subscription_unregisterUpdateJob(server, sub);
     Subscription_registerUpdateJob(server, sub);
     return;
 }
