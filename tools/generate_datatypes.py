@@ -128,7 +128,7 @@ static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { ''' + \
           [self.name, self.name, self.name]) 
 
     def encoding_h(self, typeTableName):
-        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src,UA_encodeBufferOverflowSignature overflowCallback,void *handle, UA_ByteString **dst, size_t *offset) { return UA_encodeBinary(src, %s,overflowCallback,handle,  dst, offset); }
+        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, NULL, NULL, dst, offset); }
 static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }''' % \
     tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
 

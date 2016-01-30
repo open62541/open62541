@@ -54,7 +54,7 @@ socket_close(UA_Connection *connection) {
 static UA_StatusCode
 socket_write(UA_Connection *connection, UA_ByteString *buf) {
     size_t nWritten = 0;
-    while(buf->length > 0 && nWritten < (size_t)buf->length) {
+    do {
         UA_Int32 n = 0;
         do {
 #ifdef _WIN32
@@ -75,9 +75,9 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
 #endif
-        } while (n == -1L);
+        } while(n == -1L);
         nWritten += n;
-    }
+    } while(buf->length > 0 && nWritten < (size_t)buf->length);
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }

@@ -104,57 +104,87 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
-static UA_StatusCode UA_SecureChannel_sendChunk(UA_Request *requestInfo, UA_ByteString **dst, size_t *UA_RESTRICT offset){
-    UA_SecureChannel * channel = requestInfo->channel;
+/* Chunking
+   We expect that the OPN/CLO messages fit into a single chunk.
+
+ */
+
+typedef struct {
+	UA_SecureChannel *channel;
+	UA_UInt32 requestId;
+    UA_UInt32 messageType;
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+    UA_Boolean final;
+} chunkInfo;
+
+static UA_StatusCode
+UA_SecureChannel_sendChunk(chunkInfo *chunkInfo, UA_ByteString *dst, size_t offset) {
+    UA_SecureChannel *channel = chunkInfo->channel;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Connection *connection = channel->connection;
     if(!connection)
        return UA_STATUSCODE_BADINTERNALERROR;
 
-    //check if we are able to send another chunk
-    if(requestInfo->chunksLeft == 1 && (requestInfo->chunkType != UA_CHUNKTYPE_FINAL || requestInfo->chunkType != UA_CHUNKTYPE_ABORT)){
-        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-    }
-    requestInfo->chunksLeft--;
+    /* adjust the buffer where the header was hidden */
+    dst->data = &dst->data[-24];
+    dst->length += 24;
+    offset += 24;
+    chunkInfo->messageSizeSoFar += offset;
+
+    UA_Boolean abort = (++chunkInfo->chunksSoFar >= connection->remoteConf.maxChunkCount ||
+                        chunkInfo->messageSizeSoFar > connection->remoteConf.maxMessageSize);
 
 	UA_SecureConversationMessageHeader respHeader;
-	respHeader.messageHeader.messageTypeAndChunkType =  requestInfo->messageType + requestInfo->chunkType;
+	respHeader.messageHeader.messageTypeAndChunkType = chunkInfo->messageType;
+    if(!abort) {
+        if(chunkInfo->final)
+            respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
+        else
+            respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
+    } else {
+        // todo: abort
+    }
+
 	respHeader.secureChannelId = channel->securityToken.channelId;
-	respHeader.messageHeader.messageSize = *offset;
+	respHeader.messageHeader.messageSize = offset;
 	UA_SymmetricAlgorithmSecurityHeader symSecHeader;
 	symSecHeader.tokenId = channel->securityToken.tokenId;
 
 	UA_SequenceHeader seqHeader;
-	seqHeader.requestId = requestInfo->requestId;
+	seqHeader.requestId = chunkInfo->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
 #endif
 
-    *offset = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader,NULL,NULL,  dst, offset);
-    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader,NULL,NULL,  dst, offset);
-    UA_SequenceHeader_encodeBinary(&seqHeader,NULL, NULL,  dst, offset);
-    (*dst)->length = respHeader.messageHeader.messageSize;
+    offset = 0;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, dst, &offset);
+    UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, dst, &offset);
+    UA_SequenceHeader_encodeBinary(&seqHeader, dst, &offset);
+    dst->length = respHeader.messageHeader.messageSize;
 
-    connection->send(channel->connection, *dst);
-    connection->releaseRecvBuffer(channel->connection,*dst);
+    /* the buffer is freed internally */
+    connection->send(channel->connection, dst);
 
-    //get new buffer for next chunk (if not is the final/abort chunk)
-    if((requestInfo->chunkType) == UA_CHUNKTYPE_INTERMEDIATE){
-        retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
-                                                         *dst);
-        *offset = 24;
-        (*dst)->length = connection->localConf.sendBufferSize;
+    // get new buffer for the next chunk
+    if(!chunkInfo->final) {
+        retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        /* hide the header of the buffer */
+        dst->data = &dst->data[24];
+        dst->length = connection->localConf.sendBufferSize - 24;
     }
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                                  const void *content,
-                                                  const UA_DataType *contentType) {
+
+UA_StatusCode
+UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId, const void *content,
+                                   const UA_DataType *contentType) {
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -164,41 +194,49 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
         return UA_STATUSCODE_BADINTERNALERROR;
     typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
-    UA_ByteString *message = UA_ByteString_new();
-
+    UA_ByteString message;
+    UA_ByteString_init(&message);
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
-                                                     message);
+                                                     &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t messagePos = 24; // after the headers
-    UA_Request requestInfo;
-    requestInfo.chunksLeft = connection->localConf.maxChunkCount;
-    requestInfo.channel = channel;
+    /* hide the message beginning where the header will be encoded */
+    message.data = &message.data[24];
+    message.data -= 24;
 
-    if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449){
-        requestInfo.messageType = UA_MESSAGETYPE_OPN;
-    }else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455){
-        requestInfo.messageType = UA_MESSAGETYPE_CLO;
-    }else{
-        requestInfo.messageType = UA_MESSAGETYPE_MSG;
+    chunkInfo ci;
+    ci.channel = channel;
+    ci.requestId = requestId;
+    ci.chunksSoFar = 0;
+    ci.messageSizeSoFar = 0;
+    ci.final = UA_FALSE;
+    ci.messageType = UA_MESSAGETYPE_MSG;
+
+    if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449)
+        ci.messageType = UA_MESSAGETYPE_OPN;
+    else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455)
+        ci.messageType = UA_MESSAGETYPE_CLO;
+
+    size_t messagePos = 0;
+    retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
+    if(ci.messageType != UA_MESSAGETYPE_MSG)
+        /* jumps into sendMSGChunk to send the current chunk and continues encoding afterwards */
+        retval |= UA_encodeBinary(content, contentType, (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
+                                  (void*)&ci, &message, &messagePos);
+    else
+        /* no chunking */
+        retval |= UA_encodeBinary(content, contentType, NULL, NULL, &message, &messagePos);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        message.data = &message.data[-24];
+        message.length += 24;
+        connection->releaseSendBuffer(connection, &message);
+        return retval;
     }
-
-    requestInfo.chunkType = UA_CHUNKTYPE_INTERMEDIATE;
-    requestInfo.requestId = requestId;
-
-    retval |= UA_NodeId_encodeBinary(&typeId,NULL,NULL, &message,&messagePos);
-    retval |= UA_encodeBinary(content, contentType,(UA_encodeBufferOverflowSignature)UA_SecureChannel_sendChunk,(void*)&requestInfo, &message, &messagePos);
-
-    //chunks were already sent, error occured -> abort
-    if(retval!=UA_STATUSCODE_GOOD && requestInfo.chunksLeft != connection->localConf.maxChunkCount){
-        requestInfo.chunkType = UA_CHUNKTYPE_ABORT;
-    }else{
-        //send final chunk
-        requestInfo.chunkType = UA_CHUNKTYPE_FINAL;
-    }
-    retval |= UA_SecureChannel_sendChunk(&requestInfo,&message,&messagePos);
-
-    UA_free(message);
+    
+    /* content is encoded, send the final chunk */
+    ci.final = UA_TRUE;
+    retval = UA_SecureChannel_sendChunk(&ci, &message, messagePos);
     return retval;
 }

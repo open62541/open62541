@@ -48,13 +48,4 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
 void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 /** @} */
 
-/* type for an OPC UA Message request */
-typedef struct UA_RequestInfo{
-	UA_UInt32 requestId;
-	UA_SecureChannel *channel;
-	UA_UInt32 messageType;
-	UA_UInt32 chunkType;
-	size_t chunksLeft;
-}UA_Request;
-
 #endif /* UA_SECURECHANNEL_H_ */
