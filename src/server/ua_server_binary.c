@@ -38,8 +38,8 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
 
     UA_TcpMessageHeader ackHeader;
-    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_ACKF;
-    ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
+    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
+    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
@@ -116,7 +116,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 #endif
 
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPEANDFINAL_OPNF;
+    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = p.securityToken.channelId;
 
@@ -479,14 +479,14 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
-        switch(tcpMessageHeader.messageTypeAndChunkType & 0xffffff) {
-        case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
+        switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
+        case UA_MESSAGETYPE_HEL:
             processHEL(connection, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
+        case UA_MESSAGETYPE_OPN:
             processOPN(connection, server, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
+        case UA_MESSAGETYPE_MSG:
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
@@ -495,7 +495,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 #endif
             processMSG(connection, server, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
+        case UA_MESSAGETYPE_CLO:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;

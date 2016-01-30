@@ -188,7 +188,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     size_t offset = 0;
-    retval = UA_encodeBinary(obj, &UA_TYPES[_i], &msg, &offset);
+    retval = UA_encodeBinary(obj, &UA_TYPES[_i], NULL, NULL, &msg, &offset);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(offset, predicted_size);
     UA_delete(obj, &UA_TYPES[_i]);

@@ -6,8 +6,8 @@
 
 // max message size is 64k
 const UA_ConnectionConfig UA_ConnectionConfig_standard =
-    {.protocolVersion = 0, .sendBufferSize = 1400, .recvBufferSize  = 1400,
-     .maxMessageSize = 65536, .maxChunkCount   = 30};
+    {.protocolVersion = 0, .sendBufferSize = 8192, .recvBufferSize = 8192,
+     .maxMessageSize = 65536, .maxChunkCount = 30};
 
 void UA_Connection_init(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;

@@ -415,10 +415,9 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
 
 void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_ByteString newValueAsByteString = { .length=0, .data=NULL };
-    UA_ByteString* newValueAsByteStringPtr = &newValueAsByteString;
     size_t encodingOffset = 0;
   
-    if(!monitoredItem || monitoredItem->lastSampled + monitoredItem->samplingInterval > UA_DateTime_now())
+    if(!monitoredItem || monitoredItem->lastSampled + (monitoredItem->samplingInterval * UA_MSEC_TO_DATETIME) > UA_DateTime_now())
         return;
   
     // FIXME: Actively suppress non change value based monitoring. There should be

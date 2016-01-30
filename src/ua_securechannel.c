@@ -214,7 +214,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
 
     /* hide the message beginning where the header will be encoded */
     message.data = &message.data[24];
-    message.data -= 24;
+    message.length -= 24;
 
     chunkInfo ci;
     ci.channel = channel;
