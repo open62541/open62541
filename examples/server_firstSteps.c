@@ -14,7 +14,7 @@
 #endif
 
 UA_Boolean running = UA_TRUE;
-static void stopHandler(int signal) {
+static void stopHandler(int sig) {
     running = UA_FALSE;
 }
 
@@ -23,7 +23,7 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;

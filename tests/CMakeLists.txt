@@ -19,6 +19,8 @@ if(UA_ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
 endif()
 
+add_definitions(-Wno-sign-conversion)
+
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 

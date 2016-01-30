@@ -63,6 +63,16 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_UInt32 secureChannelId;
     UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
 
+    //we can check secureChannelId also here -> if we are asked to isse a token it is 0, otherwise we have to renew
+    //issue
+    if(connection->channel == NULL && secureChannelId != 0){
+        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
+    }
+    //renew
+    if(connection->channel != NULL && secureChannelId != connection->channel->securityToken.channelId){
+        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
+    }
+
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
     retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &asymHeader);
 
@@ -83,6 +93,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         connection->close(connection);
         return;
     }
+
 
     UA_OpenSecureChannelResponse p;
     UA_OpenSecureChannelResponse_init(&p);
@@ -131,7 +142,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         connection->releaseSendBuffer(connection, &resp_msg);
         connection->close(connection);
     } else {
-        respHeader.messageHeader.messageSize = tmpPos;
+        respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
         tmpPos = 0;
         UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
         resp_msg.length = respHeader.messageHeader.messageSize;
@@ -310,7 +321,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
     retval |= UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-    retval = UA_NodeId_decodeBinary(msg, pos, &requestTypeId);
+    retval |= UA_NodeId_decodeBinary(msg, pos, &requestTypeId);
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
@@ -354,8 +365,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         /* The service is not supported */
         if(requestTypeId.identifier.numeric==787)
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Client requested a subscription that are not supported, "
-                        "the message will be skipped");
+                        "Client requested a subscription, but those are not enabled "
+                        "in the build. The message will be skipped");
         else
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Unknown request: NodeId(ns=%d, i=%d)",
@@ -387,6 +398,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         UA_SecureChannel_getSession(channel, &((UA_RequestHeader*)request)->authenticationToken);
     UA_Session anonymousSession;
     if(!session) {
+        /* session id 0 -> anonymous session */
         UA_Session_init(&anonymousSession);
         anonymousSession.channel = channel;
         anonymousSession.activated = UA_TRUE;

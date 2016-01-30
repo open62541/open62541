@@ -58,14 +58,14 @@ list(APPEND open62541_LIBRARIES "")
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes #-Wshadow #-Wconversion
+                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
+                    -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
                     -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
 
   # library linking
   set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
   if(NOT WIN32 AND NOT CYGWIN)
-	add_definitions(-fvisibility=hidden -fPIC)
+	add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     if(NOT APPLE)
       set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()

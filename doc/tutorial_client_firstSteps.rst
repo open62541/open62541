@@ -8,28 +8,34 @@ You should already have a basic server from the previous tutorial. open62541 pro
 As a recap, your directory structure should now look like this::
  
   :myApp> rm *.o open62541.*
+  :myApp> cp ../open62541/build/open62541.h include/
   :myApp> ln -s ../open62541/build/*so ./
   :myApp> tree
   .
-  +── include
-  │   +── logger_stdout.h
-  │   +── networklayer_tcp.h
-  │   +── networklayer_udp.h
-  │   +── open62541.h
-  │   +── ua_client.h
-  │   +── ua_config.h
-  │   +── ua_config.h.in
-  │   +── ua_connection.h
-  │   +── ua_log.h
-  │   +── ua_nodeids.h
-  │   +── ua_server.h
-  │   +── ua_statuscodes.h
-  │   +── ua_transport_generated.h
-  │   +── ua_types_generated.h
-  │   +── ua_types.h
-  +── libopen62541.so -> ../../open62541/build/libopen62541.so
-  +── myServer
-  +── myServer.c
+  ├── include
+  │   ├── logger_stdout.h
+  │   ├── networklayer_tcp.h
+  │   ├── networklayer_udp.h
+  │   ├── open62541.h
+  │   ├── ua_client.h
+  │   ├── ua_client_highlevel.h
+  │   ├── ua_config.h
+  │   ├── ua_config.h.in
+  │   ├── ua_connection.h
+  │   ├── ua_job.h
+  │   ├── ua_log.h
+  │   ├── ua_nodeids.h
+  │   ├── ua_server_external_ns.h
+  │   ├── ua_server.h
+  │   ├── ua_statuscodes.h
+  │   ├── ua_transport_generated_encoding_binary.h
+  │   ├── ua_transport_generated.h
+  │   ├── ua_types_generated_encoding_binary.h
+  │   ├── ua_types_generated.h
+  │   └── ua_types.h
+  ├── libopen62541.so -> ../open62541/build/libopen62541.so
+  ├── myServer
+  └── myServer.c
 
 Note that I have linked the library into the folder to spare me the trouble of copying it every time I change/rebuild the stack.
 
@@ -38,24 +44,24 @@ To create a really basic client, navigate back into the myApp folder from the pr
 .. code-block:: c
 
     #include <stdio.h>
-
+    
     #include "ua_types.h"
     #include "ua_server.h"
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
-
+    
     int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+      UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,"opc.tcp://localhost:16664");
       if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
       }
-      
+    
       UA_Client_disconnect(client);
       UA_Client_delete(client);
       return 0;
-    } 
+    }
 
 Let's recompile both server and client - if you feel up to it, you can create a Makefile for this procedure. I will show a final command line compile example and ommit the compilation directives in future examples.::
 
@@ -125,31 +131,32 @@ Let us extend the client with with an action reading node's value:
 .. code-block:: c
 
     #include <stdio.h>
-
+    #include <stdio.h>
+    
     #include "ua_types.h"
     #include "ua_server.h"
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
-
+    
     int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+      UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,"opc.tcp://localhost:16664");
       if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
       }
-      
+    
       //variable to store data
       UA_DateTime raw_date = 0;
-
+    
       UA_ReadRequest rReq;
       UA_ReadRequest_init(&rReq);
-      rReq.nodesToRead = UA_ReadValueId_new();
+      rReq.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
       rReq.nodesToReadSize = 1;
       rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
       rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-      UA_ReadResponse rResp = UA_Client_read(client, &rReq);
+    
+      UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
       if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
          rResp.resultsSize > 0 && rResp.results[0].hasValue &&
          UA_Variant_isScalar(&rResp.results[0].value) &&
@@ -157,14 +164,14 @@ Let us extend the client with with an action reading node's value:
              raw_date = *(UA_DateTime*)rResp.results[0].value.data;
              printf("raw date is: %" PRId64 "\n", raw_date);
       }
-      
+    
       UA_ReadRequest_deleteMembers(&rReq);
       UA_ReadResponse_deleteMembers(&rResp);
-
+    
       UA_Client_disconnect(client);
       UA_Client_delete(client);
       return 0;
-    } 
+    }
 
 You should see raw time in milliseconds since January 1, 1601 UTC midnight::
 
@@ -185,42 +192,42 @@ As the last step for this tutorial, we are going to convert the raw date value i
     #include "networklayer_tcp.h"
     
     int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
-      if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-      }
-    
-      //variables to store data
-      UA_DateTime raw_date = 0;
-      UA_String* string_date = UA_String_new();
-
-      UA_ReadRequest rReq;
-      UA_ReadRequest_init(&rReq);
-      rReq.nodesToRead = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 1);
-      rReq.nodesToReadSize = 1;
-      rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
-      rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-      UA_ReadResponse rResp = UA_Client_read(client, &rReq);
-      if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-         rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-         UA_Variant_isScalar(&rResp.results[0].value) &&
-         rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
-             raw_date = *(UA_DateTime*)rResp.results[0].value.data;
-             printf("raw date is: %llu\n", raw_date);
-             UA_DateTime_toString(raw_date, string_date);
-             printf("string date is: %.*s\n", string_date->length, string_date->data);
-      }
+        UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+        UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
+        if(retval != UA_STATUSCODE_GOOD) {
+          UA_Client_delete(client);
+          return retval;
+        }
       
-      UA_ReadRequest_deleteMembers(&rReq);
-      UA_ReadResponse_deleteMembers(&rResp);
-      UA_String_delete(string_date);
-
-      UA_Client_disconnect(client);
-      UA_Client_delete(client);
-      return 0;
+        //variables to store data
+        UA_DateTime raw_date = 0;
+        UA_String string_date;
+      
+        UA_ReadRequest rReq;
+        UA_ReadRequest_init(&rReq);
+        rReq.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
+        rReq.nodesToReadSize = 1;
+        rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
+        rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+      
+        UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
+        if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+            rResp.resultsSize > 0 && rResp.results[0].hasValue &&
+            UA_Variant_isScalar(&rResp.results[0].value) &&
+            rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
+          raw_date = *(UA_DateTime*)rResp.results[0].value.data;
+          printf("raw date is: %" PRId64 "\n", raw_date);
+          string_date = UA_DateTime_toString(raw_date);
+          printf("string date is: %.*s\n", (int)string_date.length, string_date.data);
+        }
+      
+        UA_ReadRequest_deleteMembers(&rReq);
+        UA_ReadResponse_deleteMembers(&rResp);
+        UA_String_deleteMembers(&string_date);
+      
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_GOOD;
     }
 
 Note that this file can be found as "examples/client_firstSteps.c" in the repository.

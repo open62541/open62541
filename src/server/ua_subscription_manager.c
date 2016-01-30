@@ -8,10 +8,10 @@ void SubscriptionManager_init(UA_Session *session) {
 
     /* FIXME: These init values are empirical. Maybe they should be part
      *        of the server config? */
-    manager->globalPublishingInterval = (UA_Int32_BoundedValue) { .maxValue = 10000, .minValue = 0, .currentValue=0 };
+    manager->globalPublishingInterval = (UA_UInt32_BoundedValue) { .maxValue = 10000, .minValue = 0, .currentValue=0 };
     manager->globalLifeTimeCount = (UA_UInt32_BoundedValue) { .maxValue = 15000, .minValue = 0, .currentValue=0 };
     manager->globalKeepAliveCount = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
-    manager->globalNotificationsPerPublish = (UA_Int32_BoundedValue)  { .maxValue = 1000, .minValue = 1, .currentValue=0 };
+    manager->globalNotificationsPerPublish = (UA_UInt32_BoundedValue)  { .maxValue = 1000, .minValue = 1, .currentValue=0 };
     manager->globalSamplingInterval = (UA_UInt32_BoundedValue) { .maxValue = 1000, .minValue = 5, .currentValue=0 };
     manager->globalQueueSize = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
     LIST_INIT(&manager->serverSubscriptions);
@@ -33,8 +33,8 @@ void SubscriptionManager_addSubscription(UA_SubscriptionManager *manager, UA_Sub
     LIST_INSERT_HEAD(&manager->serverSubscriptions, newSubscription, listEntry);
 }
 
-UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager,
-                                                         UA_Int32 subscriptionID) {
+UA_Subscription *
+SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager *manager, UA_UInt32 subscriptionID) {
     UA_Subscription *sub;
     LIST_FOREACH(sub, &manager->serverSubscriptions, listEntry) {
         if(sub->subscriptionID == subscriptionID)
@@ -43,15 +43,16 @@ UA_Subscription *SubscriptionManager_getSubscriptionByID(UA_SubscriptionManager 
     return sub;
 }
 
-UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_Int32 subscriptionID,
-                                                 UA_UInt32 monitoredItemID) {
+UA_StatusCode
+SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_UInt32 subscriptionID,
+                                        UA_UInt32 monitoredItemID) {
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, subscriptionID);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     
     UA_MonitoredItem *mon, *tmp_mon;
     LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmp_mon) {
-        if (mon->itemId == monitoredItemID) {
+        if(mon->itemId == monitoredItemID) {
             LIST_REMOVE(mon, listEntry);
             MonitoredItem_delete(mon);
             return UA_STATUSCODE_GOOD;
@@ -60,7 +61,9 @@ UA_Int32 SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
-UA_Int32 SubscriptionManager_deleteSubscription(UA_Server *server, UA_SubscriptionManager *manager, UA_Int32 subscriptionID) {
+UA_StatusCode
+SubscriptionManager_deleteSubscription(UA_Server *server, UA_SubscriptionManager *manager,
+                                       UA_UInt32 subscriptionID) {
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, subscriptionID);    
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;

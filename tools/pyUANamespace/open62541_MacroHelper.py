@@ -141,7 +141,7 @@ class open62541_MacroHelper():
     else:
       # FIXME:  Semantic of inputArgumentSize = -1 is used to signal the suppression of argument creation.
       #         This should be replaced with a properly generated struct for the arguments.
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, -1, NULL, -1, NULL, NULL);")
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL, 0, NULL, 0, NULL, NULL);")
     return code
     
   def getCreateNodeBootstrap(self, node):
@@ -170,7 +170,7 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return;
 
-    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_" + nodetype + "Node_new();")
+    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_NodeStore_new" + nodetype + "Node();")
     if not "browsename" in self.supressGenerationOfAttribute:
       extrNs = node.browseName().split(":")
       if len(extrNs) > 1:

@@ -23,8 +23,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->clientNonce);
-    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken); //FIXME: not really needed
-    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken); //FIXME: not really needed
+    UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_Connection *c = channel->connection;
     if(c) {
         UA_Connection_detachSecureChannel(c);
@@ -50,6 +50,13 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
     return UA_STATUSCODE_GOOD;
 }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
+
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
     struct SessionEntry *se = UA_malloc(sizeof(struct SessionEntry));
     if(!se)
@@ -69,6 +76,10 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 #endif
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
+
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
 
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
     if(session)
@@ -119,8 +130,8 @@ typedef struct {
 } chunkInfo;
 
 static UA_StatusCode
-UA_SecureChannel_sendChunk(chunkInfo *chunkInfo, UA_ByteString *dst, size_t offset) {
-    UA_SecureChannel *channel = chunkInfo->channel;
+UA_SecureChannel_sendChunk(chunkInfo *ci, UA_ByteString *dst, size_t offset) {
+    UA_SecureChannel *channel = ci->channel;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Connection *connection = channel->connection;
     if(!connection)
@@ -130,15 +141,15 @@ UA_SecureChannel_sendChunk(chunkInfo *chunkInfo, UA_ByteString *dst, size_t offs
     dst->data = &dst->data[-24];
     dst->length += 24;
     offset += 24;
-    chunkInfo->messageSizeSoFar += offset;
+    ci->messageSizeSoFar += offset;
 
-    UA_Boolean abort = (++chunkInfo->chunksSoFar >= connection->remoteConf.maxChunkCount ||
-                        chunkInfo->messageSizeSoFar > connection->remoteConf.maxMessageSize);
+    UA_Boolean abort = (++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
+                        ci->messageSizeSoFar > connection->remoteConf.maxMessageSize);
 
 	UA_SecureConversationMessageHeader respHeader;
-	respHeader.messageHeader.messageTypeAndChunkType = chunkInfo->messageType;
+	respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
     if(!abort) {
-        if(chunkInfo->final)
+        if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
         else
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
@@ -147,12 +158,12 @@ UA_SecureChannel_sendChunk(chunkInfo *chunkInfo, UA_ByteString *dst, size_t offs
     }
 
 	respHeader.secureChannelId = channel->securityToken.channelId;
-	respHeader.messageHeader.messageSize = offset;
+	respHeader.messageHeader.messageSize = (UA_UInt32)offset;
 	UA_SymmetricAlgorithmSecurityHeader symSecHeader;
 	symSecHeader.tokenId = channel->securityToken.tokenId;
 
 	UA_SequenceHeader seqHeader;
-	seqHeader.requestId = chunkInfo->requestId;
+	seqHeader.requestId = ci->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
@@ -169,7 +180,7 @@ UA_SecureChannel_sendChunk(chunkInfo *chunkInfo, UA_ByteString *dst, size_t offs
     connection->send(channel->connection, dst);
 
     // get new buffer for the next chunk
-    if(!chunkInfo->final) {
+    if(!ci->final) {
         retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;

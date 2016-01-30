@@ -34,17 +34,17 @@
 
 static pcg32_random_t pcg32_global = PCG32_INITIALIZER;
 
-// pcg32_srandom(initstate, initseq)
-// pcg32_srandom_r(rng, initstate, initseq):
+// pcg32_srandom(initial_state, initseq)
+// pcg32_srandom_r(rng, initial_state, initseq):
 //     Seed the rng.  Specified in two parts, state initializer and a
 //     sequence selection constant (a.k.a. stream id)
 
-void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initstate, uint64_t initseq)
+void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initial_state, uint64_t initseq)
 {
     rng->state = 0U;
     rng->inc = (initseq << 1u) | 1u;
     pcg32_random_r(rng);
-    rng->state += initstate;
+    rng->state += initial_state;
     pcg32_random_r(rng);
 }
 
@@ -61,8 +61,8 @@ uint32_t pcg32_random_r(pcg32_random_t* rng)
 {
     uint64_t oldstate = rng->state;
     rng->state = oldstate * 6364136223846793005ULL + rng->inc;
-    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
-    uint32_t rot = oldstate >> 59u;
+    uint32_t xorshifted = (uint32_t)(((oldstate >> 18u) ^ oldstate) >> 27u);
+    uint32_t rot = (uint32_t)(oldstate >> 59u);
     return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 

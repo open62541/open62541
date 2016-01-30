@@ -25,14 +25,14 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         UA_ApplicationDescription_delete(descr);
         return;
     }
-    size_t index = descr->discoveryUrlsSize;
+    size_t existing = descr->discoveryUrlsSize;
     descr->discoveryUrls = disc;
     descr->discoveryUrlsSize += server->config.networkLayersSize;
         
     // TODO: Add nl only if discoveryUrl not already present
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &descr->discoveryUrls[index + i]);
+        UA_String_copy(&nl->discoveryUrl, &descr->discoveryUrls[existing + i]);
     }
 
     response->servers = descr;
@@ -95,7 +95,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
         if(!relevant_endpoints[j])
             continue;
         retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
-        retval |= UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        UA_String_deleteMembers(&response->endpoints[k].endpointUrl);
+        retval = UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
         k++;
     }
 
