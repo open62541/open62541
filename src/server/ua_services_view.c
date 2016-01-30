@@ -38,11 +38,11 @@ static const UA_Node *
 returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
                            const UA_ReferenceNode *reference) {
     /*	prepare a read request in the external nodestore	*/
-    UA_ReadValueId *readValueIds = UA_Array_new(&UA_TYPES[UA_TYPES_READVALUEID], 6);
-    UA_UInt32 *indices = UA_Array_new(&UA_TYPES[UA_TYPES_UINT32], 6);
+    UA_ReadValueId *readValueIds = UA_Array_new(6,&UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_UInt32 *indices = UA_Array_new(6,&UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 indicesSize = 6;
-    UA_DataValue *readNodesResults = UA_Array_new(&UA_TYPES[UA_TYPES_DATAVALUE], 6);
-    UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(&UA_TYPES[UA_TYPES_DIAGNOSTICINFO], 6);
+    UA_DataValue *readNodesResults = UA_Array_new(6,&UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(6,&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
     for(UA_UInt32 i = 0; i < 6; i++) {
         readValueIds[i].nodeId = reference->targetId.nodeId;
         indices[i] = i;
@@ -72,10 +72,10 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
         UA_UInt32_copy((UA_UInt32*)readNodesResults[4].value.data, &(node->writeMask));
     if(readNodesResults[5].status == UA_STATUSCODE_GOOD)
         UA_UInt32_copy((UA_UInt32*)readNodesResults[5].value.data, &(node->userWriteMask));
-    UA_Array_delete(readValueIds, &UA_TYPES[UA_TYPES_READVALUEID], 6);
-    UA_Array_delete(indices, &UA_TYPES[UA_TYPES_UINT32], 6);
-    UA_Array_delete(readNodesResults, &UA_TYPES[UA_TYPES_DATAVALUE], 6);
-    UA_Array_delete(diagnosticInfos, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO], 6);
+    UA_Array_delete(readValueIds,6, &UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_Array_delete(indices,6, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Array_delete(readNodesResults,6, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_Array_delete(diagnosticInfos,6, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
         UA_NodeStore_deleteNode(node);
         return NULL;
@@ -305,8 +305,9 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         /* relevant_node returns a node malloced by the nodestore.
            if it is external (there is no UA_Node_new function) */
-        if(isExternal == UA_TRUE)
-        	UA_ObjectNode_delete((UA_ObjectNode*)(uintptr_t)current);
+   //     if(isExternal == UA_TRUE)
+   //         UA_Node_deleteMembersAnyNodeClass(current);
+   //TODO something's wrong here...
 #endif
     }
 

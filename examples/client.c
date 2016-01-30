@@ -21,7 +21,31 @@ static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
+
+    //listing endpoints
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_StatusCode retval = UA_client_getEndpoints(client, UA_ClientConnectionTCP,
+            "opc.tcp://localhost:16664", &endpointArraySize, &endpointArray);
+
+    //freeing the endpointArray
+    if(retval != UA_STATUSCODE_GOOD) {
+        //cleanup array
+        UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Client_delete(client);
+        return retval;
+    }
+
+    printf("%i endpoints found\n", (int)endpointArraySize);
+    for(size_t i=0;i<endpointArraySize;i++){
+        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
+    }
+
+    //cleanup array of enpoints
+    UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    //connect to a server
+    retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {

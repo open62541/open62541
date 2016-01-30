@@ -719,7 +719,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
     memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         UA_UInt32 indexSize = 0;
-        for(UA_Int32 i = 0; i < request->nodesToWriteSize; i++) {
+        for(size_t i = 0; i < request->nodesToWriteSize; i++) {
             if(request->nodesToWrite[i].nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
