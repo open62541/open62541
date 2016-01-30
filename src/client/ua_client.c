@@ -106,7 +106,6 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
     UA_ByteString message;
-    UA_ByteString_init(&message);
     UA_StatusCode retval;
     retval = c->connection.getSendBuffer(&c->connection, c->connection.remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
@@ -211,7 +210,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     UA_ByteString message;
-    UA_ByteString_init(&message);
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -480,7 +478,6 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString message;
-    UA_ByteString_init(&message);
     UA_Connection *c = &client->connection;
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
@@ -507,8 +504,10 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     return retval;
 }
 
-UA_StatusCode UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
-        const char *serverUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
+UA_StatusCode
+UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+                       const char *serverUrl, size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {

@@ -115,14 +115,9 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
-/* Chunking
-   We expect that the OPN/CLO messages fit into a single chunk.
-
- */
-
 typedef struct {
-	UA_SecureChannel *channel;
-	UA_UInt32 requestId;
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
     UA_UInt32 messageType;
     UA_UInt16 chunksSoFar;
     size_t messageSizeSoFar;
@@ -192,7 +187,6 @@ UA_SecureChannel_sendChunk(chunkInfo *ci, UA_ByteString *dst, size_t offset) {
     return UA_STATUSCODE_GOOD;
 }
 
-
 UA_StatusCode
 UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId, const void *content,
                                    const UA_DataType *contentType) {
@@ -206,7 +200,6 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
     UA_ByteString message;
-    UA_ByteString_init(&message);
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                                      &message);
     if(retval != UA_STATUSCODE_GOOD)
