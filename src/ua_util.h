@@ -74,7 +74,7 @@
 #endif
 
 #include <time.h>
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
 #else
 # include <sys/time.h>
