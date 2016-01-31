@@ -1,19 +1,10 @@
 version: '{build}'
 os: Visual Studio 2015 RC
 clone_folder: c:\projects\open62541
-environment:
-    global:
-        CYG_ROOT: C:/cygwin
 before_build:
 - set STATICBUILD=true && python -m pip install lxml
 build_script:
 - cd c:\projects\open62541
-- md build
-- cd build
-- echo "Testing cygwin"
-- cmd: '%CYG_ROOT%/bin/bash --login -lc "export PATH=/cygdrive/c/Python27/:$PATH; export PYTHONUNBUFFERED=1; cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DCMAKE_COMPILER_IS_GNUCC:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" ..; make'
-- cd ..
-- rd /s /q build
 - md build
 - cd build
 - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
