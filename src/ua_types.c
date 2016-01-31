@@ -88,7 +88,11 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
 #else
     struct timespec ts;
+#ifdef __CYGWIN__    
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+#endif
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
 #endif
 }
