@@ -14,7 +14,7 @@
 
 #include <stdio.h>
 
-static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value, void *handlerContext) {
     printf("The Answer has changed!\n");
     return;
 }
