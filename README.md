@@ -38,9 +38,8 @@ With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server
 
 #define PORT 16664
 
-UA_Logger logger = Logger_Stdout;
 UA_Boolean running = UA_TRUE;
-void signalHandler(int sign) {
+void signalHandler(int sig) {
     running = UA_FALSE;
 }
 
@@ -50,9 +49,9 @@ int main(int argc, char** argv)
     signal(SIGINT, signalHandler);
 
     /* init the server */
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT);
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
-    config.logger = logger;
+    config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
@@ -73,9 +72,8 @@ int main(int argc, char** argv)
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 
     /* 3) add the variable */
-    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
-                              parentReferenceNodeId, browseName,
-                              variableType, attr, NULL);
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
+                              browseName, variableType, attr, NULL);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, &running);

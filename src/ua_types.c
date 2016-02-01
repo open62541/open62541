@@ -20,7 +20,7 @@ UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
 static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
+    pcg32_srandom_r(&UA_rng, seed, (uint64_t)UA_DateTime_now());
 }
 
 /*****************/
@@ -88,20 +88,24 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
 #else
     struct timespec ts;
+#ifdef __CYGWIN__    
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+#endif
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
 #endif
 }
 
-UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
-    dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
-    dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
+    dateTimeStruct.nanoSec  = (UA_UInt16)((t % 10) * 100);
+    dateTimeStruct.microSec = (UA_UInt16)((t % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_UInt16)((t % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch = (atime - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
+    time_t secSinceUnixEpoch = (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
     struct tm ts = *gmtime(&secSinceUnixEpoch);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
@@ -114,18 +118,18 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
 
 static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
     for(size_t i = digits; i > 0; i--) {
-        pos[i-1] = (n % 10) + '0';
+        pos[i-1] = (UA_Byte)((n % 10) + '0');
         n = n / 10;
     }
 }
 
-UA_String UA_DateTime_toString(UA_DateTime time) {
+UA_String UA_DateTime_toString(UA_DateTime t) {
     UA_String str = UA_STRING_NULL;
     // length of the string is 31 (plus \0 at the end)
     if(!(str.data = UA_malloc(32)))
         return str;
     str.length = 31;
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
     printNumber(tSt.month, str.data, 2);
     str.data[2] = '/';
     printNumber(tSt.day, &str.data[3], 2);
@@ -352,9 +356,13 @@ static UA_StatusCode
 processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
                        size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    UA_UInt32 dims_count = 1;
+    size_t dims_count = 1;
     UA_UInt32 elements = 1;
-    UA_UInt32 arrayLength = v->arrayLength;
+#if(MAX_SIZE > 0xffffffff) /* 64bit only */
+    if(v->arrayLength > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#endif
+    UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;

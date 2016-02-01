@@ -153,10 +153,10 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
         return retval;
     }
         
-    size_t index = 0; // where are we currently in the array?
+    size_t idx = 0; // where are we currently in the array?
     size_t last = 0; // where is the last element in the array?
     do {
-        node = UA_NodeStore_get(ns, &results[index]);
+        node = UA_NodeStore_get(ns, &results[idx]);
         if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
             continue;
         for(size_t i = 0; i < node->referencesSize; i++) {
@@ -180,7 +180,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
                 break;
             }
         }
-    } while(++index <= last && retval == UA_STATUSCODE_GOOD);
+    } while(++idx <= last && retval == UA_STATUSCODE_GOOD);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
@@ -270,7 +270,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     }
 
     /* how many references can we return at most? */
-    UA_UInt32 real_maxrefs = maxrefs;
+    size_t real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
         real_maxrefs = node->referencesSize;
     if(node->referencesSize <= 0)
@@ -337,7 +337,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
             removeCp(cp, session);
         } else {
             /* update the cp and return the cp identifier */
-            cp->continuationIndex += referencesCount;
+            cp->continuationIndex += (UA_UInt32)referencesCount;
             UA_ByteString_copy(&cp->identifier, &result->continuationPoint);
         }
     } else if(maxrefs != 0 && referencesCount >= maxrefs) {
@@ -349,7 +349,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         }
         UA_BrowseDescription_copy(descr, &cp->browseDescription);
         cp->maxReferences = maxrefs;
-        cp->continuationIndex = referencesCount;
+        cp->continuationIndex = (UA_UInt32)referencesCount;
         UA_Guid *ident = UA_Guid_new();
         *ident = UA_Guid_random();
         cp->identifier.data = (UA_Byte*)ident;

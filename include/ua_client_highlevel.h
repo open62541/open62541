@@ -249,7 +249,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, UA_NodeId nodeId, UA_Bo
 
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId,
-               UA_Int32 inputSize, const UA_Variant *input, UA_Int32 *outputSize, UA_Variant **output);
+               size_t inputSize, const UA_Variant *input, size_t *outputSize, UA_Variant **output);
 
 /**************************/
 /* Subscriptions Handling */
