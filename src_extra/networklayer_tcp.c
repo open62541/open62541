@@ -378,6 +378,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
         int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
         int i = 1;
         setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
+        setsockopt(newsockfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&i, sizeof(i));
         if(newsockfd >= 0) {
             socket_set_nonblocking(newsockfd);
             ServerNetworkLayerTCP_add(layer, newsockfd);
@@ -598,8 +599,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         return connection;
     }
 
-#ifdef SO_NOSIGPIPE
     int val = 1;
+    setsockopt(connection.sockfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&val, sizeof(val));
+#ifdef SO_NOSIGPIPE
     if(setsockopt(connection.sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&val, sizeof(val)) < 0) {
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
         return connection;
