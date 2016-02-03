@@ -1022,8 +1022,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_VariableNode *producturi = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)producturi, "ProductUri");
     producturi->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI);
-    producturi->value.variant.value.data = UA_String_new();
-    *((UA_String*)producturi->value.variant.value.data) = UA_STRING_ALLOC(PRODUCT_URI);
+    UA_Variant_setScalarCopy(&producturi->value.variant.value, &server->config.buildInfo.productUri,
+                             &UA_TYPES[UA_TYPES_STRING]);
     producturi->value.variant.value.type = &UA_TYPES[UA_TYPES_STRING];
     addNodeInternal(server, (UA_Node*)producturi,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO), nodeIdHasComponent);
@@ -1031,7 +1031,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                          nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype, UA_TRUE);
 
     UA_VariableNode *manufacturername = UA_NodeStore_newVariableNode();
-    copyNames((UA_Node*)manufacturername, "ManufacturererName");
+    copyNames((UA_Node*)manufacturername, "ManufacturerName");
     manufacturername->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME);
     UA_Variant_setScalarCopy(&manufacturername->value.variant.value,
                              &server->config.buildInfo.manufacturerName,
