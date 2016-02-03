@@ -25,8 +25,9 @@ int main(int argc, char *argv[]) {
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_client_getEndpoints(client, UA_ClientConnectionTCP,
-            "opc.tcp://localhost:16664", &endpointArraySize, &endpointArray);
+    UA_StatusCode retval =
+        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664",
+                               &endpointArraySize, &endpointArray);
 
     //freeing the endpointArray
     if(retval != UA_STATUSCODE_GOOD) {
@@ -45,8 +46,7 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     //connect to a server
-    retval = UA_Client_connect(client, UA_ClientConnectionTCP,
-                                             "opc.tcp://localhost:16664");
+    retval = UA_Client_connect(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

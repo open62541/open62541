@@ -64,8 +64,9 @@ typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localCon
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT
-UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
-        const char *serverUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions);
+UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+                       const char *serverUrl, size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions);
 /**
  * start a connection to the selected server
  *

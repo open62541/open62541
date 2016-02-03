@@ -504,8 +504,10 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     return retval;
 }
 
-UA_StatusCode UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
-        const char *serverUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
+UA_StatusCode
+UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+                       const char *serverUrl, size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {
