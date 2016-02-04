@@ -1,18 +1,18 @@
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
-#include "ua_statuscodes.h"
+#include "ua_server_internal.h"
 
 UA_StatusCode
 UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount,
                              UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
-                             UA_UInt32 startTokenId, UA_Logger logger) {
+                             UA_UInt32 startTokenId, UA_Server *server) {
     LIST_INIT(&cm->channels);
     cm->lastChannelId = startChannelId;
     cm->lastTokenId = startTokenId;
     cm->maxChannelLifetime = tokenLifetime;
     cm->maxChannelCount = maxChannelCount;
     cm->currentChannelCount = 0;
-    cm->logger = logger;
+    cm->server = server;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -33,17 +33,17 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
             entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < now || !entry->channel.connection) {
-            UA_LOG_DEBUG(cm->logger, UA_LOGCATEGORY_SECURECHANNEL,
+            UA_LOG_DEBUG(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel %i has timed out", entry->channel.securityToken.channelId);
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
 #ifndef UA_ENABLE_MULTITHREADING
             cm->currentChannelCount--;
-#else
-            cm->currentChannelCount = uatomic_add_return(
-                    &cm->currentChannelCount, -1);
-#endif
             UA_free(entry);
+#else
+            cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
+            UA_Server_delayedFree(cm->server, entry);
+#endif
         } else if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
         }
@@ -144,11 +144,12 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
         if(entry->channel.securityToken.channelId == channelId) {
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
-            UA_free(entry);
 #ifndef UA_ENABLE_MULTITHREADING
             cm->currentChannelCount--;
+            UA_free(entry);
 #else
             cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
+            UA_Server_delayedFree(cm->server, entry);
 #endif
             return UA_STATUSCODE_GOOD;
         }

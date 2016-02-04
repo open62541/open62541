@@ -455,20 +455,42 @@ static void addDelayedJobAsync(UA_Server *server, UA_Job *job) {
     UA_free(job);
 }
 
-UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job) {
+static void server_free(UA_Server *server, void *data) {
+    UA_free(data);
+}
+
+UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data) {
     UA_Job *j = UA_malloc(sizeof(UA_Job));
     if(!j)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    *j = job;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = server_free;
     struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
     mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
-                         {.data = j, .method = (void (*)(UA_Server*, void*))addDelayedJobAsync}};
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
+    cds_lfs_push(&server->mainLoopJobs, &mlw->node);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
+    UA_Job *j = UA_malloc(sizeof(UA_Job));
+    if(!j)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = callback;
+    struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
+    mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
     cds_lfs_push(&server->mainLoopJobs, &mlw->node);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Find out which delayed jobs can be executed now */
-static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but needed for the signature*/) {
+static void
+dispatchDelayedJobs(UA_Server *server, void *_) {
     /* start at the second */
     struct DelayedJobs *dw = server->delayedJobs, *beforedw = dw;
     if(dw)

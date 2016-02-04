@@ -263,7 +263,7 @@ void UA_Server_delete(UA_Server *server) {
 
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
-    UA_SessionManager_deleteMembers(&server->sessionManager, server);
+    UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_RCU_LOCK();
     UA_NodeStore_delete(server->nodestore);
     UA_RCU_UNLOCK();
@@ -281,9 +281,9 @@ void UA_Server_delete(UA_Server *server) {
 }
 
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
-static void UA_Server_cleanup(UA_Server *server, void *nothing) {
+static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime now = UA_DateTime_now();
-    UA_SessionManager_cleanupTimedOut(&server->sessionManager, server, now);
+    UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
 }
 
@@ -479,13 +479,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
 #define STARTTOKENID 1
     UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, server->config.logger);
+                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, server);
 
 #define MAXSESSIONCOUNT 1000
 #define MAXSESSIONLIFETIME 3600000
 #define STARTSESSIONID 1
     UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME,
-                           STARTSESSIONID, server->config.logger);
+                           STARTSESSIONID, server);
 
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
