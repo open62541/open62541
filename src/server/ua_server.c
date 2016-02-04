@@ -479,12 +479,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
 #define STARTTOKENID 1
     UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID);
+                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, server->config.logger);
 
 #define MAXSESSIONCOUNT 1000
-#define MAXSESSIONLIFETIME 10000
+#define MAXSESSIONLIFETIME 3600000
 #define STARTSESSIONID 1
-    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME, STARTSESSIONID);
+    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME,
+                           STARTSESSIONID, server->config.logger);
 
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };

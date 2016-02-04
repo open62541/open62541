@@ -10,7 +10,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 30000,
+    { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 600000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -312,7 +312,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.requestHeader.requestHandle = 2; //TODO: is it a magic number?
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
+    request.requestHeader.timeoutHint = 600000;
 
     UA_AnonymousIdentityToken identityToken;
     UA_AnonymousIdentityToken_init(&identityToken);

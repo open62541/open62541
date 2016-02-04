@@ -3,14 +3,16 @@
 #include "ua_statuscodes.h"
 
 UA_StatusCode
-UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount, UA_UInt32 tokenLifetime,
-                             UA_UInt32 startChannelId, UA_UInt32 startTokenId) {
+UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount,
+                             UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
+                             UA_UInt32 startTokenId, UA_Logger logger) {
     LIST_INIT(&cm->channels);
     cm->lastChannelId = startChannelId;
     cm->lastTokenId = startTokenId;
     cm->maxChannelLifetime = tokenLifetime;
     cm->maxChannelCount = maxChannelCount;
     cm->currentChannelCount = 0;
+    cm->logger = logger;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -29,8 +31,10 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
     LIST_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         UA_DateTime timeout =
             entry->channel.securityToken.createdAt +
-            ((UA_DateTime)entry->channel.securityToken.revisedLifetime * 10000);
+            (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < now || !entry->channel.connection) {
+            UA_LOG_DEBUG(cm->logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "SecureChannel %i has timed out", entry->channel.securityToken.channelId);
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
 #ifndef UA_ENABLE_MULTITHREADING

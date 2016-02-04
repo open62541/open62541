@@ -20,12 +20,13 @@ typedef struct UA_SecureChannelManager {
     UA_DateTime channelLifeTime;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;
+    UA_Logger logger;
 } UA_SecureChannelManager;
 
 UA_StatusCode
 UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount,
                              UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
-                             UA_UInt32 startTokenId);
+                             UA_UInt32 startTokenId, UA_Logger logger);
 
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm);
 

@@ -17,11 +17,12 @@ typedef struct UA_SessionManager {
     UA_UInt32 lastSessionId;
     UA_UInt32 currentSessionCount;
     UA_UInt32 maxSessionLifeTime;    // time in [ms]
+    UA_Logger logger;
 } UA_SessionManager;
 
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId);
+                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId, UA_Logger logger);
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager, UA_Server *server);
 
