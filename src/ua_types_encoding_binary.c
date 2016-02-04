@@ -15,7 +15,7 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 typedef UA_StatusCode (*UA_decodeBinarySignature)(bufpos pos, bufend end, void *UA_RESTRICT dst);
 static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
-typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *type);
+typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
 static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 UA_THREAD_LOCAL const UA_DataType *type; // used to pass the datatype into the jumptable
@@ -981,7 +981,7 @@ UA_encodeBinaryInternal(const void *src, bufpos pos, bufend end) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *localtype = type;
-    const UA_DataType *typelists[2] = { UA_TYPES, &localtype[-localtype->typeIndex] };
+    const UA_DataType *typelists[2] = { UA_TYPES, &localtype[localtype->typeIndex] };
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &localtype->members[i];
         type = &typelists[!member->namespaceZero][member->memberTypeIndex];
@@ -1332,8 +1332,8 @@ static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 size_t UA_calcSizeBinary(void *p, const UA_DataType *contenttype) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
-    UA_Byte membersSize = type->membersSize;
-    const UA_DataType *typelists[2] = { UA_TYPES, &contenttype[-contenttype->typeIndex] };
+    UA_Byte membersSize = contenttype->membersSize;
+    const UA_DataType *typelists[2] = { UA_TYPES, &contenttype[contenttype->typeIndex] };
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &contenttype->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
