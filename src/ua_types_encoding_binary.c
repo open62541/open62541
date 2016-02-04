@@ -981,7 +981,7 @@ UA_encodeBinaryInternal(const void *src, bufpos pos, bufend end) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *localtype = type;
-    const UA_DataType *typelists[2] = { UA_TYPES, &localtype[localtype->typeIndex] };
+    const UA_DataType *typelists[2] = { UA_TYPES, &localtype[-localtype->typeIndex] };
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &localtype->members[i];
         type = &typelists[!member->namespaceZero][member->memberTypeIndex];
@@ -1333,7 +1333,7 @@ size_t UA_calcSizeBinary(void *p, const UA_DataType *contenttype) {
     size_t s = 0;
     uintptr_t ptr = (uintptr_t)p;
     UA_Byte membersSize = contenttype->membersSize;
-    const UA_DataType *typelists[2] = { UA_TYPES, &contenttype[contenttype->typeIndex] };
+    const UA_DataType *typelists[2] = { UA_TYPES, &contenttype[-contenttype->typeIndex] };
     for(size_t i = 0; i < membersSize; i++) {
         const UA_DataTypeMember *member = &contenttype->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
