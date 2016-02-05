@@ -454,6 +454,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     if(monitoredItem->queueSize.currentValue >= monitoredItem->queueSize.maxValue) {
         if(monitoredItem->discardOldest != UA_TRUE) {
             // We cannot remove the oldest value and theres no queue space left. We're done here.
+            UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             return;
         }
