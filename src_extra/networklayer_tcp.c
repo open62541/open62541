@@ -152,13 +152,13 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_ByteString_deleteMembers(response);
         socket_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-	} else if(ret < 0) {
+    } else if(ret < 0) {
         UA_ByteString_deleteMembers(response);
 #ifdef _WIN32
         const int last_error = WSAGetLastError();
-        #define TEST_RETRY (last_error == WSAEINTR || last_error == WSAEWOULDBLOCK)
+        #define TEST_RETRY (last_error == WSAEINTR || (timeout > 0) ? 0 : (last_error == WSAEWOULDBLOCK))
 #else
-        #define TEST_RETRY (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+        #define TEST_RETRY (errno == EINTR || (timeout > 0) ? 0 : (errno == EAGAIN || errno == EWOULDBLOCK))
 #endif
         if (TEST_RETRY)
             return UA_STATUSCODE_GOOD; /* retry */
