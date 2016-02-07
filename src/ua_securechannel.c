@@ -138,12 +138,12 @@ UA_SecureChannel_sendChunk(chunkInfo *ci, UA_ByteString *dst, size_t offset) {
     offset += 24;
     ci->messageSizeSoFar += offset;
 
-    UA_Boolean abort = (++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
+    UA_Boolean abortMsg = (++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
                         ci->messageSizeSoFar > connection->remoteConf.maxMessageSize);
 
 	UA_SecureConversationMessageHeader respHeader;
 	respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
-    if(!abort) {
+    if(!abortMsg) {
         if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
         else
