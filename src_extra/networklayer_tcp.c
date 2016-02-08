@@ -123,8 +123,31 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         }
     }
 
+#ifdef __CYGWIN__
+    /* WORKAROUND for https://cygwin.com/ml/cygwin/2013-07/msg00107.html */
+    ssize_t ret;
+
+    if (timeout > 0) {
+        fd_set fdset;
+        UA_UInt32 timeout_usec = timeout * 1000;
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
+        UA_Int32 retval;
+
+        FD_ZERO(&fdset);
+        UA_fd_set(connection->sockfd, &fdset);
+        retval = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
+        if(retval && UA_fd_isset(connection->sockfd, &fdset)) {
+            ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
+        } else {
+            ret = 0;
+        }
+    } else {
+        ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
+    }
+#else
     ssize_t ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
-	if(ret == 0) {
+#endif
+    if(ret == 0) {
         /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
         socket_close(connection);

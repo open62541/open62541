@@ -275,12 +275,13 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
-void UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+UA_StatusCode UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void *handlingFunction, void *handlingContext,
+                                         void (*handlingFunction)(UA_UInt32 handle, UA_DataValue *value, void *context),
+                                         void *handlingContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT

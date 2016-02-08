@@ -10,7 +10,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
-    { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 30000,
+    { .timeout = 5000 /* ms receive timout */, .secureChannelLifeTime = 600000,
       {.protocolVersion = 0, .sendBufferSize = 65536, .recvBufferSize  = 65536,
        .maxMessageSize = 65536, .maxChunkCount = 1}};
 
@@ -93,7 +93,7 @@ void UA_Client_delete(UA_Client* client){
 
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_HEL + UA_CHUNKTYPE_FINAL;
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
 
     UA_TcpHelloMessage hello;
     UA_String_copy(&c->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
@@ -177,10 +177,11 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     UA_SecureConversationMessageHeader messageHeader;
     messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    if(renew)
+    if(renew){
         messageHeader.secureChannelId = client->channel.securityToken.channelId;
-    else
+    }else{
         messageHeader.secureChannelId = 0;
+    }
 
     UA_SequenceHeader seqHeader;
     seqHeader.sequenceNumber = ++client->channel.sequenceNumber;
@@ -311,7 +312,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.requestHeader.requestHandle = 2; //TODO: is it a magic number?
     request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
+    request.requestHeader.timeoutHint = 600000;
 
     UA_AnonymousIdentityToken identityToken;
     UA_AnonymousIdentityToken_init(&identityToken);
@@ -487,8 +488,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], NULL, NULL,
-                              &message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],NULL,NULL, &message, &offset);
 
     msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
@@ -505,7 +505,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 }
 
 UA_StatusCode
-UA_client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
                        const char *serverUrl, size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)

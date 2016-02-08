@@ -14,7 +14,7 @@
 
 #include <stdio.h>
 
-static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
     return;
 }
@@ -25,8 +25,9 @@ int main(int argc, char *argv[]) {
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_client_getEndpoints(client, UA_ClientConnectionTCP,
-            "opc.tcp://localhost:16664", &endpointArraySize, &endpointArray);
+    UA_StatusCode retval =
+        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664",
+                               &endpointArraySize, &endpointArray);
 
     //freeing the endpointArray
     if(retval != UA_STATUSCODE_GOOD) {

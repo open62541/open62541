@@ -90,8 +90,8 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
 
-UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job);
-
+UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
+UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
 #endif /* UA_SERVER_INTERNAL_H_ */
