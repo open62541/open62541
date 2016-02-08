@@ -20,6 +20,15 @@ struct SessionEntry {
     UA_Session *session; // Just a pointer. The session is held in the session manager or the client
 };
 
+typedef struct {
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
+    UA_UInt32 messageType;
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+    UA_Boolean final;
+} UA_ChunkInfo;
+
 struct UA_SecureChannel {
     UA_MessageSecurityMode  securityMode;
     UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken

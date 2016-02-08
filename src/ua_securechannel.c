@@ -115,17 +115,9 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
-typedef struct {
-    UA_SecureChannel *channel;
-    UA_UInt32 requestId;
-    UA_UInt32 messageType;
-    UA_UInt16 chunksSoFar;
-    size_t messageSizeSoFar;
-    UA_Boolean final;
-} chunkInfo;
 
 static UA_StatusCode
-UA_SecureChannel_sendChunk(chunkInfo *ci, UA_ByteString *dst, size_t offset) {
+UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
     UA_SecureChannel *channel = ci->channel;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Connection *connection = channel->connection;
@@ -209,7 +201,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     message.data = &message.data[24];
     message.length -= 24;
 
-    chunkInfo ci;
+    UA_ChunkInfo ci;
     ci.channel = channel;
     ci.requestId = requestId;
     ci.chunksSoFar = 0;
@@ -224,7 +216,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
 
     size_t messagePos = 0;
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
-    if(ci.messageType != UA_MESSAGETYPE_MSG)
+    if(ci.messageType == UA_MESSAGETYPE_MSG)
         /* jumps into sendMSGChunk to send the current chunk and continues encoding afterwards */
         retval |= UA_encodeBinary(content, contentType, (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
                                   (void*)&ci, &message, &messagePos);

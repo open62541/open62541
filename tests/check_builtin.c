@@ -5,6 +5,7 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_encoding_binary.h"
 //#include "ua_transport.h"
+#include "ua_securechannel.h"
 #include "ua_util.h"
 #include "check.h"
 
@@ -1460,6 +1461,40 @@ START_TEST(UA_ExtensionObject_encodeDecodeShallWorkOnExtensionObject) {
 }
 END_TEST
 
+UA_ByteString *buffers;
+size_t bufIndex;
+
+static UA_StatusCode sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
+    dst->data = buffers[bufIndex++].data;
+    dst->length = buffers[bufIndex].length;
+    return UA_STATUSCODE_GOOD;
+}
+START_TEST(encodeArrayIntoThreeChunksShallWork) {
+
+    size_t arraySize = 30;
+    size_t offset = 0;
+    size_t chunks = 8;
+    size_t chunkSize = 71;
+    UA_ChunkInfo ci;
+    bufIndex = 0;
+
+    UA_Int32 *ar = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    buffers = UA_Array_new(chunks, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    for(size_t i=0;i<chunks;i++){
+        UA_ByteString_allocBuffer(&buffers[i],chunkSize);
+    }
+    for(size_t i=0;i<arraySize;i++){
+        ar[i]=(UA_Int32)i;
+    }
+
+    UA_Variant v;
+    UA_Variant_setArray(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&buffers[bufIndex],&offset);
+    ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -1533,6 +1568,11 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_LocalizedText_copycstringShallWorkOnInputExample);
     tcase_add_test(tc_copy, UA_DataValue_copyShallWorkOnInputExample);
     suite_add_tcase(s, tc_copy);
+
+    TCase *tc_message = tcase_create("encode chunking");
+    tcase_add_test(tc_message,encodeArrayIntoThreeChunksShallWork);
+    suite_add_tcase(s,tc_message);
+
     return s;
 }
 

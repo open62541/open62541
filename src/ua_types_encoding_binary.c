@@ -27,7 +27,7 @@ UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 static UA_StatusCode exchangeBuffer(bufpos pos, bufend *end) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
-    size_t offset = ((uintptr_t)*pos - (uintptr_t)*end) / sizeof(UA_Byte);
+    size_t offset = ((uintptr_t)*pos - (uintptr_t)encodeBuf->data) / sizeof(UA_Byte);
     /* store pointers that may be overwritten within the exchangeBufferCallback */
     UA_exchangeEncodeBuffer saveExchangeBufferCallback = exchangeBufferCallback;
     void *saveExchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
@@ -397,6 +397,8 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
 
 static UA_StatusCode
 String_encodeBinary(UA_String const *src, bufpos pos, bufend end) {
+    return Array_encodeBinary(src->data,src->length,&UA_TYPES[UA_TYPES_BYTE],pos,end);
+    /*
     if(*pos + sizeof(UA_Int32) + src->length > end)
         return UA_STATUSCODE_BADENCODINGERROR;
     if(src->length > UA_INT32_MAX)
@@ -413,7 +415,7 @@ String_encodeBinary(UA_String const *src, bufpos pos, bufend end) {
         memcpy(*pos, src->data, src->length);
         *pos += src->length;
     }
-    return retval;
+    return retval;*/
 }
 
 static UA_INLINE UA_StatusCode
