@@ -480,21 +480,32 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
         switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Process a HEL on Connection %i", connection->sockfd);
             processHEL(connection, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Process a OPN on Connection %i", connection->sockfd);
             processOPN(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                             "Received a MSG where the connection is not established on Connection %i",
+                             connection->sockfd);
                 connection->close(connection);
                 return;
             }
 #endif
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Process a MSG on Connection %i", connection->sockfd);
             processMSG(connection, server, msg, &pos);
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Process a CLO on Connection %i", connection->sockfd);
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
