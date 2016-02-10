@@ -50,7 +50,7 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
     return UA_STATUSCODE_GOOD;
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wextra"
 #pragma GCC diagnostic ignored "-Wcast-qual"
@@ -77,7 +77,7 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic pop
 #endif
 
