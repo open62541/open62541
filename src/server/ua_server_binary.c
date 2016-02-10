@@ -20,12 +20,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
     connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
+    if(connection->remoteConf.recvBufferSize > helloMessage.receiveBufferSize)
+        connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
+    if(connection->remoteConf.sendBufferSize > helloMessage.sendBufferSize)
+        connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
         connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
-        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 
@@ -465,14 +465,22 @@ processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 /**
  * process binary message received from Connection
  * dose not modify UA_ByteString you have to free it youself.
- * use of connection->getSendBuffer() and connection->sent() to answer Message
+ * use of connection->getSendBuffer() and connection->send() to answer Message
  */
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
         if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding of message header failed");
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                        "Decoding of message header failed on Connection %i", connection->sockfd);
+            connection->close(connection);
+            break;
+        }
+
+        if(tcpMessageHeader.messageSize < 16) {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                        "The message is suspiciously small on Connection %i", connection->sockfd);
             connection->close(connection);
             break;
         }

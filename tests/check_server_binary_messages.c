@@ -35,7 +35,10 @@ START_TEST(processMessage) {
     UA_Server *server = UA_Server_new(config);
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
-        UA_Server_processBinaryMessage(server, &c, &msg);
+        UA_Boolean reallocated;
+        UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
+        if(retval == UA_STATUSCODE_GOOD)
+            UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
 	UA_Server_delete(server);

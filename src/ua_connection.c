@@ -72,7 +72,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         UA_UInt32 length = 0;
         size_t length_pos = pos + 4;
         UA_StatusCode retval = UA_UInt32_decodeBinary(current, &length_pos, &length);
-        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.maxMessageSize) {
+        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.recvBufferSize) {
             /* the message size is not allowed. throw the remaining bytestring away */
             delete_at = pos;
             break;
