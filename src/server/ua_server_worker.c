@@ -600,7 +600,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_DateTime nextRepeated = processRepeatedJobs(server, now);
 
     UA_UInt16 timeout = 0;
-    if(waitInternal && nextRepeated > now)
+    if(waitInternal)
         timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 
     /* Get work from the networklayer */
