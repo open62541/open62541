@@ -68,15 +68,11 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
                           ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
+add_custom_target(client_HELOPN.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin")
 
 add_executable(check_server_binary_messages check_server_binary_messages.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
 target_include_directories(check_server_binary_messages PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
 target_link_libraries(check_server_binary_messages ${LIBS})
-add_test(NAME check_server_binary_messages_helopn
-         COMMAND check_server_binary_messages client_HELOPN.bin
-         ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+add_dependencies(check_server_binary_messages client_HELOPN.bin)
 
-#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_SOURCE_DIR}/examples)
-#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_BINARY_DIR})
-#target_link_libraries(check_server_interaction_fileinput ${LIBS})
-#add_test(server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/check_server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+add_test(check_server_binary_messages_helopn ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
