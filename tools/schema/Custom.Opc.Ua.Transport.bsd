@@ -20,6 +20,11 @@
     <opc:EnumeratedValue Name="OPNF" Value="1179537487" />
   </opc:EnumeratedType>
 
+  <opc:EnumeratedType Name="MessageType" LengthInBits="32">
+    <opc:Documentation>Message Type only</opc:Documentation>
+    <opc:EnumeratedValue Name="MSG" Value="4674381" />
+  </opc:EnumeratedType>
+
    <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
     <opc:Field Name="MessageTypeAndFinal" TypeName="opc:UInt32" />

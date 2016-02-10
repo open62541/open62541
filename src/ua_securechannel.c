@@ -16,6 +16,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     channel->sequenceNumber = 0;
     channel->connection = NULL;
     LIST_INIT(&channel->sessions);
+    LIST_INIT(&channel->chunks);
 }
 
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
