@@ -311,6 +311,48 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
 }
 
 static void
+appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *pos) {
+    if (ch->invalid_message) {
+        return;
+    }
+
+    UA_UInt32 len;
+    *pos -= 20;
+    UA_UInt32_decodeBinary(msg, pos, &len);
+    if (len > msg->length) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        ch->invalid_message = UA_TRUE;
+        return;
+    }
+    len -= 24;
+    *pos += 16; // 4 bytes consumed by decode above
+
+    UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + len);
+    if (! new_bytes) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        ch->invalid_message = UA_TRUE;
+        return;
+    }
+    ch->bytes.data = new_bytes;
+
+    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
+    ch->bytes.length += len;
+    *pos += len;
+}
+
+static struct ChunkEntry*
+chunkEntryFromRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if (ch->requestId == requestId) {
+            return ch;
+        }
+    }
+
+    return NULL;
+}
+
+static void
 processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     /* If we cannot decode these, don't respond */
     UA_UInt32 secureChannelId = 0;
@@ -320,7 +362,6 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
     retval |= UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-    retval |= UA_NodeId_decodeBinary(msg, pos, &requestTypeId);
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
@@ -347,11 +388,68 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         UA_SecureChannel_revolveTokens(channel);
     }
 
+    size_t final_chunked_pos = 0;
+    UA_ByteString bytes;
+    struct ChunkEntry *ch;
+    switch (msg->data[*pos - 24 + 3]) {
+    case 'C':
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk message");
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
+        if (! ch) {
+            ch = UA_calloc(1, sizeof(struct ChunkEntry));
+            ch->invalid_message = UA_FALSE;
+            ch->requestId = sequenceHeader.requestId;
+            UA_ByteString_init(&ch->bytes);
+            LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
+        }
+
+        appendChunkedMessage(ch, msg, pos);
+        return;
+    case 'F':
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
+        if (ch) {
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Final chunk message");
+            appendChunkedMessage(ch, msg, pos);
+
+            bytes = ch->bytes;
+            LIST_REMOVE(ch, pointers);
+            UA_free(ch);
+
+            final_chunked_pos = *pos;
+            *pos = 0;
+
+            // if the chunks have failed decoding
+            // message is invalid => return early
+            if (bytes.length == 0) {
+                *pos = final_chunked_pos;
+                return;
+            }
+        } else {
+            bytes = *msg;
+        }
+        break;
+    case 'A':
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
+        if (ch) {
+            UA_ByteString_deleteMembers(&ch->bytes);
+            LIST_REMOVE(ch, pointers);
+            UA_free(ch);
+        } else {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Received MSGA on an unknown request");
+        }
+
+        return;
+    }
+
+    retval |= UA_NodeId_decodeBinary(&bytes, pos, &requestTypeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
     /* Test if the service type nodeid has the right format */
     if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
        requestTypeId.namespaceIndex != 0) {
         UA_NodeId_deleteMembers(&requestTypeId);
-        sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
 
@@ -370,7 +468,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Unknown request: NodeId(ns=%d, i=%d)",
                         requestTypeId.namespaceIndex, requestTypeId.identifier.numeric);
-        sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
 
@@ -378,7 +476,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(channel == &anonymousChannel &&
        requestType->typeIndex > UA_TYPES_OPENSECURECHANNELREQUEST) {
-        sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
+        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         return;
     }
 #endif
@@ -386,9 +484,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     /* Decode the request */
     void *request = UA_alloca(requestType->memSize);
     size_t oldpos = *pos;
-    retval = UA_decodeBinary(msg, pos, request, requestType);
+    retval = UA_decodeBinary(&bytes, pos, request, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
-        sendError(channel, msg, oldpos, sequenceHeader.requestId, retval);
+        sendError(channel, &bytes, oldpos, sequenceHeader.requestId, retval);
         return;
     }
 
@@ -408,7 +506,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(!session->activated && requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service with a non-activated session");
-        sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
@@ -416,7 +514,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
        requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service without a session");
-        sendError(channel, msg, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         return;
     }
 #endif
@@ -443,10 +541,15 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
                                                 response, responseType);
     if(retval != UA_STATUSCODE_GOOD) {
         /* e.g. UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED */
-        sendError(channel, msg, oldpos, sequenceHeader.requestId, retval);
+        sendError(channel, &bytes, oldpos, sequenceHeader.requestId, retval);
     }
 
     /* Clean up */
+    if (final_chunked_pos) {
+        *pos = final_chunked_pos;
+        UA_ByteString_deleteMembers(&bytes);
+    }
+
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
     return;
