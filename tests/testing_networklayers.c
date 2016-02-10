@@ -9,7 +9,7 @@ dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf)
 }
 
 static void
-releaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
+dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
     free(buf->data);
 }
 
@@ -17,6 +17,11 @@ static UA_StatusCode
 dummySend(UA_Connection *connection, UA_ByteString *buf) {
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
+}
+
+static void
+dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    return;
 }
 
 static void
@@ -34,9 +39,10 @@ UA_Connection createDummyConnection(void) {
     c.handle = NULL;
     c.incompleteMessage = UA_BYTESTRING_NULL;
     c.getSendBuffer = dummyGetSendBuffer;
+    c.releaseSendBuffer = dummyReleaseSendBuffer;
     c.send = dummySend;
     c.recv = NULL;
-    c.releaseRecvBuffer = NULL;
+    c.releaseRecvBuffer = dummyReleaseRecvBuffer;
     c.close = dummyClose;
     return c;
 }
