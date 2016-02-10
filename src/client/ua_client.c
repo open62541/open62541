@@ -362,7 +362,7 @@ static UA_StatusCode GetEndpoints(UA_Client *client, size_t* endpointDescription
     *endpointDescriptionsSize = response.endpointsSize;
     *endpointDescriptions = UA_Array_new(response.endpointsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     for(size_t i=0;i<response.endpointsSize;i++){
-        UA_EndpointDescription_copy(&response.endpoints[i], endpointDescriptions[i]);
+        UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
     }
 
     UA_GetEndpointsResponse_deleteMembers(&response);
@@ -380,10 +380,12 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
+    //TODO: compare endpoint information with client->endpointUri
     for(size_t i = 0; i < endpointArraySize; i++) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
-        if(!UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
+        //NODE: Siemens returns empty ProfileUrl, we will accept it as binary
+        if(endpoint->transportProfileUri.length!=0 && !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
@@ -535,9 +537,6 @@ UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc
         retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
     //we always cleanup
     cleanup:
-    retval = CloseSecureChannel(client);
-    client->state = UA_CLIENTSTATE_ERRORED;
-    //here the client is reset in its initial state
     UA_Client_reset(client);
     return retval;
 }
@@ -582,17 +581,19 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     return retval;
 
     cleanup:
-    client->state = UA_CLIENTSTATE_ERRORED;
     UA_Client_reset(client);
     return retval;
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(client->channel.connection->state == UA_CONNECTION_ESTABLISHED){
+    //is a session established?
+    if(client->state == UA_CLIENTSTATE_CONNECTED && client->channel.connection->state == UA_CONNECTION_ESTABLISHED){
         retval = CloseSession(client);
-        if(retval == UA_STATUSCODE_GOOD)
-            retval = CloseSecureChannel(client);
+    }
+    //is a secure channel established?
+    if(retval == UA_STATUSCODE_GOOD && client->channel.connection->state == UA_CONNECTION_ESTABLISHED){
+        retval = CloseSecureChannel(client);
     }
     return retval;
 }
