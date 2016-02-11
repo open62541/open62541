@@ -405,6 +405,16 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             bytes = *msg;
         }
         break;
+    case 'A':
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
+        if (ch) {
+            LIST_REMOVE(ch, pointers);
+            UA_free(ch);
+        } else {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Received MSGA on an unknown request");
+        }
+
+        return;
     }
 
     retval |= UA_NodeId_decodeBinary(&bytes, pos, &requestTypeId);
