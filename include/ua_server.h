@@ -92,7 +92,7 @@ UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
  *        The default max wait time is 50millisec.
  * @return Returns how long we can wait until the next scheduled job (in millisec)
  */
-UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
+UA_UInt16 UA_EXPORT UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /**
  * @param server The server object.
