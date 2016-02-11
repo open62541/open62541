@@ -553,7 +553,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
             processOPN(connection, server, msg, &pos);
             break;
-        case UA_MESSAGETYPE_MSG & 0x00ffffff:
+        case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 connection->close(connection);
