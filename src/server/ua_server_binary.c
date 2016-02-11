@@ -311,6 +311,20 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
 }
 
 static void
+appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *pos) {
+    UA_UInt32 len;
+    *pos -= 20;
+    UA_UInt32_decodeBinary(msg, pos, &len);
+    len -= 24;
+    *pos += 16; // 4 bytes consumed by decode above
+
+    ch->bytes.data = UA_realloc(ch->bytes.data, ch->bytes.length + len);
+    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
+    ch->bytes.length += len;
+    *pos += len;
+}
+
+static void
 processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     /* If we cannot decode these, don't respond */
     UA_UInt32 secureChannelId = 0;
@@ -366,16 +380,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
         }
 
-        UA_UInt32 len;
-        *pos -= 20;
-        UA_UInt32_decodeBinary(msg, pos, &len);
-        len -= 24;
-        *pos += 16; // 4 bytes consumed by decode above
-
-        ch->bytes.data = UA_realloc(ch->bytes.data, ch->bytes.length + len);
-        memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
-        ch->bytes.length += len;
-        *pos += len;
+        appendChunkedMessage(ch, msg, pos);
         return;
     case 'F':
         LIST_FOREACH(ch, &channel->chunks, pointers) {
@@ -386,15 +391,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
         if (ch) {
             // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Final chunk message");
-            UA_UInt32 len;
-            *pos -= 20;
-            UA_UInt32_decodeBinary(msg, pos, &len);
-            len -= 24;
-            *pos += 16; // 4 bytes consumed by decode above
+            appendChunkedMessage(ch, msg, pos);
 
-            ch->bytes.data = UA_realloc(ch->bytes.data, ch->bytes.length + len);
-            memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
-            ch->bytes.length += len;
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
 
