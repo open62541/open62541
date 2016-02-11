@@ -26,6 +26,8 @@ typedef struct UA_Connection UA_Connection;
 struct UA_Server;
 typedef struct UA_Server UA_Server;
 
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
 /** Jobs describe work that is executed once or repeatedly in the server */
 typedef struct {
     enum {
@@ -44,7 +46,7 @@ typedef struct {
         } binaryMessage;
         struct {
             void *data;
-            void (*method)(UA_Server *server, void *data);
+            UA_ServerCallback method;
         } methodCall;
     } job;
 } UA_Job;

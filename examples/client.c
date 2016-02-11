@@ -14,14 +14,39 @@
 
 #include <stdio.h>
 
-static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
     return;
 }
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
+
+    //listing endpoints
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_StatusCode retval =
+        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664",
+                               &endpointArraySize, &endpointArray);
+
+    //freeing the endpointArray
+    if(retval != UA_STATUSCODE_GOOD) {
+        //cleanup array
+        UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Client_delete(client);
+        return retval;
+    }
+
+    printf("%i endpoints found\n", (int)endpointArraySize);
+    for(size_t i=0;i<endpointArraySize;i++){
+        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
+    }
+
+    //cleanup array of enpoints
+    UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    //connect to a server
+    retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -63,14 +88,14 @@ int main(int argc, char *argv[]) {
     
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
-    UA_UInt32 subId;
+    UA_UInt32 subId=0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
     // .. and monitor TheAnswer
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId;
+    UA_UInt32 monId=0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
                                              UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
     if (monId)
@@ -143,12 +168,12 @@ int main(int argc, char *argv[]) {
     UA_Variant_init(&input);
     UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
     
-    UA_Int32 outputSize;
+    size_t outputSize;
     UA_Variant *output;
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        printf("Method call was successfull, and %zu returned values available.\n", outputSize);
         UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);

@@ -91,7 +91,8 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void *handlingFunction, void *handlingContext,
+                                         void (*handlingFunction)(UA_UInt32 handle, UA_DataValue *value, void *context),
+                                         void *handlingContext,
                                          UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
@@ -230,12 +231,12 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
         if(msg.notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
             // This is a dataChangeNotification
             UA_DataChangeNotification *dataChangeNotification = msg.notificationData[k].content.decoded.data;
-            for(size_t i = 0; i < dataChangeNotification->monitoredItemsSize; i++) {
-            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[i];
+            for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; j++) {
+            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
                 // find this client handle
                 LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
                     if(mon->ClientHandle == mitemNot->clientHandle) {
-                        mon->handler(mitemNot->clientHandle, &mitemNot->value, mon->handlerContext);
+                        mon->handler(mon->MonitoredItemId, &mitemNot->value, mon->handlerContext);
                         break;
                     }
                 }
@@ -274,7 +275,10 @@ UA_Client_processPublishRx(UA_Client *client, UA_PublishResponse response) {
     return response.moreNotifications;
 }
 
-void UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
+UA_StatusCode UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
+    if (client->state == UA_CLIENTSTATE_ERRORED){
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+    }
     UA_Boolean moreNotifications = UA_TRUE;
     do {
         UA_PublishRequest request;
@@ -288,7 +292,7 @@ void UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             request.subscriptionAcknowledgements = UA_malloc(sizeof(UA_SubscriptionAcknowledgement) *
                                                              request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
-                return;
+                return UA_STATUSCODE_GOOD;
         }
         
         int index = 0 ;
@@ -307,4 +311,5 @@ void UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
     } while(moreNotifications == UA_TRUE);
+    return UA_STATUSCODE_GOOD;
 }

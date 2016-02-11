@@ -338,9 +338,9 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     // check if the next repeated job is sooner than the usual timeout
     // calc in 32 bit must be ok
     struct RepeatedJobs *first = LIST_FIRST(&server->repeatedJobs);
-    UA_UInt32 timeout = MAXTIMEOUT;
+    UA_UInt16 timeout = MAXTIMEOUT;
     if(first) {
-        timeout = (UA_UInt32)((first->nextTime - current) / 10);
+        timeout = (UA_UInt16)((first->nextTime - current) / 10);
         if(timeout > MAXTIMEOUT)
             return MAXTIMEOUT;
     }
@@ -455,20 +455,42 @@ static void addDelayedJobAsync(UA_Server *server, UA_Job *job) {
     UA_free(job);
 }
 
-UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job) {
+static void server_free(UA_Server *server, void *data) {
+    UA_free(data);
+}
+
+UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data) {
     UA_Job *j = UA_malloc(sizeof(UA_Job));
     if(!j)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    *j = job;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = server_free;
     struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
     mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
-                         {.data = j, .method = (void (*)(UA_Server*, void*))addDelayedJobAsync}};
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
+    cds_lfs_push(&server->mainLoopJobs, &mlw->node);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
+    UA_Job *j = UA_malloc(sizeof(UA_Job));
+    if(!j)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = callback;
+    struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
+    mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
     cds_lfs_push(&server->mainLoopJobs, &mlw->node);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Find out which delayed jobs can be executed now */
-static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but needed for the signature*/) {
+static void
+dispatchDelayedJobs(UA_Server *server, void *_) {
     /* start at the second */
     struct DelayedJobs *dw = server->delayedJobs, *beforedw = dw;
     if(dw)
@@ -494,6 +516,12 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         dw = dw->next;
     }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         processJobs(server, dw->jobs, dw->jobsCount);
@@ -502,6 +530,10 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         UA_free(dw->workerCounters);
         dw = next;
     }
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 #endif
@@ -554,7 +586,10 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     UA_StatusCode result = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        result |= nl->start(nl);
+        result |= nl->start(nl, server->config.logger);
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            UA_String_copy(&nl->discoveryUrl, &server->endpointDescriptions[j].endpointUrl);
+        }
     }
 
     return result;

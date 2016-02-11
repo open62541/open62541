@@ -35,7 +35,7 @@ extern "C" {
 /* Builtin Type Definitions */
 /****************************/
 
-#define UA_BUILTIN_TYPES_COUNT 25
+#define UA_BUILTIN_TYPES_COUNT 25U
 
 /** Boolean: A two-state logical value (true or false) */
 typedef bool UA_Boolean;
@@ -146,9 +146,9 @@ typedef struct UA_DateTimeStruct {
     UA_UInt16 year;
 } UA_DateTimeStruct;
 
-UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime time);
+UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
 
-UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime time);
+UA_String UA_EXPORT UA_DateTime_toString(UA_DateTime t);
 
 /**************************************************************************/
 /* Guid: A 16 byte value that can be used as a globally unique identifier */
@@ -222,7 +222,7 @@ static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
-static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
+static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
     UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_NUMERIC;
     id.identifier.numeric = identifier; return id; }
 
@@ -255,7 +255,7 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
-static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_Int32 identifier) {
+static UA_INLINE UA_ExpandedNodeId UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
 

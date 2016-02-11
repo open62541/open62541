@@ -6,7 +6,7 @@
 /* Subscription */
 /****************/
 
-UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
+UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID) {
     UA_Subscription *new = UA_malloc(sizeof(UA_Subscription));
     if(!new)
         return NULL;
@@ -68,7 +68,8 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     UA_unpublishedNotification *msg;
     UA_UInt32 monItemsChangeT = 0, monItemsStatusT = 0, monItemsEventT = 0;
     
-    if(!subscription || subscription->lastPublished + subscription->publishingInterval > UA_DateTime_now())
+    if(!subscription || subscription->lastPublished +
+       (UA_UInt32)(subscription->publishingInterval * UA_MSEC_TO_DATETIME) > UA_DateTime_now())
         return;
     
     // Make sure there is data to be published and establish which message types
@@ -238,7 +239,8 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
     
     /* Practically enough, the client sends a uint32 in ms, which we store as
        datetime, which here is required in as uint32 in ms as the interval */
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->publishingInterval,
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob,
+                                                    (UA_UInt32)sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
         sub->timedUpdateIsRegistered = UA_TRUE;
@@ -280,9 +282,9 @@ void MonitoredItem_delete(UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem);
 }
 
-int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
+UA_UInt32 MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
                                                  UA_MonitoredItem *monitoredItem) {
-    int queueSize = 0;
+    UA_UInt32 queueSize = 0;
     MonitoredItem_queuedValue *queueItem;
   
     // Count instead of relying on the items currentValue
@@ -452,6 +454,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     if(monitoredItem->queueSize.currentValue >= monitoredItem->queueSize.maxValue) {
         if(monitoredItem->discardOldest != UA_TRUE) {
             // We cannot remove the oldest value and theres no queue space left. We're done here.
+            UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             return;
         }

@@ -249,7 +249,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, UA_NodeId nodeId, UA_Bo
 
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId,
-               UA_Int32 inputSize, const UA_Variant *input, UA_Int32 *outputSize, UA_Variant **output);
+               size_t inputSize, const UA_Variant *input, size_t *outputSize, UA_Variant **output);
 
 /**************************/
 /* Subscriptions Handling */
@@ -275,12 +275,13 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
-void UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+UA_StatusCode UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void *handlingFunction, void *handlingContext,
+                                         void (*handlingFunction)(UA_UInt32 handle, UA_DataValue *value, void *context),
+                                         void *handlingContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT

@@ -140,7 +140,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         connection->releaseSendBuffer(connection, &resp_msg);
         connection->close(connection);
     } else {
-        respHeader.messageHeader.messageSize = tmpPos;
+        respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
         tmpPos = 0;
         UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
         resp_msg.length = respHeader.messageHeader.messageSize;
@@ -461,6 +461,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         UA_SecureChannel_getSession(channel, &((UA_RequestHeader*)request)->authenticationToken);
     UA_Session anonymousSession;
     if(!session) {
+        /* session id 0 -> anonymous session */
         UA_Session_init(&anonymousSession);
         anonymousSession.channel = channel;
         anonymousSession.activated = UA_TRUE;

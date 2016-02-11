@@ -33,7 +33,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt1
     UA_String *ns = response.results[0].value.data;
     for(size_t i = 0; i < response.results[0].value.arrayLength; i++){
         if(UA_String_equal(namespaceUri, &ns[i])) {
-            *namespaceIndex = i;
+            *namespaceIndex = (UA_UInt16)i;
             retval = UA_STATUSCODE_GOOD;
             break;
         }
@@ -178,8 +178,8 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_No
 /********/
 
 UA_StatusCode
-UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, UA_Int32 inputSize,
-               const UA_Variant *input, UA_Int32 *outputSize, UA_Variant **output) {
+UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
+               const UA_Variant *input, size_t *outputSize, UA_Variant **output) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item;

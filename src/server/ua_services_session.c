@@ -3,8 +3,7 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
-void Service_CreateSession(UA_Server *server, UA_Session *session,
-                           const UA_CreateSessionRequest *request,
+void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
     UA_SecureChannel *channel = session->channel;
     if(channel->securityToken.channelId == 0) {
@@ -38,7 +37,7 @@ void Service_CreateSession(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&server->endpointDescriptions->serverCertificate, &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_SessionManager_removeSession(&server->sessionManager, server, &newSession->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
@@ -48,8 +47,7 @@ void Service_CreateSession(UA_Server *server, UA_Session *session,
 }
 
 void
-Service_ActivateSession(UA_Server *server, UA_Session *session,
-                        const UA_ActivateSessionRequest *request,
+Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     UA_SecureChannel *channel = session->channel;
     // make the channel know about the session
@@ -59,7 +57,8 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
 	if(!foundSession) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                     "Processing ActivateSessionRequest on SecureChannel %i, but no session found for the authentication token",
+                     "Processing ActivateSessionRequest on SecureChannel %i, "
+                     "but no session found for the authentication token",
                      channel->securityToken.channelId);
         return;
 	}
@@ -149,12 +148,11 @@ Service_ActivateSession(UA_Server *server, UA_Session *session,
 }
 
 void
-Service_CloseSession(UA_Server *server, UA_Session *session,
-                     const UA_CloseSessionRequest *request,
+Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Processing CloseSessionRequest for Session (ns=%i,i=%i)",
                  session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
     response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager, server, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
 }

@@ -51,6 +51,13 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
     return UA_STATUSCODE_GOOD;
 }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
+
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
     struct SessionEntry *se = UA_malloc(sizeof(struct SessionEntry));
     if(!se)
@@ -70,6 +77,10 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 #endif
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
+
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
 
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
     if(session)
@@ -144,7 +155,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     }
 
     /* now write the header with the size */
-    respHeader.messageHeader.messageSize = messagePos;
+    respHeader.messageHeader.messageSize = (UA_UInt32)messagePos;
 #ifndef UA_ENABLE_MULTITHREADING
     seqHeader.sequenceNumber = ++channel->sequenceNumber;
 #else
