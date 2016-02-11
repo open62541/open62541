@@ -21,7 +21,7 @@ struct SessionEntry {
 };
 
 struct ChunkEntry {
-    LIST_ENTRY(SessionEntry) pointers;
+    LIST_ENTRY(ChunkEntry) pointers;
     UA_UInt32 requestId;
     size_t pos;
     UA_ByteString bytes;
