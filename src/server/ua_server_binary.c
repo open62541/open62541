@@ -324,6 +324,18 @@ appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *po
     *pos += len;
 }
 
+static struct ChunkEntry*
+chunkEntryFromRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if (ch->requestId == requestId) {
+            return ch;
+        }
+    }
+
+    return NULL;
+}
+
 static void
 processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     /* If we cannot decode these, don't respond */
@@ -366,12 +378,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     switch (msg->data[*pos - 24 + 3]) {
     case 'C':
         // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Chunk message");
-        LIST_FOREACH(ch, &channel->chunks, pointers) {
-            if (ch->requestId == sequenceHeader.requestId) {
-                break;
-            }
-        }
-
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (! ch) {
             ch = UA_calloc(1, sizeof(struct ChunkEntry));
             ch->requestId = sequenceHeader.requestId;
@@ -383,12 +390,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         appendChunkedMessage(ch, msg, pos);
         return;
     case 'F':
-        LIST_FOREACH(ch, &channel->chunks, pointers) {
-            if (ch->requestId == sequenceHeader.requestId) {
-                break;
-            }
-        }
-
+        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (ch) {
             // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Final chunk message");
             appendChunkedMessage(ch, msg, pos);
