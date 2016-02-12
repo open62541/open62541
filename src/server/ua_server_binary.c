@@ -395,11 +395,11 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Final chunk message");
             appendChunkedMessage(ch, msg, pos);
 
+            bytes = ch->bytes;
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
 
             final_chunked_message = UA_TRUE;
-            bytes = ch->bytes;
             *pos = 0;
         } else {
             bytes = *msg;
