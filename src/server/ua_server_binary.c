@@ -372,7 +372,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         UA_SecureChannel_revolveTokens(channel);
     }
 
-    UA_Boolean final_chunked_message = UA_FALSE;
+    size_t final_chunked_pos = 0;
     UA_ByteString bytes;
     struct ChunkEntry *ch;
     switch (msg->data[*pos - 24 + 3]) {
@@ -399,7 +399,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
 
-            final_chunked_message = UA_TRUE;
+            final_chunked_pos = *pos;
             *pos = 0;
         } else {
             bytes = *msg;
@@ -522,11 +522,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     }
 
     /* Clean up */
-    if (final_chunked_message) {
-        UA_UInt32 new_pos;
-        *pos = 4;
-        UA_UInt32_decodeBinary(msg, pos, &new_pos);
-        *pos = new_pos;
+    if (final_chunked_pos) {
+        *pos = final_chunked_pos;
         UA_ByteString_deleteMembers(&bytes);
     }
 
