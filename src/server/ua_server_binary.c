@@ -377,7 +377,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     struct ChunkEntry *ch;
     switch (msg->data[*pos - 24 + 3]) {
     case 'C':
-        // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Chunk message");
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk message");
         ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (! ch) {
             ch = UA_calloc(1, sizeof(struct ChunkEntry));
@@ -392,7 +392,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     case 'F':
         ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (ch) {
-            // UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK, "Final chunk message");
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Final chunk message");
             appendChunkedMessage(ch, msg, pos);
 
             bytes = ch->bytes;
