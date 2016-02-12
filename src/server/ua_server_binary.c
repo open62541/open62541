@@ -408,6 +408,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     case 'A':
         ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (ch) {
+            UA_ByteString_deleteMembers(&ch->bytes);
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
         } else {
