@@ -312,13 +312,29 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
 
 static void
 appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *pos) {
+    if (ch->invalid_message) {
+        return;
+    }
+
     UA_UInt32 len;
     *pos -= 20;
     UA_UInt32_decodeBinary(msg, pos, &len);
+    if (len > msg->length) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        ch->invalid_message = UA_TRUE;
+        return;
+    }
     len -= 24;
     *pos += 16; // 4 bytes consumed by decode above
 
-    ch->bytes.data = UA_realloc(ch->bytes.data, ch->bytes.length + len);
+    UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + len);
+    if (! new_bytes) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        ch->invalid_message = UA_TRUE;
+        return;
+    }
+    ch->bytes.data = new_bytes;
+
     memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
     ch->bytes.length += len;
     *pos += len;
@@ -381,8 +397,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (! ch) {
             ch = UA_calloc(1, sizeof(struct ChunkEntry));
+            ch->invalid_message = UA_FALSE;
             ch->requestId = sequenceHeader.requestId;
-            ch->pos = *pos;
             UA_ByteString_init(&ch->bytes);
             LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
         }
@@ -401,6 +417,13 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 
             final_chunked_pos = *pos;
             *pos = 0;
+
+            // if the chunks have failed decoding
+            // message is invalid => return early
+            if (bytes.length == 0) {
+                *pos = final_chunked_pos;
+                return;
+            }
         } else {
             bytes = *msg;
         }

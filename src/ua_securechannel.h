@@ -23,7 +23,7 @@ struct SessionEntry {
 struct ChunkEntry {
     LIST_ENTRY(ChunkEntry) pointers;
     UA_UInt32 requestId;
-    size_t pos;
+    UA_Boolean invalid_message;
     UA_ByteString bytes;
 };
 
