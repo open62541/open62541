@@ -4,6 +4,7 @@
 #include "ua_types_generated.h"
 
 #include "pcg_basic.h"
+#include "libc_time.h"
 
 /* static variables */
 UA_EXPORT const UA_String UA_STRING_NULL = {.length = 0, .data = NULL };
@@ -106,7 +107,8 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
 
     /* Calculating the unix time with #include <time.h> */
     time_t secSinceUnixEpoch = (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
-    struct tm ts = *gmtime(&secSinceUnixEpoch);
+    struct tm ts = {0};
+    __secs_to_tm(secSinceUnixEpoch, &ts);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
     dateTimeStruct.hour   = (UA_UInt16)ts.tm_hour;
