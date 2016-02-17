@@ -107,7 +107,8 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
 
     /* Calculating the unix time with #include <time.h> */
     time_t secSinceUnixEpoch = (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
-    struct tm ts = {0};
+    struct tm ts;
+    memset(&ts, 0, sizeof(struct tm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
