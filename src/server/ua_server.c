@@ -496,7 +496,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /**********************/
 
     server->startTime = UA_DateTime_now();
-    
+
     /**************/
     /* References */
     /**************/

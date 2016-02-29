@@ -452,5 +452,5 @@ int main(int argc, char** argv) {
 #endif
 
     UA_ByteString_deleteMembers(&config.serverCertificate);
-    return retval;
+    return (int)retval;
 }
