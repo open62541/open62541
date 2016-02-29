@@ -129,7 +129,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         identifier++;
 
         node->nodeId.identifier.numeric = (UA_UInt32)identifier;
-        while(UA_TRUE) {
+        while(true) {
             hash_t h = hash(&node->nodeId);
             result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
             if(result == &entry->htn)

@@ -13,9 +13,9 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 static void stopHandler(int sig) {
-    running = UA_FALSE;
+    running = false;
 }
 
 int main(void) {

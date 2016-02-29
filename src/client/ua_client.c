@@ -18,8 +18,7 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
 /* Create and Delete */
 /*********************/
 
-static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
-                           UA_Logger logger) {
+static void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger) {
     client->state = UA_CLIENTSTATE_READY;
     UA_Connection_init(&client->connection);
     UA_SecureChannel_init(&client->channel);
@@ -132,7 +131,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *c) {
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
-    UA_Boolean realloced = UA_FALSE;
+    UA_Boolean realloced = false;
     do {
         retval = c->connection.recv(&c->connection, &reply, c->config.timeout);
         retval |= UA_Connection_completeMessages(&c->connection, &reply, &realloced);
@@ -240,7 +239,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     UA_ByteString reply;
     UA_ByteString_init(&reply);
-    UA_Boolean realloced = UA_FALSE;
+    UA_Boolean realloced = false;
     do {
         retval = c->recv(c, &reply, client->config.timeout);
         retval |= UA_Connection_completeMessages(c, &reply, &realloced);
@@ -372,8 +371,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     size_t endpointArraySize = 0;
     UA_StatusCode retval = GetEndpoints(client, &endpointArraySize, &endpointArray);
 
-    UA_Boolean endpointFound = UA_FALSE;
-    UA_Boolean tokenFound = UA_FALSE;
+    UA_Boolean endpointFound = false;
+    UA_Boolean tokenFound = false;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
@@ -387,14 +386,14 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
-        endpointFound = UA_TRUE;
+        endpointFound = true;
         /* endpoint with no security found */
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
             if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
                 continue;
-            tokenFound = UA_TRUE;
+            tokenFound = true;
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
         }
@@ -444,7 +443,7 @@ static UA_StatusCode CloseSession(UA_Client *client) {
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.deleteSubscriptions = UA_TRUE;
+    request.deleteSubscriptions = true;
     UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
@@ -529,7 +528,7 @@ UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc
     client->connection.localConf = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client, UA_FALSE);
+        retval = SecureChannelHandshake(client, false);
     if(retval == UA_STATUSCODE_GOOD)
         retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
     //we always cleanup
@@ -562,7 +561,7 @@ UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection co
     client->connection.localConf = client->config.localConnectionConfig;
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client, UA_FALSE);
+        retval = SecureChannelHandshake(client, false);
     if(retval == UA_STATUSCODE_GOOD)
         retval = EndpointsHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
@@ -596,7 +595,7 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
 }
 
 UA_StatusCode UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
-    return SecureChannelHandshake(client, UA_TRUE);
+    return SecureChannelHandshake(client, true);
 }
 
 /****************/
@@ -642,7 +641,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     // Todo: push this into the generic securechannel implementation for client and server
     UA_ByteString reply;
     UA_ByteString_init(&reply);
-    UA_Boolean realloced = UA_FALSE;
+    UA_Boolean realloced = false;
     do {
         retval = client->connection.recv(&client->connection, &reply, client->config.timeout);
         retval |= UA_Connection_completeMessages(&client->connection, &reply, &realloced);

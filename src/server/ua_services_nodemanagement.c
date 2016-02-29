@@ -41,7 +41,7 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
         return;
     }
 
-    if(referenceType->isAbstract == UA_TRUE) {
+    if(referenceType->isAbstract == true) {
         result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED;
         UA_NodeStore_deleteNode(node);
         return;
@@ -60,7 +60,7 @@ UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
     UA_AddReferencesItem_init(&item);
     item.sourceNodeId = node->nodeId;
     item.referenceTypeId = *referenceTypeId;
-    item.isForward = UA_FALSE;
+    item.isForward = false;
     item.targetNodeId.nodeId = *parentNodeId;
     Service_AddReferences_single(server, session, &item);
     // todo: error handling. remove new node from nodestore
@@ -220,7 +220,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     UA_BrowseDescription_init(&browseChildren);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    browseChildren.includeSubtypes = UA_TRUE;
+    browseChildren.includeSubtypes = true;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
@@ -238,7 +238,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
             UA_AddReferencesItem_init(&item);
             item.sourceNodeId = *nodeId;
             item.referenceTypeId = rd->referenceTypeId;
-            item.isForward = UA_TRUE;
+            item.isForward = true;
             item.targetNodeId = rd->nodeId;
             item.targetNodeClass = UA_NODECLASS_METHOD;
             Service_AddReferences_single(server, session, &item);
@@ -253,7 +253,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     UA_AddReferencesItem_init(&addref);
     addref.sourceNodeId = *nodeId;
     addref.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    addref.isForward = UA_TRUE;
+    addref.isForward = true;
     addref.targetNodeId.nodeId = *typeId;
     addref.targetNodeClass = UA_NODECLASS_OBJECTTYPE;
     Service_AddReferences_single(server, session, &addref);
@@ -280,7 +280,7 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     UA_BrowseDescription_init(&browseChildren);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    browseChildren.includeSubtypes = UA_TRUE;
+    browseChildren.includeSubtypes = true;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     browseChildren.nodeClassMask = UA_NODECLASS_VARIABLE;
     browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
@@ -301,7 +301,7 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     UA_AddReferencesItem_init(&addref);
     addref.sourceNodeId = *nodeId;
     addref.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    addref.isForward = UA_TRUE;
+    addref.isForward = true;
     addref.targetNodeId.nodeId = *typeId;
     addref.targetNodeClass = UA_NODECLASS_OBJECTTYPE;
     Service_AddReferences_single(server, session, &addref);
@@ -526,7 +526,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
 
     /* if instantiation failed, remove the node */
     if(result->statusCode != UA_STATUSCODE_GOOD)
-        Service_DeleteNodes_single(server, session, &result->addedNodeId, UA_TRUE);
+        Service_DeleteNodes_single(server, session, &result->addedNodeId, true);
 }
 
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
@@ -551,14 +551,14 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
 #endif
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
             if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
-            isExternal[i] = UA_TRUE;
+            isExternal[i] = true;
             indices[indexSize] = i;
             indexSize++;
         }
@@ -811,14 +811,14 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, false, sizeof(UA_Boolean) * size);
 	for(size_t j = 0; j < server->externalNamespacesSize; j++) {
 		size_t indicesSize = 0;
 		for(size_t i = 0;i < size;i++) {
 			if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
                != server->externalNamespaces[j].index)
 				continue;
-			isExternal[i] = UA_TRUE;
+			isExternal[i] = true;
 			indices[indicesSize] = i;
 			indicesSize++;
 		}
@@ -851,10 +851,10 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_Node
     const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    if(deleteReferences == UA_TRUE) {
+    if(deleteReferences == true) {
         UA_DeleteReferencesItem delItem;
         UA_DeleteReferencesItem_init(&delItem);
-        delItem.deleteBidirectional = UA_FALSE;
+        delItem.deleteBidirectional = false;
         delItem.targetNodeId.nodeId = *nodeId;
         for(size_t i = 0; i < node->referencesSize; i++) {
             delItem.sourceNodeId = node->references[i].targetId.nodeId;
@@ -871,7 +871,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_Node
         bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
         bd.nodeId = *nodeId;
         bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-        bd.includeSubtypes = UA_TRUE;
+        bd.includeSubtypes = true;
         bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
         
         /* browse type definitions with admin rights */
@@ -923,7 +923,7 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_Delete
 static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
-    UA_Boolean edited = UA_FALSE;
+    UA_Boolean edited = false;
     for(size_t i = node->referencesSize - 1; ; i--) {
         if(i > node->referencesSize)
             break; /* underflow after i == 0 */
@@ -937,7 +937,7 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
         UA_ReferenceNode_deleteMembers(&node->references[i]);
         node->references[i] = node->references[node->referencesSize-1];
         node->referencesSize--;
-        edited = UA_TRUE;
+        edited = true;
         break;
     }
     if(!edited)

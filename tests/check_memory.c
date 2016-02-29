@@ -74,7 +74,7 @@ START_TEST(encodeShallYieldDecode) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i,
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true, "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 
 	// finally

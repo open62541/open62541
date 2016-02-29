@@ -43,10 +43,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
                           UA_GetEndpointsResponse *response) {
     /* Test if one of the networklayers exposes the discoveryUrl of the requested endpoint */
     /* Disabled, servers in a virtualbox don't know their external hostname */
-    /* UA_Boolean foundUri = UA_FALSE; */
+    /* UA_Boolean foundUri = false; */
     /* for(size_t i = 0; i < server->config.networkLayersSize; i++) { */
     /*     if(UA_String_equal(&request->endpointUrl, &server->config.networkLayers[i].discoveryUrl)) { */
-    /*         foundUri = UA_TRUE; */
+    /*         foundUri = true; */
     /*         break; */
     /*     } */
     /* } */
@@ -63,15 +63,15 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 #endif
     size_t relevant_count = 0;
     for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
-        relevant_endpoints[j] = UA_FALSE;
+        relevant_endpoints[j] = false;
         if(request->profileUrisSize == 0) {
-            relevant_endpoints[j] = UA_TRUE;
+            relevant_endpoints[j] = true;
             relevant_count++;
             continue;
         }
         for(size_t i = 0; i < request->profileUrisSize; i++) {
             if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions->transportProfileUri)) {
-                relevant_endpoints[j] = UA_TRUE;
+                relevant_endpoints[j] = true;
                 relevant_count++;
                 break;
             }

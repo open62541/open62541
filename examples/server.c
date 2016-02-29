@@ -50,15 +50,15 @@ static UA_StatusCode
 readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = UA_TRUE;
+        value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
 	UA_DateTime currentTime = UA_DateTime_now();
     UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
-	value->hasValue = UA_TRUE;
+	value->hasValue = true;
 	if(sourceTimeStamp) {
-		value->hasSourceTimestamp = UA_TRUE;
+		value->hasSourceTimestamp = true;
 		value->sourceTimestamp = currentTime;
 	}
 	return UA_STATUSCODE_GOOD;
@@ -73,7 +73,7 @@ static UA_StatusCode
 readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
-        value->hasStatus = UA_TRUE;
+        value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
@@ -90,9 +90,9 @@ readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp
 	currentTemperature /= 1000.0;
 
 	value->sourceTimestamp = UA_DateTime_now();
-	value->hasSourceTimestamp = UA_TRUE;
+	value->hasSourceTimestamp = true;
     UA_Variant_setScalarCopy(&value->value, &currentTemperature, &UA_TYPES[UA_TYPES_DOUBLE]);
-	value->hasValue = UA_TRUE;
+	value->hasValue = true;
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -112,7 +112,7 @@ readLedStatus(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     if(range)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    value->hasValue = UA_TRUE;
+    value->hasValue = true;
     UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &ledStatus,
                                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
 
@@ -121,7 +121,7 @@ readLedStatus(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
   
     if(sourceTimeStamp) {
         value->sourceTimestamp = UA_DateTime_now();
-        value->hasSourceTimestamp = UA_TRUE;
+        value->hasSourceTimestamp = true;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -408,8 +408,8 @@ int main(int argc, char** argv) {
     UA_MethodAttributes_init(&addmethodattributes);
     addmethodattributes.description = UA_LOCALIZEDTEXT("en_US", "Return a single argument as passed by the caller");
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "ping");
-    addmethodattributes.executable = UA_TRUE;
-    addmethodattributes.userExecutable = UA_TRUE;
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),

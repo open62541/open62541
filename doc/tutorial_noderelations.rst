@@ -347,7 +347,7 @@ Defining an object type is only usefull if it ends up making our lives easier in
 
       UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
+      running = true;
 
       UA_Int32 myHandle = 42;
       UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(1, 0),
@@ -445,7 +445,7 @@ Since searching in nodes is a common operation, the high-level branch provides a
         UA_NodeId PumpId;
       } *nodeIterParam = handle;
       
-      if (isInverse == UA_TRUE)
+      if (isInverse == true)
         return UA_STATUSCODE_GOOD;
       if (childId.namespaceIndex != 1)
         return UA_STATUSCODE_GOOD;
@@ -460,7 +460,7 @@ Since searching in nodes is a common operation, the high-level branch provides a
         if (childBrowseName->namespaceIndex == 1) {
           if (!strncmp(childBrowseName->name.data, pumpName.data, pumpName.length))
             printf("Found %s with NodeId ns=1,i=%d\n", childBrowseName->name.data, childId.identifier.numeric);
-            inodeIterParam->isAPump = UA_TRUE;
+            inodeIterParam->isAPump = true;
             UA_NodeId_copy(&childId, &nodeIterParam->PumpId);
         }
       }
@@ -483,10 +483,10 @@ Since searching in nodes is a common operation, the high-level branch provides a
         UA_NodeId PumpId;
       } nodeIterParam;
       nodeIterParam.client = client;
-      nodeIterParam.isAPump = UA_FALSE;
+      nodeIterParam.isAPump = false;
       
       UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) &nodeIterParam);
-      if (nodeIterParam.isAPump == UA_TRUE)
+      if (nodeIterParam.isAPump == true)
         printf("Found at least one pump\n");
         
       UA_Client_disconnect(client);
@@ -537,10 +537,10 @@ Let's suppose we wanted to do something elaborate with our pump instance that wa
         UA_NodeId PumpId;
       } nodeIterParam;
       nodeIterParam.client = client;
-      nodeIterParam.isAPump = UA_FALSE;
+      nodeIterParam.isAPump = false;
       
       UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) &nodeIterParam);
-      if (nodeIterParam.isAPump == UA_TRUE) {
+      if (nodeIterParam.isAPump == true) {
         UA_ObjectNode *aPump;
         UA_Client_getNodeCopy(client, nodeIterParam.PumpId, (void **) &aPump);
         printf("The pump %s with NodeId ns=1,i=%d was returned\n", aPump->browseName.name.data, aPump->nodeId.identifier.numeric);

@@ -19,11 +19,11 @@
 #include "nodeset.h"
 
 UA_Logger logger = Logger_Stdout;
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = UA_FALSE;
+    running = false;
 }
 
 int main(int argc, char** argv) {

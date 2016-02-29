@@ -73,16 +73,16 @@ class open62541_MacroHelper():
     #code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
     #code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
     #if reference.isForward():
-      #code.append(refid + ".isForward = UA_TRUE;")
+      #code.append(refid + ".isForward = true;")
     #else:
-      #code.append(refid + ".isForward = UA_FALSE;")
+      #code.append(refid + ".isForward = false;")
     #code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
     #code.append("addOneWayReferenceWithSession(server, (UA_Session *) NULL, &" + refid + ");")
 
     if reference.isForward():
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_TRUE);")
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", true);")
     else:
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_FALSE);")
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
     return code
                                
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference):

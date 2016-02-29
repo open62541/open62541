@@ -33,7 +33,7 @@ UA_StatusCode
 UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
                               UA_Boolean * UA_RESTRICT realloced) {
     UA_ByteString *current = message;
-    *realloced = UA_FALSE;
+    *realloced = false;
     if(connection->incompleteMessage.length > 0) {
         /* concat the existing incomplete message with the new message */
         UA_Byte *data = UA_realloc(connection->incompleteMessage.data,
@@ -49,7 +49,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         connection->incompleteMessage.length += message->length;
         connection->releaseRecvBuffer(connection, message);
         current = &connection->incompleteMessage;
-        *realloced = UA_TRUE;
+        *realloced = true;
     }
 
     /* the while loop sets pos to the first element after the last complete message. if a message
@@ -86,7 +86,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     if(delete_at == 0) {
         if(!*realloced) {
             connection->releaseRecvBuffer(connection, message);
-            *realloced = UA_TRUE;
+            *realloced = true;
         } else
             UA_ByteString_deleteMembers(current);
         return UA_STATUSCODE_GOOD;
@@ -98,7 +98,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             /* store the buffer in the connection */
             UA_ByteString_copy(current, &connection->incompleteMessage);
             connection->releaseRecvBuffer(connection, message);
-            *realloced = UA_TRUE;
+            *realloced = true;
         } 
         return UA_STATUSCODE_GOOD;
     }
@@ -110,7 +110,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             UA_ByteString_deleteMembers(&connection->incompleteMessage);
             if(!*realloced) {
                 connection->releaseRecvBuffer(connection, message);
-                *realloced = UA_TRUE;
+                *realloced = true;
             }
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }

@@ -55,7 +55,7 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
     readValueIds[5].attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
 
     ens->readNodes(ens->ensHandle, NULL, readValueIds, indices,
-                   indicesSize, readNodesResults, UA_FALSE, diagnosticInfos);
+                   indicesSize, readNodesResults, false, diagnosticInfos);
 
     /* create and fill a dummy nodeStructure */
     UA_Node *node = (UA_Node*) UA_NodeStore_newObjectNode();
@@ -98,10 +98,10 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 
     /* is the reference part of the hierarchy of references we look for? */
     if(!return_all) {
-        UA_Boolean is_relevant = UA_FALSE;
+        UA_Boolean is_relevant = false;
         for(size_t i = 0; i < relevant_count; i++) {
             if(UA_NodeId_equal(&reference->referenceTypeId, &relevant[i])) {
-                is_relevant = UA_TRUE;
+                is_relevant = true;
                 break;
             }
         }
@@ -114,7 +114,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 	for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
 		if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
 			continue;
-        *isExternal = UA_TRUE;
+        *isExternal = true;
         return returnRelevantNodeExternal(&server->externalNamespaces[nsIndex].externalNodeStore,
                                           descr, reference);
     }
@@ -124,7 +124,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &reference->targetId.nodeId);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0)
         return NULL;
-    *isExternal = UA_FALSE;
+    *isExternal = false;
     return node;
 }
 
@@ -161,7 +161,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
             continue;
         for(size_t i = 0; i < node->referencesSize; i++) {
             if(node->references[i].referenceTypeId.identifier.numeric != UA_NS0ID_HASSUBTYPE ||
-               node->references[i].isInverse == UA_TRUE)
+               node->references[i].isInverse == true)
                 continue;
 
             if(++last >= results_size) { // is the array big enough?
@@ -285,10 +285,10 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 
     /* loop over the node's references */
     size_t skipped = 0;
-    UA_Boolean isExternal = UA_FALSE;
+    UA_Boolean isExternal = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; referencesIndex++) {
-    	isExternal = UA_FALSE;
+    	isExternal = false;
     	const UA_Node *current =
             returnRelevantNode(server, descr, all_refs, &node->references[referencesIndex],
                                relevant_refs, relevant_refs_size, &isExternal);
@@ -305,7 +305,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         /* relevant_node returns a node malloced by the nodestore.
            if it is external (there is no UA_Node_new function) */
-   //     if(isExternal == UA_TRUE)
+   //     if(isExternal == true)
    //         UA_Node_deleteMembersAnyNodeClass(current);
    //TODO something's wrong here...
 #endif
@@ -393,13 +393,13 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         size_t indexSize = 0;
         for(size_t i = 0; i < size; i++) {
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
-            isExternal[i] = UA_TRUE;
+            isExternal[i] = true;
             indices[indexSize] = i;
             indexSize++;
         }
@@ -471,9 +471,9 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId *reftypes = NULL;
     size_t reftypes_count = 1; // all_refs or no subtypes => 1
-    UA_Boolean all_refs = UA_FALSE;
+    UA_Boolean all_refs = false;
     if(UA_NodeId_isNull(&elem->referenceTypeId))
-        all_refs = UA_TRUE;
+        all_refs = true;
     else if(!elem->includeSubtypes)
         reftypes = (UA_NodeId*)(uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
     else {
@@ -487,7 +487,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         for(size_t j = 0; j < reftypes_count && !match; j++) {
             if(node->references[i].isInverse == elem->isInverse &&
                UA_NodeId_equal(&node->references[i].referenceTypeId, &reftypes[j]))
-                match = UA_TRUE;
+                match = true;
         }
         if(!match)
             continue;
@@ -593,13 +593,13 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
     	size_t indexSize = 0;
     	for(size_t i = 0;i < size;i++) {
     		if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
     			continue;
-    		isExternal[i] = UA_TRUE;
+    		isExternal[i] = true;
     		indices[indexSize] = i;
     		indexSize++;
     	}

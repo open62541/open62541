@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
     wReq.nodesToWriteSize = 1;
     wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    wReq.nodesToWrite[0].value.hasValue = UA_TRUE;
+    wReq.nodesToWrite[0].value.hasValue = true;
     wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
     wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
     wReq.nodesToWrite[0].value.value.data = &value;

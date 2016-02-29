@@ -28,7 +28,7 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_statuscodes.h"
 
-/* Indicates that an array has the length 0 (NULL indicates an non-defined array of length -1)*/
+/* Indicates that an array has the length 0 (NULL indicates an non-defined array of length -1) */
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
 /****************************/

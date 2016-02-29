@@ -150,7 +150,7 @@ Open myServer.c and write/paste your minimal server application:
      config.networkLayers = &nl;
      config.networkLayersSize = 1;
      UA_Server *server = UA_Server_new(config);
-     running = UA_TRUE;
+     running = true;
      UA_Server_run(server, &running);
      UA_Server_delete(server);
 
@@ -181,9 +181,9 @@ We will also make a slight change to our server: We want it to exit cleanly when
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
 
-    UA_Boolean running = UA_TRUE;
+    UA_Boolean running = true;
     static void stopHandler(int signal) {
-        running = UA_FALSE;
+        running = false;
     }
     
     int main(void) {
@@ -286,7 +286,7 @@ Open myServer.c and simplify it to:
      config.networkLayers = &nl;
      config.networkLayersSize = 1;
      UA_Server *server = UA_Server_new(config);
-     running = UA_TRUE;
+     running = true;
      UA_Server_run(server, &running);
      UA_Server_delete(server);
 

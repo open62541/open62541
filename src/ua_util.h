@@ -109,11 +109,11 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp);
 #   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
 #   define UA_RCU_LOCK() do {                     \
         UA_ASSERT_RCU_UNLOCKED();                 \
-        rcu_locked = UA_TRUE;                     \
+        rcu_locked = true;                        \
         rcu_read_lock(); } while(0)
 #   define UA_RCU_UNLOCK() do {                   \
         UA_ASSERT_RCU_LOCKED();                   \
-        rcu_locked = UA_FALSE;                    \
+        rcu_locked = false;                       \
         rcu_read_lock(); } while(0)
 # endif
 #else

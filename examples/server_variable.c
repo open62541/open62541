@@ -14,22 +14,19 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
-static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-                   const UA_NumericRange *range) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
-                "onRead; handle is: %i", (uintptr_t)handle);
+static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i", (uintptr_t)handle);
 }
 
-static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data,
-                    const UA_NumericRange *range) {
+static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle: %i", (uintptr_t)h);
 }
 

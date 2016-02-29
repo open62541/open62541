@@ -23,12 +23,12 @@
 
 using namespace std;
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
 int main() {

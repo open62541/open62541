@@ -86,7 +86,7 @@ Let us use one of some of these functions to slightly alter the Objects node to 
       
       UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
+      running = true;
       
       UA_LocalizedText objectsLocale = UA_LOCALIZEDTEXT("de_DE","Objekkkte");
       UA_Server_setAttributeValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_ATTRIBUTEID_DISPLAYNAME, (void *) &objectsLocale);
@@ -153,7 +153,7 @@ We will first create a new variable on the server side during startup to introdu
 
       UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
+      running = true;
 
       // Create a Int32 as value
       UA_Variant *myValueVariant = UA_Variant_new();
@@ -228,7 +228,7 @@ Let's turn myVar into an access counter.::
 
     static UA_StatusCode readMyVar(void *handle, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value) {
       global_accessCounter++;
-      value->hasValue = UA_TRUE;
+      value->hasValue = true;
       UA_Variant_setScalarCopy(&value->value, &global_accessCounter, &UA_TYPES[UA_TYPES_INT32]);
       return UA_STATUSCODE_GOOD;
     }
@@ -239,7 +239,7 @@ Let's turn myVar into an access counter.::
 
       UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
+      running = true;
       
       UA_DataSource myDataSource = (UA_DataSource) {.handle = NULL, .read = readMyVar, .write = NULL};
       UA_Server_addDataSourceVariableNode(server, myDataSource, UA_QUALIFIEDNAME(1, "MyVar"), UA_NODEID_NUMERIC(1,12345),
