@@ -91,6 +91,9 @@ typedef float UA_Float;
 /** Double: An IEEE double precision (64 bit) floating point value */
 typedef double UA_Double;
 
+/** StatusCode: A numeric identifier for a error or condition that is associated with a value or an operation */
+typedef uint32_t UA_StatusCode;
+
 /********************************************/
 /* String: A sequence of Unicode characters */
 /********************************************/
