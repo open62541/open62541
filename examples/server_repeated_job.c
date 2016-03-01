@@ -44,5 +44,5 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return retval;
+    return (int) retval;
 }

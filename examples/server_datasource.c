@@ -79,5 +79,5 @@ int main(int argc, char** argv) {
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-    return retval;
+    return (int) retval;
 }

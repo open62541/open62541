@@ -46,5 +46,5 @@ int main(int argc, char** argv) {
     /* ctrl-c received -> clean up */
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return retval;
+    return (int) retval;
 }

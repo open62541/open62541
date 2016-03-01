@@ -253,6 +253,6 @@ int main(int argc, char *argv[]) {
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    return (int) UA_STATUSCODE_GOOD;
 }
 
