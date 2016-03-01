@@ -8,16 +8,10 @@ project(open62541 C)
 
 # Find Python and Python-lxml
 find_package(PythonInterp REQUIRED)
-execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-                OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(True))"
-                  OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-        message(FATAL_ERROR "Python-lxml is not installed.")
-    endif()
+execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import lxml"
+                RESULT_VARIABLE IMPORT_LXML_RESULT)
+if(NOT "${IMPORT_LXML_RESULT}" STREQUAL "0")
+    message(FATAL_ERROR "Python-lxml is not installed.")
 endif()
 
 # Check for git
