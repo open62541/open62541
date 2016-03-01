@@ -20,7 +20,7 @@ UA_NodeStore * UA_NodeStore_new(void);
 void UA_NodeStore_delete(UA_NodeStore *ns);
 
 /** Create an editable node of the given NodeClass. */
-UA_Node * UA_NodeStore_newNode(UA_NodeClass class);
+UA_Node * UA_NodeStore_newNode(UA_NodeClass nodeClass);
 #define UA_NodeStore_newObjectNode() (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
 #define UA_NodeStore_newVariableNode() (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
 #define UA_NodeStore_newMethodNode() (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)

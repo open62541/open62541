@@ -84,8 +84,8 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_free(ns);
 }
 
-UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
-    struct nodeEntry *entry = instantiateEntry(class);
+UA_Node * UA_NodeStore_newNode(UA_NodeClass nodeClass) {
+    struct nodeEntry *entry = instantiateEntry(nodeClass);
     if(!entry)
         return NULL;
     return (UA_Node*)&entry->node;
