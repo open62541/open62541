@@ -19,7 +19,6 @@ UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static UA_StatusCode
-
 helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
                  size_t outputSize, UA_Variant *output) {
         UA_String *inputStr = (UA_String*)input->data;
@@ -144,7 +143,7 @@ int main(int argc, char** argv) {
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-    return retval;
+    return (int)retval;
 }
 
 
