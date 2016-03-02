@@ -20,7 +20,7 @@ UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
 static UA_StatusCode
@@ -79,5 +79,5 @@ int main(int argc, char** argv) {
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-    return retval;
+    return (int)retval;
 }

@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
         //cleanup array
         UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
 
     printf("%i endpoints found\n", (int)endpointArraySize);
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]) {
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
     // Browse some objects
     printf("Browsing nodes in objects folder:\n");

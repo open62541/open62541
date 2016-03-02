@@ -18,7 +18,7 @@ int main(void) {
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
 
     //variables to store data
