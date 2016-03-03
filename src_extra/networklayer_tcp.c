@@ -35,7 +35,6 @@
 
 /* workaround a glibc bug where an integer conversion is required */
 #if !defined(_WIN32)
-# include <features.h>
 # if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
 #  define UA_fd_set(fd, fds) FD_SET(fd, fds)
 #  define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
@@ -110,7 +109,11 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         /* currently, only the client uses timeouts */
 #ifndef _WIN32
         UA_UInt32 timeout_usec = timeout * 1000;
+    #ifdef __APPLE__
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
+	#else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
+	#endif
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
 #else
         DWORD timeout_dw = timeout;
@@ -130,7 +133,11 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     if (timeout > 0) {
         fd_set fdset;
         UA_UInt32 timeout_usec = timeout * 1000;
+    #ifdef __APPLE__
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
+	#else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
+	#endif
         UA_Int32 retval;
 
         FD_ZERO(&fdset);

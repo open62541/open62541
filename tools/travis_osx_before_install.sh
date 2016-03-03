@@ -1,12 +1,18 @@
 #!/bin/bash
 set -ev
-brew install cmake
-brew install check
-brew install libxml2
-brew install userspace-rcu
-brew install --HEAD valgrind
 
-sudo pip install lxml
-sudo pip install sphinx
-sudo pip install breathe
-sudo pip install sphinx_rtd_theme
+if [ $ANALYZE = "true" ]; then
+	echo "Skipping static analysis for OS X"
+	exit 0
+else
+	brew install check
+	brew install libxml2
+	brew install userspace-rcu
+	brew install valgrind
+
+	pip install --user lxml
+	pip install --user sphinx
+	pip install --user breathe
+	pip install --user sphinx_rtd_theme
+
+fi
