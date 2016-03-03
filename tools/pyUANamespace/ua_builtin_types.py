@@ -830,12 +830,12 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
     # Catch XML <Boolean /> by setting the value to a default
     if xmlvalue.firstChild == None:
       log(self, "No value is given. Setting to default 0")
-      self.value = "UA_FALSE"
+      self.value = "false"
     else:
       if "false" in unicode(xmlvalue.firstChild.data).lower():
-        self.value = "UA_FALSE"
+        self.value = "false"
       else:
-        self.value = "UA_TRUE"
+        self.value = "true"
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)

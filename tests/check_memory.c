@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 500
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
@@ -73,7 +74,7 @@ START_TEST(encodeShallYieldDecode) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i,
+	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true, "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 
 	// finally
@@ -181,14 +182,21 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-	// given
+    /* Empty variants (with no type defined) cannot be encoded. This is intentional. */
+    if(_i == UA_TYPES_VARIANT ||
+       _i == UA_TYPES_VARIABLEATTRIBUTES ||
+       _i == UA_TYPES_VARIABLETYPEATTRIBUTES)
+        return;
 	void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
+	ck_assert_int_ne(predicted_size, 0);
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     size_t offset = 0;
     retval = UA_encodeBinary(obj, &UA_TYPES[_i], &msg, &offset);
+    if(retval)
+        printf("%i\n",_i);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	ck_assert_int_eq(offset, predicted_size);
     UA_delete(obj, &UA_TYPES[_i]);
@@ -217,6 +225,7 @@ int main(void) {
 
 	tc = tcase_create("Test calcSizeBinary");
 	tcase_add_loop_test(tc, calcSizeBinaryShallBeCorrect, UA_TYPES_BOOLEAN, UA_TYPES_COUNT - 1);
+	suite_add_tcase(s, tc);
 
 	sr = srunner_create(s);
 	srunner_set_fork_status(sr, CK_NOFORK);

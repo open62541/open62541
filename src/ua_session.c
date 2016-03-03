@@ -18,7 +18,7 @@ UA_Session adminSession = {
 
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
-    session->activated = UA_FALSE;
+    session->activated = false;
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
     UA_String_init(&session->sessionName);

@@ -38,7 +38,7 @@ static UA_StatusCode
 Boolean_decodeBinary(bufpos pos, bufend end, UA_Boolean *dst) {
     if(*pos + sizeof(UA_Boolean) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-    *dst = (**pos > 0) ? UA_TRUE : UA_FALSE;
+    *dst = (**pos > 0) ? true : false;
     (*pos)++;
     return UA_STATUSCODE_GOOD;
 }
@@ -962,7 +962,7 @@ DiagnosticInfo_decodeBinary(bufpos pos, bufend end, UA_DiagnosticInfo *dst) {
         if(dst->innerDiagnosticInfo)
             retval |= DiagnosticInfo_decodeBinary(pos, end, dst->innerDiagnosticInfo);
         else {
-            dst->hasInnerDiagnosticInfo = UA_FALSE;
+            dst->hasInnerDiagnosticInfo = false;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }

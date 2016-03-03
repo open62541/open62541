@@ -48,9 +48,9 @@ UA_String UA_String_fromChars(char const src[]) {
 
 UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     if(string1->length != string2->length)
-        return UA_FALSE;
+        return false;
     UA_Int32 is = memcmp((char const*)string1->data, (char const*)string2->data, string1->length);
-    return (is == 0) ? UA_TRUE : UA_FALSE;
+    return (is == 0) ? true : false;
 }
 
 /* DateTime */
@@ -156,8 +156,8 @@ UA_String UA_DateTime_toString(UA_DateTime t) {
 /* Guid */
 UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return UA_TRUE;
-    return UA_FALSE;
+        return true;
+    return false;
 }
 
 UA_Guid UA_Guid_random(void) {
@@ -226,13 +226,13 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
 
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 	if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
-        return UA_FALSE;
+        return false;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(n1->identifier.numeric == n2->identifier.numeric)
-            return UA_TRUE;
+            return true;
         else
-            return UA_FALSE;
+            return false;
     case UA_NODEIDTYPE_STRING:
         return UA_String_equal(&n1->identifier.string, &n2->identifier.string);
     case UA_NODEIDTYPE_GUID:
@@ -240,7 +240,7 @@ UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     case UA_NODEIDTYPE_BYTESTRING:
         return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
     }
-    return UA_FALSE;
+    return false;
 }
 
 /* ExpandedNodeId */
@@ -391,10 +391,10 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     /* Compute the stride length and the position of the first element */
     size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1;
-    UA_Boolean found_contiguous = UA_FALSE;
+    UA_Boolean found_contiguous = false;
     for(size_t k = dims_count - 1; ; k--) {
         if(!found_contiguous && (range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != dims[k])) {
-            found_contiguous = UA_TRUE;
+            found_contiguous = true;
             b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             s = dims[k] * running_dimssize;
         } 
@@ -602,7 +602,7 @@ static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType
         DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, NULL);
         UA_free(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = NULL;
-        p->hasInnerDiagnosticInfo = UA_FALSE;
+        p->hasInnerDiagnosticInfo = false;
     }
 }
 
@@ -617,9 +617,9 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo, NULL);
-            dst->hasInnerDiagnosticInfo = UA_TRUE;
+            dst->hasInnerDiagnosticInfo = true;
         } else {
-            dst->hasInnerDiagnosticInfo = UA_FALSE;
+            dst->hasInnerDiagnosticInfo = false;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }

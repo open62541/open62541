@@ -321,7 +321,7 @@ static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
 
         //start iterating the list from the beginning
         struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
-        while(UA_TRUE) {
+        while(true) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)
                 break;
@@ -498,10 +498,10 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
             dw = dw->next;
             continue;
         }
-        UA_Boolean allMoved = UA_TRUE;
+        UA_Boolean allMoved = true;
         for(size_t i = 0; i < server->config.nThreads; i++) {
             if(dw->workerCounters[i] == server->workers[i].counter) {
-                allMoved = UA_FALSE;
+                allMoved = false;
                 break;
             }
         }
@@ -675,6 +675,6 @@ UA_StatusCode UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     while(*running)
-        UA_Server_run_iterate(server, UA_TRUE);
+        UA_Server_run_iterate(server, true);
     return UA_Server_run_shutdown(server);
 }

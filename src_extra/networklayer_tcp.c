@@ -429,7 +429,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
-            UA_Boolean realloced = UA_FALSE;
+            UA_Boolean realloced = false;
             retval = UA_Connection_completeMessages(layer->mappings[i].connection, &buf, &realloced);
             if(retval != UA_STATUSCODE_GOOD || buf.length == 0)
                 continue;

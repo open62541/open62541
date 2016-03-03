@@ -174,8 +174,10 @@ static size_t ServerNetworkLayerUDP_getJobs(ServerNetworkLayerUDP *layer, UA_Job
     if (buf.length <= 0) {
     } else {
         UDPConnection *c = malloc(sizeof(UDPConnection));
-        if(!c)
+        if(!c){
+       	    free(items);
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
         UA_Connection_init(&c->connection);
         c->from = sender;
         c->fromlen = sendsize;

@@ -321,7 +321,7 @@ appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *po
     UA_UInt32_decodeBinary(msg, pos, &len);
     if (len > msg->length) {
         UA_ByteString_deleteMembers(&ch->bytes);
-        ch->invalid_message = UA_TRUE;
+        ch->invalid_message = true;
         return;
     }
     len -= 24;
@@ -330,7 +330,7 @@ appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *po
     UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + len);
     if (! new_bytes) {
         UA_ByteString_deleteMembers(&ch->bytes);
-        ch->invalid_message = UA_TRUE;
+        ch->invalid_message = true;
         return;
     }
     ch->bytes.data = new_bytes;
@@ -397,7 +397,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
         if (! ch) {
             ch = UA_calloc(1, sizeof(struct ChunkEntry));
-            ch->invalid_message = UA_FALSE;
+            ch->invalid_message = false;
             ch->requestId = sequenceHeader.requestId;
             UA_ByteString_init(&ch->bytes);
             LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
@@ -498,7 +498,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         /* session id 0 -> anonymous session */
         UA_Session_init(&anonymousSession);
         anonymousSession.channel = channel;
-        anonymousSession.activated = UA_TRUE;
+        anonymousSession.activated = true;
         session = &anonymousSession;
     }
 
