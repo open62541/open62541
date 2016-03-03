@@ -65,8 +65,10 @@ addons:
     branch_pattern: coverity_scan
 
 cache:
-- pip
-- apt
+  pip: true
+  apt: true
+  directories:
+    - $HOME/install
 
 before_install:
 # set paths for locally installed libs (like liburcu)
