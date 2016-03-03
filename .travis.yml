@@ -46,11 +46,11 @@ addons:
       - gcc-mingw-w64-i686
       - gcc-multilib
       - g++-4.8
+      - libc6-dbg # for valgrind compilation
       - libsubunit-dev
       - libx11-dev
       - mingw-w64
       - python-lxml
-      - valgrind
       - wget
       - xutils-dev
       - zip
@@ -78,7 +78,7 @@ before_install:
 - export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
 - export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
 - export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
-- export PATH=$PATH:$LOCAL_PKG
+- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
 # set local path for python packages
 - export PATH=$PATH:$HOME/.local/bin # linux
 - export PATH=$PATH:$HOME/Library/Python #OS X

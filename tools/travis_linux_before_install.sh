@@ -7,6 +7,16 @@ if [ $ANALYZE = "true" ]; then
 else
 	cd $LOCAL_PKG
 
+	# Install newer valgrind
+	mkdir -p $LOCAL_PKG/package && cd $LOCAL_PKG/package
+	wget http://valgrind.org/downloads/valgrind-3.11.0.tar.bz2
+	tar xf valgrind-3.11.0.tar.bz2
+	cd valgrind-3.11.0
+	./configure --prefix=$LOCAL_PKG
+	make -s -j8 install
+	echo "\n### Installed valgrind version: $(valgrind --version)"
+	cd $LOCAL_PKG
+
 	# Install specific check version which is not yet in the apt package
  	wget http://ftp.de.debian.org/debian/pool/main/c/check/check_0.10.0-3_amd64.deb
  	dpkg -x check_0.10.0-3_amd64.deb $LOCAL_PKG/package
