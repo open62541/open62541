@@ -684,6 +684,8 @@ ExtensionObject_decodeBinary(bufpos pos, bufend end, UA_ExtensionObject *dst) {
     } else {
         /* try to decode the content */
         type = NULL;
+        UA_assert(typeId.identifier.byteString.data == NULL); //helping clang analyzer, typeId is numeric
+        UA_assert(typeId.identifier.string.data == NULL); //helping clang analyzer, typeId is numeric
         typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
         findDataType(&typeId, &type);
         if(type) {

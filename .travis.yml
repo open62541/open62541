@@ -29,6 +29,7 @@ matrix:
       env: ANALYZE=true
   allow_failures:
     - env: ANALYZE=true
+      compiler: gcc
 
 addons:
   apt:
