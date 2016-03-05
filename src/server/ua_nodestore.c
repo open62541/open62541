@@ -42,9 +42,9 @@ static UA_UInt16 higher_prime_index(hash_t n) {
     return low;
 }
 
-static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass class) {
+static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass nodeClass) {
     size_t size = sizeof(UA_NodeStoreEntry) - sizeof(UA_Node);
-    switch(class) {
+    switch(nodeClass) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
         break;
@@ -75,7 +75,7 @@ static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass class) {
     UA_NodeStoreEntry *entry = UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = class;
+    entry->node.nodeClass = nodeClass;
     return entry;
 }
 
