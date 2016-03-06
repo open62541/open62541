@@ -59,7 +59,17 @@ class opcua_value_t():
                        'qualifiedname', 'expandednodeid', 'xmlelement']
     self.dataType = None
     self.encodingRule = []
-
+  
+  def getValueFieldByAlias(self, fieldname):
+    if not isinstance(self.value, list):
+      return None
+    if not isinstance(self.value[0], opcua_value_t):
+      return None
+    for val in self.value:
+      if val.alias() == fieldname:
+	return val.value
+    return None
+    
   def setEncodingRule(self, encoding):
     self.encodingRule = encoding
 

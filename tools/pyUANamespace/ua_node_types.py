@@ -669,7 +669,7 @@ class opcua_node_t:
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
                   "/" + str(parentRef.referenceType().__node_browseName__))
-      code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
+      code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef, unPrintedNodes)
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)

@@ -693,15 +693,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_ExpandedNodeId_init(&parent);
     parent.nodeId = result.addedNodeId;
     
-    /* create InputArguments */
-    /* FIXME:   The namespace compiler does currently not recognize the interdependancy between methods
-     *          and arguments - everything is treated as a standalone node.
-     *          In order to allow the compiler to create methods with arguments from an XML, this routine
-     *          must be coerced into *not* creating arguments, as these will be added by the compiler as
-     *          standalone nodes later. A semantic of inputArgumentsSize < 0 is used to signal this.
-     * 
-     *          This is not a production feature and should be fixed on the compiler side! (@ichrispa)
-     */
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
     inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
