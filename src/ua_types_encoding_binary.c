@@ -823,6 +823,14 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
         }
         pass_type = src->type;
         retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
+
+        if(retval == UA_STATUSCODE_BADENCODINGERROR){
+            retval = exchangeBuffer(pos, &end);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+
+
         if(!isBuiltin) {
             /* Jump back and print the length of the extension object */
             UA_Int32 encodingLength = (UA_Int32)(((uintptr_t)*pos - (uintptr_t)old_pos) / sizeof(UA_Byte));
@@ -830,6 +838,7 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
             retval |= Int32_encodeBinary(&encodingLength, &old_pos, end);
         }
         ptr += memSize;
+
     }
     if(hasDimensions)
         retval |= Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsSize,

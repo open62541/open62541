@@ -1471,16 +1471,16 @@ static UA_StatusCode sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_
 }
 START_TEST(encodeArrayIntoThreeChunksShallWork) {
 
-    size_t arraySize = 30;
-    size_t offset = 0;
-    size_t chunks = 8;
-    size_t chunkSize = 71;
+    size_t arraySize = 30; //number of elements within the array which should be encoded
+    size_t offset = 0; // encoding offset
+    size_t chunkCount = 6; // maximum chunk count
+    size_t chunkSize = 20; //size in bytes of each chunk
     UA_ChunkInfo ci;
     bufIndex = 0;
 
     UA_Int32 *ar = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
-    buffers = UA_Array_new(chunks, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    for(size_t i=0;i<chunks;i++){
+    buffers = UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
     }
     for(size_t i=0;i<arraySize;i++){
@@ -1490,7 +1490,17 @@ START_TEST(encodeArrayIntoThreeChunksShallWork) {
     UA_Variant v;
     UA_Variant_setArray(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
     UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&buffers[bufIndex],&offset);
+
+    for(size_t i=0;i<chunkCount;i++){
+        UA_ByteString_delete(&buffers[i]);
+    }
+    UA_Variant_deleteMembers(&v);
+    UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Array_delete(ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
+
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
+
+
 }
 END_TEST
 
