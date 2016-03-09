@@ -703,8 +703,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult inputAddRes;
+    UA_RCU_LOCK();
     UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
                               &parent.nodeId, &hasproperty, &inputAddRes);
+    UA_RCU_UNLOCK();
     // todo: check if adding succeeded
     UA_AddNodesResult_deleteMembers(&inputAddRes);
     
@@ -719,8 +721,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult outputAddRes;
+    UA_RCU_LOCK();
     UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
                               &parent.nodeId, &hasproperty, &outputAddRes);
+    UA_RCU_UNLOCK();
     // todo: check if adding succeeded
     UA_AddNodesResult_deleteMembers(&outputAddRes);
     
