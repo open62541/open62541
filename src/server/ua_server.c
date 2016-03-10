@@ -109,31 +109,35 @@ static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
                                const UA_String *url, UA_ExternalNodeStore *nodeStore) {
-	if(nodeStore == NULL)
+	if (nodeStore == NULL)
 		return UA_STATUSCODE_BADARGUMENTSMISSING;
-
-    UA_UInt32 size = server->externalNamespacesSize;
-	//do not allow double indices
-	for(UA_UInt32 i = 0; i < size; i++) {
-		if(server->externalNamespaces[i].index == namespaceIndex)
-			return UA_STATUSCODE_BADINDEXRANGEINVALID;
+	//only allow externalnamespace index equal to next namespaceindex
+	if (namespaceIndex != server->namespacesSize) {
+		return UA_STATUSCODE_BADINDEXRANGEINVALID;
 	}
-    server->externalNamespaces =
-        UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size+1));
-    server->externalNamespaces[size].externalNodeStore = *nodeStore;
-    server->externalNamespaces[size].index = namespaceIndex;
-    UA_String_copy(url, &server->externalNamespaces[size].url);
-    server->externalNamespacesSize++;
-    return UA_STATUSCODE_GOOD;
+	UA_UInt32 size = server->externalNamespacesSize;
+	server->externalNamespaces =
+		UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
+	server->externalNamespaces[size].externalNodeStore = *nodeStore;
+	server->externalNamespaces[size].index = namespaceIndex;
+	UA_String_copy(url, &server->externalNamespaces[size].url);
+	server->externalNamespacesSize++;
+	UA_Server_addNamespace(server, url);
+	return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
+static UA_UInt16 addNamespaceInternal(UA_Server *server, UA_String *name) {
+	server->namespaces = UA_realloc(server->namespaces,
+		sizeof(UA_String) * (server->namespacesSize + 1));
+	UA_String_copy(name, &(server->namespaces[server->namespacesSize]));
+	server->namespacesSize++;
+	return (UA_UInt16)(server->namespacesSize - 1);
+}
+
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    server->namespaces = UA_realloc(server->namespaces,
-                                    sizeof(UA_String) * (server->namespacesSize+1));
-    server->namespaces[server->namespacesSize] = UA_STRING_ALLOC(name);
-    server->namespacesSize++;
-    return (UA_UInt16)(server->namespacesSize - 1);
+	UA_String nameString = UA_STRING_ALLOC(name);
+	return addNamespaceInternal(server, &nameString);
 }
 
 UA_StatusCode
