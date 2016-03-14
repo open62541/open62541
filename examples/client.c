@@ -46,7 +46,8 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     //connect to a server
-    retval = UA_Client_connect(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
+    //anonymous connect would be: retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
+    retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664", "user1", "password");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

@@ -79,6 +79,19 @@ UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl);
 
 /**
+ * start a connection to the selected server
+ *
+ * @param client to use
+ * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @param username
+ * @param password
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_username(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl, const char *username, const char *password);
+
+/**
  * close a connection to the selected server
  *
  * @param client to use
