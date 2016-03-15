@@ -54,7 +54,7 @@ typedef struct {
     UA_Boolean enableAnonymousLogin;
     UA_Boolean enableUsernamePasswordLogin;
     size_t usernamePasswordLoginsSize;
-    UA_UsernamePasswordLogin usernamePasswordLogins[];
+    UA_UsernamePasswordLogin* usernamePasswordLogins;
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;

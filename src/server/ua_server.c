@@ -16,6 +16,10 @@
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
 
+UA_UsernamePasswordLogin usernamePasswords[2] =
+{ { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
+  { UA_STRING_STATIC("uset2"), UA_STRING_STATIC("password1") } };
+
 const UA_ServerConfig UA_ServerConfig_standard = {
     .nThreads = 1,
     .logger = NULL,
@@ -43,9 +47,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
 
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
-    .usernamePasswordLogins =
-    { { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
-      { UA_STRING_STATIC("uset2"), UA_STRING_STATIC("password1") } },
+    .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2
 };
 
