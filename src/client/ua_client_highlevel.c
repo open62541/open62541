@@ -43,6 +43,39 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt1
 	return retval;
 }
 
+UA_StatusCode
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) {
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  
+  UA_BrowseRequest bReq;
+  UA_BrowseRequest_init(&bReq);
+  bReq.requestedMaxReferencesPerNode = 0;
+  bReq.nodesToBrowse = UA_BrowseDescription_new();
+  bReq.nodesToBrowseSize = 1;
+  UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
+  bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
+  bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
+  
+  UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
+  
+  if(bResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
+    for (size_t i = 0; i < bResp.resultsSize; ++i) {
+      for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
+        UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
+        retval |= callback(ref->nodeId.nodeId, ! ref->isForward, ref->referenceTypeId, handle);
+      }
+    }
+  }
+  else
+    retval = bResp.responseHeader.serviceResult;
+  
+  
+  UA_BrowseRequest_deleteMembers(&bReq);
+  UA_BrowseResponse_deleteMembers(&bResp);
+  
+  return retval;
+}
+
 /*******************/
 /* Node Management */
 /*******************/
