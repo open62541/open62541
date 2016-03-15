@@ -27,6 +27,10 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
     UA_String_init(&client->endpointUrl);
     client->requestId = 0;
 
+    client->authenticationMethod = UA_CLIENTAUTHENTICATION_NONE;
+    UA_String_init(&client->username);
+    UA_String_init(&client->password);
+
     UA_NodeId_init(&client->authenticationToken);
     client->requestHandle = 0;
 
@@ -57,6 +61,10 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
+    if(client->username.data)
+        UA_String_deleteMembers(&client->username);
+    if(client->password.data)
+           UA_String_deleteMembers(&client->password);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -317,20 +325,29 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 600000;
 
-    UA_AnonymousIdentityToken identityToken;
-    UA_AnonymousIdentityToken_init(&identityToken);
-    UA_String_copy(&client->token.policyId, &identityToken.policyId);
-
     //manual ExtensionObject encoding of the identityToken
-    request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
-    request.userIdentityToken.content.decoded.data = &identityToken;
+    if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
+        UA_AnonymousIdentityToken* identityToken = UA_malloc(sizeof(UA_AnonymousIdentityToken));
+        UA_AnonymousIdentityToken_init(identityToken);
+        UA_String_copy(&client->token.policyId, &identityToken->policyId);
+        request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+        request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
+        request.userIdentityToken.content.decoded.data = identityToken;
+    }else{
+        UA_UserNameIdentityToken* identityToken = UA_malloc(sizeof(UA_UserNameIdentityToken));
+        UA_UserNameIdentityToken_init(identityToken);
+        UA_String_copy(&client->token.policyId, &identityToken->policyId);
+        UA_String_copy(&client->username, &identityToken->userName);
+        UA_String_copy(&client->password, &identityToken->password);
+        request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
+        request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
+        request.userIdentityToken.content.decoded.data = identityToken;
+    }
 
     UA_ActivateSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
 
-    UA_AnonymousIdentityToken_deleteMembers(&identityToken);
     UA_ActivateSessionRequest_deleteMembers(&request);
     UA_ActivateSessionResponse_deleteMembers(&response);
     return response.responseHeader.serviceResult; // not deleted
@@ -393,8 +410,15 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-            if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
-                continue;
+            //anonymous authentication
+            if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
+                if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
+                    continue;
+            }else{
+            //username authentication
+                if(userToken->tokenType != UA_USERTOKENTYPE_USERNAME)
+                    continue;
+            }
             tokenFound = true;
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
@@ -538,6 +562,15 @@ UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc
     UA_Client_reset(client);
     return retval;
 }
+
+UA_StatusCode UA_Client_connect_username(UA_Client *client, UA_ConnectClientConnection connFunc,
+                                                 const char *endpointUrl, const char *username, const char *password){
+    client->authenticationMethod=UA_CLIENTAUTHENTICATION_USERNAME;
+    client->username = UA_STRING_ALLOC(username);
+    client->password = UA_STRING_ALLOC(password);
+    return UA_Client_connect(client, connFunc, endpointUrl);
+}
+
 
 UA_StatusCode UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connectFunc,
                                 const char *endpointUrl) {

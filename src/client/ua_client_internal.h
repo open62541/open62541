@@ -52,6 +52,11 @@ typedef enum {
     UA_CLIENTSTATE_ERRORED
 } UA_Client_State;
 
+typedef enum {
+    UA_CLIENTAUTHENTICATION_NONE,
+    UA_CLIENTAUTHENTICATION_USERNAME
+} UA_Client_Authentication;
+
 struct UA_Client {
     /* State */ //maybe it should be visible to user
     UA_Client_State state;
@@ -61,6 +66,11 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_String endpointUrl;
     UA_UInt32 requestId;
+
+    /* Authentication */
+    UA_Client_Authentication authenticationMethod;
+    UA_String username;
+    UA_String password;
 
     /* Session */
     UA_UserTokenPolicy token;
