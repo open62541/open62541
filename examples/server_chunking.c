@@ -323,6 +323,31 @@ int main(int argc, char** argv) {
             myStringName, UA_NODEID_NULL, myStringVar, NULL,NULL);
     UA_Variant_deleteMembers(&myStringVar.value);
     UA_String_deleteMembers(&myString);
+
+
+    //add a static variable node with a big int32 array
+    UA_VariableAttributes myArrayVar;
+    UA_VariableAttributes_init(&myArrayVar);
+    myArrayVar.description = UA_LOCALIZEDTEXT("en_US", "the big int32 array");
+    myArrayVar.displayName = UA_LOCALIZEDTEXT("en_US", "the big int32 array");
+
+    size_t arraySize = 5000;
+    UA_Int32 *intArray = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
+
+    for(size_t i=0;i<arraySize;i++){
+        intArray[i] = (UA_Int32)i;
+    }
+    UA_Variant_setArrayCopy(&myArrayVar.value,intArray,arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    const UA_QualifiedName myArrayName = UA_QUALIFIEDNAME(1, "the big int32 array");
+    const UA_NodeId myArrayNodeId = UA_NODEID_STRING(1, "the big int32 array");
+    UA_NodeId parNodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parReferenceNodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myArrayNodeId, parNodeId1, parReferenceNodeId1,
+            myArrayName, UA_NODEID_NULL, myArrayVar, NULL,NULL);
+    UA_Variant_deleteMembers(&myArrayVar.value);
+    UA_Array_delete(intArray,arraySize,&UA_TYPES[UA_TYPES_INT32]);
+
+
     /**************/
     /* Demo Nodes */
     /**************/
