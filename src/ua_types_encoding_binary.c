@@ -811,7 +811,9 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
 
     uintptr_t ptr = (uintptr_t)src->data;
     const UA_UInt16 memSize = src->type->memSize;
-    for(size_t i = 0; i < length; i++) {
+    size_t i = 0;
+    while(i<length){
+    //for(size_t i = 0; i < length; i++) {
         UA_Byte *old_pos; // before encoding the actual content
         if(!isBuiltin) {
             /* The type is wrapped inside an extensionobject */
@@ -828,6 +830,7 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
             retval = exchangeBuffer(pos, &end);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
+            continue; //encoding has failed, try again with new buffer
         }
 
 
@@ -838,6 +841,7 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
             retval |= Int32_encodeBinary(&encodingLength, &old_pos, end);
         }
         ptr += memSize;
+        i++;
 
     }
     if(hasDimensions)
