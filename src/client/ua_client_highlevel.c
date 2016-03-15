@@ -201,7 +201,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     retval = response.results[0].statusCode;
-    if(retval == UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 0) {
         *output = response.results[0].outputArguments;
         *outputSize = response.results[0].outputArgumentsSize;
         response.results[0].outputArguments = NULL;
