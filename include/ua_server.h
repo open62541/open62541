@@ -240,10 +240,13 @@ UA_StatusCode UA_EXPORT
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm);
 
+#ifndef HAVE_NODEITER_CALLBACK
+#define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
-   function for each child node */
+   function for each child node (in ifdef because GCC/CLANG handle include order differently)*/
 typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
                                                  UA_NodeId referenceTypeId, void *handle);
+#endif
 
 UA_StatusCode UA_EXPORT
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
