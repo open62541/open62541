@@ -471,5 +471,5 @@ int main(int argc, char** argv) {
     pthread_rwlock_destroy(&writeLock);
 #endif
 
-    return retval;
+    return (int)retval;
 }

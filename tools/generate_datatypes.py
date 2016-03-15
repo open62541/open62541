@@ -143,33 +143,33 @@ class BuiltinType(Type):
         if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(" + self.name + "), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
+                ".builtin = true, .fixedSize = false, .zeroCopyable = false, " + \
+                ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = true, " + \
                 (".memberName = \"\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_TRUE }}, " + \
+                ".padding = 0, .isArray = true }}, " + \
                 ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
 
         if self.name == "UA_QualifiedName":
             return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                 ".memSize = sizeof(UA_QualifiedName), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
+                ".builtin = true, .fixedSize = false, .zeroCopyable = false, " + \
                 ".membersSize = 2, .members = (UA_DataTypeMember[]){" + \
-                "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
+                "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = true, " + \
                 (".memberName = \"namespaceIndex\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_FALSE }," + \
-                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
+                ".padding = 0, .isArray = false }," + \
+                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = true, " + \
                 (".memberName = \"name\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_QualifiedName, name)-sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
+                ".padding = offsetof(UA_QualifiedName, name)-sizeof(UA_UInt16), .isArray = false }},\n" + \
                 ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
 
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
             ".memSize = sizeof(" + self.name + "), " + \
-            ".builtin = UA_TRUE, .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
-            ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
+            ".builtin = true, .fixedSize = " + ("true" if self.fixed_size() else "false") + \
+            ", .zeroCopyable = " + ("true" if self.zero_copy() else "false") + \
             ", .membersSize = 1, .members = (UA_DataTypeMember[]){" + \
-            "\n\t{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + " , .namespaceZero = UA_TRUE, " + \
+            "\n\t{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + " , .namespaceZero = true, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
-            ".padding = 0, .isArray = UA_FALSE }},\n" + \
+            ".padding = 0, .isArray = false }},\n" + \
             ".typeIndex = UA_TYPES_" + self.name[3:].upper() + " }"
 
 class EnumerationType(Type):
@@ -205,11 +205,11 @@ class EnumerationType(Type):
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), .builtin = UA_TRUE, " + \
-            ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
+            ".memSize = sizeof(" + self.name + "), .builtin = true, " + \
+            ".fixedSize = true, .zeroCopyable = true, " + \
             ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_INT32, " + \
             (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
+            ".namespaceZero = true, .padding = 0, .isArray = false }}, .typeIndex = UA_TYPES_INT32 }"
 
 class OpaqueType(Type):
     def fixed_size(self):
@@ -227,10 +227,10 @@ class OpaqueType(Type):
         else:
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE," + \
+            ".memSize = sizeof(" + self.name + "), .fixedSize = false, .zeroCopyable = false, " + \
+            ".builtin = false, .membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE," + \
             (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
+            ".namespaceZero = true, .padding = 0, .isArray = true }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -288,10 +288,10 @@ class StructType(Type):
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
         layout = (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
                  ".memSize = sizeof(" + self.name + "), "+ \
-                 ".builtin = UA_FALSE" + \
-                 ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
+                 ".builtin = false" + \
+                 ", .fixedSize = " + ("true" if self.fixed_size() else "false") + \
                  ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
-                                         else "UA_FALSE") + \
+                                         else "false") + \
                  ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
                  ", .membersSize = " + str(len(self.members)) + ","
         if len(self.members) > 0:
@@ -302,7 +302,7 @@ class StructType(Type):
                           ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
                                                    outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
                           ".namespaceZero = "+ \
-                          ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
+                          ("true, " if args.namespace_id == 0 or member.memberType.name in existing_types else "false, ") + \
                           ".padding = "
 
                 if not member.isArray:
@@ -322,7 +322,7 @@ class StructType(Type):
                         before_endpos += " + sizeof(%s))" % before.memberType.name
                 layout += "%s - %s" % (thispos, before_endpos)
 
-                layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
+                layout += ", .isArray = " + ("true" if member.isArray else "false") + " }, "
             layout += "}"
         return layout + "}"
 

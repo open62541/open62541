@@ -14,12 +14,12 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = 1;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
 static void testCallback(UA_Server *server, void *data) {
@@ -44,5 +44,5 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return retval;
+    return (int)retval;
 }

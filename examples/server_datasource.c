@@ -15,18 +15,18 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = UA_TRUE;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
 static UA_StatusCode
 readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
             const UA_NumericRange *range, UA_DataValue *dataValue) {
-    dataValue->hasValue = UA_TRUE;
+    dataValue->hasValue = true;
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32*)handle, &UA_TYPES[UA_TYPES_INT32]);
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
@@ -79,5 +79,5 @@ int main(int argc, char** argv) {
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-    return retval;
+    return (int)retval;
 }

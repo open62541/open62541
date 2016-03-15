@@ -33,7 +33,7 @@ UA_StatusCode
 UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
                               UA_Boolean * UA_RESTRICT realloced) {
     UA_ByteString *current = message;
-    *realloced = UA_FALSE;
+    *realloced = false;
     if(connection->incompleteMessage.length > 0) {
         /* concat the existing incomplete message with the new message */
         UA_Byte *data = UA_realloc(connection->incompleteMessage.data,
@@ -49,7 +49,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         connection->incompleteMessage.length += message->length;
         connection->releaseRecvBuffer(connection, message);
         current = &connection->incompleteMessage;
-        *realloced = UA_TRUE;
+        *realloced = true;
     }
 
     /* the while loop sets pos to the first element after the last complete message. if a message
@@ -72,7 +72,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         UA_UInt32 length = 0;
         size_t length_pos = pos + 4;
         UA_StatusCode retval = UA_UInt32_decodeBinary(current, &length_pos, &length);
-        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.maxMessageSize) {
+        if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.recvBufferSize) {
             /* the message size is not allowed. throw the remaining bytestring away */
             delete_at = pos;
             break;
@@ -86,7 +86,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     if(delete_at == 0) {
         if(!*realloced) {
             connection->releaseRecvBuffer(connection, message);
-            *realloced = UA_TRUE;
+            *realloced = true;
         } else
             UA_ByteString_deleteMembers(current);
         return UA_STATUSCODE_GOOD;
@@ -98,7 +98,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             /* store the buffer in the connection */
             UA_ByteString_copy(current, &connection->incompleteMessage);
             connection->releaseRecvBuffer(connection, message);
-            *realloced = UA_TRUE;
+            *realloced = true;
         } 
         return UA_STATUSCODE_GOOD;
     }
@@ -110,7 +110,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             UA_ByteString_deleteMembers(&connection->incompleteMessage);
             if(!*realloced) {
                 connection->releaseRecvBuffer(connection, message);
-                *realloced = UA_TRUE;
+                *realloced = true;
             }
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
@@ -131,7 +131,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return UA_STATUSCODE_GOOD;
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wextra"
 #pragma GCC diagnostic ignored "-Wcast-qual"
@@ -163,6 +163,6 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChann
 #endif
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic pop
 #endif

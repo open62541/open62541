@@ -42,9 +42,9 @@ static UA_UInt16 higher_prime_index(hash_t n) {
     return low;
 }
 
-static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass class) {
+static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass nodeClass) {
     size_t size = sizeof(UA_NodeStoreEntry) - sizeof(UA_Node);
-    switch(class) {
+    switch(nodeClass) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
         break;
@@ -75,7 +75,7 @@ static UA_NodeStoreEntry * instantiateEntry(UA_NodeClass class) {
     UA_NodeStoreEntry *entry = UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = class;
+    entry->node.nodeClass = nodeClass;
     return entry;
 }
 
@@ -84,7 +84,7 @@ static void deleteEntry(UA_NodeStoreEntry *entry) {
     UA_free(entry);
 }
 
-/* Returns UA_TRUE if an entry was found under the nodeid. Otherwise, returns
+/* Returns true if an entry was found under the nodeid. Otherwise, returns
    false and sets slot to a pointer to the next free slot. */
 static UA_Boolean
 containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntry ***entry) {
@@ -95,12 +95,12 @@ containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntr
 
     if(!e) {
         *entry = &ns->entries[idx];
-        return UA_FALSE;
+        return false;
     }
 
     if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
         *entry = &ns->entries[idx];
-        return UA_TRUE;
+        return true;
     }
 
     hash_t hash2 = mod2(h, size);
@@ -111,16 +111,16 @@ containsNodeId(const UA_NodeStore *ns, const UA_NodeId *nodeid, UA_NodeStoreEntr
         e = ns->entries[idx];
         if(!e) {
             *entry = &ns->entries[idx];
-            return UA_FALSE;
+            return false;
         }
         if(UA_NodeId_equal(&e->node.nodeId, nodeid)) {
             *entry = &ns->entries[idx];
-            return UA_TRUE;
+            return true;
         }
     }
 
     /* NOTREACHED */
-    return UA_TRUE;
+    return true;
 }
 
 /* The occupancy of the table after the call will be about 50% */
@@ -213,7 +213,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
         hash_t increase = mod2(identifier, size);
-        while(UA_TRUE) {
+        while(true) {
             node->nodeId.identifier.numeric = identifier;
             if(!containsNodeId(ns, &node->nodeId, &entry))
                 break;

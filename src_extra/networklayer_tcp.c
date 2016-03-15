@@ -35,7 +35,6 @@
 
 /* workaround a glibc bug where an integer conversion is required */
 #if !defined(_WIN32)
-# include <features.h>
 # if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
 #  define UA_fd_set(fd, fds) FD_SET(fd, fds)
 #  define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
@@ -110,7 +109,11 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         /* currently, only the client uses timeouts */
 #ifndef _WIN32
         UA_UInt32 timeout_usec = timeout * 1000;
+    #ifdef __APPLE__
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
+	#else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
+	#endif
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
 #else
         DWORD timeout_dw = timeout;
@@ -130,7 +133,11 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     if (timeout > 0) {
         fd_set fdset;
         UA_UInt32 timeout_usec = timeout * 1000;
+    #ifdef __APPLE__
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
+	#else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
+	#endif
         UA_Int32 retval;
 
         FD_ZERO(&fdset);
@@ -152,13 +159,13 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_ByteString_deleteMembers(response);
         socket_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-	} else if(ret < 0) {
+    } else if(ret < 0) {
         UA_ByteString_deleteMembers(response);
 #ifdef _WIN32
         const int last_error = WSAGetLastError();
-        #define TEST_RETRY (last_error == WSAEINTR || last_error == WSAEWOULDBLOCK)
+        #define TEST_RETRY (last_error == WSAEINTR || (timeout > 0) ? 0 : (last_error == WSAEWOULDBLOCK))
 #else
-        #define TEST_RETRY (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+        #define TEST_RETRY (errno == EINTR || (timeout > 0) ? 0 : (errno == EAGAIN || errno == EWOULDBLOCK))
 #endif
         if (TEST_RETRY)
             return UA_STATUSCODE_GOOD; /* retry */
@@ -423,7 +430,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
-            UA_Boolean realloced = UA_FALSE;
+            UA_Boolean realloced = false;
             retval = UA_Connection_completeMessages(layer->mappings[i].connection, &buf, &realloced);
             if(retval != UA_STATUSCODE_GOOD || buf.length == 0)
                 continue;

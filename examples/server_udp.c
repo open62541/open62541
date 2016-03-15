@@ -47,5 +47,5 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
 	UA_Server_delete(server);
 
-	return retval;
+	return (int) retval;
 }

@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
         //cleanup array
         UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
 
     printf("%i endpoints found\n", (int)endpointArraySize);
@@ -46,12 +46,11 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     //connect to a server
-    retval = UA_Client_connect(client, UA_ClientConnectionTCP,
-                                             "opc.tcp://localhost:16664");
+    retval = UA_Client_connect(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
     // Browse some objects
     printf("Browsing nodes in objects folder:\n");
@@ -88,14 +87,14 @@ int main(int argc, char *argv[]) {
     
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
-    UA_UInt32 subId;
+    UA_UInt32 subId=0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
     // .. and monitor TheAnswer
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId;
+    UA_UInt32 monId=0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
                                              UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
     if (monId)
@@ -139,7 +138,7 @@ int main(int argc, char *argv[]) {
     wReq.nodesToWriteSize = 1;
     wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    wReq.nodesToWrite[0].value.hasValue = UA_TRUE;
+    wReq.nodesToWrite[0].value.hasValue = true;
     wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
     wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
     wReq.nodesToWrite[0].value.value.data = &value;
@@ -253,6 +252,6 @@ int main(int argc, char *argv[]) {
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    return (int) UA_STATUSCODE_GOOD;
 }
 

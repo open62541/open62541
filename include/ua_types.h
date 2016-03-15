@@ -28,7 +28,7 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_statuscodes.h"
 
-/* Indicates that an array has the length 0 (NULL indicates an non-defined array of length -1)*/
+/* Indicates that an array has the length 0 (NULL indicates an non-defined array of length -1) */
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
 /****************************/
@@ -90,6 +90,9 @@ typedef float UA_Float;
 
 /** Double: An IEEE double precision (64 bit) floating point value */
 typedef double UA_Double;
+
+/** StatusCode: A numeric identifier for a error or condition that is associated with a value or an operation */
+typedef uint32_t UA_StatusCode;
 
 /********************************************/
 /* String: A sequence of Unicode characters */

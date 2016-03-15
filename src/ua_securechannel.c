@@ -16,6 +16,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     channel->sequenceNumber = 0;
     channel->connection = NULL;
     LIST_INIT(&channel->sessions);
+    LIST_INIT(&channel->chunks);
 }
 
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
@@ -39,6 +40,13 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
         LIST_REMOVE(se, pointers);
         UA_free(se);
     }
+
+    struct ChunkEntry *ch, *temp_ch;
+    LIST_FOREACH_SAFE(ch, &channel->chunks, pointers, temp_ch) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        LIST_REMOVE(ch, pointers);
+        UA_free(ch);
+    }
 }
 
 //TODO implement real nonce generator - DUMMY function
@@ -50,7 +58,7 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
     return UA_STATUSCODE_GOOD;
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wextra"
 #pragma GCC diagnostic ignored "-Wcast-qual"
@@ -77,7 +85,7 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic pop
 #endif
 

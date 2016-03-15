@@ -669,7 +669,7 @@ class opcua_node_t:
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
                   "/" + str(parentRef.referenceType().__node_browseName__))
-      code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef)
+      code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef, unPrintedNodes)
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
@@ -685,7 +685,9 @@ class opcua_node_t:
       code = code + codegen.getCreateNodeBootstrap(self)
       code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
+      code.append("UA_RCU_LOCK();")
       code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ");")
+      code.append("UA_RCU_UNLOCK();")
       
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
@@ -829,9 +831,9 @@ class opcua_node_referenceType_t(opcua_node_t):
       return code
     
     if self.isAbstract():
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = true;")
     if self.symmetric():
-      code.append(self.getCodePrintableID() + "->symmetric  = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->symmetric  = true;")
     if self.__reference_inverseName__ != "":
       code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + self.__reference_inverseName__ + "\");")
     return code;
@@ -1088,7 +1090,7 @@ class opcua_node_variable_t(opcua_node_t):
       return code
     
     if self.historizing():
-      code.append(self.getCodePrintableID() + "->historizing = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->historizing = true;")
 
     code.append(self.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + str(self.minimumSamplingInterval()) + ";")
     code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
@@ -1163,9 +1165,9 @@ class opcua_node_method_t(opcua_node_t):
     
     # UA_False is default for booleans on _init()
     if self.executable():
-      code.append(self.getCodePrintableID() + "->executable = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->executable = true;")
     if self.userExecutable():
-      code.append(self.getCodePrintableID() + "->userExecutable = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->userExecutable = true;")
 
     return code
 
@@ -1222,13 +1224,13 @@ class opcua_node_objectType_t(opcua_node_t):
           unPrintedReferences.remove(myTypeRef)
       
       if (self.isAbstract()):
-        code.append("       UA_TRUE,")
+        code.append("       true,")
       else:
-        code.append("       UA_FALSE,")
+        code.append("       false,")
     
     # Fallback mode for bootstrapping
     if (self.isAbstract()):
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = true;")
 
     return code
 
@@ -1339,15 +1341,15 @@ class opcua_node_variableType_t(opcua_node_t):
       code.append("       " + self.getCodePrintableID() + "_variant, ")
       code.append("       " + str(self.valueRank()) + ",")
       if self.isAbstract():
-        code.append("       UA_TRUE,")
+        code.append("       true,")
       else:
-        code.append("       UA_FALSE,")
+        code.append("       false,")
       return code
     
     if (self.isAbstract()):
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = true;")
     else:
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = false;")
     
     # The variant is guaranteed to exist by SubtypeEarly()
     code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
@@ -1688,15 +1690,15 @@ class opcua_node_dataType_t(opcua_node_t):
           unPrintedReferences.remove(myTypeRef)
       
       if (self.isAbstract()):
-        code.append("       UA_TRUE,")
+        code.append("       true,")
       else:
-        code.append("       UA_FALSE,")
+        code.append("       false,")
       return code
     
     if (self.isAbstract()):
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = true;")
     else:
-      code.append(self.getCodePrintableID() + "->isAbstract = UA_FALSE;")
+      code.append(self.getCodePrintableID() + "->isAbstract = false;")
     return code
 
 class opcua_node_view_t(opcua_node_t):
@@ -1757,9 +1759,9 @@ class opcua_node_view_t(opcua_node_t):
       return code
     
     if self.containsNoLoops():
-      code.append(self.getCodePrintableID() + "->containsNoLoops = UA_TRUE;")
+      code.append(self.getCodePrintableID() + "->containsNoLoops = true;")
     else:
-      code.append(self.getCodePrintableID() + "->containsNoLoops = UA_FALSE;")
+      code.append(self.getCodePrintableID() + "->containsNoLoops = false;")
 
     code.append(self.getCodePrintableID() + "->eventNotifier = (UA_Byte) " + str(self.eventNotifier()) + ";")
 

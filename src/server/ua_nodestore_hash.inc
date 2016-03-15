@@ -73,7 +73,7 @@ static hash_t hash(const UA_NodeId *n) {
         return hash_array((const UA_Byte*)n->identifier.byteString.data,
                           (UA_UInt32)n->identifier.byteString.length, n->namespaceIndex);
     default:
-        UA_assert(UA_FALSE);
+        UA_assert(false);
         return 0;
     }
 }

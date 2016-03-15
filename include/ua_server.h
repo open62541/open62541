@@ -67,19 +67,32 @@ UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /**
- * Runs the main loop of the server. In each iteration, this calls into the networklayers to see if
- * jobs have arrived and checks if repeated jobs need to be triggered.
+ * Runs the main loop of the server. In each iteration, this calls into the
+ * networklayers to see if jobs have arrived and checks if repeated jobs need to
+ * be triggered.
+ *
+ * @param server The server object.
+ * @param running The loop is run as long as *running is true. Otherwise, the server shuts down.
+ * @return Returns the statuscode of the UA_Server_run_shutdown method
  */
 UA_StatusCode UA_EXPORT UA_Server_run(UA_Server *server, volatile UA_Boolean *running);
 
 /** The prologue part of UA_Server_run (no need to use if you call UA_Server_run) */
 UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
 
-/** One iteration of UA_Server_run (no need to use if you call UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_iterate(UA_Server *server);
-
 /** The epilogue part of UA_Server_run (no need to use if you call UA_Server_run) */
 UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
+
+/**
+ * Executes a single iteration of the server's main loop.
+ *
+ * @param server The server object.
+ * @param waitInternal Should we wait for messages in the networklayer?
+ *        Otherwise, the timouts for the networklayers are set to zero.
+ *        The default max wait time is 50millisec.
+ * @return Returns how long we can wait until the next scheduled job (in millisec)
+ */
+UA_UInt16 UA_EXPORT UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /**
  * @param server The server object.

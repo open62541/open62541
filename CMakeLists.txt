@@ -8,16 +8,10 @@ project(open62541 C)
 
 # Find Python and Python-lxml
 find_package(PythonInterp REQUIRED)
-execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-                OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(True))"
-                  OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-        message(FATAL_ERROR "Python-lxml is not installed.")
-    endif()
+execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import lxml"
+                RESULT_VARIABLE IMPORT_LXML_RESULT)
+if(NOT "${IMPORT_LXML_RESULT}" STREQUAL "0")
+    message(FATAL_ERROR "Python-lxml is not installed.")
 endif()
 
 # Check for git
@@ -182,6 +176,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
+                     ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                      ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
@@ -219,6 +214,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
 
@@ -352,7 +348,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
 
 # build shared library
 if(UA_ENABLE_AMALGAMATION)
-    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     include_directories(${PROJECT_BINARY_DIR})
 else()
@@ -378,9 +373,6 @@ if(UA_BUILD_EXAMPLESERVER)
     set(server_source $<TARGET_OBJECTS:open62541-object>)
     add_executable(server_static examples/server.c ${server_source})
     add_executable(server examples/server.c)
-    if(UA_ENABLE_AMALGAMATION)
-       ADD_DEPENDENCIES(server amalgamation)
-    endif()
     target_link_libraries(server ${open62541_LIBRARIES} open62541)
     target_link_libraries(server_static ${open62541_LIBRARIES})
     if(WIN32)
@@ -423,10 +415,6 @@ if(UA_BUILD_EXAMPLECLIENT)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
 	add_executable(client_static examples/client.c ${client_source})
     add_executable(client examples/client.c)
-	if(UA_ENABLE_AMALGAMATION)
-	   ADD_DEPENDENCIES(client_static amalgamation)
-	   ADD_DEPENDENCIES(client amalgamation)
-	endif()
 	target_link_libraries(client_static ${open62541_LIBRARIES})
 	target_link_libraries(client open62541 ${open62541_LIBRARIES})
     if(WIN32)

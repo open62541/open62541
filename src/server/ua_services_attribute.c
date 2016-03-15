@@ -95,14 +95,14 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
 
 static void handleServerTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
 	if(v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
-		v->hasServerTimestamp = UA_TRUE;
+		v->hasServerTimestamp = true;
 		v->serverTimestamp = UA_DateTime_now();
 	}
 }
 
 static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
 	if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
-		v->hasSourceTimestamp = UA_TRUE;
+		v->hasSourceTimestamp = true;
 		v->sourceTimestamp = UA_DateTime_now();
 	}
 }
@@ -165,8 +165,8 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
-        val.hasValue = UA_FALSE; // always assume we are not given a value by userspace
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
+        val.hasValue = false; // always assume we are not given a value by userspace
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, false, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if (val.hasValue && val.value.type != NULL)
@@ -188,7 +188,7 @@ static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, U
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
         UA_DataValue_init(&val);
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, UA_FALSE, NULL, &val);
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, false, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
@@ -206,28 +206,28 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 void Service_Read_single(UA_Server *server, UA_Session *session, const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
 	if(id->dataEncoding.name.length > 0 && !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
-           v->hasStatus = UA_TRUE;
+           v->hasStatus = true;
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
            return;
 	}
 
 	//index range for a non-value
 	if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
-		v->hasStatus = UA_TRUE;
+		v->hasStatus = true;
 		v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
 		return;
 	}
 
     UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
     if(!node) {
-        v->hasStatus = UA_TRUE;
+        v->hasStatus = true;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
     /* When setting the value fails in the switch, we get an error code and set hasValue to false */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    v->hasValue = UA_TRUE;
+    v->hasValue = true;
     switch(id->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
         forceVariantSetScalar(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
@@ -329,8 +329,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
     }
 
     if(retval != UA_STATUSCODE_GOOD) {
-        v->hasValue = UA_FALSE;
-        v->hasStatus = UA_TRUE;
+        v->hasValue = false;
+        v->hasStatus = true;
         v->status = retval;
     }
 
@@ -369,13 +369,13 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean) * size);
+    memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0;j<server->externalNamespacesSize;j++) {
         size_t indexSize = 0;
         for(size_t i = 0;i < size;i++) {
             if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
-            isExternal[i] = UA_TRUE;
+            isExternal[i] = true;
             indices[indexSize] = i;
             indexSize++;
         }
@@ -383,7 +383,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->readNodes(ens->ensHandle, &request->requestHeader, request->nodesToRead,
-                       indices, indexSize, response->results, UA_FALSE, response->diagnosticInfos);
+                       indices, indexSize, response->results, false, response->diagnosticInfos);
     }
 #endif
 
@@ -716,14 +716,14 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Boolean isExternal[request->nodesToWriteSize];
     UA_UInt32 indices[request->nodesToWriteSize];
-    memset(isExternal, UA_FALSE, sizeof(UA_Boolean)*request->nodesToWriteSize);
+    memset(isExternal, false, sizeof(UA_Boolean)*request->nodesToWriteSize);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         UA_UInt32 indexSize = 0;
         for(size_t i = 0; i < request->nodesToWriteSize; i++) {
             if(request->nodesToWrite[i].nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
-            isExternal[i] = UA_TRUE;
+            isExternal[i] = true;
             indices[indexSize] = i;
             indexSize++;
         }

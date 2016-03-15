@@ -18,7 +18,7 @@ int main(void) {
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
 
     //variables to store data
@@ -33,10 +33,9 @@ int main(void) {
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
-    if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-            rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-            UA_Variant_isScalar(&rResp.results[0].value) &&
-            rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
+    if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD && rResp.resultsSize > 0 &&
+       rResp.results[0].hasValue && UA_Variant_isScalar(&rResp.results[0].value) &&
+       rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
         raw_date = *(UA_DateTime*)rResp.results[0].value.data;
         printf("raw date is: %" PRId64 "\n", raw_date);
         string_date = UA_DateTime_toString(raw_date);
@@ -49,5 +48,5 @@ int main(void) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    return (int) UA_STATUSCODE_GOOD;
 }

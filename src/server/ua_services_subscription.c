@@ -158,12 +158,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
             response.results[i] = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
     }
     
-    UA_Boolean have_response = UA_FALSE;
+    UA_Boolean have_response = false;
 
     // See if any new data is available
     UA_Subscription *sub;
     LIST_FOREACH(sub, &manager->serverSubscriptions, listEntry) {
-        if(sub->timedUpdateIsRegistered == UA_FALSE) {
+        if(sub->timedUpdateIsRegistered == false) {
             // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
             // NOTE:  There is a clone of this functionality in the Subscription_timedUpdateNotificationsJob
             UA_MonitoredItem *mon;
@@ -182,7 +182,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         // Due to republish, we need to check if there are any unplublished notifications first ()
         UA_unpublishedNotification *notification = NULL;
         LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-            if (notification->publishedOnce == UA_FALSE)
+            if (notification->publishedOnce == false)
                 break;
         }
         if (notification == NULL)
@@ -192,7 +192,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         response.subscriptionId = sub->subscriptionID;
         Subscription_copyNotificationMessage(&response.notificationMessage, notification);
         // Mark this notification as published
-        notification->publishedOnce = UA_TRUE;
+        notification->publishedOnce = true;
         if(notification->notification.sequenceNumber > sub->sequenceNumber) {
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response.availableSequenceNumbersSize = 0;
@@ -202,7 +202,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             response.availableSequenceNumbersSize = sub->unpublishedNotificationsSize;
             response.availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
         }	  
-        have_response = UA_TRUE;
+        have_response = true;
     }
     
     if(!have_response) {
@@ -327,7 +327,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     //        true. If this is not tested, the client just gets what he asks for... hence this part is
     //        commented:
     /* Check if the notification is in the published queue
-    if (notification->publishedOnce == UA_FALSE) {
+    if (notification->publishedOnce == false) {
       response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
       return;
     }
@@ -335,7 +335,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     // Retransmit 
     Subscription_copyNotificationMessage(&response->notificationMessage, notification);
     // Mark this notification as published
-    notification->publishedOnce = UA_TRUE;
+    notification->publishedOnce = true;
     
     return;
 }

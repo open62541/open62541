@@ -34,7 +34,7 @@
  * 
  */
 
-#define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
+#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
@@ -252,7 +252,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     /* the interval needs to be at least 5ms */
     if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    interval *= 10000; // from ms to 100ns resolution
+    interval *= (UA_UInt32)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
 #ifdef UA_ENABLE_MULTITHREADING
     struct AddRepeatedJob *arw = UA_malloc(sizeof(struct AddRepeatedJob));
@@ -290,11 +290,9 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     return UA_STATUSCODE_GOOD;
 }
 
-/* Returns the timeout until the next repeated job in ms */
-static UA_UInt16 processRepeatedJobs(UA_Server *server) {
-    UA_DateTime current = UA_DateTime_nowMonotonic();
+/* Returns the next datetime when a repeated job is scheduled */
+static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
     struct RepeatedJobs *tw = NULL;
-
     while((tw = LIST_FIRST(&server->repeatedJobs)) != NULL) {
         if(tw->nextTime > current)
             break;
@@ -323,7 +321,7 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
 
         //start iterating the list from the beginning
         struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
-        while(UA_TRUE) {
+        while(true) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)
                 break;
@@ -338,13 +336,10 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     // check if the next repeated job is sooner than the usual timeout
     // calc in 32 bit must be ok
     struct RepeatedJobs *first = LIST_FIRST(&server->repeatedJobs);
-    UA_UInt16 timeout = MAXTIMEOUT;
-    if(first) {
-        timeout = (UA_UInt16)((first->nextTime - current) / 10);
-        if(timeout > MAXTIMEOUT)
-            return MAXTIMEOUT;
-    }
-    return timeout;
+    UA_DateTime next = current + (MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    if(first && first->nextTime < next)
+        next = first->nextTime;
+    return next;
 }
 
 /* Call this function only from the main loop! */
@@ -503,10 +498,10 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
             dw = dw->next;
             continue;
         }
-        UA_Boolean allMoved = UA_TRUE;
+        UA_Boolean allMoved = true;
         for(size_t i = 0; i < server->config.nThreads; i++) {
             if(dw->workerCounters[i] == server->workers[i].counter) {
-                allMoved = UA_FALSE;
+                allMoved = false;
                 break;
             }
         }
@@ -595,19 +590,26 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     return result;
 }
 
-UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
+UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #ifdef UA_ENABLE_MULTITHREADING
-    processMainLoopJobs(server); /* Run work assigned for the main thread */
+    /* Run work assigned for the main thread */
+    processMainLoopJobs(server);
 #endif
-    UA_UInt16 timeout = processRepeatedJobs(server); /* Process repeated work */
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated = processRepeatedJobs(server, now);
+
+    UA_UInt16 timeout = 0;
+    if(waitInternal)
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 
     /* Get work from the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_Job *jobs;
         size_t jobsSize;
+        /* only the last networklayer waits on the tieout */
         if(i == server->config.networkLayersSize-1)
-            /* only the last networklayer waits on the tieout */
             jobsSize = nl->getJobs(nl, &jobs, timeout);
         else
             jobsSize = nl->getJobs(nl, &jobs, 0);
@@ -621,8 +623,7 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
             jobs[k].type = UA_JOBTYPE_NOTHING;
         }
 
-        dispatchJobs(server, jobs, jobsSize); /* Dispatch work to worker threads */
-
+        dispatchJobs(server, jobs, jobsSize);
         /* Wake up worker threads */
         if(jobsSize > 0)
             pthread_cond_broadcast(&server->dispatchQueue_condition);
@@ -633,7 +634,11 @@ UA_StatusCode UA_Server_run_iterate(UA_Server *server) {
 #endif
     }
 
-    return UA_STATUSCODE_GOOD;
+    now = UA_DateTime_nowMonotonic();
+    timeout = 0;
+    if(nextRepeated > now)
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+    return timeout;
 }
 
 UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
@@ -670,6 +675,6 @@ UA_StatusCode UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     while(*running)
-            UA_Server_run_iterate(server);
+        UA_Server_run_iterate(server, true);
     return UA_Server_run_shutdown(server);
 }

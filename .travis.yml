@@ -1,16 +1,61 @@
 language: c
+
 compiler:
 - gcc
-#- clang
+- clang
+
 os:
 - linux
-- osx
-sudo: true
+# - osx
+
+# use new build environment (docker)
+sudo: false
+
 env:
   global:
-  - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-  - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
+    - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
+    - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
+  matrix:
+    # Do both, compile with static code analysis and without
+    - ANALYZE=false
+    - ANALYZE=true
+
+matrix:
+  exclude:
+  # This excludes OSX GCC builds.
+    - os: osx
+      compiler: gcc
+    - os: osx
+      env: ANALYZE=true
+  allow_failures:
+    - env: ANALYZE=true
+      compiler: gcc
+
 addons:
+  apt:
+    sources:
+      # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+      - kalakris-cmake
+      - ubuntu-toolchain-r-test
+    packages:
+      - binutils-mingw-w64-i686
+      - build-essential
+      - clang
+      - cmake
+      - cppcheck
+      - gcc-4.8
+      - gcc-mingw-w64-i686
+      - gcc-multilib
+      - g++-4.8
+      - libc6-dbg # for valgrind compilation
+      - libsubunit-dev
+      - libx11-dev
+      - mingw-w64
+      - python-lxml
+      - wget
+      - xutils-dev
+      - zip
+    # - libsubunit-dev #for check_0.10.0
   coverity_scan:
     project:
       name: acplt/open62541
@@ -19,21 +64,44 @@ addons:
     build_command_prepend: mkdir build && cd build && cmake ..
     build_command: make
     branch_pattern: coverity_scan
-matrix:
-  # This excludes OSX GCC builds.
-  exclude:
-    - os: osx
-      compiler: gcc
+
+cache:
+  pip: true
+  apt: true
+  directories:
+    - $HOME/install
+
 before_install:
+# set paths for locally installed libs (like liburcu)
+- export LOCAL_PKG=$HOME/install
+- mkdir -p $LOCAL_PKG/lib
+- mkdir -p $LOCAL_PKG/include
+- mkdir -p $LOCAL_PKG/bin
+- export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
+- export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
+- export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
+- export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
+- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
+# set local path for python packages
+- export PATH=$PATH:$HOME/.local/bin # linux
+- export PATH=$PATH:$HOME/Library/Python #OS X
+- export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
+# set search path for check library
+- export CHECK_INCLUDE_DIRS=$LOCAL_PKG/include/
+- export CHECK_LIBRARIES=$LOCAL_PKG/lib/
+
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
+
 script:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_script.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_script.sh; fi
+
 after_success:
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_doc.sh; fi
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_coverity.sh; fi
 - if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then sh ./tools/travis_push_release.sh; fi
+
 before_deploy:
 - rm build -rf && mkdir -p build && cd build
 - echo "Cross compile release build for Raspberry Pi"
@@ -46,6 +114,7 @@ before_deploy:
 - tar -pczf open62541-raspberrypi.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 - cp open62541-raspberrypi.tar.gz ..
 - cd ..
+
 deploy:
   provider: releases
   api_key:
@@ -60,5 +129,6 @@ deploy:
     - open62541.h
   skip_cleanup: true
   on:
+    repo: open62541/open62541
     tags: true
     condition: $CC = gcc

@@ -20,6 +20,13 @@ struct SessionEntry {
     UA_Session *session; // Just a pointer. The session is held in the session manager or the client
 };
 
+struct ChunkEntry {
+    LIST_ENTRY(ChunkEntry) pointers;
+    UA_UInt32 requestId;
+    UA_Boolean invalid_message;
+    UA_ByteString bytes;
+};
+
 typedef struct {
     UA_SecureChannel *channel;
     UA_UInt32 requestId;
@@ -40,6 +47,7 @@ struct UA_SecureChannel {
     UA_UInt32      sequenceNumber;
     UA_Connection *connection;
     LIST_HEAD(session_pointerlist, SessionEntry) sessions;
+    LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
 };
 
 void UA_SecureChannel_init(UA_SecureChannel *channel);
