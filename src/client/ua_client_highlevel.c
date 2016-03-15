@@ -3,6 +3,7 @@
 #include "ua_client_highlevel.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
+#include "ua_types.h"
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex) {
@@ -247,6 +248,38 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
 /**************/
 /* Attributes */
 /**************/
+
+UA_StatusCode 
+__UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
+                           void *in, const UA_DataType *inDataType) {
+    if(in == NULL)
+      return UA_STATUSCODE_BADTYPEMISMATCH;
+    
+    UA_Variant *tmp = (UA_Variant *) in;
+    if (tmp == NULL) return 1;
+    
+    UA_WriteRequest *wReq = UA_WriteRequest_new();
+    wReq->nodesToWrite = UA_WriteValue_new();
+    wReq->nodesToWriteSize = 1;
+    UA_NodeId_copy(&nodeId, &wReq->nodesToWrite[0].nodeId);
+    wReq->nodesToWrite[0].attributeId = attributeId;
+    if (attributeId == UA_ATTRIBUTEID_VALUE) {
+      UA_Variant_copy((UA_Variant *) in, &wReq->nodesToWrite[0].value.value);
+      wReq->nodesToWrite[0].value.hasValue = true;
+    }
+    else {
+      if( ! UA_Variant_setScalarCopy(&wReq->nodesToWrite[0].value.value, in, inDataType) )
+        wReq->nodesToWrite[0].value.hasValue = true;
+    }
+    
+    UA_WriteResponse wResp = UA_Client_Service_write(client, *wReq);
+    UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    
+    UA_WriteRequest_delete(wReq);
+    UA_WriteResponse_deleteMembers(&wResp);
+    
+    return retval;
+}
 
 UA_StatusCode 
 __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,

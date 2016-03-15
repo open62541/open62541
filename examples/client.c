@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
     
-    // Same thing, less code:
+    // Same thing, this time using the node iterator...
     UA_NodeId *parent = UA_NodeId_new();
     *parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) parent);
@@ -166,6 +166,13 @@ int main(int argc, char *argv[]) {
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
 
+    // Alternate Form, this time using the hl API
+    value++;
+    UA_Variant *myVariant = UA_Variant_new();
+    UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Client_writeValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), myVariant);
+    UA_Variant_delete(myVariant);
+    
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Take another look at the.answer... this should call the handler.
     UA_Client_Subscriptions_manuallySendPublishRequest(client);

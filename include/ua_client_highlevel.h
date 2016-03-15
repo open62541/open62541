@@ -137,7 +137,11 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 UA_StatusCode UA_EXPORT
 __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
                           void *out, const UA_DataType *outDataType);
-  
+
+UA_StatusCode UA_EXPORT
+__UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
+                           void *in, const UA_DataType *inDataType);
+
 static UA_INLINE UA_StatusCode
 UA_Client_readNodeIdAttribute(UA_Client *client, UA_NodeId nodeId, UA_NodeId *outNodeId) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_NODEID,
@@ -202,7 +206,11 @@ static UA_INLINE UA_StatusCode
 UA_Client_readValueAttribute(UA_Client *client, UA_NodeId nodeId, UA_Variant *outValue) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_VALUE,
                                      outValue, &UA_TYPES[UA_TYPES_VARIANT]); }
-
+static UA_INLINE UA_StatusCode
+UA_Client_writeValueAttribute(UA_Client *client, UA_NodeId nodeId, UA_Variant *inValue) {
+    return __UA_Client_writeAttribute(client, nodeId, UA_ATTRIBUTEID_VALUE,
+                                     inValue, &UA_TYPES[UA_TYPES_VARIANT]); }
+                                     
 static UA_INLINE UA_StatusCode
 UA_Client_readDataTypeAttribute(UA_Client *client, UA_NodeId nodeId, UA_NodeId *outDataType) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_DATATYPE,
