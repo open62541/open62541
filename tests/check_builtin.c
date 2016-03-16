@@ -1475,8 +1475,8 @@ END_TEST
 
 UA_ByteString *buffers;
 size_t bufIndex;
-int counter;
-int dataCount;
+size_t counter;
+size_t dataCount;
 
 static UA_StatusCode sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
     bufIndex++;
@@ -1550,7 +1550,7 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_ByteString workingBuffer=buffers[0];
 
     for(size_t i=0;i<stringLength;i++){
-        int tmp = i % 9;
+        size_t tmp = i % 9;
         string.data[i] =  tmpString[tmp];
     }
     UA_Variant v;
