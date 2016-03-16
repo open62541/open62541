@@ -184,40 +184,64 @@ DateTime_decodeBinary(bufpos pos, bufend end, UA_DateTime *dst) {
 # define Double_encodeBinary UInt64_encodeBinary
 # define Double_decodeBinary UInt64_decodeBinary
 #else
+
+#include <math.h>
+
+/* Handling of IEEE754 floating point values was taken from Beej's Guide to
+   Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
+   edge cases +/-0, +/-inf and nan. */
+
 /* Float */
-UA_Byte UA_FLOAT_ZERO[] = { 0x00, 0x00, 0x00, 0x00 };
-static UA_StatusCode
-Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
-    if(*pos + sizeof(UA_Float) > end)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    UA_Float mantissa;
-    UA_UInt32 biasedExponent;
-    UA_Float sign;
-    if(memcmp(*pos, UA_FLOAT_ZERO, 4) == 0)
-        return Int32_decodeBinary(pos, end, (UA_Int32*) dst);
-    mantissa = (UA_Float)(**pos & 0xFF); // bits 0-7
-    mantissa = (mantissa / 256.0) + (UA_Float)((*pos)[1] & 0xFF); // bits 8-15
-    mantissa = (mantissa / 256.0) + (UA_Float)((*pos)[2] & 0x7F); // bits 16-22
-    biasedExponent = ((*pos)[2] & 0x80) >> 7; // bits 23
-    biasedExponent |= ((*pos)[3] & 0x7F) << 1; // bits 24-30
-    sign = ((*pos)[3] & 0x80) ? -1.0 : 1.0; // bit 31
-    if(biasedExponent >= 127)
-        *dst = (UA_Float)sign*(1<<(biasedExponent-127))*(1.0+mantissa/128.0);
-    else
-        *dst = (UA_Float)sign*2.0*(1.0+mantissa/128.0)/((UA_Float)(biasedExponent-127));
-    *offset += 4;
-    return UA_STATUSCODE_GOOD;
+#define FLOAT_NAN 0x7fc00000
+#define FLOAT_INF 0x7f800000
+#define FLOAT_NEG_INF 0xff800000
+#define FLOAT_NEG_ZERO 0x80000000
+
+static UA_UInt32 float_to_ieee754(UA_Float f) {
+    if(f != f) return FLOAT_NAN;
+    if(f == 0.0f) return signbit(f) ? FLOAT_NEG_ZERO : 0;
+    if(f/f != f/f) return f > 0 ? FLOAT_INF : FLOAT_NEG_INF;
+    UA_UInt32 sign = 0;
+    UA_Double fnorm = f;
+    if(f < 0) { sign = 1; fnorm = -f; }
+    UA_Int32 shift = 0;
+    while(fnorm >= 2.0) { fnorm /= 2.0; shift++; }
+    while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
+    fnorm -= 1.0;
+    UA_Int64 significand = (long long)(fnorm * ((UA_Double)(1LL<<23) + 0.5f));
+    UA_Int64 exp = shift + ((1<<7) - 1);
+    return (UA_UInt32)((sign<<31) | (exp<<23) | significand);
 }
 
 static UA_StatusCode
 Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
-    if(*pos + sizeof(UA_Float) > end)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    UA_Float srcFloat = *src;
-    **pos = (UA_Byte) (((UA_Int32) srcFloat & 0xFF000000) >> 24); (*pos)++;
-    **pos = (UA_Byte) (((UA_Int32) srcFloat & 0x00FF0000) >> 16); (*pos)++;
-    **pos = (UA_Byte) (((UA_Int32) srcFloat & 0x0000FF00) >> 8); (*pos)++;
-    **pos = (UA_Byte) ((UA_Int32)  srcFloat & 0x000000FF); (*pos)++;
+    UA_UInt32 encoded = float_to_ieee754(*src);
+    return UInt32_encodeBinary(&encoded, pos, end);
+}
+
+static UA_Float ieee754_to_float(UA_UInt32 i) {
+    if(i == 0) return 0.0;
+    if(i == FLOAT_NEG_ZERO) return -0.0;
+    if(i == FLOAT_INF) return INFINITY;
+    if(i == FLOAT_NEG_INF) return -INFINITY;
+    if(i == FLOAT_NAN) return NAN;
+    UA_Float result = (UA_Float)(i&((1LL<<23)-1));
+    result /= (1LL<<23);
+    result += 1.0f;
+    unsigned bias = (1<<7) - 1;
+    long long shift = ((i>>23)&((1LL<<8)-1)) - bias;
+    while(shift > 0) { result *= 2.0f; shift--; }
+    while(shift < 0) { result /= 2.0f; shift++; }
+    result *= (i>>31) & 1 ? -1.0f : 1.0f;
+    return result;
+}
+
+static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
+    UA_UInt32 decoded;
+    UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    *dst = ieee754_to_float(decoded);
     return UA_STATUSCODE_GOOD;
 }
 

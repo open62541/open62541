@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <float.h>
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_encoding_binary.h"
-//#include "ua_transport.h"
 #include "ua_util.h"
 #include "check.h"
 
@@ -810,23 +811,33 @@ START_TEST(UA_Int64_encodeNegativeShallEncodeLittleEndian) {
 END_TEST
 
 START_TEST(UA_Float_encodeShallWorkOnExample) {
-    // given
-    UA_Float src;
-    UA_Byte  data[]   = {  0x55, 0x55,    0x55,  0x55,    0x55,    0x55,  0x55,       0x55,
-            0x55,  0x55,    0x55,  0x55,    0x55,    0x55,  0x55,       0x55 };
-    UA_ByteString dst = { 16, data };
+#define UA_FLOAT_TESTS 9
+    UA_Float src[UA_FLOAT_TESTS] = {27.5f, -6.5f, 0.0f, -0.0f, NAN, FLT_MAX, FLT_MIN, INFINITY, -INFINITY};
+    UA_Byte result[UA_FLOAT_TESTS][4] = {
+        {0x00, 0x00, 0xDC, 0x41}, // 27.5
+        {0x00, 0x00, 0xD0, 0xC0}, // -6.5
+        {0x00, 0x00, 0x00, 0x00}, // 0.0
+        {0x00, 0x00, 0x00, 0x80}, // -0.0
+        {0x00, 0x00, 0xC0, 0x7F}, // NAN
+        {0xFF, 0xFF, 0x7F, 0x7F}, // FLT_MAX
+        {0x00, 0x00, 0x80, 0x00}, // FLT_MIN
+        {0x00, 0x00, 0x80, 0x7F}, // INF
+        {0x00, 0x00, 0x80, 0xFF} // -INF
+    };
 
-    UA_Int32  retval  = 0;
-    size_t pos     = 0;
+    UA_Byte data[] = {0x55, 0x55, 0x55,  0x55};
+    UA_ByteString dst = {4, data};
 
-    // when test 1
-    src    = -6.5;
-    retval = UA_Float_encodeBinary(&src, &dst, &pos);
-    // then test 1
-    ck_assert_int_eq(pos, 4);
-    ck_assert_int_eq(dst.data[2], 0xD0);
-    ck_assert_int_eq(dst.data[3], 0xC0);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < UA_FLOAT_TESTS; i++) {
+        size_t pos = 0;
+        UA_Int32 retval = UA_Float_encodeBinary(&src[i], &dst, &pos);
+        ck_assert_int_eq(pos, 4);
+        ck_assert_int_eq(dst.data[0], result[i][0]);
+        ck_assert_int_eq(dst.data[1], result[i][1]);
+        ck_assert_int_eq(dst.data[2], result[i][2]);
+        ck_assert_int_eq(dst.data[3], result[i][3]);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    }
 }
 END_TEST
 
