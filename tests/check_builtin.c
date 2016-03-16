@@ -1566,7 +1566,7 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
 
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
-
+    UA_String_deleteMembers(&string);
 
 }
 END_TEST
