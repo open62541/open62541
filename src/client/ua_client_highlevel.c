@@ -236,8 +236,10 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
     }
     retval = response.results[0].statusCode;
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 0) {
-        *output = response.results[0].outputArguments;
-        *outputSize = response.results[0].outputArgumentsSize;
+        if (output != NULL && outputSize != NULL) {
+          *output = response.results[0].outputArguments;
+          *outputSize = response.results[0].outputArgumentsSize;
+        }
         response.results[0].outputArguments = NULL;
         response.results[0].outputArgumentsSize = 0;
     }
