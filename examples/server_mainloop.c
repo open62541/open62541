@@ -3,9 +3,12 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
 
-#define _BSD_SOURCE
 #include <signal.h>
-#include <unistd.h>
+#ifdef _WIN32
+# include <winsock2.h>
+#else
+# include <sys/select.h>
+#endif
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
@@ -51,8 +54,13 @@ int main(int argc, char** argv) {
            or cannot react to messages with the promised responsiveness. */
         UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
 
-        /* now we can use the max timeout to do something else */
-        usleep((__useconds_t)(timeout * 1000));
+        /* Now we can use the max timeout to do something else. In this case, we
+           just sleep. (select is used as a platform-independent sleep
+           function.) */
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000;
+        select(0, NULL, NULL, NULL, &tv);
     }
     retval = UA_Server_run_shutdown(server);
 
