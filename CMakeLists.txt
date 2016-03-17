@@ -464,6 +464,9 @@ if(UA_BUILD_EXAMPLES)
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_variable ${LIBS})
 
+    add_executable(server_mainloop ${PROJECT_SOURCE_DIR}/examples/server_mainloop.c $<TARGET_OBJECTS:open62541-object>)
+	target_link_libraries(server_mainloop ${LIBS})
+
 	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_datasource ${LIBS})
 
