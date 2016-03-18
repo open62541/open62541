@@ -69,11 +69,11 @@ socket_close(UA_Connection *connection) {
 static UA_StatusCode
 socket_write(UA_Connection *connection, UA_ByteString *buf) {
     size_t nWritten = 0;
-    while(buf->length > 0 && nWritten < (size_t)buf->length) {
+    do {
         ssize_t n = 0;
         do {
 #ifdef _WIN32
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data, (size_t)buf->length, 0);
+            n = send((SOCKET)connection->sockfd, (const char*)buf->data, buf->length, 0);
             const int last_error = WSAGetLastError();
             if(n < 0 && last_error != WSAEINTR && last_error != WSAEWOULDBLOCK) {
                 connection->close(connection);
@@ -82,7 +82,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
 #else
-            n = send(connection->sockfd, (const char*)buf->data, (size_t)buf->length, MSG_NOSIGNAL);
+            n = send(connection->sockfd, (const char*)buf->data, buf->length, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN) {
                 connection->close(connection);
                 socket_close(connection);
@@ -92,7 +92,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
 #endif
         } while(n == -1L);
         nWritten += (size_t)n;
-    }
+    } while(nWritten < buf->length);
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }
@@ -288,6 +288,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
+
     ServerNetworkLayerTCP *layer = connection->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Closing the Connection %i",
                 connection->sockfd);

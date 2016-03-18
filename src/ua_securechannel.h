@@ -19,13 +19,23 @@ struct SessionEntry {
     LIST_ENTRY(SessionEntry) pointers;
     UA_Session *session; // Just a pointer. The session is held in the session manager or the client
 };
-
+//for chunked requests
 struct ChunkEntry {
     LIST_ENTRY(ChunkEntry) pointers;
     UA_UInt32 requestId;
     UA_Boolean invalid_message;
     UA_ByteString bytes;
 };
+
+//for chunked responses
+typedef struct {
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
+    UA_UInt32 messageType;
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+    UA_Boolean final;
+} UA_ChunkInfo;
 
 struct UA_SecureChannel {
     UA_MessageSecurityMode  securityMode;

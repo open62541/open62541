@@ -68,7 +68,7 @@
 /********************/
 
 #ifdef _WIN32
-# include <winsock2.h> //needed for amalgation
+# include <winsock2.h> //needed for amalgamation
 # include <windows.h>
 # undef SLIST_ENTRY
 #endif

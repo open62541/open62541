@@ -2,7 +2,7 @@
 #include <stdlib.h>
 
 #include "ua_types.h"
-#include "ua_transport.h"
+//#include "ua_transport.h"
 #include "ua_connection.h"
 #include "server/ua_securechannel_manager.h"
 #include "server/ua_session_manager.h"
@@ -622,6 +622,8 @@ Suite *testSuite() {
 	tcase_add_test(tc_transport, UA_SecureConversationMessageFooter_encodeBinaryShallWorkOnInputExample);
 	tcase_add_test(tc_transport, UA_SecureConversationMessageAbortBody_copyShallWorkOnInputExample);
 	suite_add_tcase(s, tc_transport);
+
+
 	return s;
 }
 

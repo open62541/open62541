@@ -417,7 +417,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     UA_ByteString newValueAsByteString = { .length=0, .data=NULL };
     size_t encodingOffset = 0;
   
-    if(!monitoredItem || monitoredItem->lastSampled + monitoredItem->samplingInterval > UA_DateTime_now())
+    if(!monitoredItem || monitoredItem->lastSampled + (monitoredItem->samplingInterval * UA_MSEC_TO_DATETIME) > UA_DateTime_now())
         return;
   
     // FIXME: Actively suppress non change value based monitoring. There should be
@@ -473,7 +473,8 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         return;
     }
     
-    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], NULL, NULL,
+                             &newValueAsByteString, &encodingOffset);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);

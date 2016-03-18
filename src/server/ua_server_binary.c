@@ -20,12 +20,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
     connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    if(connection->remoteConf.recvBufferSize > helloMessage.receiveBufferSize)
-        connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
-    if(connection->remoteConf.sendBufferSize > helloMessage.sendBufferSize)
-        connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
+    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
     if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
         connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
+    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
+        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
+    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 
@@ -38,11 +38,12 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
 
     UA_TcpMessageHeader ackHeader;
-    ackHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_ACKF;
-    ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
+    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
+    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString ack_msg;
-    if(connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
+    UA_ByteString_init(&ack_msg);
+    if(connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                  &ack_msg) != UA_STATUSCODE_GOOD)
         return;
 
@@ -115,7 +116,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 #endif
 
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
+    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = p.securityToken.channelId;
 
@@ -123,7 +124,8 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
                                                UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString resp_msg;
-    retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize, &resp_msg);
+    UA_ByteString_init(&resp_msg);
+    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -146,7 +148,6 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         resp_msg.length = respHeader.messageHeader.messageSize;
         connection->send(connection, &resp_msg);
     }
-
     UA_OpenSecureChannelResponse_deleteMembers(&p);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
 }
@@ -589,18 +590,16 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
-        switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
-        case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
+        switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
+        case UA_MESSAGETYPE_HEL:
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Process a HEL on Connection %i", connection->sockfd);
             processHEL(connection, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_OPNF & 0xffffff:
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                         "Process a OPN on Connection %i", connection->sockfd);
+        case UA_MESSAGETYPE_OPN:
             processOPN(connection, server, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
+        case UA_MESSAGETYPE_MSG:
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -614,9 +613,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                          "Process a MSG on Connection %i", connection->sockfd);
             processMSG(connection, server, msg, &pos);
             break;
-        case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                         "Process a CLO on Connection %i", connection->sockfd);
+        case UA_MESSAGETYPE_CLO:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;

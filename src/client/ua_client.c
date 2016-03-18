@@ -18,7 +18,8 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard =
 /* Create and Delete */
 /*********************/
 
-static void UA_Client_init(UA_Client* client, UA_ClientConfig config, UA_Logger logger) {
+static void UA_Client_init(UA_Client* client, UA_ClientConfig config,
+                           UA_Logger logger) {
     client->state = UA_CLIENTSTATE_READY;
     UA_Connection_init(&client->connection);
     UA_SecureChannel_init(&client->channel);
@@ -100,7 +101,7 @@ void UA_Client_delete(UA_Client* client){
 
 static UA_StatusCode HelAckHandshake(UA_Client *c) {
     UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
 
     UA_TcpHelloMessage hello;
     UA_String_copy(&c->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
@@ -183,11 +184,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_SecureConversationMessageHeader messageHeader;
-    messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
-    if(renew)
+    messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+    if(renew){
         messageHeader.secureChannelId = client->channel.securityToken.channelId;
-    else
+    }else{
         messageHeader.secureChannelId = 0;
+    }
 
     UA_SequenceHeader seqHeader;
     seqHeader.sequenceNumber = ++client->channel.sequenceNumber;
@@ -488,7 +490,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.authenticationToken = client->authenticationToken;
 
     UA_SecureConversationMessageHeader msgHeader;
-    msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
+    msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_CLO + UA_CHUNKTYPE_FINAL;
     msgHeader.secureChannelId = client->channel.securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symHeader;
@@ -510,7 +512,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], &message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],NULL,NULL, &message, &offset);
 
     msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;

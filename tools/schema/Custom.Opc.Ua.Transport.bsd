@@ -11,18 +11,26 @@
 
 <!-- Transport types begin  -->
 
-  <opc:EnumeratedType Name="MessageTypeAndFinal" LengthInBits="32">
-    <opc:Documentation>Message Type and whether the message contains the final chunk</opc:Documentation>
-    <opc:EnumeratedValue Name="ACKF" Value="1179337537" />
-    <opc:EnumeratedValue Name="CLOF" Value="1179601987" />
-    <opc:EnumeratedValue Name="HELF" Value="1179403592" />
-    <opc:EnumeratedValue Name="MSGF" Value="1179079501" />
-    <opc:EnumeratedValue Name="OPNF" Value="1179537487" />
+  <opc:EnumeratedType Name="MessageType" LengthInBits="32">
+    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:EnumeratedValue Name="ACK" Value="0x4B4341" />
+    <opc:EnumeratedValue Name="HEL" Value="0x4C4548" />
+    <opc:EnumeratedValue Name="MSG" Value="0x47534D" />
+    <opc:EnumeratedValue Name="OPN" Value="0x4E504F" />
+    <opc:EnumeratedValue Name="CLO" Value="0x4F4C43" />
+  </opc:EnumeratedType>
+  
+  <opc:EnumeratedType Name="ChunkType" LengthInBits="32">
+    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:EnumeratedValue Name="FINAL" Value="0x46000000" />
+    <opc:EnumeratedValue Name="INTERMEDIATE" Value="0x43000000" />
+    <opc:EnumeratedValue Name="ABORT" Value="0x41000000" />
+
   </opc:EnumeratedType>
 
    <opc:StructuredType Name="TcpMessageHeader">
     <opc:Documentation>TCP Header</opc:Documentation>
-    <opc:Field Name="MessageTypeAndFinal" TypeName="opc:UInt32" />
+    <opc:Field Name="MessageTypeAndChunkType" TypeName="opc:UInt32" />
     <opc:Field Name="MessageSize" TypeName="opc:UInt32" />
   </opc:StructuredType>
   
