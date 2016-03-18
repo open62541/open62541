@@ -139,5 +139,9 @@ int main(int argc, char** argv) {
     UA_Variant_deleteMembers(&myArrayVar.value);
     UA_Array_delete(intArray,arraySize,&UA_TYPES[UA_TYPES_INT32]);
 
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_Server_delete(server);
+    nl.deleteMembers(&nl);
+
+    return (int)retval;
 }
