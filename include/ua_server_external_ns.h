@@ -93,4 +93,47 @@ UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, cons
 }
 #endif
 
+
+/** Delete an editable node. */
+void UA_NodeStore_deleteNode(UA_Node *node);
+
+/**
+ * Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
+ * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
+ * deleted.
+ */
+typedef UA_StatusCode (*UA_NodestoreInterface_insert)(void *handle, UA_Node *node);
+/**
+ * To replace, get an editable copy, edit and use this function. If the node was
+ * already replaced since the copy was made, UA_STATUSCODE_BADINTERNALERROR is
+ * returned. If the nodeid is not found, UA_STATUSCODE_BADNODEIDUNKNOWN is
+ * returned. In both error cases, the editable node is deleted.
+ */
+typedef UA_StatusCode (*UA_NodestoreInterface_replace)(void *handle, UA_Node *node);
+/** Remove a node in the nodestore. */
+typedef UA_StatusCode (*UA_NodestoreInterface_remove)(void *handle, const UA_NodeId *nodeid);
+/**
+ * The returned pointer is only valid as long as the node has not been replaced
+ * or removed (in the same thread).
+ */
+typedef const UA_Node * (*UA_NodestoreInterface_get)(void *handle, const UA_NodeId *nodeid);
+/** Returns the copy of a node. */
+typedef UA_Node * (*UA_NodestoreInterface_getCopy)(void *handle, const UA_NodeId *nodeid);
+/**
+ * A function that can be evaluated on all entries in a nodestore via
+ * UA_NodeStore_iterate. Note that the visitor is read-only on the nodes.
+ */
+typedef void (*UA_NodestoreInterface_nodeVisitor)(const UA_Node *node);
+
+/** Iterate over all nodes in a nodestore. */
+typedef void (*UA_NodestoreInterface_iterate)(void *handle, UA_NodeStore_nodeVisitor visitor);
+
+typedef struct UA_Nodestore {
+    void * handle;
+    UA_NodestoreInterface_insert insert;
+    UA_NodestoreInterface_replace replace;
+    UA_NodestoreInterface_remove remove;
+    UA_NodestoreInterface_get get;
+    UA_NodestoreInterface_getCopy getCopy;
+}UA_Nodestore;
 #endif /* UA_SERVER_EXTERNAL_NS_H_ */
