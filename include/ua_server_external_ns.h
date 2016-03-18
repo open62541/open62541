@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "../src/server/ua_nodestore.h"
+#include "ua_nodestore.h"
 /**
  * An external application that manages its own data and data model. To plug in
  * outside data sources, one can use
@@ -89,11 +89,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore);
 
-#ifdef __cplusplus
-}
-#endif
-
-
 /** Delete an editable node. */
 void UA_NodeStore_deleteNode(UA_Node *node);
 
@@ -140,5 +135,9 @@ typedef struct UA_NodestoreInterface {
 UA_StatusCode UA_EXPORT
 UA_Server_NodestoreInterface_add(UA_Server *server, UA_String *url,
         UA_NodestoreInterface *nodeStore);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* UA_SERVER_EXTERNAL_NS_H_ */

@@ -13,7 +13,7 @@ struct UA_NodeStore;
 typedef struct UA_NodeStore UA_NodeStore;
 
 /** Create a new nodestore */
-UA_NodeStore * UA_NodeStore_new(void);
+UA_NodeStore * UA_NodeStore_new(UA_Server* server);
 
 /** Delete the nodestore and all nodes in it. Do not call from a read-side
     critical section (multithreading). */
@@ -55,7 +55,9 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
  * The returned pointer is only valid as long as the node has not been replaced
  * or removed (in the same thread).
  */
+const UA_Node * UA_NodeStore_get_internal(UA_NodeStore * ns, const UA_NodeId * nodeid);
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid);
+
 
 /** Returns the copy of a node. */
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid);

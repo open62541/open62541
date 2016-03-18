@@ -222,10 +222,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
-	UA_UInt16 nsIndex = id->nodeId.namespaceIndex;
-	void* nsHandle = server->nodestores[nsIndex].handle;
-	UA_Node const *node = server->nodestores[nsIndex].get(nsHandle,&id->nodeId);
-   // UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
+	UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
     if(!node) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;

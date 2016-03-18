@@ -433,7 +433,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         return NULL;
 
     server->config = config;
-    server->nodestore = UA_NodeStore_new();
+    server->nodestore = UA_NodeStore_new(server);
     LIST_INIT(&server->repeatedJobs);
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -447,9 +447,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     /* ns0 and ns1 */
     UA_NodestoreInterface nsInterface;
-    nsInterface.handle = UA_NodeStore_new();
+    nsInterface.handle = server->nodestore;
     //register nodestore access function
-    nsInterface.get = (UA_NodestoreInterface_get)UA_NodeStore_get;
+    nsInterface.get = (UA_NodestoreInterface_get)UA_NodeStore_get_internal;
     nsInterface.insert = (UA_NodestoreInterface_insert)UA_NodeStore_insert;
     //for testing purpose
     server->nodestore = (UA_NodeStore*)nsInterface.handle;

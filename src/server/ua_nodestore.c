@@ -1,6 +1,7 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 #include "ua_statuscodes.h"
+#include "ua_server_internal.h"
 #include <stdio.h>
 
 #define UA_NODESTORE_MINSIZE 64
@@ -15,6 +16,7 @@ struct UA_NodeStore {
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
+	UA_Server* server;
 };
 
 #include "ua_nodestore_hash.inc"
@@ -160,10 +162,11 @@ static UA_StatusCode expand(UA_NodeStore *ns) {
 /* Exported functions */
 /**********************/
 
-UA_NodeStore * UA_NodeStore_new(void) {
+UA_NodeStore * UA_NodeStore_new(UA_Server* server) {
     UA_NodeStore *ns;
     if(!(ns = UA_malloc(sizeof(UA_NodeStore))))
         return NULL;
+	ns->server = server;
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
@@ -249,10 +252,14 @@ UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 }
 
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    UA_NodeStoreEntry **entry;
-    if(!containsNodeId(ns, nodeid, &entry))
-        return NULL;
-    return (const UA_Node*)&(*entry)->node;
+	void* nsHandle = ns->server->nodestores[nodeid->namespaceIndex].handle;
+	return ns->server->nodestores[nodeid->namespaceIndex].get(nsHandle, nodeid);
+}
+const UA_Node * UA_NodeStore_get_internal(UA_NodeStore *ns, const UA_NodeId *nodeid) {
+	UA_NodeStoreEntry **entry;
+	if (!containsNodeId(ns, nodeid, &entry))
+	return NULL;
+	return (const UA_Node*)&(*entry)->node;
 }
 
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
