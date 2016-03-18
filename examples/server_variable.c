@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
     config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+
     UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */

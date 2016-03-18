@@ -49,6 +49,8 @@ struct UA_Server {
     /* Address Space */
     UA_NodeStore *nodestore;
 
+    size_t nodestoresSize;
+    UA_NodestoreInterface *nodestores;
     size_t namespacesSize;
     UA_String *namespaces;
 

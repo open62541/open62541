@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "../src/server/ua_nodestore.h"
 /**
  * An external application that manages its own data and data model. To plug in
  * outside data sources, one can use
@@ -128,12 +128,17 @@ typedef void (*UA_NodestoreInterface_nodeVisitor)(const UA_Node *node);
 /** Iterate over all nodes in a nodestore. */
 typedef void (*UA_NodestoreInterface_iterate)(void *handle, UA_NodeStore_nodeVisitor visitor);
 
-typedef struct UA_Nodestore {
+typedef struct UA_NodestoreInterface {
     void * handle;
     UA_NodestoreInterface_insert insert;
     UA_NodestoreInterface_replace replace;
     UA_NodestoreInterface_remove remove;
     UA_NodestoreInterface_get get;
     UA_NodestoreInterface_getCopy getCopy;
-}UA_Nodestore;
+}UA_NodestoreInterface;
+
+UA_StatusCode UA_EXPORT
+UA_Server_NodestoreInterface_add(UA_Server *server, UA_String *url,
+        UA_NodestoreInterface *nodeStore);
+
 #endif /* UA_SERVER_EXTERNAL_NS_H_ */

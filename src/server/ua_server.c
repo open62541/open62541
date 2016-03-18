@@ -141,7 +141,20 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 	UA_String nameString = UA_STRING_ALLOC(name);
 	return addNamespaceInternal(server, &nameString);
 }
-
+UA_StatusCode UA_EXPORT
+UA_Server_NodestoreInterface_add(UA_Server *server, UA_String *url,
+        UA_NodestoreInterface *nodeStore){
+    if(nodeStore==NULL){
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    }
+    UA_UInt32 size = server->nodestoresSize;
+        server->nodestores =
+            UA_realloc(server->nodestores, sizeof(UA_NodestoreInterface) * (size + 1));
+        server->nodestores[size] = *nodeStore;
+        server->nodestoresSize++;
+        addNamespaceInternal(server, url);
+    return UA_STATUSCODE_GOOD;
+}
 UA_StatusCode
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
     UA_RCU_LOCK();
@@ -433,10 +446,24 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     //UA_random_seed(UA_DateTime_now());
 
     /* ns0 and ns1 */
-    server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
-    server->namespacesSize = 2;
+    UA_NodestoreInterface nsInterface;
+    nsInterface.handle = UA_NodeStore_new();
+    //register nodestore access function
+    nsInterface.get = (UA_NodestoreInterface_get)UA_NodeStore_get;
+    nsInterface.insert = (UA_NodestoreInterface_insert)UA_NodeStore_insert;
+    //for testing purpose
+    server->nodestore = (UA_NodeStore*)nsInterface.handle;
+
+    UA_String ns0Url = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    //add ns0 and ns1 using the same inbuilt nodestore
+    UA_Server_NodestoreInterface_add(server, &ns0Url,&nsInterface);
+    UA_Server_NodestoreInterface_add(server, &server->config.applicationDescription.applicationUri,&nsInterface);
+    UA_String_deleteMembers(&ns0Url);
+
+    //server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    //server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    //UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    //server->namespacesSize = 2;
 
     server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
                                                 &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
