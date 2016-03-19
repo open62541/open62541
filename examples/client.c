@@ -14,19 +14,54 @@
 
 #include <stdio.h>
 
-static void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
     return;
 }
 
+static UA_StatusCode
+nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
+  UA_NodeId *parent = (UA_NodeId *) handle;
+  
+  if (!isInverse) {
+    printf("%d, %d --- %d ---> NodeId %d, %d\n", parent->namespaceIndex, parent->identifier.numeric, referenceTypeId.identifier.numeric, childId.namespaceIndex, childId.identifier.numeric);
+  }
+  return UA_STATUSCODE_GOOD;
+}
+
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
-                                             "opc.tcp://localhost:16664");
+
+    //listing endpoints
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_StatusCode retval =
+        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664",
+                               &endpointArraySize, &endpointArray);
+
+    //freeing the endpointArray
+    if(retval != UA_STATUSCODE_GOOD) {
+        //cleanup array
+        UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Client_delete(client);
+        return (int)retval;
+    }
+
+    printf("%i endpoints found\n", (int)endpointArraySize);
+    for(size_t i=0;i<endpointArraySize;i++){
+        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
+    }
+
+    //cleanup array of enpoints
+    UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    //connect to a server
+    //anonymous connect would be: retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
+    retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664", "user1", "password");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return (int)retval;
     }
     // Browse some objects
     printf("Browsing nodes in objects folder:\n");
@@ -61,16 +96,22 @@ int main(int argc, char *argv[]) {
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
     
+    // Same thing, this time using the node iterator...
+    UA_NodeId *parent = UA_NodeId_new();
+    *parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) parent);
+    UA_NodeId_delete(parent);
+    
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
-    UA_UInt32 subId;
+    UA_UInt32 subId=0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
     // .. and monitor TheAnswer
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId;
+    UA_UInt32 monId=0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
                                              UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
     if (monId)
@@ -88,7 +129,7 @@ int main(int argc, char *argv[]) {
     printf("\nReading the value of node (1, \"the.answer\"):\n");
     UA_ReadRequest rReq;
     UA_ReadRequest_init(&rReq);
-    rReq.nodesToRead = UA_ReadValueId_new();
+    rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     rReq.nodesToReadSize = 1;
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
@@ -114,7 +155,7 @@ int main(int argc, char *argv[]) {
     wReq.nodesToWriteSize = 1;
     wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
     wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    wReq.nodesToWrite[0].value.hasValue = UA_TRUE;
+    wReq.nodesToWrite[0].value.hasValue = true;
     wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
     wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
     wReq.nodesToWrite[0].value.value.data = &value;
@@ -125,6 +166,13 @@ int main(int argc, char *argv[]) {
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
 
+    // Alternate Form, this time using the hl API
+    value++;
+    UA_Variant *myVariant = UA_Variant_new();
+    UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Client_writeValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), myVariant);
+    UA_Variant_delete(myVariant);
+    
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Take another look at the.answer... this should call the handler.
     UA_Client_Subscriptions_manuallySendPublishRequest(client);
@@ -143,12 +191,12 @@ int main(int argc, char *argv[]) {
     UA_Variant_init(&input);
     UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
     
-    UA_Int32 outputSize;
+    size_t outputSize;
     UA_Variant *output;
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        printf("Method call was successfull, and %zu returned values available.\n", outputSize);
         UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
@@ -228,6 +276,6 @@ int main(int argc, char *argv[]) {
 #endif
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    return (int) UA_STATUSCODE_GOOD;
 }
 

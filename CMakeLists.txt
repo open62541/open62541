@@ -8,16 +8,10 @@ project(open62541 C)
 
 # Find Python and Python-lxml
 find_package(PythonInterp REQUIRED)
-execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())"
-                OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-  execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib(True))"
-                  OUTPUT_VARIABLE PYTHON_SITE_PACKAGES
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-    if(NOT EXISTS "${PYTHON_SITE_PACKAGES}/lxml")
-        message(FATAL_ERROR "Python-lxml is not installed.")
-    endif()
+execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import lxml"
+                RESULT_VARIABLE IMPORT_LXML_RESULT)
+if(NOT "${IMPORT_LXML_RESULT}" STREQUAL "0")
+    message(FATAL_ERROR "Python-lxml is not installed.")
 endif()
 
 # Check for git
@@ -58,14 +52,14 @@ list(APPEND open62541_LIBRARIES "")
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes #-Wshadow #-Wconversion
+                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
+                    -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
                     -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
 
   # library linking
   set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
   if(NOT WIN32 AND NOT CYGWIN)
-	add_definitions(-fvisibility=hidden -fPIC)
+	add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     if(NOT APPLE)
       set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()
@@ -131,7 +125,6 @@ option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType str
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
 option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
-mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
@@ -179,11 +172,12 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
-                     ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
-set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
-                     ${PROJECT_SOURCE_DIR}/deps/queue.h
+                     ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.h
+                     ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.h)
+set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
+                     ${PROJECT_SOURCE_DIR}/deps/libc_time.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -218,8 +212,9 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
-                ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.c
+                ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
 
@@ -353,15 +348,15 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
 
 # build shared library
 if(UA_ENABLE_AMALGAMATION)
-    add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     include_directories(${PROJECT_BINARY_DIR})
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
-    include_directories(${PROJECT_SOURCE_DIR}/deps)
     include_directories(${PROJECT_SOURCE_DIR}/src)
+    include_directories(${PROJECT_SOURCE_DIR}/src_extra)
+    include_directories(${PROJECT_SOURCE_DIR}/deps)
 endif()
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
 add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
@@ -378,9 +373,6 @@ if(UA_BUILD_EXAMPLESERVER)
     set(server_source $<TARGET_OBJECTS:open62541-object>)
     add_executable(server_static examples/server.c ${server_source})
     add_executable(server examples/server.c)
-    if(UA_ENABLE_AMALGAMATION)
-       ADD_DEPENDENCIES(server amalgamation)
-    endif()
     target_link_libraries(server ${open62541_LIBRARIES} open62541)
     target_link_libraries(server_static ${open62541_LIBRARIES})
     if(WIN32)
@@ -423,10 +415,6 @@ if(UA_BUILD_EXAMPLECLIENT)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
 	add_executable(client_static examples/client.c ${client_source})
     add_executable(client examples/client.c)
-	if(UA_ENABLE_AMALGAMATION)
-	   ADD_DEPENDENCIES(client_static amalgamation)
-	   ADD_DEPENDENCIES(client amalgamation)
-	endif()
 	target_link_libraries(client_static ${open62541_LIBRARIES})
 	target_link_libraries(client open62541 ${open62541_LIBRARIES})
     if(WIN32)
@@ -475,6 +463,9 @@ if(UA_BUILD_EXAMPLES)
 	
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_variable ${LIBS})
+
+    add_executable(server_mainloop ${PROJECT_SOURCE_DIR}/examples/server_mainloop.c $<TARGET_OBJECTS:open62541-object>)
+	target_link_libraries(server_mainloop ${LIBS})
 
 	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 	target_link_libraries(server_datasource ${LIBS})

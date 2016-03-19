@@ -36,12 +36,11 @@ With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server
 #include <signal.h>
 #include "open62541.h"
 
-#define WORKER_THREADS 2 /* if multithreading is enabled */
 #define PORT 16664
 
-UA_Boolean running = UA_TRUE;
-void signalHandler(int sign) {
-    running = UA_FALSE;
+UA_Boolean running = true;
+void signalHandler(int sig) {
+    running = false;
 }
 
 int main(int argc, char** argv)
@@ -50,18 +49,20 @@ int main(int argc, char** argv)
     signal(SIGINT, signalHandler);
 
     /* init the server */
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, Logger_Stdout_new());
-    UA_Server_addNetworkLayer(server,
-        ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, PORT));
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node */
-    /* 1) set the variable attributes */
+    /* 1) set the variable attributes (no memory allocations here) */
     UA_Int32 myInteger = 42;
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
-    UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
 
     /* 2) define where the variable shall be added with which browsename */
     UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
@@ -71,14 +72,13 @@ int main(int argc, char** argv)
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 
     /* 3) add the variable */
-    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
-                              parentReferenceNodeId, browseName,
-                              variableType, attr, NULL);
-    UA_VariableAttributes_deleteMembers(&attr);
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
+                              browseName, variableType, attr, NULL);
 
     /* run the server loop */
-    UA_StatusCode retval = UA_Server_run(server, WORKER_THREADS, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
     return retval;
 }
 ```
@@ -91,8 +91,8 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-    UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect,
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
                                              "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     /* create a readrequest with one entry */
     UA_ReadRequest req;
     UA_ReadRequest_init(&req);
-    req.nodesToRead = UA_ReadValueId_new();
+    req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     req.nodesToReadSize = 1;
     
     /* define the node and attribute to be read */

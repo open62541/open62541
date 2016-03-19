@@ -4,6 +4,7 @@
 #include "ua_types_generated.h"
 
 #include "pcg_basic.h"
+#include "libc_time.h"
 
 /* static variables */
 UA_EXPORT const UA_String UA_STRING_NULL = {.length = 0, .data = NULL };
@@ -20,7 +21,7 @@ UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
 static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, UA_DateTime_now());
+    pcg32_srandom_r(&UA_rng, seed, (uint64_t)UA_DateTime_now());
 }
 
 /*****************/
@@ -47,9 +48,9 @@ UA_String UA_String_fromChars(char const src[]) {
 
 UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
     if(string1->length != string2->length)
-        return UA_FALSE;
+        return false;
     UA_Int32 is = memcmp((char const*)string1->data, (char const*)string2->data, string1->length);
-    return (is == 0) ? UA_TRUE : UA_FALSE;
+    return (is == 0) ? true : false;
 }
 
 /* DateTime */
@@ -79,23 +80,36 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     UA_Double ticks2dt = UA_SEC_TO_DATETIME;
     ticks2dt /= freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
+#elif defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
+    clock_serv_t cclock;
+    mach_timespec_t mts;
+    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
+    clock_get_time(cclock, &mts);
+    mach_port_deallocate(mach_task_self(), cclock);
+    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
 #else
     struct timespec ts;
+#ifdef __CYGWIN__    
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+#endif
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
 #endif
 }
 
-UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
+UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
-    dateTimeStruct.nanoSec  = (UA_UInt16)((atime % 10) * 100);
-    dateTimeStruct.microSec = (UA_UInt16)((atime % 10000) / 10);
-    dateTimeStruct.milliSec = (UA_UInt16)((atime % 10000000) / 10000);
+    dateTimeStruct.nanoSec  = (UA_UInt16)((t % 10) * 100);
+    dateTimeStruct.microSec = (UA_UInt16)((t % 10000) / 10);
+    dateTimeStruct.milliSec = (UA_UInt16)((t % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch = (atime - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME;
-    struct tm ts = *gmtime(&secSinceUnixEpoch);
+    time_t secSinceUnixEpoch = (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
+    struct tm ts;
+    memset(&ts, 0, sizeof(struct tm));
+    __secs_to_tm(secSinceUnixEpoch, &ts);
     dateTimeStruct.sec    = (UA_UInt16)ts.tm_sec;
     dateTimeStruct.min    = (UA_UInt16)ts.tm_min;
     dateTimeStruct.hour   = (UA_UInt16)ts.tm_hour;
@@ -107,18 +121,18 @@ UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime atime) {
 
 static void printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
     for(size_t i = digits; i > 0; i--) {
-        pos[i-1] = (n % 10) + '0';
+        pos[i-1] = (UA_Byte)((n % 10) + '0');
         n = n / 10;
     }
 }
 
-UA_String UA_DateTime_toString(UA_DateTime time) {
+UA_String UA_DateTime_toString(UA_DateTime t) {
     UA_String str = UA_STRING_NULL;
     // length of the string is 31 (plus \0 at the end)
     if(!(str.data = UA_malloc(32)))
         return str;
     str.length = 31;
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(time);
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
     printNumber(tSt.month, str.data, 2);
     str.data[2] = '/';
     printNumber(tSt.day, &str.data[3], 2);
@@ -142,8 +156,8 @@ UA_String UA_DateTime_toString(UA_DateTime time) {
 /* Guid */
 UA_Boolean UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
-        return UA_TRUE;
-    return UA_FALSE;
+        return true;
+    return false;
 }
 
 UA_Guid UA_Guid_random(void) {
@@ -212,13 +226,13 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
 
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
 	if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
-        return UA_FALSE;
+        return false;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(n1->identifier.numeric == n2->identifier.numeric)
-            return UA_TRUE;
+            return true;
         else
-            return UA_FALSE;
+            return false;
     case UA_NODEIDTYPE_STRING:
         return UA_String_equal(&n1->identifier.string, &n2->identifier.string);
     case UA_NODEIDTYPE_GUID:
@@ -226,7 +240,7 @@ UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     case UA_NODEIDTYPE_BYTESTRING:
         return UA_ByteString_equal(&n1->identifier.byteString, &n2->identifier.byteString);
     }
-    return UA_FALSE;
+    return false;
 }
 
 /* ExpandedNodeId */
@@ -345,9 +359,13 @@ static UA_StatusCode
 processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t *total,
                        size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
-    UA_UInt32 dims_count = 1;
+    size_t dims_count = 1;
     UA_UInt32 elements = 1;
-    UA_UInt32 arrayLength = v->arrayLength;
+#if(MAX_SIZE > 0xffffffff) /* 64bit only */
+    if(v->arrayLength > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#endif
+    UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
@@ -373,10 +391,10 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     /* Compute the stride length and the position of the first element */
     size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1;
-    UA_Boolean found_contiguous = UA_FALSE;
+    UA_Boolean found_contiguous = false;
     for(size_t k = dims_count - 1; ; k--) {
         if(!found_contiguous && (range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != dims[k])) {
-            found_contiguous = UA_TRUE;
+            found_contiguous = true;
             b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             s = dims[k] * running_dimssize;
         } 
@@ -584,7 +602,7 @@ static void DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType
         DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, NULL);
         UA_free(p->innerDiagnosticInfo);
         p->innerDiagnosticInfo = NULL;
-        p->hasInnerDiagnosticInfo = UA_FALSE;
+        p->hasInnerDiagnosticInfo = false;
     }
 }
 
@@ -599,9 +617,9 @@ DiagnosticInfo_copy(UA_DiagnosticInfo const *src, UA_DiagnosticInfo *dst, const 
     if(src->hasInnerDiagnosticInfo && src->innerDiagnosticInfo) {
         if((dst->innerDiagnosticInfo = UA_malloc(sizeof(UA_DiagnosticInfo)))) {
             retval |= DiagnosticInfo_copy(src->innerDiagnosticInfo, dst->innerDiagnosticInfo, NULL);
-            dst->hasInnerDiagnosticInfo = UA_TRUE;
+            dst->hasInnerDiagnosticInfo = true;
         } else {
-            dst->hasInnerDiagnosticInfo = UA_FALSE;
+            dst->hasInnerDiagnosticInfo = false;
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }

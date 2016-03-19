@@ -59,7 +59,17 @@ class opcua_value_t():
                        'qualifiedname', 'expandednodeid', 'xmlelement']
     self.dataType = None
     self.encodingRule = []
-
+  
+  def getValueFieldByAlias(self, fieldname):
+    if not isinstance(self.value, list):
+      return None
+    if not isinstance(self.value[0], opcua_value_t):
+      return None
+    for val in self.value:
+      if val.alias() == fieldname:
+	return val.value
+    return None
+    
   def setEncodingRule(self, encoding):
     self.encodingRule = encoding
 
@@ -363,7 +373,7 @@ class opcua_value_t():
         else:
           for v in self.value:
             code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
-        code.append("UA_Variant_setArrayCopy( &attr.value, &" + valueName +
+        code.append("UA_Variant_setArray( &attr.value, &" + valueName +
                     ", (UA_Int32) " + str(len(self.value)) + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
     else:
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
@@ -382,12 +392,12 @@ class opcua_value_t():
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
-          code.append("UA_Variant_setScalarCopy( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+          code.append("UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           #FIXME: There is no membership definition for extensionObjects generated in this function.
           code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
         else:
           code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
-          code.append("UA_Variant_setScalarCopy( &attr.value, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+          code.append("UA_Variant_setScalar( &attr.value, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
     return code
 
@@ -830,12 +840,12 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
     # Catch XML <Boolean /> by setting the value to a default
     if xmlvalue.firstChild == None:
       log(self, "No value is given. Setting to default 0")
-      self.value = "UA_FALSE"
+      self.value = "false"
     else:
       if "false" in unicode(xmlvalue.firstChild.data).lower():
-        self.value = "UA_FALSE"
+        self.value = "false"
       else:
-        self.value = "UA_TRUE"
+        self.value = "true"
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)

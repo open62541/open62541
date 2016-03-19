@@ -1,11 +1,6 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
-#if defined(__APPLE__) || defined(__MACH__)
-#include <mach/clock.h>
-#include <mach/mach.h>
-#endif
-
 /**
  * There are four types of job execution:
  *
@@ -39,16 +34,13 @@
  * 
  */
 
-#define MAXTIMEOUT 50000 // max timeout in microsec until the next main loop iteration
+#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
-/**
- * server:		UA server context
- * jobs: 		pointer to array of jobs or NULL if jobsSize == -1
- * jobsSize: 	nr. of valid jobs or -1
-*/
-static void processJobs(UA_Server *server, UA_Job *jobs, UA_Int32 jobsSize) {
-    for (UA_Int32 i = 0; i < jobsSize; i++) {
+static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
+    UA_ASSERT_RCU_UNLOCKED();
+    UA_RCU_LOCK();
+    for(size_t i = 0; i < jobsSize; i++) {
         UA_Job *job = &jobs[i];
         switch(job->type) {
         case UA_JOBTYPE_NOTHING:
@@ -72,10 +64,12 @@ static void processJobs(UA_Server *server, UA_Job *jobs, UA_Int32 jobsSize) {
             job->job.methodCall.method(server, job->job.methodCall.data);
             break;
         default:
-            UA_LOG_WARNING(server->logger, UA_LOGCATEGORY_SERVER, "Trying to execute a job of unknown type");
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Trying to execute a job of unknown type");
             break;
         }
     }
+    UA_RCU_UNLOCK();
 }
 
 /*******************************/
@@ -96,8 +90,44 @@ struct DispatchJobsList {
     UA_Job *jobs;
 };
 
-/** Dispatch jobs to workers. Slices the job array up if it contains more than BATCHSIZE items. The jobs
-    array is freed in the worker threads. */
+static void * workerLoop(UA_Worker *worker) {
+    UA_Server *server = worker->server;
+    UA_UInt32 *counter = &worker->counter;
+    volatile UA_Boolean *running = &worker->running;
+    
+    /* Initialize the (thread local) random seed with the ram address of worker */
+    UA_random_seed((uintptr_t)worker);
+   	rcu_register_thread();
+
+    pthread_mutex_t mutex; // required for the condition variable
+    pthread_mutex_init(&mutex,0);
+    pthread_mutex_lock(&mutex);
+
+    while(*running) {
+        struct DispatchJobsList *wln = (struct DispatchJobsList*)
+            cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+        if(!wln) {
+            uatomic_inc(counter);
+            /* sleep until a work arrives (and wakes up all worker threads) */
+            pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
+            continue;
+        }
+        processJobs(server, wln->jobs, wln->jobsSize);
+        UA_free(wln->jobs);
+        UA_free(wln);
+        uatomic_inc(counter);
+    }
+
+    pthread_mutex_unlock(&mutex);
+    pthread_mutex_destroy(&mutex);
+    UA_ASSERT_RCU_UNLOCKED();
+    rcu_barrier(); // wait for all scheduled call_rcu work to complete
+   	rcu_unregister_thread();
+    return NULL;
+}
+
+/** Dispatch jobs to workers. Slices the job array up if it contains more than
+    BATCHSIZE items. The jobs array is freed in the worker threads. */
 static void dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
     size_t startIndex = jobsSize; // start at the end
     while(jobsSize > 0) {
@@ -121,67 +151,8 @@ static void dispatchJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
     }
 }
 
-// throwaway struct to bring data into the worker threads
-struct workerStartData {
-    UA_Server *server;
-    UA_UInt32 **workerCounter;
-};
-
-/** Waits until jobs arrive in the dispatch queue and processes them. */
-static void * workerLoop(struct workerStartData *startInfo) {
-    /* Initialized the (thread local) random seed */
-    UA_random_seed((uintptr_t)startInfo);
-
-   	rcu_register_thread();
-    UA_UInt32 *c = UA_malloc(sizeof(UA_UInt32));
-    uatomic_set(c, 0);
-    *startInfo->workerCounter = c;
-    UA_Server *server = startInfo->server;
-    UA_free(startInfo);
-
-    pthread_mutex_t mutex; // required for the condition variable
-    pthread_mutex_init(&mutex,0);
-    pthread_mutex_lock(&mutex);
-    struct timespec to;
-
-    while(*server->running) {
-        struct DispatchJobsList *wln = (struct DispatchJobsList*)
-            cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
-        if(wln) {
-            UA_RCU_LOCK();
-            processJobs(server, wln->jobs, wln->jobsSize);
-            UA_free(wln->jobs);
-            UA_free(wln);
-            UA_RCU_UNLOCK();
-        } else {
-            /* sleep until a work arrives (and wakes up all worker threads) */
-            #if defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
-              clock_serv_t cclock;
-              mach_timespec_t mts;
-              host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
-              clock_get_time(cclock, &mts);
-              mach_port_deallocate(mach_task_self(), cclock);
-              to.tv_sec = mts.tv_sec;
-              to.tv_nsec = mts.tv_nsec;
-            #else
-              clock_gettime(CLOCK_REALTIME, &to);
-            #endif
-            to.tv_sec += 2;
-            pthread_cond_timedwait(&server->dispatchQueue_condition, &mutex, &to);
-        }
-        uatomic_inc(c); // increase the workerCounter;
-    }
-    pthread_mutex_unlock(&mutex);
-    pthread_mutex_destroy(&mutex);
-
-    rcu_barrier(); // wait for all scheduled call_rcu work to complete
-   	rcu_unregister_thread();
-
-    /* we need to return _something_ for pthreads */
-    return NULL;
-}
-
-static void emptyDispatchQueue(UA_Server *server) {
+static void
+emptyDispatchQueue(UA_Server *server) {
     while(!cds_wfcq_empty(&server->dispatchQueue_head, &server->dispatchQueue_tail)) {
         struct DispatchJobsList *wln = (struct DispatchJobsList*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -281,7 +252,7 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     /* the interval needs to be at least 5ms */
     if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    interval *= 10000; // from ms to 100ns resolution
+    interval *= (UA_UInt32)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
 #ifdef UA_ENABLE_MULTITHREADING
     struct AddRepeatedJob *arw = UA_malloc(sizeof(struct AddRepeatedJob));
@@ -319,11 +290,9 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
     return UA_STATUSCODE_GOOD;
 }
 
-/* Returns the timeout until the next repeated job in ms */
-static UA_UInt16 processRepeatedJobs(UA_Server *server) {
-    UA_DateTime current = UA_DateTime_nowMonotonic();
+/* Returns the next datetime when a repeated job is scheduled */
+static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
     struct RepeatedJobs *tw = NULL;
-
     while((tw = LIST_FIRST(&server->repeatedJobs)) != NULL) {
         if(tw->nextTime > current)
             break;
@@ -332,7 +301,8 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
         // copy the entry and insert at the new location
         UA_Job *jobsCopy = UA_malloc(sizeof(UA_Job) * tw->jobsSize);
         if(!jobsCopy) {
-            UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Not enough memory to dispatch delayed jobs");
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Not enough memory to dispatch delayed jobs");
             break;
         }
         for(size_t i=0;i<tw->jobsSize;i++)
@@ -351,7 +321,7 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
 
         //start iterating the list from the beginning
         struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
-        while(UA_TRUE) {
+        while(true) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)
                 break;
@@ -366,13 +336,10 @@ static UA_UInt16 processRepeatedJobs(UA_Server *server) {
     // check if the next repeated job is sooner than the usual timeout
     // calc in 32 bit must be ok
     struct RepeatedJobs *first = LIST_FIRST(&server->repeatedJobs);
-    UA_UInt32 timeout = MAXTIMEOUT;
-    if(first) {
-        timeout = (UA_UInt32)((first->nextTime - current) / 10);
-        if(timeout > MAXTIMEOUT)
-            return MAXTIMEOUT;
-    }
-    return timeout;
+    UA_DateTime next = current + (MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    if(first && first->nextTime < next)
+        next = first->nextTime;
+    return next;
 }
 
 /* Call this function only from the main loop! */
@@ -442,9 +409,9 @@ struct DelayedJobs {
 
 /* Dispatched as an ordinary job when the DelayedJobs list is full */
 static void getCounters(UA_Server *server, struct DelayedJobs *delayed) {
-    UA_UInt32 *counters = UA_malloc(server->nThreads * sizeof(UA_UInt32));
-    for(UA_UInt16 i = 0;i<server->nThreads;i++)
-        counters[i] = *server->workerCounters[i];
+    UA_UInt32 *counters = UA_malloc(server->config.nThreads * sizeof(UA_UInt32));
+    for(UA_UInt16 i = 0; i < server->config.nThreads; i++)
+        counters[i] = server->workers[i].counter;
     delayed->workerCounters = counters;
 }
 
@@ -457,7 +424,8 @@ static void addDelayedJob(UA_Server *server, UA_Job *job) {
         /* create a new DelayedJobs and add it to the linked list */
         dj = UA_malloc(sizeof(struct DelayedJobs));
         if(!dj) {
-            UA_LOG_ERROR(server->logger, UA_LOGCATEGORY_SERVER, "Not enough memory to add a delayed job");
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Not enough memory to add a delayed job");
             return;
         }
         dj->jobsCount = 0;
@@ -482,20 +450,42 @@ static void addDelayedJobAsync(UA_Server *server, UA_Job *job) {
     UA_free(job);
 }
 
-UA_StatusCode UA_Server_addDelayedJob(UA_Server *server, UA_Job job) {
+static void server_free(UA_Server *server, void *data) {
+    UA_free(data);
+}
+
+UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data) {
     UA_Job *j = UA_malloc(sizeof(UA_Job));
     if(!j)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    *j = job;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = server_free;
     struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
     mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
-                         {.data = j, .method = (void (*)(UA_Server*, void*))addDelayedJobAsync}};
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
+    cds_lfs_push(&server->mainLoopJobs, &mlw->node);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
+    UA_Job *j = UA_malloc(sizeof(UA_Job));
+    if(!j)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    j->type = UA_JOBTYPE_METHODCALL;
+    j->job.methodCall.data = data;
+    j->job.methodCall.method = callback;
+    struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
+    mlw->job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL, .job.methodCall =
+                         {.data = j, .method = (UA_ServerCallback)addDelayedJobAsync}};
     cds_lfs_push(&server->mainLoopJobs, &mlw->node);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Find out which delayed jobs can be executed now */
-static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but needed for the signature*/) {
+static void
+dispatchDelayedJobs(UA_Server *server, void *_) {
     /* start at the second */
     struct DelayedJobs *dw = server->delayedJobs, *beforedw = dw;
     if(dw)
@@ -508,10 +498,10 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
             dw = dw->next;
             continue;
         }
-        UA_Boolean allMoved = UA_TRUE;
-        for(UA_UInt16 i=0;i<server->nThreads;i++) {
-            if(dw->workerCounters[i] == *server->workerCounters[i]) {
-                allMoved = UA_FALSE;
+        UA_Boolean allMoved = true;
+        for(size_t i = 0; i < server->config.nThreads; i++) {
+            if(dw->workerCounters[i] == server->workers[i].counter) {
+                allMoved = false;
                 break;
             }
         }
@@ -521,6 +511,12 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         dw = dw->next;
     }
 
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wextra"
+#pragma GCC diagnostic ignored "-Wcast-qual"
+#pragma GCC diagnostic ignored "-Wunused-value"
+#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         processJobs(server, dw->jobs, dw->jobsCount);
@@ -529,6 +525,10 @@ static void dispatchDelayedJobs(UA_Server *server, void *data /* not used, but n
         UA_free(dw->workerCounters);
         dw = next;
     }
+#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
+#pragma GCC diagnostic pop
+#endif
+
 }
 
 #endif
@@ -554,70 +554,77 @@ static void processMainLoopJobs(UA_Server *server) {
 }
 #endif
 
-UA_StatusCode UA_Server_run_startup(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
-UA_StatusCode result = UA_STATUSCODE_GOOD;
-
+UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Prepare the worker threads */
-    server->running = running; // the threads need to access the variable
-    server->nThreads = nThreads;
+    /* Spin up the worker threads */
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
-    server->thr = UA_malloc(nThreads * sizeof(pthread_t));
-    server->workerCounters = UA_malloc(nThreads * sizeof(UA_UInt32 *));
-    for(UA_UInt32 i=0;i<nThreads;i++) {
-        struct workerStartData *startData = UA_malloc(sizeof(struct workerStartData));
-        startData->server = server;
-        startData->workerCounter = &server->workerCounters[i];
-        pthread_create(&server->thr[i], NULL, (void* (*)(void*))workerLoop, startData);
+    server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
+    if(!server->workers)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < server->config.nThreads; i++) {
+        UA_Worker *worker = &server->workers[i];
+        worker->server = server;
+        worker->counter = 0;
+        worker->running = true;
+        pthread_create(&worker->thr, NULL, (void* (*)(void*))workerLoop, worker);
     }
 
-    /* try to execute the delayed callbacks every 10 sec */
+    /* Try to execute delayed callbacks every 10 sec */
     UA_Job processDelayed = {.type = UA_JOBTYPE_METHODCALL,
                              .job.methodCall = {.method = dispatchDelayedJobs, .data = NULL} };
     UA_Server_addRepeatedJob(server, processDelayed, 10000, NULL);
 #endif
 
     /* Start the networklayers */
-    for(size_t i = 0; i < server->networkLayersSize; i++)
-        result |= server->networkLayers[i]->start(server->networkLayers[i], server->logger);
+    UA_StatusCode result = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        result |= nl->start(nl, server->config.logger);
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            UA_String_copy(&nl->discoveryUrl, &server->endpointDescriptions[j].endpointUrl);
+        }
+    }
 
     return result;
 }
 
-UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
+UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #ifdef UA_ENABLE_MULTITHREADING
-    /* Run Work in the main loop */
+    /* Run work assigned for the main thread */
     processMainLoopJobs(server);
 #endif
     /* Process repeated work */
-    UA_UInt16 timeout = processRepeatedJobs(server);
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated = processRepeatedJobs(server, now);
+
+    UA_UInt16 timeout = 0;
+    if(waitInternal)
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 
     /* Get work from the networklayer */
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        UA_ServerNetworkLayer *nl = server->networkLayers[i];
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_Job *jobs;
-        UA_Int32 jobsSize;
-        if(*running) {
-            if(i == server->networkLayersSize-1)
-                jobsSize = nl->getJobs(nl, &jobs, timeout);
-            else
-                jobsSize = nl->getJobs(nl, &jobs, 0);
-        } else
-            jobsSize = server->networkLayers[i]->stop(nl, &jobs);
+        size_t jobsSize;
+        /* only the last networklayer waits on the tieout */
+        if(i == server->config.networkLayersSize-1)
+            jobsSize = nl->getJobs(nl, &jobs, timeout);
+        else
+            jobsSize = nl->getJobs(nl, &jobs, 0);
 
 #ifdef UA_ENABLE_MULTITHREADING
         /* Filter out delayed work */
-        for(UA_Int32 k=0;k<jobsSize;k++) {
+        for(size_t k = 0; k < jobsSize; k++) {
             if(jobs[k].type != UA_JOBTYPE_METHODCALL_DELAYED)
                 continue;
             addDelayedJob(server, &jobs[k]);
             jobs[k].type = UA_JOBTYPE_NOTHING;
         }
 
-        /* Dispatch work to the worker threads */
         dispatchJobs(server, jobs, jobsSize);
-
-        /* Trigger sleeping worker threads */
+        /* Wake up worker threads */
         if(jobsSize > 0)
             pthread_cond_broadcast(&server->dispatchQueue_condition);
 #else
@@ -626,47 +633,48 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
             UA_free(jobs);
 #endif
     }
-    return UA_STATUSCODE_GOOD;
+
+    now = UA_DateTime_nowMonotonic();
+    timeout = 0;
+    if(nextRepeated > now)
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+    return timeout;
 }
 
-UA_StatusCode UA_Server_run_shutdown(UA_Server *server, UA_UInt16 nThreads){
-    UA_Job *stopJobs;
-    for(size_t i = 0; i < server->networkLayersSize; i++) {
-        size_t stopJobsSize = server->networkLayers[i]->stop(server->networkLayers[i], &stopJobs);
+UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_Job *stopJobs;
+        size_t stopJobsSize = nl->stop(nl, &stopJobs);
         processJobs(server, stopJobs, stopJobsSize);
         UA_free(stopJobs);
     }
+
 #ifdef UA_ENABLE_MULTITHREADING
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Shutting down %u worker thread(s)", server->config.nThreads);
     /* Wait for all worker threads to finish */
-    for(UA_UInt32 i=0;i<nThreads;i++) {
-        pthread_join(server->thr[i], NULL);
-        UA_free(server->workerCounters[i]);
-    }
-    UA_free(server->workerCounters);
-    UA_free(server->thr);
+    for(size_t i = 0; i < server->config.nThreads; i++)
+        server->workers[i].running = false;
+    pthread_cond_broadcast(&server->dispatchQueue_condition);
+    for(size_t i = 0; i < server->config.nThreads; i++)
+        pthread_join(server->workers[i].thr, NULL);
+    UA_free(server->workers);
 
-    /* Manually finish the work still enqueued */
+    /* Manually finish the work still enqueued.
+       This especially contains delayed frees */
     emptyDispatchQueue(server);
-
-    /* Process the remaining delayed work */
-    struct DelayedJobs *dw = server->delayedJobs;
-    while(dw) {
-        processJobs(server, dw->jobs, dw->jobsCount);
-        struct DelayedJobs *next = dw->next;
-        UA_free(dw->workerCounters);
-        UA_free(dw);
-        dw = next;
-    }
+    UA_ASSERT_RCU_UNLOCKED();
+    rcu_barrier(); // wait for all scheduled call_rcu work to complete
 #endif
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_run(UA_Server *server, UA_UInt16 nThreads, UA_Boolean *running) {
-    if(UA_STATUSCODE_GOOD == UA_Server_run_startup(server, nThreads, running)){
-        while(*running) {
-            UA_Server_run_mainloop(server, running);
-        }
-    }
-    UA_Server_run_shutdown(server, nThreads);
-    return UA_STATUSCODE_GOOD;
+UA_StatusCode UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    while(*running)
+        UA_Server_run_iterate(server, true);
+    return UA_Server_run_shutdown(server);
 }

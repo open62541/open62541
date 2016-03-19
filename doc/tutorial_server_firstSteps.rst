@@ -97,32 +97,38 @@ Creating your first server
 Let's build a very rudimentary server. Create a separate folder for your application and copy the necessary source files into an a subfolder named ``include``. Don't forget to also copy the shared library. Then create a new C sourcefile called ``myServer.c``. If you choose to use a shell, the whole process should look like this::
 
    :open62541/build> cd ../../
-   :> mkdir myServerApp
-   :> cd myServerApp
-   :myServerApp> mkdir include
-   :myServerApp> cp ../open62541/include/* ./include
-   :myServerApp> cp ../open62541/examples/*.h ./include
-   :myServerApp> cp ../open62541/build/src_generated/*.h ./include
-   :myServerApp> cp ../open62541/build/*.so .
-   :myServerApp> tree
+   :> mkdir myApp
+   :> cd myApp
+   :myApp> mkdir include
+   :myApp> cp ../open62541/include/* ./include
+   :myApp> cp ../open62541/src_extra/*.h ./include
+   :myApp> cp ../open62541/build/src_generated/*.h ./include
+   :myApp> cp ../open62541/build/*.so .
+   :myApp> tree
    .
-   |-- include
-   |   |-- logger_stdout.h
-   |   |-- networklayer_tcp.h
-   |   |-- networklayer_udp.h
-   |   |-- ua_client.h
-   |   |-- ua_config.h
-   |   |-- ua_config.h.in
-   |   |-- ua_connection.h
-   |   |-- ua_log.h
-   |   |-- ua_nodeids.h
-   |   |-- ua_server.h
-   |   |-- ua_statuscodes.h
-   |   |-- ua_types_generated.h
-   |   `-- ua_types.h
-   |-- libopen62541.so
-   `-- myServer.c
-   :myServerApp> touch myServer.c
+   ├── include
+   │   ├── logger_stdout.h
+   │   ├── networklayer_tcp.h
+   │   ├── networklayer_udp.h
+   │   ├── ua_client.h
+   │   ├── ua_client_highlevel.h
+   │   ├── ua_config.h
+   │   ├── ua_config.h.in
+   │   ├── ua_connection.h
+   │   ├── ua_job.h
+   │   ├── ua_log.h
+   │   ├── ua_nodeids.h
+   │   ├── ua_server_external_ns.h
+   │   ├── ua_server.h
+   │   ├── ua_statuscodes.h
+   │   ├── ua_transport_generated_encoding_binary.h
+   │   ├── ua_transport_generated.h
+   │   ├── ua_types_generated_encoding_binary.h
+   │   ├── ua_types_generated.h
+   │   └── ua_types.h
+   ├── libopen62541.so
+   └── myServer.c
+   :myApp> touch myServer.c
 
 Open myServer.c and write/paste your minimal server application:
 
@@ -136,11 +142,16 @@ Open myServer.c and write/paste your minimal server application:
    # include "networklayer_tcp.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-     running = UA_TRUE;
-     UA_Server_run(server, 1, &running);
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
+     running = true;
+     UA_Server_run(server, &running);
      UA_Server_delete(server);
 
      return 0;
@@ -148,13 +159,13 @@ Open myServer.c and write/paste your minimal server application:
 
 This is all that is needed to start your OPC UA Server. Compile the the server with GCC using the following command::
 
-   :myServerApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
+   :myApp> gcc -Wl,-rpath,`pwd` -I ./include -L ./ ./myServer.c -o myServer  -lopen62541
 
-Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be locates in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
+Some notes: You are using a dynamically linked library (libopen62541.so), which needs to be located in your dynamic linkers search path. Unless you copy libopen62541.so into a common folder like /lib or /usr/lib, the linker will fail to find the library and complain (i.e. not run the application). ``-Wl,-rpath,`pwd``` adds your present working directory to the relative searchpaths of the linker when executing the binary (you can also use ``-Wl,-rpath,.`` if the binary and the library are always in the same directory).
 
 Now execute the server::
 
-   :myServerApp> ./myServer
+   :myApp> ./myServer
 
 You have now compiled and started your first OPC UA Server. Though quite unspectacular and only terminatable with ``CTRL+C`` (SIGTERM) at the moment, you can already launch it and browse around with UA Expert. The Server will be listening on localhost:16664 - go ahead and give it a try.
 
@@ -170,27 +181,26 @@ We will also make a slight change to our server: We want it to exit cleanly when
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
 
-    UA_Boolean running;
-    UA_Logger logger;
-
+    UA_Boolean running = true;
     static void stopHandler(int signal) {
-      running = UA_FALSE;
+        running = false;
     }
-
+    
     int main(void) {
-      signal(SIGINT,  stopHandler);
-      signal(SIGTERM, stopHandler);
-      
-      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-      logger = Logger_Stdout_new();
-      UA_Server_setLogger(server, logger);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
-      UA_Server_run(server, 1, &running);
-      UA_Server_delete(server);
-      
-      printf("Terminated\n");
-      return 0;
+        signal(SIGINT,  stopHandler);
+        signal(SIGTERM, stopHandler);
+    
+        UA_ServerConfig config = UA_ServerConfig_standard;
+        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
+        config.logger = Logger_Stdout;
+        config.networkLayers = &nl;
+        config.networkLayersSize = 1;
+        UA_Server *server = UA_Server_new(config);
+    
+        UA_StatusCode retval = UA_Server_run(server, &running);
+        UA_Server_delete(server);
+        nl.deleteMembers(&nl);
+        return retval;
     }
 
 Note that this file can be found as "examples/server_firstSteps.c" in the repository.
@@ -222,12 +232,12 @@ A detailed list of all configuration options is given in the documentation of op
 
 **Warning:** If you change cmake options, always make sure that you have a clean build directory first (unless you know what you are doing). CMake will *not* reliably detect changes to non-source files, such as source files for scripts and generators. Always run ``make clean`` between builds, and remove the ``CMakeCache.txt`` file from your build directory to make super-double-extra-sure that your build is clean before executing cmake.
 
-**ENABLE_AMALGAMATION**
+**UA_ENABLE_AMALGAMATION**
 
 This one might appear quite mysterious at first... this option will enable a python script (tools/amalgate.py) that will merge all headers of open62541 into a single header and c files into a single c file. Why? The most obvious answer is that you might not want to use a shared library in your project, but compile everything into your own binary. Let's give that a try... get back into the build folder ``make clean`` and then try this::
 
    :open62541/build> make clean
-   :open62541/build> cmake -DENABLE_AMALGAMATION=On ../
+   :open62541/build> cmake -DUA_ENABLE_AMALGAMATION=On ../
    :open62541/build> make
    [  5%] Generating open62541.h
    Starting amalgamating file /open62541/build/open62541.h
@@ -248,13 +258,13 @@ This one might appear quite mysterious at first... this option will enable a pyt
    Linking C shared library libopen62541.so
    :open62541/build> 
 
-Switch back to your MyServerApp directory and recompile your binary, this time embedding all open62541 functionality in one executable::
+Switch back to your myApp directory and recompile your binary, this time embedding all open62541 functionality in one executable::
 
-   :open62541/build> cd ../../myServerApp
+   :open62541/build> cd ../../myApp
    :open62541/build> cp ../open62541/build/open62541.* .
-   :myServerApp> gcc -std=c99 -I ./ -c ./open62541.c
-   :myServerApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
-   :myServerApp> ./myServer
+   :myApp> gcc -std=c99 -I ./ -c ./open62541.c
+   :myApp> gcc -std=c99 -I ./include -o myServer myServer.c open62541.o
+   :myApp> ./myServer
    
 You can now start the server and browse around as before. As you might have noticed, no shared library is required anymore. That makes the application more portable or runnable on systems without dynamic linking support and allows you to use functions that are not exported by the library (which propably means we haven't documented them as thouroughly...); on the other hand the application is also much bigger, so if you intend to also use a client with open62541, you might be inclined to overthink amalgamation.
 
@@ -268,11 +278,16 @@ Open myServer.c and simplify it to:
    #include "open62541.h"
 
    UA_Boolean running;
+   UA_Logger logger = Logger_Stdout;
    int main(void) {
-     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-     UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-     running = UA_TRUE;
-     UA_Server_run(server, 1, &running);
+     UA_ServerConfig config = UA_ServerConfig_standard;
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     config.logger = Logger_Stdout;
+     config.networkLayers = &nl;
+     config.networkLayersSize = 1;
+     UA_Server *server = UA_Server_new(config);
+     running = true;
+     UA_Server_run(server, &running);
      UA_Server_delete(server);
 
      return 0;
@@ -280,19 +295,19 @@ Open myServer.c and simplify it to:
    
 It can now also be compiled without the include directory, i.e., ::
 
-   :myServerApp> gcc -std=c99 myServer.c open62541.c -o myServer
-   :myServerApp> ./myServer
+   :myApp> gcc -std=c99 myServer.c open62541.c -o myServer
+   :myApp> ./myServer
 
 Please note that at times the amalgamation script has... well, bugs. It might include files in the wrong order or include features even though the feature is turned off. Please report problems with amalgamation so we can improve it.
 
-**BUILD_EXAMPLECLIENT** and **BUILD_EXAMPLESERVER**
+**UA_BUILD_EXAMPLECLIENT** and **UA_BUILD_EXAMPLESERVER**
 
 If you build your stack with the above two options, you will enable the example server/client applications to be built. You can review their sources under ``examples/server.c`` and ``example/client.c``. These provide a neat reference for just about any features of open62541, as most of them are included in these examples by us (the developers) for testing and demonstration purposes.
 
-Unfortunately, these examples include just about everything the stack can do... which makes them rather bad examples for newcomers seeking an easy introduction. They are also dynamically configured by the CMake options, so they might be a bit more difficult to read. Non the less you can find any of the concepts demonstrated here in these examples as well and you can build them like so (and this is what you will see when you run them)::
+Unfortunately, these examples include just about everything the stack can do... which makes them rather bad examples for newcomers seeking an easy introduction. They are also dynamically configured by the CMake options, so they might be a bit more difficult to read. Nontheless you can find any of the concepts demonstrated here in these examples as well, and you can build them like so (and this is what you will see when you run them)::
 
    :open62541/build> make clean
-   :open62541/build> cmake -DBUILD_EXAMPLECLIENT=On -DBUILD_EXAMPLESERVER=On ../
+   :open62541/build> cmake -DUA_BUILD_EXAMPLECLIENT=On -DUA_BUILD_EXAMPLESERVER=On ../
    :open62541/build> make
    :open62541/build> ./server &
    [07/28/2015 21:42:07.977.352] info/communication        Listening on opc.tcp://Cassandra:16664
@@ -326,7 +341,7 @@ Unfortunately, these examples include just about everything the stack can do... 
    [07/28/2015 21:43:21.815.890] info/server   Received Ctrl-C
    :open62541/build> 
    
-**BUILD_DOCUMENTATION**
+**UA_BUILD_DOCUMENTATION**
 
 If you have doxygen installed, this will produce a reference under ``/doc`` that documents functions that the shared library advertises (i.e. are available to users). We are doing our best to keep the source well commented.
 

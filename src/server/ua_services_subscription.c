@@ -25,7 +25,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     /* set the publishing interval */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
-    newSubscription->publishingInterval = (UA_DateTime)response->revisedPublishingInterval;
+    newSubscription->publishingInterval = response->revisedPublishingInterval;
     
     /* set the subscription lifetime (deleted when no publish requests arrive within this time) */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
@@ -39,7 +39,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
        nothin has happened for n publishing intervals */
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalKeepAliveCount,
                                request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    newSubscription->keepAliveCount = (UA_Int32_BoundedValue)  {
+    newSubscription->keepAliveCount = (UA_UInt32_BoundedValue)  {
         .minValue=session->subscriptionManager.globalKeepAliveCount.minValue,
         .maxValue=session->subscriptionManager.globalKeepAliveCount.maxValue,
         .currentValue=response->revisedMaxKeepAliveCount};
@@ -55,9 +55,9 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     SubscriptionManager_addSubscription(&session->subscriptionManager, newSubscription);    
 }
 
-static void createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                                 const UA_MonitoredItemCreateRequest *request,
-                                 UA_MonitoredItemCreateResult *result) {
+static void
+createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *sub,
+                     const UA_MonitoredItemCreateRequest *request, UA_MonitoredItemCreateResult *result) {
     const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
     if(!target) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
@@ -158,12 +158,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
             response.results[i] = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
     }
     
-    UA_Boolean have_response = UA_FALSE;
+    UA_Boolean have_response = false;
 
     // See if any new data is available
     UA_Subscription *sub;
     LIST_FOREACH(sub, &manager->serverSubscriptions, listEntry) {
-        if(sub->timedUpdateIsRegistered == UA_FALSE) {
+        if(sub->timedUpdateIsRegistered == false) {
             // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
             // NOTE:  There is a clone of this functionality in the Subscription_timedUpdateNotificationsJob
             UA_MonitoredItem *mon;
@@ -182,7 +182,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         // Due to republish, we need to check if there are any unplublished notifications first ()
         UA_unpublishedNotification *notification = NULL;
         LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-            if (notification->publishedOnce == UA_FALSE)
+            if (notification->publishedOnce == false)
                 break;
         }
         if (notification == NULL)
@@ -192,7 +192,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         response.subscriptionId = sub->subscriptionID;
         Subscription_copyNotificationMessage(&response.notificationMessage, notification);
         // Mark this notification as published
-        notification->publishedOnce = UA_TRUE;
+        notification->publishedOnce = true;
         if(notification->notification.sequenceNumber > sub->sequenceNumber) {
             // If this is a keepalive message, its seqNo is the next seqNo to be used for an actual msg.
             response.availableSequenceNumbersSize = 0;
@@ -202,7 +202,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             response.availableSequenceNumbersSize = sub->unpublishedNotificationsSize;
             response.availableSequenceNumbers = Subscription_getAvailableSequenceNumbers(sub);
         }	  
-        have_response = UA_TRUE;
+        have_response = true;
     }
     
     if(!have_response) {
@@ -228,9 +228,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponse_deleteMembers(&response);
 }
 
-void Service_ModifySubscription(UA_Server *server, UA_Session *session,
-                                 const UA_ModifySubscriptionRequest *request,
-                                 UA_ModifySubscriptionResponse *response) {
+void
+Service_ModifySubscription(UA_Server *server, UA_Session *session, const UA_ModifySubscriptionRequest *request,
+                           UA_ModifySubscriptionResponse *response) {
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
                                                                    request->subscriptionId);
     if(!sub) {
@@ -240,7 +240,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
-    sub->publishingInterval = (UA_DateTime)response->revisedPublishingInterval;
+    sub->publishingInterval = response->revisedPublishingInterval;
     
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
                                request->requestedLifetimeCount, response->revisedLifetimeCount);
@@ -251,7 +251,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
         
     UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalKeepAliveCount,
                                 request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    sub->keepAliveCount = (UA_Int32_BoundedValue)  {
+    sub->keepAliveCount = (UA_UInt32_BoundedValue)  {
         .minValue=session->subscriptionManager.globalKeepAliveCount.minValue,
         .maxValue=session->subscriptionManager.globalKeepAliveCount.maxValue,
         .currentValue=response->revisedMaxKeepAliveCount};
@@ -259,6 +259,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     sub->notificationsPerPublish = request->maxNotificationsPerPublish;
     sub->priority                = request->priority;
     
+    Subscription_unregisterUpdateJob(server, sub);
     Subscription_registerUpdateJob(server, sub);
     return;
 }
@@ -303,8 +304,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 }
 
 void Service_Republish(UA_Server *server, UA_Session *session,
-                                const UA_RepublishRequest *request,
-                                UA_RepublishResponse *response) {
+                       const UA_RepublishRequest *request, UA_RepublishResponse *response) {
     UA_SubscriptionManager *manager = &session->subscriptionManager;
     UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
     if (!sub) {
@@ -315,10 +315,10 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     // Find the notification in question
     UA_unpublishedNotification *notification;
     LIST_FOREACH(notification, &sub->unpublishedNotifications, listEntry) {
-      if (notification->notification.sequenceNumber == request->retransmitSequenceNumber)
-	break;
+        if(notification->notification.sequenceNumber == request->retransmitSequenceNumber)
+            break;
     }
-    if (!notification) {
+    if(!notification) {
       response->responseHeader.serviceResult = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
       return;
     }
@@ -327,7 +327,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     //        true. If this is not tested, the client just gets what he asks for... hence this part is
     //        commented:
     /* Check if the notification is in the published queue
-    if (notification->publishedOnce == UA_FALSE) {
+    if (notification->publishedOnce == false) {
       response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
       return;
     }
@@ -335,7 +335,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
     // Retransmit 
     Subscription_copyNotificationMessage(&response->notificationMessage, notification);
     // Mark this notification as published
-    notification->publishedOnce = UA_TRUE;
+    notification->publishedOnce = true;
     
     return;
 }

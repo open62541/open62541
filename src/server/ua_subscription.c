@@ -6,7 +6,7 @@
 /* Subscription */
 /****************/
 
-UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
+UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID) {
     UA_Subscription *new = UA_malloc(sizeof(UA_Subscription));
     if(!new)
         return NULL;
@@ -15,7 +15,7 @@ UA_Subscription *UA_Subscription_new(UA_Int32 subscriptionID) {
     new->sequenceNumber = 1;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
     new->timedUpdateJob          = NULL;
-    new->timedUpdateIsRegistered = UA_FALSE;
+    new->timedUpdateIsRegistered = false;
     LIST_INIT(&new->MonitoredItems);
     LIST_INIT(&new->unpublishedNotifications);
     new->unpublishedNotificationsSize = 0;
@@ -68,7 +68,8 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     UA_unpublishedNotification *msg;
     UA_UInt32 monItemsChangeT = 0, monItemsStatusT = 0, monItemsEventT = 0;
     
-    if(!subscription || subscription->lastPublished + subscription->publishingInterval > UA_DateTime_now())
+    if(!subscription || subscription->lastPublished +
+       (UA_UInt32)(subscription->publishingInterval * UA_MSEC_TO_DATETIME) > UA_DateTime_now())
         return;
     
     // Make sure there is data to be published and establish which message types
@@ -238,15 +239,16 @@ UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription 
     
     /* Practically enough, the client sends a uint32 in ms, which we store as
        datetime, which here is required in as uint32 in ms as the interval */
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob, sub->publishingInterval,
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob,
+                                                    (UA_UInt32)sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
-        sub->timedUpdateIsRegistered = UA_TRUE;
+        sub->timedUpdateIsRegistered = true;
     return retval;
 }
 
 UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscription *sub) {
-    sub->timedUpdateIsRegistered = UA_FALSE;
+    sub->timedUpdateIsRegistered = false;
     return UA_Server_removeRepeatedJob(server, sub->timedUpdateJobGuid);
 }
 
@@ -280,9 +282,9 @@ void MonitoredItem_delete(UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem);
 }
 
-int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
+UA_UInt32 MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
                                                  UA_MonitoredItem *monitoredItem) {
-    int queueSize = 0;
+    UA_UInt32 queueSize = 0;
     MonitoredItem_queuedValue *queueItem;
   
     // Count instead of relying on the items currentValue
@@ -290,8 +292,8 @@ int MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *d
         dst[queueSize].clientHandle = monitoredItem->clientHandle;
         UA_DataValue_copy(&queueItem->value, &dst[queueSize].value);
 
-        dst[queueSize].value.hasServerPicoseconds = UA_FALSE;
-        dst[queueSize].value.hasServerTimestamp   = UA_TRUE;
+        dst[queueSize].value.hasServerPicoseconds = false;
+        dst[queueSize].value.hasServerTimestamp   = true;
         dst[queueSize].value.serverTimestamp      = UA_DateTime_now();
     
         // Do not create variants with no type -> will make calcSizeBinary() segfault.
@@ -313,7 +315,7 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
 
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
                                                      UA_DataValue *dst) {
-    UA_Boolean samplingError = UA_TRUE; 
+    UA_Boolean samplingError = true; 
     UA_DataValue sourceDataValue;
     UA_DataValue_init(&sourceDataValue);
   
@@ -321,38 +323,38 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
     switch(attributeID) {
     case UA_ATTRIBUTEID_NODEID:
         UA_Variant_setScalarCopy(&dst->value, (const UA_NodeId*)&src->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_NODECLASS:
         UA_Variant_setScalarCopy(&dst->value, (const UA_Int32*)&src->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
         UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->displayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK:
         UA_Variant_setScalarCopy(&dst->value, (const UA_String*)&src->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
-        dst->hasValue = UA_TRUE;
-        samplingError = UA_FALSE;
+        dst->hasValue = true;
+        samplingError = false;
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
         break;
@@ -372,22 +374,17 @@ UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, cons
                     vsrc->value.variant.callback.onRead(vsrc->value.variant.callback.handle, vsrc->nodeId,
                                                         &dst->value, NULL);
                 UA_Variant_copy(&vsrc->value.variant.value, &dst->value);
-                dst->hasValue = UA_TRUE;
-                samplingError = UA_FALSE;
+                dst->hasValue = true;
+                samplingError = false;
             } else {
                 if(vsrc->valueSource != UA_VALUESOURCE_DATASOURCE || vsrc->value.dataSource.read == NULL)
                     break;
-                if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, UA_TRUE,
+                if(vsrc->value.dataSource.read(vsrc->value.dataSource.handle, vsrc->nodeId, true,
                                                NULL, &sourceDataValue) != UA_STATUSCODE_GOOD)
                     break;
                 UA_DataValue_copy(&sourceDataValue, dst);
-                if(sourceDataValue.value.data) {
-                    UA_deleteMembers(sourceDataValue.value.data, sourceDataValue.value.type);
-                    UA_free(sourceDataValue.value.data);
-                    sourceDataValue.value.data = NULL;
-                }
                 UA_DataValue_deleteMembers(&sourceDataValue);
-                samplingError = UA_FALSE;
+                samplingError = false;
             }
         }
         break;
@@ -448,15 +445,16 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     UA_Boolean samplingError = MonitoredItem_CopyMonitoredValueToVariant(monitoredItem->attributeID, target,
                                                                          &newvalue->value);
 
-    if(samplingError != UA_FALSE || !newvalue->value.value.type) {
+    if(samplingError != false || !newvalue->value.value.type) {
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
         return;
     }
   
     if(monitoredItem->queueSize.currentValue >= monitoredItem->queueSize.maxValue) {
-        if(monitoredItem->discardOldest != UA_TRUE) {
+        if(monitoredItem->discardOldest != true) {
             // We cannot remove the oldest value and theres no queue space left. We're done here.
+            UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             return;
         }
@@ -467,14 +465,21 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     }
   
     // encode the data to find if its different to the previous
-    newValueAsByteString.length = 512; // Todo: Hack! We should make a copy of the value, not encode it. UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    newValueAsByteString.data   = UA_malloc(newValueAsByteString.length);
-    UA_StatusCode retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
-    //FIXME: Stasik0 workaround to fix due to the absence of calcSizeBinary #496, still a better solution is needed to ensure the comparisson works for values greater than 512 bytes
-    newValueAsByteString.length = encodingOffset;
-
-    if(retval != UA_STATUSCODE_GOOD)
+    size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_DataValue_deleteMembers(&newvalue->value);
+        UA_free(newvalue);
+        return;
+    }
+    
+    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE], &newValueAsByteString, &encodingOffset);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
+        UA_DataValue_deleteMembers(&newvalue->value);
+        UA_free(newvalue);
+        return;
+    }
   
     if(!monitoredItem->lastSampledValue.data) { 
         UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);
@@ -483,7 +488,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         monitoredItem->lastSampled = UA_DateTime_now();
         UA_free(newValueAsByteString.data);
     } else {
-        if(UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue) == UA_TRUE) {
+        if(UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue) == true) {
             UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             UA_String_deleteMembers(&newValueAsByteString);

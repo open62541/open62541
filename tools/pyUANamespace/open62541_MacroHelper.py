@@ -24,7 +24,7 @@ __unique_item_id = 0
 class open62541_MacroHelper():
   def __init__(self, supressGenerationOfAttribute=[]):
     self.supressGenerationOfAttribute = supressGenerationOfAttribute
-
+    
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
       return "UA_EXPANDEDNODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
@@ -63,29 +63,15 @@ class open62541_MacroHelper():
       return ""
 
   def getCreateStandaloneReference(self, sourcenode, reference):
-  # As reference from open62541 (we need to alter the attributes)
-  #    UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId, const UA_NodeId refTypeId,
-  #                                   const UA_ExpandedNodeId targetId)
     code = []
-    #refid = "ref_" + reference.getCodePrintableID()
-    #code.append("UA_AddReferencesItem " + refid + ";")
-    #code.append("UA_AddReferencesItem_init(&" + refid + ");")
-    #code.append(refid + ".sourceNodeId = " + self.getCreateNodeIDMacro(sourcenode) + ";")
-    #code.append(refid + ".referenceTypeId = " + self.getCreateNodeIDMacro(reference.referenceType()) + ";")
-    #if reference.isForward():
-      #code.append(refid + ".isForward = UA_TRUE;")
-    #else:
-      #code.append(refid + ".isForward = UA_FALSE;")
-    #code.append(refid + ".targetNodeId = " + self.getCreateExpandedNodeIDMacro(reference.target()) + ";")
-    #code.append("addOneWayReferenceWithSession(server, (UA_Session *) NULL, &" + refid + ");")
 
     if reference.isForward():
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_TRUE);")
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", true);")
     else:
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", UA_FALSE);")
+      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
     return code
                                
-  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference):
+  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes):
     code = []
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
 
@@ -109,15 +95,79 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return code;
 
+    # If this is a method, construct in/outargs for addMethod 
+    #inputArguments.arrayDimensionsSize = 0;
+    #inputArguments.arrayDimensions = NULL;
+    #inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    
+    # Node ordering should have made sure that arguments, if they exist, have not been printed yet
+    if node.nodeClass() == NODE_CLASS_METHOD:
+      inArgVal = []
+      outArgVal = []
+      code.append("UA_Argument *inputArguments = NULL;")
+      code.append("UA_Argument *outputArguments = NULL;")
+      for r in node.getReferences():
+	if r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'InputArguments':
+	  if r.target().value() != None:
+	    inArgVal = r.target().value().value
+	    while r.target() in unprintedNodes:
+	      unprintedNodes.remove(r.target())
+	elif r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'OutputArguments':
+	  if r.target().value() != None:
+	    outArgVal = r.target().value().value
+	    while r.target() in unprintedNodes:
+	      unprintedNodes.remove(r.target())
+      if len(inArgVal)>0:
+	code.append("")
+	code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")
+	code.append("int inputArgumentCnt;")
+	code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; inputArgumentCnt++) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
+	argumentCnt = 0
+	for inArg in inArgVal:
+	  if inArg.getValueFieldByAlias("Description") != None:
+	    code.append("inputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(inArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(inArg.getValueFieldByAlias("Description")[1]) + "\");")
+	  if inArg.getValueFieldByAlias("Name") != None:
+	    code.append("inputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(inArg.getValueFieldByAlias("Name")) + "\");")
+	  if inArg.getValueFieldByAlias("ValueRank") != None:
+	    code.append("inputArguments[" + str(argumentCnt) + "].valueRank = " + str(inArg.getValueFieldByAlias("ValueRank")) + ";")
+	  if inArg.getValueFieldByAlias("DataType") != None:
+	    code.append("inputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(inArg.getValueFieldByAlias("DataType"))) + ";")
+	  #if inArg.getValueFieldByAlias("ArrayDimensions") != None:
+	  #  code.append("inputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(inArg.getValueFieldByAlias("ArrayDimensions")) + ";")
+	  argumentCnt += 1
+      if len(outArgVal)>0:
+	code.append("")
+	code.append("outputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(outArgVal)) + ");")
+	code.append("int outputArgumentCnt;")
+	code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; outputArgumentCnt++) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
+	argumentCnt = 0
+	for outArg in outArgVal:
+	  if outArg.getValueFieldByAlias("Description") != None:
+	    code.append("outputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(outArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(outArg.getValueFieldByAlias("Description")[1]) + "\");")
+	  if outArg.getValueFieldByAlias("Name") != None:
+	    code.append("outputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(outArg.getValueFieldByAlias("Name")) + "\");")
+	  if outArg.getValueFieldByAlias("ValueRank") != None:
+	    code.append("outputArguments[" + str(argumentCnt) + "].valueRank = " + str(outArg.getValueFieldByAlias("ValueRank")) + ";")
+	  if outArg.getValueFieldByAlias("DataType") != None:
+	    code.append("outputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(outArg.getValueFieldByAlias("DataType"))) + ";")
+	  #if outArg.getValueFieldByAlias("ArrayDimensions") != None:
+	  #  code.append("outputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(outArg.getValueFieldByAlias("ArrayDimensions")) + ";")
+	  argumentCnt += 1
+	  
+    # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
     code.append("UA_%sAttributes_init(&attr);" %  nodetype); 
-
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
     
     if nodetype in ["Variable", "VariableType"]:
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
-    
+    elif nodetype == "Method":
+      if node.executable():
+	code.append("attr.executable = true;")
+      if node.userExecutable():
+	code.append("attr.userExecutable = true;")
+	
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable"]:
       code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") # todo instantiation of object and variable types
@@ -134,14 +184,11 @@ class open62541_MacroHelper():
     code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
       
     if nodetype in ["Object", "Variable"]:
-      code.append("       , typeDefinition")
-    
+      code.append("       , typeDefinition") 
     if nodetype != "Method":
-      code.append("       , attr, NULL);")
+      code.append("       , attr, NULL, NULL);")
     else:
-      # FIXME:  Semantic of inputArgumentSize = -1 is used to signal the suppression of argument creation.
-      #         This should be replaced with a properly generated struct for the arguments.
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, -1, NULL, -1, NULL, NULL);")
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
     return code
     
   def getCreateNodeBootstrap(self, node):
@@ -170,7 +217,7 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return;
 
-    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_" + nodetype + "Node_new();")
+    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_NodeStore_new" + nodetype + "Node();")
     if not "browsename" in self.supressGenerationOfAttribute:
       extrNs = node.browseName().split(":")
       if len(extrNs) > 1:

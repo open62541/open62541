@@ -17,6 +17,16 @@ extern "C" {
  */
 UA_StatusCode UA_EXPORT UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex);
 
+#ifndef HAVE_NODEITER_CALLBACK
+#define HAVE_NODEITER_CALLBACK
+/* Iterate over all nodes referenced by parentNodeId by calling the callback
+ f unction for each child node */                                                        
+ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+                                                  UA_NodeId referenceTypeId, void *handle);
+#endif
+ 
+UA_StatusCode UA_EXPORT UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) ;
+
 /*******************/
 /* Node Management */
 /*******************/
@@ -130,7 +140,11 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 UA_StatusCode UA_EXPORT
 __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
                           void *out, const UA_DataType *outDataType);
-  
+
+UA_StatusCode UA_EXPORT
+__UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
+                           void *in, const UA_DataType *inDataType);
+
 static UA_INLINE UA_StatusCode
 UA_Client_readNodeIdAttribute(UA_Client *client, UA_NodeId nodeId, UA_NodeId *outNodeId) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_NODEID,
@@ -195,7 +209,11 @@ static UA_INLINE UA_StatusCode
 UA_Client_readValueAttribute(UA_Client *client, UA_NodeId nodeId, UA_Variant *outValue) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_VALUE,
                                      outValue, &UA_TYPES[UA_TYPES_VARIANT]); }
-
+static UA_INLINE UA_StatusCode
+UA_Client_writeValueAttribute(UA_Client *client, UA_NodeId nodeId, UA_Variant *inValue) {
+    return __UA_Client_writeAttribute(client, nodeId, UA_ATTRIBUTEID_VALUE,
+                                     inValue, &UA_TYPES[UA_TYPES_VARIANT]); }
+                                     
 static UA_INLINE UA_StatusCode
 UA_Client_readDataTypeAttribute(UA_Client *client, UA_NodeId nodeId, UA_NodeId *outDataType) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_DATATYPE,
@@ -249,7 +267,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, UA_NodeId nodeId, UA_Bo
 
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId,
-               UA_Int32 inputSize, const UA_Variant *input, UA_Int32 *outputSize, UA_Variant **output);
+               size_t inputSize, const UA_Variant *input, size_t *outputSize, UA_Variant **output);
 
 /**************************/
 /* Subscriptions Handling */
@@ -275,12 +293,13 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
-void UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+UA_StatusCode UA_EXPORT UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void *handlingFunction, void *handlingContext,
+                                         void (*handlingFunction)(UA_UInt32 handle, UA_DataValue *value, void *context),
+                                         void *handlingContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT

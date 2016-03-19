@@ -15,29 +15,35 @@
 # include "open62541.h"
 #endif
 
-UA_Boolean running = 1;
+UA_Boolean running = true;
 UA_Logger logger = Logger_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = 0;
+    running = false;
 }
 
-static UA_StatusCode readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp, const UA_NumericRange *range, UA_DataValue *dataValue) {
-    dataValue->hasValue = UA_TRUE;
+static UA_StatusCode
+readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+            const UA_NumericRange *range, UA_DataValue *dataValue) {
+    dataValue->hasValue = true;
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32*)handle, &UA_TYPES[UA_TYPES_INT32]);
-    //note that this is only possible if the identifier is a string - but we are sure to have one here
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",nodeid.identifier.string.length, nodeid.identifier.string.data);
+    // we know the nodeid is a string
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
+                nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32*)handle);
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode writeInteger(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range){
+static UA_StatusCode
+writeInteger(void *handle, const UA_NodeId nodeid,
+             const UA_Variant *data, const UA_NumericRange *range) {
     if(UA_Variant_isScalar(data) && data->type == &UA_TYPES[UA_TYPES_INT32] && data->data){
-        *(UA_UInt32*)handle = *(UA_Int32*)data->data;
+        *(UA_UInt32*)handle = *(UA_UInt32*)data->data;
     }
-    //note that this is only possible if the identifier is a string - but we are sure to have one here
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",nodeid.identifier.string.length, nodeid.identifier.string.data);
+    // we know the nodeid is a string
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
+                nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "written value %i", *(UA_UInt32*)handle);
     return UA_STATUSCODE_GOOD;
 }
@@ -46,13 +52,15 @@ static UA_StatusCode writeInteger(void *handle, const UA_NodeId nodeid, const UA
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-    UA_Server_setLogger(server, logger);
-    UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-
-    UA_Int32 myInteger = 42;
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    config.logger = Logger_Stdout;
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
+    UA_Int32 myInteger = 42;
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_DataSource dateDataSource = (UA_DataSource) {
@@ -67,8 +75,9 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
 
-    UA_StatusCode retval = UA_Server_run(server, 1, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    nl.deleteMembers(&nl);
 
-    return retval;
+    return (int)retval;
 }

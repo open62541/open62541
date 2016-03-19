@@ -15,9 +15,8 @@ struct UA_Client;
 typedef struct UA_Client UA_Client;
 
 typedef struct UA_ClientConfig {
-    UA_Int32 timeout; //sync response timeout
-    UA_Int32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
-    UA_Int32 timeToRenewSecureChannel; //time in ms  before expiration to renew the secure channel
+    UA_UInt32 timeout; //sync response timeout
+    UA_UInt32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
     UA_ConnectionConfig localConnectionConfig;
 } UA_ClientConfig;
 
@@ -56,6 +55,19 @@ typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localCon
                                                     UA_Logger logger);
 
 /**
+ * Gets a list of endpoints of a server
+ * @param client to use
+ * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
+ * @param server url to connect (for example "opc.tcp://localhost:16664")
+ * @param endpointDescriptionsSize size of the array of endpoint descriptions
+ * @param endpointDescriptions array of endpoint descriptions that is allocated by the function (you need to free manually)
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
+                       const char *serverUrl, size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions);
+/**
  * start a connection to the selected server
  *
  * @param client to use
@@ -65,6 +77,19 @@ typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localCon
  */
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl);
+
+/**
+ * start a connection to the selected server
+ *
+ * @param client to use
+ * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @param username
+ * @param password
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_username(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl, const char *username, const char *password);
 
 /**
  * close a connection to the selected server

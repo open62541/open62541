@@ -86,7 +86,7 @@ Let us modify our current server to create a new object node (a folder) that wil
       
       UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = UA_TRUE;
+      running = true;
       
       UA_NodeId myObjectsId;
       UA_StatusCode retval = UA_Server_addObjectNode( 

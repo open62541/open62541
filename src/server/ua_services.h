@@ -59,7 +59,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                UA_OpenSecureChannelResponse *response);
 
 /** Used to terminate a SecureChannel. */
-void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
+void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId);
 
 /** @} */
 
@@ -116,7 +116,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
 void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
-                             UA_AddNodesResult *result);
+                             UA_AddNodesResult *result, UA_InstantiationCallback *instantiationCallback);
 
 /** Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session,

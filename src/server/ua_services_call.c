@@ -10,7 +10,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
     UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     for(size_t i = 0; i < ofMethod->referencesSize; i++) {
-        if(ofMethod->references[i].isInverse == UA_FALSE && 
+        if(ofMethod->references[i].isInverse == false && 
             UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
             const UA_Node *refTarget =
                 UA_NodeStore_get(server->nodestore, &ofMethod->references[i].targetId.nodeId);
@@ -44,7 +44,7 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     /* The dimension 1 is implicit in the array length */
     UA_UInt32 fakeDims;
     if(!scalar && !varDims) {
-        fakeDims = var->arrayLength;
+        fakeDims = (UA_UInt32)var->arrayLength;
         varDims = &fakeDims;
         varDimsSize = 1;
     }
@@ -149,7 +149,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         return;
         
     /* Verify method executable */
-    if(methodCalled->executable == UA_FALSE || methodCalled->userExecutable == UA_FALSE) {
+    if(!methodCalled->executable || !methodCalled->userExecutable) {
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
         return;
     }

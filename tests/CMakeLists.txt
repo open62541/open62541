@@ -19,6 +19,8 @@ if(UA_ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
 endif()
 
+add_definitions(-Wno-sign-conversion)
+
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
@@ -60,21 +62,26 @@ add_test(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
 
 # test with canned interactions from files
 
-#add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-#                   PRE_BUILD
-#                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
-#                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
-#                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
-#                           ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex)
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
+                  PRE_BUILD
+                  COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
+                  DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex)
+add_custom_target(client_HELOPN.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin")
+add_custom_target(client_CreateActivateSession.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin")
 
-#set(check_fileinput_source check_server_interaction_fileinput.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
-#if(NOT UA_ENABLE_AMALGAMATION)
-#    list(APPEND check_fileinput_source ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
-#endif()
-#add_executable(check_server_interaction_fileinput ${check_fileinput_source})
+add_executable(check_server_binary_messages check_server_binary_messages.c testing_networklayers.c $<TARGET_OBJECTS:open62541-object>)
+target_include_directories(check_server_binary_messages PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
+target_link_libraries(check_server_binary_messages ${LIBS})
+add_dependencies(check_server_binary_messages client_HELOPN.bin)
 
-#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_SOURCE_DIR}/examples)
-#target_include_directories(check_server_interaction_fileinput PRIVATE ${PROJECT_BINARY_DIR})
-#target_link_libraries(check_server_interaction_fileinput ${LIBS})
-#add_test(server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/check_server_interaction_fileinput ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
-#add_custom_target(server_interaction_fileinput ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+add_test(check_server_binary_messages_helopn ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
+
+add_test(check_server_binary_messages_activate_session ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
+                                                       ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                                                       ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin)

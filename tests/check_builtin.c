@@ -1,10 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+#include <float.h>
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_encoding_binary.h"
-//#include "ua_transport.h"
 #include "ua_util.h"
 #include "check.h"
 
@@ -27,6 +28,7 @@ START_TEST(UA_Byte_decodeShallCopyAndAdvancePosition) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(pos, 1);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_BYTE]));
     ck_assert_uint_eq(dst, 0x08);
 }
 END_TEST
@@ -297,6 +299,7 @@ START_TEST(UA_String_decodeShallAllocateMemoryAndCopyString) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(dst.length, 8);
     ck_assert_int_eq(dst.data[3], 'L');
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_STRING]));
     // finally
     UA_String_deleteMembers(&dst);
 }
@@ -345,6 +348,7 @@ START_TEST(UA_NodeId_decodeTwoByteShallReadTwoBytesAndSetNamespaceToZero) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 2);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(dst.identifier.numeric, 16);
     ck_assert_int_eq(dst.namespaceIndex, 0);
@@ -362,6 +366,7 @@ START_TEST(UA_NodeId_decodeFourByteShallReadFourBytesAndRespectNamespace) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 4);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_NUMERIC);
     ck_assert_int_eq(dst.identifier.numeric, 256);
     ck_assert_int_eq(dst.namespaceIndex, 1);
@@ -379,6 +384,7 @@ START_TEST(UA_NodeId_decodeStringShallAllocateMemory) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 10);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_NODEID]));
     ck_assert_int_eq(dst.identifierType, UA_NODEIDTYPE_STRING);
     ck_assert_int_eq(dst.namespaceIndex, 1);
     ck_assert_int_eq(dst.identifier.string.length, 3);
@@ -391,14 +397,15 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
+    UA_Byte data[] = { (UA_Byte)UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric, 0xFF, 0x00, 0x00, 0x00 };
     UA_ByteString src = { 5, data };
     UA_Variant dst;
     // when
     UA_StatusCode retval = UA_Variant_decodeBinary(&src, &pos, &dst);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(pos, 5);
+    ck_assert_uint_eq(pos, 5);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
     ck_assert_int_eq(dst.arrayLength, 0);
@@ -412,7 +419,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF,
                        0xFF, 0xFF };
     UA_ByteString src = { 13, data };
@@ -422,6 +430,7 @@ START_TEST(UA_Variant_decodeWithArrayFlagSetShallSetVTAndAllocateMemoryForArray)
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 1+4+2*4);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const (void*))dst.type, (const void*)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
     ck_assert_int_eq((uintptr_t)dst.type,(uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(dst.arrayLength, 2);
@@ -491,7 +500,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithOutDeleteMembersShallFailInCheckMem) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 13, data };
     UA_Variant dst;
@@ -507,7 +517,8 @@ END_TEST
 START_TEST(UA_Variant_decodeWithTooSmallSourceShallReturnWithError) {
     // given
     size_t pos = 0;
-    UA_Byte data[] = { UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric | UA_VARIANT_ENCODINGMASKTYPE_ARRAY,
+    UA_Byte data[] = { (UA_Byte)(UA_TYPES[UA_TYPES_INT32].typeId.identifier.numeric |
+                                 UA_VARIANT_ENCODINGMASKTYPE_ARRAY),
                        0x02, 0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF };
     UA_ByteString src = { 4, data };
 
@@ -800,23 +811,33 @@ START_TEST(UA_Int64_encodeNegativeShallEncodeLittleEndian) {
 END_TEST
 
 START_TEST(UA_Float_encodeShallWorkOnExample) {
-    // given
-    UA_Float src;
-    UA_Byte  data[]   = {  0x55, 0x55,    0x55,  0x55,    0x55,    0x55,  0x55,       0x55,
-            0x55,  0x55,    0x55,  0x55,    0x55,    0x55,  0x55,       0x55 };
-    UA_ByteString dst = { 16, data };
+#define UA_FLOAT_TESTS 9
+    UA_Float src[UA_FLOAT_TESTS] = {27.5f, -6.5f, 0.0f, -0.0f, NAN, FLT_MAX, FLT_MIN, INFINITY, -INFINITY};
+    UA_Byte result[UA_FLOAT_TESTS][4] = {
+        {0x00, 0x00, 0xDC, 0x41}, // 27.5
+        {0x00, 0x00, 0xD0, 0xC0}, // -6.5
+        {0x00, 0x00, 0x00, 0x00}, // 0.0
+        {0x00, 0x00, 0x00, 0x80}, // -0.0
+        {0x00, 0x00, 0xC0, 0x7F}, // NAN
+        {0xFF, 0xFF, 0x7F, 0x7F}, // FLT_MAX
+        {0x00, 0x00, 0x80, 0x00}, // FLT_MIN
+        {0x00, 0x00, 0x80, 0x7F}, // INF
+        {0x00, 0x00, 0x80, 0xFF} // -INF
+    };
 
-    UA_Int32  retval  = 0;
-    size_t pos     = 0;
+    UA_Byte data[] = {0x55, 0x55, 0x55,  0x55};
+    UA_ByteString dst = {4, data};
 
-    // when test 1
-    src    = -6.5;
-    retval = UA_Float_encodeBinary(&src, &dst, &pos);
-    // then test 1
-    ck_assert_int_eq(pos, 4);
-    ck_assert_int_eq(dst.data[2], 0xD0);
-    ck_assert_int_eq(dst.data[3], 0xC0);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < UA_FLOAT_TESTS; i++) {
+        size_t pos = 0;
+        UA_Int32 retval = UA_Float_encodeBinary(&src[i], &dst, &pos);
+        ck_assert_int_eq(pos, 4);
+        ck_assert_int_eq(dst.data[0], result[i][0]);
+        ck_assert_int_eq(dst.data[1], result[i][1]);
+        ck_assert_int_eq(dst.data[2], result[i][2]);
+        ck_assert_int_eq(dst.data[3], result[i][3]);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    }
 }
 END_TEST
 
@@ -862,6 +883,7 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
     retval = UA_String_encodeBinary(&src, &dst, &pos);
     // then
     ck_assert_int_eq(pos, sizeof(UA_Int32)+11);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_STRING]));
     ck_assert_int_eq(dst.data[0], 11);
     ck_assert_int_eq(dst.data[sizeof(UA_Int32)+0], 'A');
     ck_assert_int_eq(dst.data[sizeof(UA_Int32)+1], 'C');
@@ -891,6 +913,7 @@ START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 13);
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]));
     ck_assert_int_eq(dst.data[0], 0x80); // namespaceuri flag
 }
 END_TEST
@@ -900,7 +923,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     UA_DataValue src;
     UA_DataValue_init(&src);
     src.serverTimestamp = 80;
-    src.hasServerTimestamp = UA_TRUE;
+    src.hasServerTimestamp = true;
 
     UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
                        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
@@ -914,6 +937,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithoutVariant) {
     retval = UA_DataValue_encodeBinary(&src, &dst, &pos);
     // then
     ck_assert_int_eq(pos, 9);            // represents the length
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_DATAVALUE]));
     ck_assert_int_eq(dst.data[0], 0x08); // encodingMask
     ck_assert_int_eq(dst.data[1], 80);   // 8 Byte serverTimestamp
     ck_assert_int_eq(dst.data[2], 0);
@@ -932,8 +956,8 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     UA_DataValue src;
     UA_DataValue_init(&src);
     src.serverTimestamp    = 80;
-    src.hasValue = UA_TRUE;
-    src.hasServerTimestamp = UA_TRUE;
+    src.hasValue = true;
+    src.hasServerTimestamp = true;
     src.value.type = &UA_TYPES[UA_TYPES_INT32];
     src.value.arrayLength  = 0; // one element (encoded as not an array)
     UA_Int32 vdata = 45;
@@ -951,6 +975,7 @@ START_TEST(UA_DataValue_encodeShallWorkOnExampleWithVariant) {
     retval = UA_DataValue_encodeBinary(&src, &dst, &pos);
     // then
     ck_assert_int_eq(pos, 1+(1+4)+8);           // represents the length
+    ck_assert_uint_eq(pos, UA_calcSizeBinary(&src, &UA_TYPES[UA_TYPES_DATAVALUE]));
     ck_assert_int_eq(dst.data[0], 0x08 | 0x01); // encodingMask
     ck_assert_int_eq(dst.data[1], 0x06);        // Variant's Encoding Mask - INT32
     ck_assert_int_eq(dst.data[2], 45);          // the single value
@@ -1100,9 +1125,9 @@ START_TEST(UA_DiagnosticInfo_copyShallWorkOnExample) {
 
     UA_DiagnosticInfo_init(&value);
     UA_DiagnosticInfo_init(&innerValue);
-    value.hasInnerDiagnosticInfo = UA_TRUE;
+    value.hasInnerDiagnosticInfo = true;
     value.innerDiagnosticInfo = &innerValue;
-    value.hasAdditionalInfo = UA_TRUE;
+    value.hasAdditionalInfo = true;
     value.additionalInfo = testString;
 
     //when
@@ -1239,11 +1264,11 @@ START_TEST(UA_DataValue_copyShallWorkOnInputExample) {
     UA_Variant_init(&srcVariant);
     UA_DataValue src;
     UA_DataValue_init(&src);
-    src.hasSourceTimestamp = UA_TRUE;
+    src.hasSourceTimestamp = true;
     src.sourceTimestamp = 4;
-    src.hasSourcePicoseconds = UA_TRUE;
+    src.hasSourcePicoseconds = true;
     src.sourcePicoseconds = 77;
-    src.hasServerPicoseconds = UA_TRUE;
+    src.hasServerPicoseconds = true;
     src.serverPicoseconds = 8;
     UA_DataValue dst;
 

@@ -8,7 +8,7 @@ static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
     if(data == NULL)
         return 0;
 
-    const int32_t   nblocks = len / 4;
+    const int32_t nblocks = (int32_t)(len / 4);
     const uint32_t *blocks;
     static const uint32_t c1 = 0xcc9e2d51;
     static const uint32_t c2 = 0x1b873593;
@@ -36,12 +36,12 @@ static hash_t hash_array(const UA_Byte *data, UA_UInt32 len, UA_UInt32 seed) {
     }
 
     const uint8_t *tail = (const uint8_t *)(data + nblocks * 4);
-    uint32_t       k1   = 0;
+    uint32_t k1 = 0;
     switch(len & 3) {
     case 3:
-        k1 ^= tail[2] << 16;
+        k1 ^= (uint32_t)(tail[2] << 16);
     case 2:
-        k1 ^= tail[1] << 8;
+        k1 ^= (uint32_t)(tail[1] << 8);
     case 1:
         k1   ^= tail[0];
         k1   *= c1;
@@ -63,15 +63,17 @@ static hash_t hash(const UA_NodeId *n) {
     switch(n->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         /*  Knuth's multiplicative hashing */
-        return (n->identifier.numeric + n->namespaceIndex) * 2654435761;   // mod(2^32) is implicit
+        return (hash_t)((n->identifier.numeric + n->namespaceIndex) * 2654435761); // mod(2^32) is implicit
     case UA_NODEIDTYPE_STRING:
-        return hash_array(n->identifier.string.data, n->identifier.string.length, n->namespaceIndex);
+        return hash_array(n->identifier.string.data, (UA_UInt32)n->identifier.string.length,
+                          n->namespaceIndex);
     case UA_NODEIDTYPE_GUID:
-        return hash_array((const UA_Byte *)&(n->identifier.guid), sizeof(UA_Guid), n->namespaceIndex);
+        return hash_array((const UA_Byte*)&(n->identifier.guid), sizeof(UA_Guid), n->namespaceIndex);
     case UA_NODEIDTYPE_BYTESTRING:
-        return hash_array((const UA_Byte *)n->identifier.byteString.data, n->identifier.byteString.length, n->namespaceIndex);
+        return hash_array((const UA_Byte*)n->identifier.byteString.data,
+                          (UA_UInt32)n->identifier.byteString.length, n->namespaceIndex);
     default:
-        UA_assert(UA_FALSE);
+        UA_assert(false);
         return 0;
     }
 }

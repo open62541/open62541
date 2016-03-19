@@ -44,6 +44,9 @@
 # endif
 #endif
 
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+
 /************************/
 /* Thread Local Storage */
 /************************/
@@ -71,10 +74,15 @@
 #endif
 
 #include <time.h>
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
 int gettimeofday(struct timeval *tp, struct timezone *tzp);
 #else
 # include <sys/time.h>
+#endif
+
+#if defined(__APPLE__) || defined(__MACH__)
+#include <mach/clock.h>
+#include <mach/mach.h>
 #endif
 
 /*************************/
@@ -91,22 +99,28 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp);
 # include <urcu/rculfhash.h>
 # include <urcu/lfstack.h>
 # ifdef NDEBUG
-# define UA_RCU_LOCK() rcu_read_lock()
-# define UA_RCU_UNLOCK() rcu_read_unlock()
+#  define UA_RCU_LOCK() rcu_read_lock()
+#  define UA_RCU_UNLOCK() rcu_read_unlock()
+#  define UA_ASSERT_RCU_LOCKED()
+#  define UA_ASSERT_RCU_UNLOCKED()
 # else
-extern UA_THREAD_LOCAL bool rcu_locked;
-# define UA_RCU_LOCK() do {     \
-        assert(!rcu_locked);    \
-        rcu_locked = UA_TRUE;   \
+   extern UA_THREAD_LOCAL bool rcu_locked;
+#   define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
+#   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
+#   define UA_RCU_LOCK() do {                     \
+        UA_ASSERT_RCU_UNLOCKED();                 \
+        rcu_locked = true;                        \
         rcu_read_lock(); } while(0)
-# define UA_RCU_UNLOCK() do { \
-        assert(rcu_locked);   \
-        rcu_locked = UA_FALSE;    \
+#   define UA_RCU_UNLOCK() do {                   \
+        UA_ASSERT_RCU_LOCKED();                   \
+        rcu_locked = false;                       \
         rcu_read_lock(); } while(0)
 # endif
 #else
 # define UA_RCU_LOCK()
 # define UA_RCU_UNLOCK()
+# define UA_ASSERT_RCU_LOCKED()
+# define UA_ASSERT_RCU_UNLOCKED()
 #endif
 
 #endif /* UA_UTIL_H_ */
