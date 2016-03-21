@@ -5,6 +5,7 @@
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
 
+#define SECURE_MESSAGE_HEADER 24
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
     UA_ChannelSecurityToken_init(&channel->securityToken);
@@ -133,23 +134,32 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* adjust the buffer where the header was hidden */
-    dst->data = &dst->data[-24];
-    dst->length += 24;
-    offset += 24;
+    dst->data = &dst->data[-SECURE_MESSAGE_HEADER];
+    dst->length += SECURE_MESSAGE_HEADER;
+    offset += SECURE_MESSAGE_HEADER;
     ci->messageSizeSoFar += offset;
 
-    UA_Boolean abortMsg = (++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
-                        ci->messageSizeSoFar > connection->remoteConf.maxMessageSize);
+    UA_Boolean chunkedMsg = (ci->chunksSoFar > 0 || ci->final == false);
+    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
+                        ci->messageSizeSoFar > connection->remoteConf.maxMessageSize)) && chunkedMsg;
 
 	UA_SecureConversationMessageHeader respHeader;
 	respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
-    if(!abortMsg) {
+
+	if(abortMsg){
+		UA_UInt32 errorCode = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+		UA_String errorMsg = UA_STRING_ALLOC("Encoded message too long");
+		offset = SECURE_MESSAGE_HEADER;
+		//set new message size and encode error code / error message
+		dst->length = SECURE_MESSAGE_HEADER + sizeof(UA_UInt32) + UA_calcSizeBinary(&errorMsg, &UA_TYPES[UA_TYPES_STRING]);
+		UA_UInt32_encodeBinary(&errorCode,dst,&offset);
+		UA_String_encodeBinary(&errorMsg,dst,&offset);
+		respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
+	}else{
         if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
         else
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
-    } else {
-        // todo: abort
     }
 
 	respHeader.secureChannelId = channel->securityToken.channelId;
@@ -180,8 +190,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         /* hide the header of the buffer */
-        dst->data = &dst->data[24];
-        dst->length = connection->localConf.sendBufferSize - 24;
+        dst->data = &dst->data[SECURE_MESSAGE_HEADER];
+        dst->length = connection->localConf.sendBufferSize - SECURE_MESSAGE_HEADER;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -206,15 +216,15 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
         return retval;
 
     /* hide the message beginning where the header will be encoded */
-    message.data = &message.data[24];
-    message.length -= 24;
+    message.data = &message.data[SECURE_MESSAGE_HEADER];
+    message.length -= SECURE_MESSAGE_HEADER;
 
     UA_ChunkInfo ci;
     ci.channel = channel;
     ci.requestId = requestId;
     ci.chunksSoFar = 0;
     ci.messageSizeSoFar = 0;
-    ci.final = UA_FALSE;
+    ci.final = false;
     ci.messageType = UA_MESSAGETYPE_MSG;
 
     if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449)
@@ -233,8 +243,8 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
         retval |= UA_encodeBinary(content, contentType, NULL, NULL, &message, &messagePos);
     
     if(retval != UA_STATUSCODE_GOOD) {
-        message.data = &message.data[-24];
-        message.length += 24;
+        message.data = &message.data[-SECURE_MESSAGE_HEADER];
+        message.length += SECURE_MESSAGE_HEADER;
         connection->releaseSendBuffer(connection, &message);
         return retval;
     }

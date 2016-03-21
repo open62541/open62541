@@ -124,7 +124,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&myArrayVar);
     myArrayVar.description = UA_LOCALIZEDTEXT("en_US", "the big int32 array");
     myArrayVar.displayName = UA_LOCALIZEDTEXT("en_US", "the big int32 array");
-    size_t arraySize = 5000; //a big array
+    size_t arraySize = 15000; //a big array
     UA_Int32 *intArray = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
     for(size_t i=0;i<arraySize;i++){
         intArray[i] = (UA_Int32)i;
