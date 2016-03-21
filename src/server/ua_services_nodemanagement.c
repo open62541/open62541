@@ -755,8 +755,8 @@ static UA_StatusCode __UA_Server_editMethodCallback(UA_Server *server, UA_Sessio
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_methodNode_attachCallback(UA_Server *server, const UA_NodeId methodNodeId,
-				    UA_MethodCallback method, void *handle) {
+UA_Server_setMethodNode_callback( UA_Server *server, const UA_NodeId methodNodeId,
+                                  UA_MethodCallback method, void *handle) {
   struct {
     UA_MethodCallback callback;
     void *handle;

@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
     /* If out methodnode is part of an instantiated object, we never had
        the opportunity to define the callback... we could do that now
     */
-    UA_Server_methodNode_attachCallback(server, UA_NODEID_NUMERIC(1,62541), &fooBarMethod, NULL);
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(1,62541), &fooBarMethod, NULL);
     
     //END OF EXAMPLE 3
     /* start server */
