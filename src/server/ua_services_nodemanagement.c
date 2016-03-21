@@ -465,7 +465,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
         node = objectTypeNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]) {
+        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]) {
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
