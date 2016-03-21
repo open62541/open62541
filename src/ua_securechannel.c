@@ -143,18 +143,19 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
                         ci->messageSizeSoFar > connection->remoteConf.maxMessageSize)) && chunkedMsg;
 
-	UA_SecureConversationMessageHeader respHeader;
-	respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
 
-	if(abortMsg){
-		UA_UInt32 errorCode = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-		UA_String errorMsg = UA_STRING_ALLOC("Encoded message too long");
-		offset = SECURE_MESSAGE_HEADER;
+    if(abortMsg){
+        UA_UInt32 errorCode = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+        UA_String errorMsg = UA_STRING_ALLOC("Encoded message too long");
+        offset = SECURE_MESSAGE_HEADER;
 		//set new message size and encode error code / error message
-		dst->length = SECURE_MESSAGE_HEADER + sizeof(UA_UInt32) + UA_calcSizeBinary(&errorMsg, &UA_TYPES[UA_TYPES_STRING]);
-		UA_UInt32_encodeBinary(&errorCode,dst,&offset);
-		UA_String_encodeBinary(&errorMsg,dst,&offset);
-		respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
+        dst->length = SECURE_MESSAGE_HEADER + sizeof(UA_UInt32) + UA_calcSizeBinary(&errorMsg, &UA_TYPES[UA_TYPES_STRING]);
+        UA_UInt32_encodeBinary(&errorCode,dst,&offset);
+        UA_String_encodeBinary(&errorMsg,dst,&offset);
+        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
+        UA_String_deleteMembers(&errorMsg);
 	}else{
         if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
