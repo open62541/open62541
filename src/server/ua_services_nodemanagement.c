@@ -465,7 +465,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
         node = objectTypeNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]) {
+        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]) {
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
@@ -734,6 +734,42 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_AddNodesResult_deleteMembers(&result);
     return result.statusCode;
 }
+
+static UA_StatusCode __UA_Server_editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
+  const struct {
+    UA_MethodCallback callback;
+    void *handle;
+  } *newCallback = handle;
+  
+  if (node == NULL)
+    return UA_STATUSCODE_BADNODEIDINVALID;
+  if (node->nodeClass != UA_NODECLASS_METHOD)
+    return UA_STATUSCODE_BADNODECLASSINVALID;
+  if (newCallback == NULL)
+    return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
+  
+  UA_MethodNode *mnode = (UA_MethodNode *) node;
+  mnode->attachedMethod = newCallback->callback;
+  mnode->methodHandle   = newCallback->handle;
+  return 0;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNode_callback( UA_Server *server, const UA_NodeId methodNodeId,
+                                  UA_MethodCallback method, void *handle) {
+  struct {
+    UA_MethodCallback callback;
+    void *handle;
+  } newCallback;  
+  newCallback.callback = method;
+  newCallback.handle   = handle;
+  UA_RCU_LOCK();
+  UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &methodNodeId,
+                            __UA_Server_editMethodCallback, &newCallback);
+  UA_RCU_UNLOCK();
+  return retval;
+}
+
 #endif
 
 /******************/

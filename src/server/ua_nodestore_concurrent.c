@@ -119,10 +119,17 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         node->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
         if(node->nodeId.namespaceIndex == 0) // original request for ns=0 should yield ns=1
             node->nodeId.namespaceIndex = 1;
-        /* set namespaceIndex in browseName in case id is generated */
-        if(node->nodeClass == UA_NODECLASS_VARIABLE)
-        	((UA_VariableNode*)node)->browseName.namespaceIndex = node->nodeId.namespaceIndex;
-
+        /* set namespaceIndex in browseName in case id is generated, 
+	   --> unless these are method arguments, in which case never ever set anything other than 0!
+	*/
+        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+	    UA_String inArgName = UA_STRING("InputArguments");
+	    UA_String outArgName = UA_STRING("OutputArguments");
+	    if (UA_String_equal(&inArgName, &node->browseName.name) != UA_TRUE &&
+		UA_String_equal(&outArgName, &node->browseName.name) != UA_TRUE)
+		((UA_VariableNode*)node)->browseName.namespaceIndex = node->nodeId.namespaceIndex;
+	}
+	
         unsigned long identifier;
         long before, after;
         cds_lfht_count_nodes(ht, &before, &identifier, &after); // current amount of nodes stored

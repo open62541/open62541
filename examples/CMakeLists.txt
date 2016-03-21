@@ -20,6 +20,9 @@ endif()
 add_executable(server_variable server_variable.c)
 target_link_libraries(server_variable ${LIBS})
 
+add_executable(server_mainloop server_mainloop.c)
+target_link_libraries(server_mainloop ${LIBS})
+
 add_executable(server_datasource server_datasource.c)
 target_link_libraries(server_datasource ${LIBS})
 

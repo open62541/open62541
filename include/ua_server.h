@@ -357,6 +357,10 @@ typedef UA_StatusCode (*UA_MethodCallback)(void *methodHandle, const UA_NodeId o
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
+UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+				 UA_MethodCallback method, void *handle);
+
+UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,

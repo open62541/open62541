@@ -108,15 +108,15 @@ class open62541_MacroHelper():
       code.append("UA_Argument *outputArguments = NULL;")
       for r in node.getReferences():
 	if r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'InputArguments':
+          while r.target() in unprintedNodes:
+            unprintedNodes.remove(r.target())
 	  if r.target().value() != None:
 	    inArgVal = r.target().value().value
-	    while r.target() in unprintedNodes:
-	      unprintedNodes.remove(r.target())
 	elif r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'OutputArguments':
+	  while r.target() in unprintedNodes:
+            unprintedNodes.remove(r.target())
 	  if r.target().value() != None:
 	    outArgVal = r.target().value().value
-	    while r.target() in unprintedNodes:
-	      unprintedNodes.remove(r.target())
       if len(inArgVal)>0:
 	code.append("")
 	code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")

@@ -35,6 +35,23 @@ helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const
 } 
 
 static UA_StatusCode
+fooBarMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
+                 size_t outputSize, UA_Variant *output) {
+	// Exactly the same as helloWorld, but returns foobar
+        UA_String *inputStr = (UA_String*)input->data;
+        UA_String tmp = UA_STRING_ALLOC("FooBar! ");
+        if(inputStr->length > 0) {
+            tmp.data = realloc(tmp.data, tmp.length + inputStr->length);
+            memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
+            tmp.length += inputStr->length;
+        }
+        UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
+        UA_String_deleteMembers(&tmp);
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
+        return UA_STATUSCODE_GOOD;
+} 
+
+static UA_StatusCode
 IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
                           const UA_Variant *input, size_t outputSize, UA_Variant *output) {
 	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
@@ -134,6 +151,12 @@ int main(int argc, char** argv) {
                             1, &inputArguments, 1, &outputArguments, NULL);
     //END OF EXAMPLE 2
 
+    /* If out methodnode is part of an instantiated object, we never had
+       the opportunity to define the callback... we could do that now
+    */
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(1,62541), &fooBarMethod, NULL);
+    
+    //END OF EXAMPLE 3
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, &running);
 
