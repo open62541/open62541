@@ -335,9 +335,6 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
     }
     size_t length = (size_t)signed_length;
         
-    if(contenttype->memSize * length > MAX_ARRAY_SIZE)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
     /* filter out arrays that can obviously not be parsed, because the message
        is too small */
     if(*pos + ((contenttype->memSize * length) / 32) > end)

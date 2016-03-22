@@ -39,11 +39,11 @@ extern "C" {
  * ``T``.
  *
  * ``void T_init(T *ptr)``
- *   Initialize the data type. This is synonymous with zeroing out the memory, i.e. *memset(dataptr, 0, sizeof(T))*.
+ *   Initialize the data type. This is synonymous with zeroing out the memory, i.e. ``memset(dataptr, 0, sizeof(T))``.
  * ``T* T_new()``
  *   Allocate and return the memory for the data type. The memory is already initialized.
  * ``UA_StatusCode T_copy(const T *src, T *dst)``
- *   Copy the content of the data type. Returns *UA_STATUSCODE_GOOD* if it succeeded.
+ *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or ``UA_STATUSCODE_BADOUTOFMEMORY``.
  * ``void T_deleteMembers(T *ptr)``
  *   Delete the dynamically allocated content of the data type, but not the data type itself.
  * ``void T_delete(T *ptr)``
@@ -162,7 +162,6 @@ typedef uint32_t UA_StatusCode;
  * has length 0 and the data pointer is NULL. An array of length 0 also has
  * length 0 but points to a sentinel memory address. */
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
-#define MAX_ARRAY_SIZE 104857600 // arrays must be smaller than 100MB
 
 /** Forward Declaration of UA_DataType. See Section `Generic Type Handling`_
     for details. */
