@@ -22,9 +22,9 @@ each service is implemented in a single function. See the \ref services section 
 +-----------------------------+-----------------------------+------------------------------+
 | GetEndpoints                | CloseSecureChannel          | ActivateSession              |
 +-----------------------------+-----------------------------+------------------------------+
-| RegisterServer              | CloseSession                |                              |
+| RegisterServer              |                             | CloseSession                 |
 +-----------------------------+-----------------------------+------------------------------+
-| Cancel                      |                             |                              |
+|                             |                             | Cancel                       |
 +-----------------------------+-----------------------------+------------------------------+
 
 **Interaction with the information model**
