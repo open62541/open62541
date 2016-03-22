@@ -181,7 +181,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
-    cds_lfht_lookup(ht, h, compare, &nodeid, &iter);
+    cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     if(!iter.node || cds_lfht_del(ht, iter.node) != 0)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     struct nodeEntry *entry = (struct nodeEntry*)iter.node;
