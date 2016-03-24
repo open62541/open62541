@@ -172,8 +172,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.h
-                     ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.h
+                     ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -212,8 +212,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.c
-                ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.c
+                ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
@@ -355,7 +355,7 @@ else()
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/src)
-    include_directories(${PROJECT_SOURCE_DIR}/src_extra)
+    include_directories(${PROJECT_SOURCE_DIR}/plugins)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
 endif()
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)

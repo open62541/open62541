@@ -101,7 +101,7 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    :> cd myApp
    :myApp> mkdir include
    :myApp> cp ../open62541/include/* ./include
-   :myApp> cp ../open62541/src_extra/*.h ./include
+   :myApp> cp ../open62541/plugins/*.h ./include
    :myApp> cp ../open62541/build/src_generated/*.h ./include
    :myApp> cp ../open62541/build/*.so .
    :myApp> tree

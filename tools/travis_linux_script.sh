@@ -16,7 +16,7 @@ if [ $ANALYZE = "true" ]; then
             --enable=style --force --std=c++11 -j 8 \
             --suppress=incorrectStringBooleanError \
             --suppress=invalidscanf --inline-suppr \
-            -I include src src_extra 2> cppcheck.txt
+            -I include src plugins 2> cppcheck.txt
         if [ -s cppcheck.txt ]; then
         	echo "\n\n====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt
