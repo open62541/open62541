@@ -34,7 +34,7 @@ add_definitions("-DVERSION=${GIT_COMMIT_ID}")
 
 message(STATUS "Git version: "  ${GIT_COMMIT_ID})
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 ####################################
 # Build Type and Compiler Settings #

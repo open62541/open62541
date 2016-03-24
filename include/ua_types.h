@@ -151,7 +151,6 @@ typedef uint32_t UA_StatusCode;
 /**
  * Array handling
  * --------------
- *
  * In OPC UA, arrays can have a length of zero or more with the usual meaning.
  * In addition, arrays can be undefined. Then, they don't even have a length. In
  * the binary encoding, this is indicated by an array of length -1.
