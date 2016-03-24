@@ -510,14 +510,6 @@ if(UA_BUILD_EXAMPLES)
 	endif()
 endif()
 
-# build documentation
 if(UA_BUILD_DOCUMENTATION)
-    find_package(Sphinx REQUIRED)
-    add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
-      -b latex -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc_latex"
-      COMMENT "Building LaTeX sources for documentation with Sphinx")
-    add_custom_target(doc ${SPHINX_EXECUTABLE}
-      -b html -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc"
-      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
-      COMMENT "Building HTML documentation with Sphinx")
+    add_subdirectory(doc)
 endif()
