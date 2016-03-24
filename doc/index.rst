@@ -23,7 +23,7 @@ standard.
    in_a_nutshell
    building
    tutorials
-   datatypes
+   types
 
    
 Indices and tables
