@@ -149,8 +149,6 @@ typedef double UA_Double;
 typedef uint32_t UA_StatusCode;
 
 /**
- * .. _array-handling:
- *
  * Array handling
  * --------------
  *
@@ -508,15 +506,17 @@ typedef struct {
     UA_UInt32 *arrayDimensions; // The length of each dimension of the data-array
 } UA_Variant;
 
-/* Returns true if the variant contains a scalar value. Note that empty variants
- * contain an array of length -1 (undefined).
+/* Returns true if the variant contains a scalar value. Note that empty variants contain
+ * an array of length -1 (undefined).
+ *
  * @param v The variant
  * @return Does the variant contain a scalar value. */
 static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL); }
     
-/* Set the variant to a scalar value that already resides in memory. The value
- * takes on the lifecycle of the variant and is deleted with it.
+/* Set the variant to a scalar value that already resides in memory. The value takes on
+ * the lifecycle of the variant and is deleted with it.
+ *
  * @param v The variant
  * @param p A pointer to the value data
  * @param type The datatype of the value in question */
@@ -531,8 +531,9 @@ UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *typ
 UA_StatusCode UA_EXPORT
 UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
-/* Set the variant to an array that already resides in memory. The array takes
- * on the lifecycle of the variant and is deleted with it.
+/* Set the variant to an array that already resides in memory. The array takes on the
+ * lifecycle of the variant and is deleted with it.
+ *
  * @param v The variant
  * @param array A pointer to the array data
  * @param arraySize The size of the array
@@ -542,6 +543,7 @@ UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
                     size_t arraySize, const UA_DataType *type);
 
 /* Set the variant to an array that is copied from an existing array.
+ *
  * @param v The variant
  * @param array A pointer to the array data
  * @param arraySize The size of the array
@@ -565,8 +567,10 @@ typedef struct {
     } *dimensions;
 } UA_NumericRange;
 
-/* Copy the variant, but use only a subset of the (multidimensional) array into a variant. Returns
- * an error code if the variant is not an array or if the indicated range does not fit.
+/* Copy the variant, but use only a subset of the (multidimensional) array into a variant.
+ * Returns an error code if the variant is not an array or if the indicated range does not
+ * fit.
+ *
  * @param src The source variant
  * @param dst The target variant
  * @param range The range of the copied data
@@ -640,8 +644,6 @@ typedef struct UA_DiagnosticInfo {
 } UA_DiagnosticInfo;
 
 /**
- * .. _generic-handling:
- *
  * Generic Type Handling
  * ---------------------
  * The builtin types can be combined to data structures. All information about a
@@ -652,30 +654,30 @@ typedef struct {
 #ifdef UA_ENABLE_TYPENAMES
     const char *memberName;
 #endif
-    UA_UInt16   memberTypeIndex;   /* Index of the member in the array of data types */
-    UA_Byte     padding;           /* How much padding is there before this member
-                                      element? For arrays this is the padding before the
-                                      size_t lenght member. (No padding between size_t and
-                                      the following ptr.) */
-    UA_Boolean  namespaceZero : 1; /* The type of the member is defined in namespace zero.
-                                      In this implementation, types from custom namespace
-                                      may contain members from the same namespace or ns0
-                                      only.*/
-    UA_Boolean  isArray       : 1; /* The member is an array */
+    UA_UInt16 memberTypeIndex;    /* Index of the member in the array of data types */
+    UA_Byte   padding;            /* How much padding is there before this member element?
+                                     For arrays this is the padding before the size_t
+                                     lenght member. (No padding between size_t and the
+                                     following ptr.) */
+    UA_Boolean namespaceZero : 1; /* The type of the member is defined in namespace zero.
+                                     In this implementation, types from custom namespace
+                                     may contain members from the same namespace or ns0
+                                     only.*/
+    UA_Boolean isArray       : 1; /* The member is an array */
 } UA_DataTypeMember;
     
 struct UA_DataType {
 #ifdef UA_ENABLE_TYPENAMES
     const char *typeName;
 #endif
-    UA_NodeId   typeId;           /* The nodeid of the type */
-    UA_UInt16   memSize;          /* Size of the struct in memory */
-    UA_UInt16   typeIndex;        /* Index of the type in the datatypetable */
-    UA_Byte     membersSize;      /* How many members does the type have? */
-    UA_Boolean  builtin      : 1; /* The type is "builtin" and has dedicated de- and
-                                     encoding functions */
-    UA_Boolean  fixedSize    : 1; /* The type (and its members) contains no pointers */
-    UA_Boolean  zeroCopyable : 1; /* The type can be copied directly off the stream (given
+    UA_NodeId  typeId;           /* The nodeid of the type */
+    UA_UInt16  memSize;          /* Size of the struct in memory */
+    UA_UInt16  typeIndex;        /* Index of the type in the datatypetable */
+    UA_Byte    membersSize;      /* How many members does the type have? */
+    UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de- and
+                                    encoding functions */
+    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no pointers */
+    UA_Boolean zeroCopyable : 1; /* The type can be copied directly off the stream (given
                                      that the endianness matches) */
     UA_DataTypeMember *members;
 };
