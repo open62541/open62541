@@ -435,7 +435,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
         } else {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Received MSGA on an unknown request");
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "Received MSGA on an unknown request");
         }
 
         return;
