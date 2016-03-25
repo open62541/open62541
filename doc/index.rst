@@ -24,6 +24,7 @@ standard.
    building
    tutorials
    types
+   types_generated
 
    
 Indices and tables
