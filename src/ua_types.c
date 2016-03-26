@@ -1,6 +1,5 @@
 #include "ua_util.h"
 #include "ua_types.h"
-#include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
 #include "pcg_basic.h"
@@ -17,7 +16,6 @@ UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
 /***************************/
 /* Random Number Generator */
 /***************************/
-
 static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
@@ -27,7 +25,6 @@ UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
 /*****************/
 /* Builtin Types */
 /*****************/
-
 UA_EXPORT UA_UInt32 UA_UInt32_random(void) {
     return (UA_UInt32)pcg32_random_r(&UA_rng);
 }

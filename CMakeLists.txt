@@ -161,7 +161,7 @@ include_directories(${PROJECT_BINARY_DIR}/src_generated) #needed to locate an in
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h

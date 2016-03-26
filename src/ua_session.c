@@ -1,6 +1,5 @@
-#include "ua_util.h"
 #include "ua_session.h"
-#include "ua_statuscodes.h"
+#include "ua_util.h"
 
 UA_Session adminSession = {
     .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},

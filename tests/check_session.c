@@ -1,26 +1,14 @@
-/*
- * check_session.c
- *
- *  Created on: Jul 30, 2015
- *      Author: opcua
- */
-
-
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "ua_types.h"
 #include "server/ua_services.h"
-#include "ua_statuscodes.h"
 #include "check.h"
-#include "ua_util.h"
-
 
 START_TEST(Session_init_ShallWork)
 {
 	UA_Session session;
 	UA_Session_init(&session);
-
 
     UA_NodeId tmpNodeId;
     UA_NodeId_init(&tmpNodeId);
@@ -40,9 +28,6 @@ START_TEST(Session_init_ShallWork)
     ck_assert_ptr_eq(session.sessionName.data,NULL);
     ck_assert_int_eq((int)session.timeout,0);
     ck_assert_int_eq(session.validTill,tmpDateTime);
-
-
-	//finally
 }
 END_TEST
 
@@ -55,12 +40,7 @@ START_TEST(Session_updateLifetime_ShallWork)
 	UA_Session_updateLifetime(&session);
 
 	UA_Int32 result = (session.validTill > tmpDateTime);
-
 	ck_assert_int_gt(result,0);
-
-
-
-	//finally
 }
 END_TEST
 

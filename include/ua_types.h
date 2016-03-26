@@ -26,7 +26,7 @@ extern "C" {
 #endif
 
 #include "ua_config.h"
-#include "ua_statuscodes.h"
+#include "ua_constants.h"
 
 /**
  * Data Types
@@ -39,11 +39,13 @@ extern "C" {
  * ``T``.
  *
  * ``void T_init(T *ptr)``
- *   Initialize the data type. This is synonymous with zeroing out the memory, i.e. ``memset(dataptr, 0, sizeof(T))``.
+ *   Initialize the data type. This is synonymous with zeroing out the memory,
+ *   i.e. ``memset(dataptr, 0, sizeof(T))``.
  * ``T* T_new()``
  *   Allocate and return the memory for the data type. The memory is already initialized.
  * ``UA_StatusCode T_copy(const T *src, T *dst)``
- *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or ``UA_STATUSCODE_BADOUTOFMEMORY``.
+ *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or
+ *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
  * ``void T_deleteMembers(T *ptr)``
  *   Delete the dynamically allocated content of the data type, but not the data type itself.
  * ``void T_delete(T *ptr)``
@@ -146,8 +148,8 @@ typedef double UA_Double;
  *
  * StatusCode
  * ^^^^^^^^^^
- * A numeric identifier for a error or condition that is associated with a value
- * or an operation. */
+ * A numeric identifier for a error or condition that is associated with a value or an
+ * operation. See the section :ref:`statuscodes` for the meaning of a specific code. */
 typedef uint32_t UA_StatusCode;
 
 /**
@@ -167,7 +169,7 @@ typedef uint32_t UA_StatusCode;
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType; 
 
-/** The following functions are used for handling arrays of an data type. */
+/** The following functions are used for handling arrays of any data type. */
 
 /* Allocates and initializes an array of variables of a specific type
  *
@@ -216,9 +218,11 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * ``UA_STRING`` returns a string pointing to the preallocated char-array.
  * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
  * of the char-array. */
-static UA_INLINE UA_String UA_STRING(char *chars) {
+static UA_INLINE UA_String
+UA_STRING(char *chars) {
     UA_String str; str.length = strlen(chars);
-    str.data = (UA_Byte*)chars; return str; }
+    str.data = (UA_Byte*)chars; return str;
+}
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
@@ -273,9 +277,6 @@ typedef struct {
 
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
-/* do not use for cryptographic entropy */
-UA_Guid UA_EXPORT UA_Guid_random(void);
-
 /**
  * ByteString
  * ^^^^^^^^^^
@@ -291,10 +292,14 @@ UA_StatusCode UA_EXPORT UA_ByteString_allocBuffer(UA_ByteString *bs, size_t leng
 
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
-static UA_INLINE UA_ByteString UA_BYTESTRING(char *chars) {
-    UA_ByteString str; str.length = strlen(chars); str.data = (UA_Byte*)chars; return str; }
+static UA_INLINE UA_ByteString
+UA_BYTESTRING(char *chars) {
+    UA_ByteString str; str.length = strlen(chars);
+    str.data = (UA_Byte*)chars; return str;
+}
 
-static UA_INLINE UA_ByteString UA_BYTESTRING_ALLOC(const char *chars) {
+static UA_INLINE UA_ByteString
+UA_BYTESTRING_ALLOC(const char *chars) {
     UA_String str = UA_String_fromChars(chars); UA_ByteString bstr;
     bstr.length = str.length; bstr.data = str.data; return bstr;
 }
@@ -310,9 +315,8 @@ typedef UA_String UA_XmlElement;
  * ^^^^^^
  * An identifier for a node in the address space of an OPC UA Server. */
 enum UA_NodeIdType {
-    UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can become 0
-                                     or 1 for 2byte and 4byte encoding of small
-                                     nodeids. */
+    UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also become 1 or 2
+                                     (2byte and 4byte encoding of small numeric nodeids) */
     UA_NODEIDTYPE_STRING     = 3,
     UA_NODEIDTYPE_GUID       = 4,
     UA_NODEIDTYPE_BYTESTRING = 5
@@ -331,37 +335,57 @@ typedef struct {
 
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
-static UA_INLINE UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
-    return (p->namespaceIndex == 0 && p->identifierType == UA_NODEIDTYPE_NUMERIC &&
+static UA_INLINE UA_Boolean
+UA_NodeId_isNull(const UA_NodeId *p) {
+    return (p->namespaceIndex == 0 &&
+            p->identifierType == UA_NODEIDTYPE_NUMERIC &&
             p->identifier.numeric == 0);
 }
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
 /** The following functions are shorthand for creating NodeIds. */
-static UA_INLINE UA_NodeId UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_NUMERIC;
-    id.identifier.numeric = identifier; return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_NUMERIC;
+    id.identifier.numeric = identifier; return id;
+}
 
-static UA_INLINE UA_NodeId UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING(chars); return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING(chars); return id;
+}
 
-static UA_INLINE UA_NodeId UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING_ALLOC(chars); return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING_ALLOC(chars); return id;
+}
 
-static UA_INLINE UA_NodeId UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_GUID;
-    id.identifier.guid = guid; return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_GUID;
+    id.identifier.guid = guid; return id;
+}
 
-static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars); return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING(chars); return id;
+}
 
-static UA_INLINE UA_NodeId UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex; id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id; }
+static UA_INLINE UA_NodeId
+UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_NodeId id; id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id;
+}
 
 /**
  * ExpandedNodeId
@@ -377,32 +401,38 @@ typedef struct {
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id; }
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+}
 
 /**
  * QualifiedName
@@ -416,12 +446,14 @@ typedef struct {
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING(chars); return qn; }
+    qn.name = UA_STRING(chars); return qn;
+}
 
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING_ALLOC(chars); return qn; }
+    qn.name = UA_STRING_ALLOC(chars); return qn;
+}
 
 /**
  * LocalizedText
@@ -435,12 +467,14 @@ typedef struct {
 static UA_INLINE UA_LocalizedText
 UA_LOCALIZEDTEXT(char *locale, char *text) {
     UA_LocalizedText lt; lt.locale = UA_STRING(locale);
-    lt.text = UA_STRING(text); return lt; }
+    lt.text = UA_STRING(text); return lt;
+}
 
 static UA_INLINE UA_LocalizedText
 UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
     UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
-    lt.text = UA_STRING_ALLOC(text); return lt; }
+    lt.text = UA_STRING_ALLOC(text); return lt;
+}
 
 /**
  * ExtensionObject
@@ -512,8 +546,10 @@ typedef struct {
  *
  * @param v The variant
  * @return Does the variant contain a scalar value. */
-static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
-    return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL); }
+static UA_INLINE UA_Boolean
+UA_Variant_isScalar(const UA_Variant *v) {
+    return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
+}
     
 /* Set the variant to a scalar value that already resides in memory. The value takes on
  * the lifecycle of the variant and is deleted with it.
@@ -521,16 +557,14 @@ static UA_INLINE UA_Boolean UA_Variant_isScalar(const UA_Variant *v) {
  * @param v The variant
  * @param p A pointer to the value data
  * @param type The datatype of the value in question */
-void UA_EXPORT
-UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
+void UA_EXPORT UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p, const UA_DataType *type);
 
 /* Set the variant to a scalar value that is copied from an existing variable.
  * @param v The variant
  * @param p A pointer to the value data
  * @param type The datatype of the value
  * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
+UA_StatusCode UA_EXPORT UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
 /* Set the variant to an array that already resides in memory. The array takes on the
  * lifecycle of the variant and is deleted with it.
@@ -696,7 +730,9 @@ void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * @param p The memory location of the variable
  * @param type The datatype description */
 static UA_INLINE void
-UA_init(void *p, const UA_DataType *type) { memset(p, 0, type->memSize); }
+UA_init(void *p, const UA_DataType *type) {
+    memset(p, 0, type->memSize);
+}
 
 /* Copies the content of two variables. If copying fails (e.g. because no memory was
  * available for an array), then dst is emptied and initialized to prevent memory leaks.
@@ -723,49 +759,13 @@ void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
 /**
- * Standard-defined constants
- * --------------------------
- * These are not generated from XML. Server *and* client need them. */
-typedef enum {
-    UA_ATTRIBUTEID_NODEID                  = 1,
-    UA_ATTRIBUTEID_NODECLASS               = 2,
-    UA_ATTRIBUTEID_BROWSENAME              = 3,
-    UA_ATTRIBUTEID_DISPLAYNAME             = 4,
-    UA_ATTRIBUTEID_DESCRIPTION             = 5,
-    UA_ATTRIBUTEID_WRITEMASK               = 6,
-    UA_ATTRIBUTEID_USERWRITEMASK           = 7,
-    UA_ATTRIBUTEID_ISABSTRACT              = 8,
-    UA_ATTRIBUTEID_SYMMETRIC               = 9,
-    UA_ATTRIBUTEID_INVERSENAME             = 10,
-    UA_ATTRIBUTEID_CONTAINSNOLOOPS         = 11,
-    UA_ATTRIBUTEID_EVENTNOTIFIER           = 12,
-    UA_ATTRIBUTEID_VALUE                   = 13,
-    UA_ATTRIBUTEID_DATATYPE                = 14,
-    UA_ATTRIBUTEID_VALUERANK               = 15,
-    UA_ATTRIBUTEID_ARRAYDIMENSIONS         = 16,
-    UA_ATTRIBUTEID_ACCESSLEVEL             = 17,
-    UA_ATTRIBUTEID_USERACCESSLEVEL         = 18,
-    UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL = 19,
-    UA_ATTRIBUTEID_HISTORIZING             = 20,
-    UA_ATTRIBUTEID_EXECUTABLE              = 21,
-    UA_ATTRIBUTEID_USEREXECUTABLE          = 22
-} UA_AttributeId;
-
-typedef enum {
-    UA_ACCESSLEVELMASK_READ = 0x01,
-    UA_ACCESSLEVELMASK_WRITE = 0x02,
-    UA_ACCESSLEVELMASK_HISTORYREAD = 0x4,
-    UA_ACCESSLEVELMASK_HISTORYWRITE = 0x08,
-    UA_ACCESSLEVELMASK_SEMANTICCHANGE = 0x10
-} UA_AccessLevelMask;
-
-/**
  * Random Number Generator
  * -----------------------
  * If UA_ENABLE_MULTITHREADING is defined, then the seed is stored in thread local
  * storage. The seed is initialized for every thread in the server/client. */
-UA_EXPORT void UA_random_seed(UA_UInt64 seed);
-UA_EXPORT UA_UInt32 UA_UInt32_random(void); /* do not use for cryptographic entropy */
+void UA_EXPORT UA_random_seed(UA_UInt64 seed);
+UA_UInt32 UA_EXPORT UA_UInt32_random(void); /* do not use for cryptographic entropy */
+UA_Guid UA_EXPORT UA_Guid_random(void); /* do not use for cryptographic entropy */
 
 #ifdef __cplusplus
 } // extern "C"

@@ -24,6 +24,6 @@ standard.
    building
    tutorials
    types
-   statuscodes
+   constants
    types_generated
 

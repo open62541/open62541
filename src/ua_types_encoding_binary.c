@@ -1,7 +1,6 @@
-#include "ua_util.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_statuscodes.h"
 #include "ua_types_generated.h"
+#include "ua_util.h"
 
 /* All de- and encoding functions have the same signature up to the pointer type.
    So we can use a jump-table to switch into member types. */

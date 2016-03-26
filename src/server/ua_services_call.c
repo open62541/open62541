@@ -1,9 +1,5 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
-#include "ua_statuscodes.h"
-#include "ua_util.h"
-#include "ua_nodestore.h"
-#include "ua_nodes.h"
 
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
