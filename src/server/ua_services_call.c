@@ -33,14 +33,14 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
         if(var->arrayDimensionsSize != arg->arrayDimensionsSize) 
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         
-    UA_UInt32 *varDims = var->arrayDimensions;
+    UA_Int32 *varDims = var->arrayDimensions;
     size_t varDimsSize = var->arrayDimensionsSize;
     UA_Boolean scalar = UA_Variant_isScalar(var);
 
     /* The dimension 1 is implicit in the array length */
-    UA_UInt32 fakeDims;
+    UA_Int32 fakeDims;
     if(!scalar && !varDims) {
-        fakeDims = (UA_UInt32)var->arrayLength;
+        fakeDims = (UA_Int32)var->arrayLength;
         varDims = &fakeDims;
         varDimsSize = 1;
     }
@@ -74,7 +74,7 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     if(arg->arrayDimensionsSize != varDimsSize)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     for(size_t i = 0; i < varDimsSize; i++) {
-        if(arg->arrayDimensions[i] != varDims[i])
+        if((UA_Int32)arg->arrayDimensions[i] != varDims[i])
             return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     return UA_STATUSCODE_GOOD;
