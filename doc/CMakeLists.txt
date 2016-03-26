@@ -12,11 +12,13 @@ function(generate_rst in out)
 endfunction()
 
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${PROJECT_BINARY_DIR}/doc_src/types.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h ${PROJECT_BINARY_DIR}/doc_src/statuscodes.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_latex"
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/statuscodes.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
@@ -25,6 +27,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc"
   COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/doc_src/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/statuscodes.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)

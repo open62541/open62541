@@ -24,13 +24,6 @@ standard.
    building
    tutorials
    types
+   statuscodes
    types_generated
-
-   
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
 

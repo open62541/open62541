@@ -1,5 +1,5 @@
-OPC UA in a nutshell
-====================
+Introduction to OPC UA
+======================
 
 OPC UA, a collection of services
 --------------------------------

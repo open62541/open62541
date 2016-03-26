@@ -142,6 +142,8 @@ typedef float UA_Float;
 typedef double UA_Double;
 
 /**
+ * .. _statuscode:
+ *
  * StatusCode
  * ^^^^^^^^^^
  * A numeric identifier for a error or condition that is associated with a value
