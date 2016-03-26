@@ -318,7 +318,7 @@ static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
         p->arrayLength = 0;
     }
     if(p->arrayDimensions) {
-        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
     }
@@ -336,7 +336,7 @@ Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
     dst->type = src->type;
     if(src->arrayDimensions) {
         retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
-            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
         if(retval == UA_STATUSCODE_GOOD)
             dst->arrayDimensionsSize = src->arrayDimensionsSize;
         else
@@ -366,9 +366,13 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
-        dims = v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; i++)
+        dims = (UA_UInt32*)v->arrayDimensions;
+        for(size_t i = 0; i < dims_count; i++) {
+            /* dimensions can have negative size similar to array lengths */
+            if(v->arrayDimensions[i] < 0)
+                return UA_STATUSCODE_BADINDEXRANGEINVALID;
             elements *= dims[i];
+        }
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -457,7 +461,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
         }
         dst->arrayDimensionsSize = src->arrayDimensionsSize;
         for(size_t k = 0; k < src->arrayDimensionsSize; k++)
-            dst->arrayDimensions[k] = range.dimensions[k].max - range.dimensions[k].min + 1;
+            dst->arrayDimensions[k] = (UA_Int32)(range.dimensions[k].max - range.dimensions[k].min + 1);
     }
     return UA_STATUSCODE_GOOD;
 }

@@ -538,7 +538,7 @@ typedef struct {
     size_t arrayLength;  // The number of elements in the data array
     void *data; // Points to the scalar or array data
     size_t arrayDimensionsSize; // The number of dimensions the data-array has
-    UA_UInt32 *arrayDimensions; // The length of each dimension of the data-array
+    UA_Int32 *arrayDimensions; // The length of each dimension of the data-array
 } UA_Variant;
 
 /* Returns true if the variant contains a scalar value. Note that empty variants contain
