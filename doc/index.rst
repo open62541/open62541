@@ -25,5 +25,6 @@ standard.
    tutorials
    types
    constants
+   server
    types_generated
 
