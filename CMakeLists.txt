@@ -107,10 +107,10 @@ endif()
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
-option(UA_ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
-option(UA_ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
-option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
+option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
+option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." OFF)
+option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(UA_ENABLE_COVERAGE)
