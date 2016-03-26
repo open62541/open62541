@@ -196,8 +196,8 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
-        printf("Method call was successfull, and %llu returned values available.\n",
-               (unsigned long long)outputSize);
+        printf("Method call was successfull, and %lu returned values available.\n",
+               (unsigned long)outputSize);
         UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     } else {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
