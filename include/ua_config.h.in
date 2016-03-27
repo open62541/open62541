@@ -130,6 +130,14 @@
 /**
  * Float Endianness
  * ---------------- */
+
+/* Demote error to a warning on clang. There is no robust way to detect float
+   endianness here. */
+#if defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-W#warnings"
+#endif
+
 #if !defined(_WIN32)
 # if !defined(__FLOAT_WORD_ORDER__) || !defined(__BYTE_ORDER__) || \
      !defined(__ORDER_LITTLE_ENDIAN__) || !defined(__ORDER_BIG_ENDIAN__)
@@ -147,6 +155,10 @@
 #   endif
 #  endif
 # endif
+#endif
+
+#if defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 
 /**
