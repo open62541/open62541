@@ -77,11 +77,6 @@ struct UA_Server {
     UA_ServerConfig config;
 };
 
-/* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */
-void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
-                               const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                               UA_AddNodesResult *result);
-
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
