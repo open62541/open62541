@@ -26,5 +26,5 @@ standard.
    types
    constants
    server
-   types_generated
+   internal
 

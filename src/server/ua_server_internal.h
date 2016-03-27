@@ -90,4 +90,8 @@ UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback cal
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
+#ifdef UA_BUILD_UNIT_TESTS
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
+#endif
+
 #endif /* UA_SERVER_INTERNAL_H_ */

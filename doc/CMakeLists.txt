@@ -15,6 +15,8 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${PROJECT_BINARY_DIR}/doc_
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${PROJECT_BINARY_DIR}/doc_src/constants.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${PROJECT_BINARY_DIR}/doc_src/server.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${PROJECT_BINARY_DIR}/doc_src/services.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_latex"
@@ -22,6 +24,8 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/constants.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -32,5 +36,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/constants.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)

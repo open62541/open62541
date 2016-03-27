@@ -15,6 +15,9 @@
 #include <urcu.h>
 #endif
 
+/* copied definition */
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
+
 static UA_StatusCode
 readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *dataValue) {

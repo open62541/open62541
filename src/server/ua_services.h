@@ -1,6 +1,10 @@
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
@@ -8,52 +12,41 @@
 #include "ua_session.h"
 #include "ua_nodes.h"
 
+/**
+ * Services
+ * ========
+ * The services defined in the OPC UA standard. */
+/* All services take as input the server, the current session and pointers to
+   the request and response. The status code is returned as part of the
+   response. */
 typedef void (*UA_Service)(UA_Server*, UA_Session*, const void*, void*);
 
 /**
- * @ingroup server
- * @defgroup services Services
- *
- * @brief The UA services that can be called from a remote user
- *
- * @{
- */
-
-/**
- * @name Discovery Service Set
- *
+ * Discovery Service Set
+ * ---------------------
  * This Service Set defines Services used to discover the Endpoints implemented
- * by a Server and to read the security configuration for those Endpoints.
- *
- * @{
- */
+ * by a Server and to read the security configuration for those Endpoints. */
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response);
-/**
- * Returns the Endpoints supported by a Server and all of the configuration
- * information required to establish a SecureChannel and a Session.
- */
+
+/* Returns the Endpoints supported by a Server and all of the configuration
+ * information required to establish a SecureChannel and a Session. */
 void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response);
-// Service_RegisterServer
-/** @} */
+
+/* Not Implemented: Service_RegisterServer */
 
 /**
- * @name SecureChannel Service Set
- *
+ * SecureChannel Service Set
+ * -------------------------
  * This Service Set defines Services used to open a communication channel that
  * ensures the confidentiality and Integrity of all Messages exchanged with the
- * Server.
- *
- * @{
- */
+ * Server. */
 
-/**
- * Open or renew a SecureChannel that can be used to ensure Confidentiality and
- * Integrity for Message exchange during a Session.
- */
+/* Open or renew a SecureChannel that can be used to ensure Confidentiality and
+ * Integrity for Message exchange during a Session. */
 void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                const UA_OpenSecureChannelRequest *request,
                                UA_OpenSecureChannelResponse *response);
@@ -61,62 +54,53 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
 /** Used to terminate a SecureChannel. */
 void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId);
 
-/** @} */
-
 /**
- * @name Session Service Set
- *
+ * Session Service Set
+ * -------------------
  * This Service Set defines Services for an application layer connection
- * establishment in the context of a Session.
- *
- * @{
- */
+ * establishment in the context of a Session. */
 
-/**
- * Used by an OPC UA Client to create a Session and the Server returns two
+/* Used by an OPC UA Client to create a Session and the Server returns two
  * values which uniquely identify the Session. The first value is the sessionId
  * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
- * associate an incoming request with a Session.
- */
+ * associate an incoming request with a Session. */
 void Service_CreateSession(UA_Server *server, UA_Session *session,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response);
 
-/**
- * Used by the Client to submit its SoftwareCertificates to the Server for
+/* Used by the Client to submit its SoftwareCertificates to the Server for
  * validation and to specify the identity of the user associated with the
  * Session. This Service request shall be issued by the Client before it issues
  * any other Service request after CreateSession. Failure to do so shall cause
- * the Server to close the Session.
- */
+ * the Server to close the Session. */
 void Service_ActivateSession(UA_Server *server, UA_Session *session,
                              const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response);
 
-/** Used to terminate a Session. */
+/* Used to terminate a Session. */
 void Service_CloseSession(UA_Server *server, UA_Session *session,
                           const UA_CloseSessionRequest *request,
                           UA_CloseSessionResponse *response);
-// Service_Cancel
-/** @} */
+
+/* Not Implemented: Service_Cancel */
 
 /**
- * @name NodeManagement Service Set
- *
- * This Service Set defines Services to add and delete AddressSpace Nodes and References between
- * them. All added Nodes continue to exist in the AddressSpace even if the Client that created them
- * disconnects from the Server.
- *
- * @{
- */
+ * NodeManagement Service Set
+ * --------------------------
+ * This Service Set defines Services to add and delete AddressSpace Nodes and
+ * References between them. All added Nodes continue to exist in the
+ * AddressSpace even if the Client that created them disconnects from the
+ * Server. */
 
-/** Used to add one or more Nodes into the AddressSpace hierarchy. */
+/* Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
-void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_AddNodesItem *item,
-                             UA_AddNodesResult *result, UA_InstantiationCallback *instantiationCallback);
+
+void Service_AddNodes_single(UA_Server *server, UA_Session *session,
+                             const UA_AddNodesItem *item, UA_AddNodesResult *result,
+                             UA_InstantiationCallback *instantiationCallback);
 
 /* Add an existing node. The node is assumed to be "finished", i.e. no
    instantiation from inheritance is necessary */
@@ -124,43 +108,39 @@ void Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *
                                const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                                UA_AddNodesResult *result);
 
-/** Used to add one or more References to one or more Nodes. */
+/* Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
+
 UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *session,
                                            const UA_AddReferencesItem *item);
 
-/** Used to delete one or more Nodes from the AddressSpace. */
+/* Used to delete one or more Nodes from the AddressSpace. */
 void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response);
-UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                                         UA_Boolean deleteReferences);
 
-/** Used to delete one or more References of a Node. */
+UA_StatusCode Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
+                                         const UA_NodeId *nodeId, UA_Boolean deleteReferences);
+
+/* Used to delete one or more References of a Node. */
 void Service_DeleteReferences(UA_Server *server, UA_Session *session,
                               const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
+
 UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
                                               const UA_DeleteReferencesItem *item);
 
-/** @} */
-
 /**
- * @name View Service Set
- *
+ * View Service Set
+ * ----------------
  * Clients use the browse Services of the View Service Set to navigate through
- * the AddressSpace or through a View which is a subset of the AddressSpace.
- *
- * @{
- */
+ * the AddressSpace or through a View which is a subset of the AddressSpace. */
 
-/**
- * Used to discover the References of a specified Node. The browse can be
+/* Used to discover the References of a specified Node. The browse can be
  * further limited by the use of a View. This Browse Service also supports a
- * primitive filtering capability.
- */
+ * primitive filtering capability. */
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request,
                     UA_BrowseResponse *response);
@@ -169,192 +149,153 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
-/**
- * Used to request the next set of Browse or BrowseNext response information
+/* Used to request the next set of Browse or BrowseNext response information
  * that is too large to be sent in a single response. "Too large" in this
  * context means that the Server is not able to return a larger response or that
  * the number of results to return exceeds the maximum number of results to
- * return that was specified by the Client in the original Browse request.
- */
+ * return that was specified by the Client in the original Browse request. */
 void Service_BrowseNext(UA_Server *server, UA_Session *session,
                         const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response);
-void UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
-                                 const UA_ByteString *continuationPoint, UA_BrowseResult *result);
 
-/** Used to translate textual node paths to their respective ids. */
+void UA_Server_browseNext_single(UA_Server *server, UA_Session *session,
+                                 UA_Boolean releaseContinuationPoint,
+                                 const UA_ByteString *continuationPoint,
+                                 UA_BrowseResult *result);
+
+/* Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response);
+
 void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
                                                   const UA_BrowsePath *path, UA_BrowsePathResult *result);
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response);
+
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response);
-/** @} */
-
 /**
- * @name Query Service Set
- *
+ * Query Service Set
+ * -----------------
  * This Service Set is used to issue a Query to a Server. OPC UA Query is
  * generic in that it provides an underlying storage mechanism independent Query
  * capability that can be used to access a wide variety of OPC UA data stores
  * and information management systems. OPC UA Query permits a Client to access
  * data maintained by a Server without any knowledge of the logical schema used
  * for internal storage of the data. Knowledge of the AddressSpace is
- * sufficient.
- *
- * @{
- */
-// Service_QueryFirst
-// Service_QueryNext
-/** @} */
+ * sufficient. */
+/* Not Implemented: Service_QueryFirst */
+/* Not Impelemented: Service_QueryNext */
 
 /**
- * @name Attribute Service Set
- *
+ * Attribute Service Set
+ * ---------------------
  * This Service Set provides Services to access Attributes that are part of
- * Nodes.
- *
- * @{
- */
+ * Nodes. */
 
-/* Mock-Up of the function signature for Unit Tests */
-#ifdef UA_BUILD_UNIT_TESTS
-UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
-#endif
-
-/**
- * Used to read one or more Attributes of one or more Nodes. For constructed
+/* Used to read one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service
  * allows Clients to read the entire set of indexed values as a composite, to
- * read individual elements or to read ranges of elements of the composite.
- */
-void
-Service_Read(UA_Server *server, UA_Session *session,
-             const UA_ReadRequest *request,
-             UA_ReadResponse *response);
-void
-Service_Read_single(UA_Server *server, UA_Session *session,
-                    UA_TimestampsToReturn timestamps,
-                    const UA_ReadValueId *id, UA_DataValue *v);
+ * read individual elements or to read ranges of elements of the composite. */
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request,
+                  UA_ReadResponse *response);
 
-// Service_HistoryRead
-/**
- * Used to write one or more Attributes of one or more Nodes. For constructed
+void Service_Read_single(UA_Server *server, UA_Session *session,
+                         UA_TimestampsToReturn timestamps,
+                         const UA_ReadValueId *id, UA_DataValue *v);
+
+/* Not Implemented: Service_HistoryRead */
+
+/* Used to write one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service
  * allows Clients to write the entire set of indexed values as a composite, to
- * write individual elements or to write ranges of elements of the composite.
- */
-void
-Service_Write(UA_Server *server, UA_Session *session,
-              const UA_WriteRequest *request,
-              UA_WriteResponse *response);
+ * write individual elements or to write ranges of elements of the composite. */
+void Service_Write(UA_Server *server, UA_Session *session,
+                   const UA_WriteRequest *request,
+                   UA_WriteResponse *response);
 
-/** Single attribute writes are exposed to the userspace. The wvalue may be destroyed (deleteMembers) */
-UA_StatusCode
-Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue);
+/* Single attribute writes are exposed to the userspace. The wvalue may be
+    destroyed (deleteMembers) */
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session,
+                                   const UA_WriteValue *wvalue);
 
-// Service_HistoryUpdate
-/** @} */
+/* Not Implemented: Service_HistoryUpdate */
 
 /**
- * @name Method Service Set
- *
+ * Method Service Set
+ * ------------------
  * The Method Service Set defines the means to invoke methods. A method shall be
- * a component of an Object.
- *
- * @{
- */
+ * a component of an Object. */
 #ifdef UA_ENABLE_METHODCALLS
-void
-Service_Call(UA_Server *server, UA_Session *session,
-             const UA_CallRequest *request,
-             UA_CallResponse *response);
-void
-Service_Call_single(UA_Server *server, UA_Session *session,
-                    const UA_CallMethodRequest *request,
-                    UA_CallMethodResult *result);
-#endif
-/** @} */
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
+void Service_Call_single(UA_Server *server, UA_Session *session,
+                         const UA_CallMethodRequest *request,
+                         UA_CallMethodResult *result);
+#endif
+
 /**
- * @name MonitoredItem Service Set
- *
+ * MonitoredItem Service Set
+ * -------------------------
  * Clients define MonitoredItems to subscribe to data and Events. Each
  * MonitoredItem identifies the item to be monitored and the Subscription to use
- * to send Notifications. The item to be monitored may be any Node Attribute.
- *
- * @{
- */
-
-/*
- * Used to create and add one or more MonitoredItems to a Subscription. A
+ * to send Notifications. The item to be monitored may be any Node Attribute. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+/* Used to create and add one or more MonitoredItems to a Subscription. A
  * MonitoredItem is deleted automatically by the Server when the Subscription is
  * deleted. Deleting a MonitoredItem causes its entire set of triggered item
  * links to be deleted, but has no effect on the MonitoredItems referenced by
- * the triggered items.
- */
-void
-Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
-                             const UA_CreateMonitoredItemsRequest *request, 
-                             UA_CreateMonitoredItemsResponse *response);
-// Service_ModifyMonitoredItems
-// Service_SetMonitoringMode
-// Service_SetTriggering
-void
-Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
-                             const UA_DeleteMonitoredItemsRequest *request,
-                             UA_DeleteMonitoredItemsResponse *response);
+ * the triggered items. */
+void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_CreateMonitoredItemsRequest *request, 
+                                  UA_CreateMonitoredItemsResponse *response);
+
+void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_DeleteMonitoredItemsRequest *request,
+                                  UA_DeleteMonitoredItemsResponse *response);
+
+/* Not Implemented: Service_ModifyMonitoredItems */
+/* Not Implemented: Service_SetMonitoringMode */
+/* Not Implemented: Service_SetTriggering */
+#endif
                                       
-/** @} */
-
 /**
- * @name Subscription Service Set
- *
- * Subscriptions are used to report Notifications to the Client.
- *
- * @{
- */
-    
-void
-Service_CreateSubscription(UA_Server *server, UA_Session *session,
-                           const UA_CreateSubscriptionRequest *request,
-                           UA_CreateSubscriptionResponse *response);
+ * Subscription Service Set
+ * ------------------------
+ * Subscriptions are used to report Notifications to the Client. */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+void Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                                const UA_CreateSubscriptionRequest *request,
+                                UA_CreateSubscriptionResponse *response);
 
-void
-Service_ModifySubscription(UA_Server *server, UA_Session *session,
-                           const UA_ModifySubscriptionRequest *request,
-                           UA_ModifySubscriptionResponse *response);
+void Service_ModifySubscription(UA_Server *server, UA_Session *session,
+                                const UA_ModifySubscriptionRequest *request,
+                                UA_ModifySubscriptionResponse *response);
 
-void
-Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
-                            const UA_DeleteSubscriptionsRequest *request,
-                            UA_DeleteSubscriptionsResponse *response);
+void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                                 const UA_DeleteSubscriptionsRequest *request,
+                                 UA_DeleteSubscriptionsResponse *response);
                                      
-void
-Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request, UA_UInt32 requestId);
+void Service_Publish(UA_Server *server, UA_Session *session,
+                     const UA_PublishRequest *request, UA_UInt32 requestId);
 
-void
-Service_Republish(UA_Server *server, UA_Session *session,
-                  const UA_RepublishRequest *request,
-                  UA_RepublishResponse *response);
+void Service_Republish(UA_Server *server, UA_Session *session,
+                       const UA_RepublishRequest *request,
+                       UA_RepublishResponse *response);
 
-// Service_ModifySubscription
-// Service_SetPublishingMode
-// UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
-                                  // const UA_SetPublishingModeRequest *request,
-                                  // UA_SetPublishingModeResponse *response);
-// Service_TransferSubscription
-// Service_DeleteSubscription
-/** @} */
+/* Not Implemented: Service_SetPublishingMode */
+/* Not Implemented: Service_TransferSubscription */
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif
 
 #endif /* UA_SERVICES_H_ */
-/** @} */
