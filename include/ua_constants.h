@@ -65,6 +65,14 @@ typedef enum {
 #define UA_ACCESSLEVELMASK_HISTORYREAD 0x4
 #define UA_ACCESSLEVELMASK_HISTORYWRITE 0x08
 #define UA_ACCESSLEVELMASK_SEMANTICCHANGE 0x10
+
+/**
+* Encoding Offsets
+* ----------------
+* Subtract from the typeid of the encoding nodeids to get to the type
+* definition. */
+#define UA_ENCODINGOFFSET_XML 1
+#define UA_ENCODINGOFFSET_BINARY 2
     
 /**
  * .. _statuscodes:

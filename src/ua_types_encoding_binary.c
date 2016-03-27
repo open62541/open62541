@@ -1,6 +1,6 @@
-#include "ua_types_encoding_binary.h"
-#include "ua_types_generated.h"
 #include "ua_util.h"
+#include "ua_types_generated.h"
+#include "ua_types_encoding_binary.h"
 
 /* All de- and encoding functions have the same signature up to the pointer type.
    So we can use a jump-table to switch into member types. */
@@ -97,8 +97,7 @@ UInt16_encodeBinary(UA_UInt16 const *src, bufpos pos, bufend end) {
         return UA_STATUSCODE_BADENCODINGERROR;
 #ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt16 le_uint16 = htole16(*src);
-    src = &le_uint16;
-    memcpy(*pos, src, sizeof(UA_UInt16));
+    memcpy(*pos, &le_uint16, sizeof(UA_UInt16));
 #else
     UA_encode16(*src, *pos);
 #endif
@@ -137,8 +136,7 @@ UInt32_encodeBinary(UA_UInt32 const *src, bufpos pos, bufend end) {
         return UA_STATUSCODE_BADENCODINGERROR;
 #ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt32 le_uint32 = htole32(*src);
-    src = &le_uint32;
-    memcpy(*pos, src, sizeof(UA_UInt32));
+    memcpy(*pos, &le_uint32, sizeof(UA_UInt32));
 #else
     UA_encode32(*src, *pos);
 #endif
@@ -187,8 +185,7 @@ UInt64_encodeBinary(UA_UInt64 const *src, bufpos pos, bufend end) {
         return UA_STATUSCODE_BADENCODINGERROR;
 #ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt64 le_uint64 = htole64(*src);
-    src = &le_uint64;
-    memcpy(*pos, src, sizeof(UA_UInt64));
+    memcpy(*pos, &le_uint64, sizeof(UA_UInt64));
 #else
     UA_encode64(*src, *pos);
 #endif
@@ -243,15 +240,11 @@ DateTime_decodeBinary(bufpos pos, bufend end, UA_DateTime *dst) {
 #else
 
 #ifdef UA_ENCODING_FLOAT_SWAP
-#define swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24))
-#define swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \
-                     ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \
-                     ((u64 >> 24) & 0x0000000000FF0000) | ((u64 >> 40) & 0x000000000000FF00) | (u64 << 56))
 
 static UA_StatusCode
 Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
     const UA_UInt32 *f = (const UA_UInt32*)src;
-    UA_UInt32 encoded = swap32(*f);
+    UA_UInt32 encoded = UA_swap32(*f);
     return UInt32_encodeBinary(&encoded, pos, end);
 }
 
@@ -260,7 +253,7 @@ static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
     UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    decoded = swap32(decoded);
+    decoded = UA_swap32(decoded);
     *dst = *(UA_Float*)decoded;
     return UA_STATUSCODE_GOOD;
 }
@@ -268,7 +261,7 @@ static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
 static UA_StatusCode
 Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
     const UA_UInt64 *f = (const UA_UInt64*)src;
-    UA_UInt64 encoded = swap64(*f);
+    UA_UInt64 encoded = UA_swap64(*f);
     return UInt64_encodeBinary(&encoded, pos, end);
 }
 
@@ -277,7 +270,7 @@ static UA_StatusCode Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst)
     UA_StatusCode retval = UInt64_decodeBinary(pos, end, &decoded);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    decoded = swap64(decoded);
+    decoded = UA_swap64(decoded);
     *dst = *(UA_Double*)decoded;
     return UA_STATUSCODE_GOOD;
 }
