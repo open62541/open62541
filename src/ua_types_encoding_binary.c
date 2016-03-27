@@ -23,6 +23,35 @@ UA_THREAD_LOCAL const UA_DataType *type; // used to pass the datatype into the j
 /* Integer Types */
 /*****************/
 
+#ifdef UA_ENCODING_INTEGER_GENERIC
+static void UA_encode16(const UA_UInt16 v, UA_Byte buf[2]) {
+    buf[0] = (UA_Byte)v; buf[1] = (UA_Byte)(v >> 8);
+}
+static void UA_decode16(const UA_Byte buf[2], UA_UInt16 *v) {
+    *v = (UA_UInt16)((UA_UInt16)buf[0] + (((UA_UInt16)buf[1]) << 8));
+}
+static void UA_encode32(const UA_UInt32 v, UA_Byte buf[4]) {
+    buf[0] = (UA_Byte)v;         buf[1] = (UA_Byte)(v >> 8);
+    buf[2] = (UA_Byte)(v >> 16); buf[3] = (UA_Byte)(v >> 24);
+}
+static void UA_decode32(const UA_Byte buf[4], UA_UInt32 *v) {
+    *v = (UA_UInt32)((UA_UInt32)buf[0] + (((UA_UInt32)buf[1]) << 8) +
+                    (((UA_UInt32)buf[2]) << 16) + (((UA_UInt32)buf[3]) << 24));
+}
+static void UA_encode64(const UA_UInt64 v, UA_Byte buf[8]) {
+    buf[0] = (UA_Byte)v;         buf[1] = (UA_Byte)(v >> 8);
+    buf[2] = (UA_Byte)(v >> 16); buf[3] = (UA_Byte)(v >> 24);
+    buf[4] = (UA_Byte)(v >> 32); buf[5] = (UA_Byte)(v >> 40);
+    buf[6] = (UA_Byte)(v >> 48); buf[7] = (UA_Byte)(v >> 56);
+}
+static void UA_decode64(const UA_Byte buf[4], UA_UInt64 *v) {
+    *v = (UA_UInt64)((UA_UInt64)buf[0] + (((UA_UInt64)buf[1]) << 8) +
+                    (((UA_UInt64)buf[2]) << 16) + (((UA_UInt64)buf[3]) << 24) +
+                    (((UA_UInt64)buf[4]) << 32) + (((UA_UInt64)buf[5]) << 40) +
+                    (((UA_UInt64)buf[6]) << 48) + (((UA_UInt64)buf[7]) << 56));
+}
+#endif
+
 /* Boolean */
 static UA_StatusCode
 Boolean_encodeBinary(const UA_Boolean *src, bufpos pos, bufend end) {
@@ -66,9 +95,13 @@ static UA_StatusCode
 UInt16_encodeBinary(UA_UInt16 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt16 le_uint16 = htole16(*src);
     src = &le_uint16;
     memcpy(*pos, src, sizeof(UA_UInt16));
+#else
+    UA_encode16(*src, *pos);
+#endif
     (*pos) += 2;
     return UA_STATUSCODE_GOOD;
 }
@@ -82,9 +115,13 @@ static UA_StatusCode
 UInt16_decodeBinary(bufpos pos, bufend end, UA_UInt16 *dst) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     memcpy(dst, *pos, sizeof(UA_UInt16));
-    (*pos) += 2;
     *dst = le16toh(*dst);
+#else
+    UA_decode16(*pos, dst);
+#endif
+    (*pos) += 2;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -98,9 +135,13 @@ static UA_StatusCode
 UInt32_encodeBinary(UA_UInt32 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt32 le_uint32 = htole32(*src);
     src = &le_uint32;
     memcpy(*pos, src, sizeof(UA_UInt32));
+#else
+    UA_encode32(*src, *pos);
+#endif
     (*pos) += 4;
     return UA_STATUSCODE_GOOD;
 }
@@ -119,9 +160,13 @@ static UA_StatusCode
 UInt32_decodeBinary(bufpos pos, bufend end, UA_UInt32 *dst) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     memcpy(dst, *pos, sizeof(UA_UInt32));
-    (*pos) += 4;
     *dst = le32toh(*dst);
+#else
+    UA_decode32(*pos, dst);
+#endif
+    (*pos) += 4;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -140,9 +185,13 @@ static UA_StatusCode
 UInt64_encodeBinary(UA_UInt64 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     UA_UInt64 le_uint64 = htole64(*src);
     src = &le_uint64;
     memcpy(*pos, src, sizeof(UA_UInt64));
+#else
+    UA_encode64(*src, *pos);
+#endif
     (*pos) += 8;
     return UA_STATUSCODE_GOOD;
 }
@@ -161,9 +210,13 @@ static UA_StatusCode
 UInt64_decodeBinary(bufpos pos, bufend end, UA_UInt64 *dst) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
+#ifndef UA_ENCODING_INTEGER_GENERIC
     memcpy(dst, *pos, sizeof(UA_UInt64));
-    (*pos) += 8;
     *dst = le64toh(*dst);
+#else
+    UA_decode64(*pos, dst);
+#endif
+    (*pos) += 8;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -177,62 +230,29 @@ DateTime_decodeBinary(bufpos pos, bufend end, UA_DateTime *dst) {
     return UInt64_decodeBinary(pos, end, (UA_UInt64*)dst);
 }
 
-#ifndef UA_MIXED_ENDIAN
+/************************/
+/* Floating Point Types */
+/************************/
+
+#if !defined(UA_ENCODING_FLOAT_SWAP) && !defined(UA_ENCODING_FLOAT_GENERIC)
+/* Encode natively */
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary
 # define Double_decodeBinary UInt64_decodeBinary
 #else
 
-#include <math.h>
-
-/* Handling of IEEE754 floating point values was taken from Beej's Guide to
-   Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
-   edge cases +/-0, +/-inf and nan. */
-
-/* Float */
-#define FLOAT_NAN 0x7fc00000
-#define FLOAT_INF 0x7f800000
-#define FLOAT_NEG_INF 0xff800000
-#define FLOAT_NEG_ZERO 0x80000000
-
-static UA_UInt32 float_to_ieee754(UA_Float f) {
-    if(f != f) return FLOAT_NAN;
-    if(f == 0.0f) return signbit(f) ? FLOAT_NEG_ZERO : 0;
-    if(f/f != f/f) return f > 0 ? FLOAT_INF : FLOAT_NEG_INF;
-    UA_UInt32 sign = 0;
-    UA_Double fnorm = f;
-    if(f < 0) { sign = 1; fnorm = -f; }
-    UA_Int32 shift = 0;
-    while(fnorm >= 2.0) { fnorm /= 2.0; shift++; }
-    while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
-    fnorm -= 1.0;
-    UA_Int64 significand = (long long)(fnorm * ((UA_Double)(1LL<<23) + 0.5f));
-    UA_Int64 exp = shift + ((1<<7) - 1);
-    return (UA_UInt32)((sign<<31) | (exp<<23) | significand);
-}
+#ifdef UA_ENCODING_FLOAT_SWAP
+#define swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24))
+#define swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \
+                     ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \
+                     ((u64 >> 24) & 0x0000000000FF0000) | ((u64 >> 40) & 0x000000000000FF00) | (u64 << 56))
 
 static UA_StatusCode
 Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
-    UA_UInt32 encoded = float_to_ieee754(*src);
+    const UA_UInt32 *f = (const UA_UInt32*)src;
+    UA_UInt32 encoded = swap32(*f);
     return UInt32_encodeBinary(&encoded, pos, end);
-}
-
-static UA_Float ieee754_to_float(UA_UInt32 i) {
-    if(i == 0) return 0.0;
-    if(i == FLOAT_NEG_ZERO) return -0.0;
-    if(i == FLOAT_INF) return INFINITY;
-    if(i == FLOAT_NEG_INF) return -INFINITY;
-    if(i == FLOAT_NAN) return NAN;
-    UA_Float result = (UA_Float)(i&((1LL<<23)-1));
-    result /= (1LL<<23);
-    result += 1.0f;
-    unsigned bias = (1<<7) - 1;
-    long long shift = ((i>>23)&((1LL<<8)-1)) - bias;
-    while(shift > 0) { result *= 2.0f; shift--; }
-    while(shift < 0) { result /= 2.0f; shift++; }
-    result *= (i>>31) & 1 ? -1.0f : 1.0f;
-    return result;
 }
 
 static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
@@ -240,50 +260,131 @@ static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
     UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    *dst = ieee754_to_float(decoded);
+    decoded = swap32(decoded);
+    *dst = *(UA_Float*)decoded;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
+    const UA_UInt64 *f = (const UA_UInt64*)src;
+    UA_UInt64 encoded = swap64(*f);
+    return UInt64_encodeBinary(&encoded, pos, end);
+}
+
+static UA_StatusCode Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
+    UA_UInt64 decoded;
+    UA_StatusCode retval = UInt64_decodeBinary(pos, end, &decoded);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    decoded = swap64(decoded);
+    *dst = *(UA_Double*)decoded;
+    return UA_STATUSCODE_GOOD;
+}
+
+#else /* UA_ENCODING_FLOAT_GENERIC */
+
+#include <math.h>
+
+/* Handling of IEEE754 floating point values was taken from Beej's Guide to
+   Network Programming (http://beej.us/guide/bgnet/) and enhanced to cover the
+   edge cases +/-0, +/-inf and nan. */
+static uint64_t pack754(long double f, unsigned bits, unsigned expbits) {
+    unsigned significandbits = bits - expbits - 1;
+    long double fnorm;
+    long long sign;
+    if (f < 0) { sign = 1; fnorm = -f; }
+    else { sign = 0; fnorm = f; }
+    int shift = 0;
+    while(fnorm >= 2.0) { fnorm /= 2.0; shift++; }
+    while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
+    fnorm = fnorm - 1.0;
+    long long significand = (long long)(fnorm * ((float)(1LL<<significandbits) + 0.5f));
+    long long exp = shift + ((1<<(expbits-1)) - 1);
+    return (uint64_t)((sign<<(bits-1)) | (exp<<(bits-expbits-1)) | significand);
+}
+
+static long double unpack754(uint64_t i, unsigned bits, unsigned expbits) {
+    unsigned significandbits = bits - expbits - 1;
+    long double result = (long double)(i&(uint64_t)((1LL<<significandbits)-1));
+    result /= (1LL<<significandbits);
+    result += 1.0f;
+    unsigned bias = (unsigned)(1<<(expbits-1)) - 1;
+    long long shift = (long long)((i>>significandbits) & (uint64_t)((1LL<<expbits)-1)) - bias;
+    while(shift > 0) { result *= 2.0; shift--; }
+    while(shift < 0) { result /= 2.0; shift++; }
+    result *= (i>>(bits-1))&1? -1.0: 1.0;
+    return result;
+}
+
+/* Float */
+#define FLOAT_NAN 0xffc00000
+#define FLOAT_INF 0x7f800000
+#define FLOAT_NEG_INF 0xff800000
+#define FLOAT_NEG_ZERO 0x80000000
+
+static UA_StatusCode
+Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
+    UA_Float f = *src;
+    UA_UInt32 encoded;
+    if(f != f) encoded = FLOAT_NAN;
+    else if(f == 0.0f) encoded = signbit(f) ? FLOAT_NEG_ZERO : 0;
+    else if(f/f != f/f) encoded = f > 0 ? FLOAT_INF : FLOAT_NEG_INF;
+    else encoded = (UA_UInt32)pack754(f, 32, 8);
+    return UInt32_encodeBinary(&encoded, pos, end);
+}
+
+static UA_StatusCode
+Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
+    UA_UInt32 decoded;
+    UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    if(decoded == 0) *dst = 0.0f;
+    else if(decoded == FLOAT_NEG_ZERO) *dst = -0.0f;
+    else if(decoded == FLOAT_INF) *dst = INFINITY;
+    else if(decoded == FLOAT_NEG_INF) *dst = -INFINITY;
+    if((decoded >= 0x7f800001 && decoded <= 0x7fffffff) ||
+       (decoded >= 0xff800001 && decoded <= 0xffffffff)) *dst = NAN;
+    else *dst = (UA_Float)unpack754(decoded, 32, 8);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Double */
-// Todo: Architecture agnostic de- and encoding, like float has it
-UA_Byte UA_DOUBLE_ZERO[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+#define DOUBLE_NAN 0xfff8000000000000L
+#define DOUBLE_INF 0x7ff0000000000000L
+#define DOUBLE_NEG_INF 0xfff0000000000000L
+#define DOUBLE_NEG_ZERO 0x8000000000000000L
+
 static UA_StatusCode
-Double_decodeBinary(UA_ByteString const *src, bufpos pos, buflen len) {
-    if(*offset + sizeof(UA_Double) > src->length)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    UA_Byte *dstBytes = (UA_Byte*)dst;
-    UA_Double db = 0;
-    memcpy(&db, *pos, sizeof(UA_Double));
-    dstBytes[4] = **pos; (*pos)++;
-    dstBytes[5] = **pos; (*pos)++;
-    dstBytes[6] = **pos; (*pos)++;
-    dstBytes[7] = **pos; (*pos)++;
-    dstBytes[0] = **pos; (*pos)++;
-    dstBytes[1] = **pos; (*pos)++;
-    dstBytes[2] = **pos; (*pos)++;
-    dstBytes[3] = **pos; (*pos)++;
+Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
+    UA_Double d = *src;
+    UA_UInt64 encoded;
+    if(d != d) encoded = DOUBLE_NAN;
+    else if(d == 0.0) encoded = signbit(d) ? DOUBLE_NEG_ZERO : 0;
+    else if(d/d != d/d) encoded = d > 0 ? DOUBLE_INF : DOUBLE_NEG_INF;
+    else encoded = pack754(d, 64, 11);
+    return UInt64_encodeBinary(&encoded, pos, end);
+}
+
+static UA_StatusCode
+Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
+    UA_UInt64 decoded;
+    UA_StatusCode retval = UInt64_decodeBinary(pos, end, &decoded);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    if(decoded == 0) *dst = 0.0;
+    else if(decoded == DOUBLE_NEG_ZERO) *dst = -0.0;
+    else if(decoded == DOUBLE_INF) *dst = INFINITY;
+    else if(decoded == DOUBLE_NEG_INF) *dst = -INFINITY;
+    if((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
+       (decoded >= 0xfff0000000000001L && decoded <= 0xffffffffffffffffL)) *dst = NAN;
+    else *dst = (UA_Double)unpack754(decoded, 64, 11);
     return UA_STATUSCODE_GOOD;
 }
 
-/* Expecting double in ieee754 format */
-static UA_StatusCode
-Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
-    if(*pos + sizeof(UA_Double) > end)
-        return UA_STATUSCODE_BADENCODINGERROR;
-    /* ARM7TDMI Half Little Endian Byte order for Double 3 2 1 0 7 6 5 4 */
-    UA_Byte srcDouble[sizeof(UA_Double)];
-    memcpy(&srcDouble, src, sizeof(UA_Double));
-    **pos = srcDouble[4]; (*pos)++;
-    **pos = srcDouble[5]; (*pos)++;
-    **pos = srcDouble[6]; (*pos)++;
-    **pos = srcDouble[7]; (*pos)++;
-    **pos = srcDouble[0]; (*pos)++;
-    **pos = srcDouble[1]; (*pos)++;
-    **pos = srcDouble[2]; (*pos)++;
-    **pos = srcDouble[3]; (*pos)++;
-    return UA_STATUSCODE_GOOD;
-}
-#endif /* UA_MIXED_ENDIAN */
+#endif
+#endif
 
 /******************/
 /* Array Handling */

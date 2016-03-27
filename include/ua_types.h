@@ -20,11 +20,8 @@
 extern "C" {
 #endif
 
-#ifndef UA_FFI_BINDINGS
-#include <stdbool.h>
 #include <inttypes.h>
-#endif
-
+#include <stdbool.h>
 #include "ua_config.h"
 #include "ua_constants.h"
 
