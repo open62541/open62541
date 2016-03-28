@@ -498,6 +498,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(!session) {
         /* session id 0 -> anonymous session */
         UA_Session_init(&anonymousSession);
+        anonymousSession.sessionId = UA_NODEID_NUMERIC(0,0);
         anonymousSession.channel = channel;
         anonymousSession.activated = true;
         session = &anonymousSession;
