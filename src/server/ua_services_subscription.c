@@ -4,8 +4,8 @@
 #include "ua_subscription.h"
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
-    if(SRC > BOUNDS.maxValue) DST = BOUNDS.maxValue; \
-    else if(SRC < BOUNDS.minValue) DST = BOUNDS.minValue; \
+    if(SRC > BOUNDS.max) DST = BOUNDS.max; \
+    else if(SRC < BOUNDS.min) DST = BOUNDS.min; \
     else DST = SRC; \
     }
 
@@ -20,26 +20,26 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
     
     /* set the publishing interval */
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
     newSubscription->publishingInterval = response->revisedPublishingInterval;
     
     /* set the subscription lifetime (deleted when no publish requests arrive within this time) */
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
                                request->requestedLifetimeCount, response->revisedLifetimeCount);
-    newSubscription->lifeTime = (UA_UInt32_BoundedValue)  {
-        .minValue=session->subscriptionManager.globalLifeTimeCount.minValue,
-        .maxValue=session->subscriptionManager.globalLifeTimeCount.maxValue,
-        .currentValue=response->revisedLifetimeCount};
+    newSubscription->lifeTime = (UA_BoundedUInt32)  {
+        .min = server->config.lifeTimeCountLimits.min,
+        .max = server->config.lifeTimeCountLimits.max,
+        .current=response->revisedLifetimeCount};
     
     /* set the keepalive count. the server sends an empty notification when
        nothin has happened for n publishing intervals */
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalKeepAliveCount,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.keepAliveCountLimits,
                                request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    newSubscription->keepAliveCount = (UA_UInt32_BoundedValue)  {
-        .minValue=session->subscriptionManager.globalKeepAliveCount.minValue,
-        .maxValue=session->subscriptionManager.globalKeepAliveCount.maxValue,
-        .currentValue=response->revisedMaxKeepAliveCount};
+    newSubscription->keepAliveCount = (UA_BoundedUInt32)  {
+        .min = server->config.keepAliveCountLimits.min,
+        .max = server->config.keepAliveCountLimits.max,
+        .current = response->revisedMaxKeepAliveCount};
     
     newSubscription->notificationsPerPublish = request->maxNotificationsPerPublish;
     newSubscription->publishingMode          = request->publishingEnabled;
@@ -79,18 +79,18 @@ createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *su
     newMon->clientHandle = request->requestedParameters.clientHandle;
 
     /* set the sampling interval */
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalSamplingInterval,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                request->requestedParameters.samplingInterval,
                                result->revisedSamplingInterval);
     newMon->samplingInterval = (UA_UInt32)result->revisedSamplingInterval;
 
     /* set the queue size */
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalQueueSize,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                request->requestedParameters.queueSize,
                                result->revisedQueueSize);
-    newMon->queueSize = (UA_UInt32_BoundedValue) {
-        .maxValue=(result->revisedQueueSize) + 1,
-        .minValue=0, .currentValue=0 };
+    newMon->queueSize = (UA_BoundedUInt32) {
+        .max=(result->revisedQueueSize) + 1,
+        .min=0, .current=0 };
 
     newMon->attributeID = request->itemToMonitor.attributeId;
     newMon->monitoredItemType = MONITOREDITEM_TYPE_CHANGENOTIFY;
@@ -210,7 +210,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         sub = LIST_FIRST(&manager->serverSubscriptions);
         if(sub) {
             response.subscriptionId = sub->subscriptionID;
-            sub->keepAliveCount.currentValue=sub->keepAliveCount.minValue;
+            sub->keepAliveCount.current=sub->keepAliveCount.min;
             Subscription_generateKeepAlive(sub);
             Subscription_copyNotificationMessage(&response.notificationMessage,
                                                  LIST_FIRST(&sub->unpublishedNotifications));
@@ -235,23 +235,23 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session, const UA_Modi
         return;
     }
     
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalPublishingInterval,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
                                request->requestedPublishingInterval, response->revisedPublishingInterval);
     sub->publishingInterval = response->revisedPublishingInterval;
     
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalLifeTimeCount,
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
                                request->requestedLifetimeCount, response->revisedLifetimeCount);
-    sub->lifeTime = (UA_UInt32_BoundedValue)  {
-        .minValue=session->subscriptionManager.globalLifeTimeCount.minValue,
-        .maxValue=session->subscriptionManager.globalLifeTimeCount.maxValue,
-        .currentValue=response->revisedLifetimeCount};
+    sub->lifeTime = (UA_BoundedUInt32)  {
+        .min = server->config.lifeTimeCountLimits.min,
+        .max = server->config.lifeTimeCountLimits.max,
+        .current=response->revisedLifetimeCount};
         
-    UA_BOUNDEDVALUE_SETWBOUNDS(session->subscriptionManager.globalKeepAliveCount,
-                                request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
-    sub->keepAliveCount = (UA_UInt32_BoundedValue)  {
-        .minValue=session->subscriptionManager.globalKeepAliveCount.minValue,
-        .maxValue=session->subscriptionManager.globalKeepAliveCount.maxValue,
-        .currentValue=response->revisedMaxKeepAliveCount};
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.keepAliveCountLimits,
+                               request->requestedMaxKeepAliveCount, response->revisedMaxKeepAliveCount);
+    sub->keepAliveCount = (UA_BoundedUInt32)  {
+        .min = server->config.keepAliveCountLimits.min,
+        .max = server->config.keepAliveCountLimits.max,
+        .current=response->revisedMaxKeepAliveCount};
         
     sub->notificationsPerPublish = request->maxNotificationsPerPublish;
     sub->priority                = request->priority;

@@ -84,6 +84,12 @@ typedef struct {
 } UA_UsernamePasswordLogin;
 
 typedef struct {
+    UA_UInt32 current;
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_BoundedUInt32;
+
+typedef struct {
     UA_UInt16 nThreads; // only if multithreading is enabled
     UA_Logger logger;
 
@@ -91,13 +97,23 @@ typedef struct {
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
+    /* Networking */
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
+    /* Login */
     UA_Boolean enableAnonymousLogin;
     UA_Boolean enableUsernamePasswordLogin;
     size_t usernamePasswordLoginsSize;
     UA_UsernamePasswordLogin* usernamePasswordLogins;
+
+    /* Limits for subscription settings */
+    UA_BoundedUInt32 publishingIntervalLimits;
+    UA_BoundedUInt32 lifeTimeCountLimits;
+    UA_BoundedUInt32 keepAliveCountLimits;
+    UA_BoundedUInt32 notificationsPerPublishLimits;
+    UA_BoundedUInt32 samplingIntervalLimits;
+    UA_BoundedUInt32 queueSizeLimits;
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;

@@ -10,18 +10,6 @@
 /* MonitoredItem */
 /*****************/
 
-typedef struct {
-    UA_Int32 currentValue;
-    UA_Int32 minValue;
-    UA_Int32 maxValue;
-} UA_Int32_BoundedValue;
-
-typedef struct {
-    UA_UInt32 currentValue;
-    UA_UInt32 minValue;
-    UA_UInt32 maxValue;
-} UA_UInt32_BoundedValue;
-
 typedef enum {
     MONITOREDITEM_TYPE_CHANGENOTIFY = 1,
     MONITOREDITEM_TYPE_STATUSNOTIFY = 2,
@@ -43,7 +31,7 @@ typedef struct UA_MonitoredItem {
     UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
     UA_UInt32 samplingInterval; // [ms]
-    UA_UInt32_BoundedValue queueSize;
+    UA_BoundedUInt32 queueSize;
     UA_Boolean discardOldest;
     UA_DateTime lastSampled;
     UA_ByteString lastSampledValue;
@@ -73,8 +61,8 @@ typedef struct UA_unpublishedNotification {
 
 typedef struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
-    UA_UInt32_BoundedValue lifeTime;
-    UA_UInt32_BoundedValue keepAliveCount;
+    UA_BoundedUInt32 lifeTime;
+    UA_BoundedUInt32 keepAliveCount;
     UA_Double publishingInterval;     // [ms] 
     UA_DateTime lastPublished;
     UA_UInt32 subscriptionID;

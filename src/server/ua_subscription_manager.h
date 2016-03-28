@@ -8,12 +8,6 @@
 #include "ua_subscription.h"
 
 typedef struct UA_SubscriptionManager {
-    UA_UInt32_BoundedValue globalPublishingInterval;
-    UA_UInt32_BoundedValue globalLifeTimeCount;
-    UA_UInt32_BoundedValue globalKeepAliveCount;
-    UA_UInt32_BoundedValue globalNotificationsPerPublish;
-    UA_UInt32_BoundedValue globalSamplingInterval;
-    UA_UInt32_BoundedValue globalQueueSize;
     UA_UInt32 lastSessionID;
     UA_Guid lastJobGuid;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;

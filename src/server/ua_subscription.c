@@ -45,8 +45,8 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
 }
 
 void Subscription_generateKeepAlive(UA_Subscription *subscription) {
-    if(subscription->keepAliveCount.currentValue > subscription->keepAliveCount.minValue &&
-       subscription->keepAliveCount.currentValue <= subscription->keepAliveCount.maxValue)
+    if(subscription->keepAliveCount.current > subscription->keepAliveCount.min &&
+       subscription->keepAliveCount.current <= subscription->keepAliveCount.max)
         return;
 
     UA_unpublishedNotification *msg = UA_calloc(1,sizeof(UA_unpublishedNotification));
@@ -59,7 +59,7 @@ void Subscription_generateKeepAlive(UA_Subscription *subscription) {
     msg->notification.notificationDataSize = 0;
     LIST_INSERT_HEAD(&subscription->unpublishedNotifications, msg, listEntry);
     subscription->unpublishedNotificationsSize += 1;
-    subscription->keepAliveCount.currentValue = subscription->keepAliveCount.maxValue;
+    subscription->keepAliveCount.current = subscription->keepAliveCount.max;
 }
 
 void Subscription_updateNotifications(UA_Subscription *subscription) {
@@ -79,11 +79,11 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
         if(!TAILQ_FIRST(&mon->queue))
             continue;
         if((mon->monitoredItemType & MONITOREDITEM_TYPE_CHANGENOTIFY) != 0)
-            monItemsChangeT+=mon->queueSize.currentValue;
+            monItemsChangeT+=mon->queueSize.current;
 	    else if((mon->monitoredItemType & MONITOREDITEM_TYPE_STATUSNOTIFY) != 0)
-            monItemsStatusT+=mon->queueSize.currentValue;
+            monItemsStatusT+=mon->queueSize.current;
 	    else if((mon->monitoredItemType & MONITOREDITEM_TYPE_EVENTNOTIFY)  != 0)
-            monItemsEventT+=mon->queueSize.currentValue;
+            monItemsEventT+=mon->queueSize.current;
     }
     
     // FIXME: This is hardcoded to 100 because it is not covered by the spec but we need to protect the server!
@@ -94,9 +94,9 @@ void Subscription_updateNotifications(UA_Subscription *subscription) {
     
     if(monItemsChangeT == 0 && monItemsEventT == 0 && monItemsStatusT == 0) {
         // Decrement KeepAlive
-        subscription->keepAliveCount.currentValue--;
+        subscription->keepAliveCount.current--;
         // +- Generate KeepAlive msg if counter overruns
-        if (subscription->keepAliveCount.currentValue < subscription->keepAliveCount.minValue)
+        if (subscription->keepAliveCount.current < subscription->keepAliveCount.min)
           Subscription_generateKeepAlive(subscription);
         
         return;
@@ -258,7 +258,7 @@ UA_StatusCode Subscription_unregisterUpdateJob(UA_Server *server, UA_Subscriptio
 
 UA_MonitoredItem * UA_MonitoredItem_new() {
     UA_MonitoredItem *new = (UA_MonitoredItem *) UA_malloc(sizeof(UA_MonitoredItem));
-    new->queueSize   = (UA_UInt32_BoundedValue) { .minValue = 0, .maxValue = 0, .currentValue = 0};
+    new->queueSize   = (UA_BoundedUInt32) { .min = 0, .max = 0, .current = 0};
     new->lastSampled = 0;
     // FIXME: This is currently hardcoded;
     new->monitoredItemType = MONITOREDITEM_TYPE_CHANGENOTIFY;
@@ -287,7 +287,7 @@ UA_UInt32 MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotificat
     UA_UInt32 queueSize = 0;
     MonitoredItem_queuedValue *queueItem;
   
-    // Count instead of relying on the items currentValue
+    // Count instead of relying on the items current
     TAILQ_FOREACH(queueItem, &monitoredItem->queue, listEntry) {
         dst[queueSize].clientHandle = monitoredItem->clientHandle;
         UA_DataValue_copy(&queueItem->value, &dst[queueSize].value);
@@ -310,7 +310,7 @@ void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem) {
         UA_DataValue_deleteMembers(&val->value);
         UA_free(val);
     }
-    monitoredItem->queueSize.currentValue = 0;
+    monitoredItem->queueSize.current = 0;
 }
 
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
@@ -451,7 +451,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         return;
     }
   
-    if(monitoredItem->queueSize.currentValue >= monitoredItem->queueSize.maxValue) {
+    if(monitoredItem->queueSize.current >= monitoredItem->queueSize.max) {
         if(monitoredItem->discardOldest != true) {
             // We cannot remove the oldest value and theres no queue space left. We're done here.
             UA_DataValue_deleteMembers(&newvalue->value);
@@ -461,7 +461,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         MonitoredItem_queuedValue *queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
         TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
         UA_free(queueItem);
-        monitoredItem->queueSize.currentValue--;
+        monitoredItem->queueSize.current--;
     }
   
     // encode the data to find if its different to the previous
@@ -484,7 +484,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
     if(!monitoredItem->lastSampledValue.data) { 
         UA_ByteString_copy(&newValueAsByteString, &monitoredItem->lastSampledValue);
         TAILQ_INSERT_HEAD(&monitoredItem->queue, newvalue, listEntry);
-        monitoredItem->queueSize.currentValue++;
+        monitoredItem->queueSize.current++;
         monitoredItem->lastSampled = UA_DateTime_now();
         UA_free(newValueAsByteString.data);
     } else {
@@ -497,7 +497,7 @@ void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monit
         UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
         monitoredItem->lastSampledValue = newValueAsByteString;
         TAILQ_INSERT_HEAD(&monitoredItem->queue, newvalue, listEntry);
-        monitoredItem->queueSize.currentValue++;
+        monitoredItem->queueSize.current++;
         monitoredItem->lastSampled = UA_DateTime_now();
     }
 }

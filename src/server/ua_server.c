@@ -48,7 +48,14 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
     .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2
+    .usernamePasswordLoginsSize = 2,
+    
+    .publishingIntervalLimits = { .max = 10000, .min = 0, .current = 0 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
+    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
+    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
+    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
+    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
 };
 
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)

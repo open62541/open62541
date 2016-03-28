@@ -5,15 +5,6 @@
 
 void SubscriptionManager_init(UA_Session *session) {
     UA_SubscriptionManager *manager = &(session->subscriptionManager);
-
-    /* FIXME: These init values are empirical. Maybe they should be part
-     *        of the server config? */
-    manager->globalPublishingInterval = (UA_UInt32_BoundedValue) { .maxValue = 10000, .minValue = 0, .currentValue=0 };
-    manager->globalLifeTimeCount = (UA_UInt32_BoundedValue) { .maxValue = 15000, .minValue = 0, .currentValue=0 };
-    manager->globalKeepAliveCount = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
-    manager->globalNotificationsPerPublish = (UA_UInt32_BoundedValue)  { .maxValue = 1000, .minValue = 1, .currentValue=0 };
-    manager->globalSamplingInterval = (UA_UInt32_BoundedValue) { .maxValue = 1000, .minValue = 5, .currentValue=0 };
-    manager->globalQueueSize = (UA_UInt32_BoundedValue) { .maxValue = 100, .minValue = 0, .currentValue=0 };
     LIST_INIT(&manager->serverSubscriptions);
     manager->lastSessionID = (UA_UInt32) UA_DateTime_now();
     manager->lastJobGuid = UA_Guid_random();
