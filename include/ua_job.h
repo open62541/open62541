@@ -16,12 +16,11 @@
 #ifndef UA_JOB_H_
 #define UA_JOB_H_
 
+#include "ua_connection.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct UA_Connection;
-typedef struct UA_Connection UA_Connection;
 
 struct UA_Server;
 typedef struct UA_Server UA_Server;

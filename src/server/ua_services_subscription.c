@@ -1,10 +1,7 @@
-#include "ua_services.h"
 #include "ua_server_internal.h"
+#include "ua_services.h"
 #include "ua_subscription_manager.h"
 #include "ua_subscription.h"
-#include "ua_statuscodes.h"
-#include "ua_util.h"
-#include "ua_nodestore.h"
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
     if(SRC > BOUNDS.maxValue) DST = BOUNDS.maxValue; \

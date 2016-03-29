@@ -3,7 +3,6 @@
 
 #include "ua_types.h"
 #include "server/ua_services.h"
-#include "ua_statuscodes.h"
 #include "check.h"
 
 /* START_TEST(Service_TranslateBrowsePathsToNodeIds_SmokeTest)

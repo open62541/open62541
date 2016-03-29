@@ -34,7 +34,7 @@ add_definitions("-DVERSION=${GIT_COMMIT_ID}")
 
 message(STATUS "Git version: "  ${GIT_COMMIT_ID})
 
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 ####################################
 # Build Type and Compiler Settings #
@@ -107,10 +107,10 @@ endif()
 
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
-option(UA_ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
-option(UA_ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
-option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
+option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
+option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." OFF)
+option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(UA_ENABLE_COVERAGE)
@@ -161,19 +161,19 @@ include_directories(${PROJECT_BINARY_DIR}/src_generated) #needed to locate an in
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_statuscodes.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.h
-                     ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.h
+                     ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -182,6 +182,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
@@ -212,8 +213,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/src_extra/networklayer_tcp.c
-                ${PROJECT_SOURCE_DIR}/src_extra/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.c
+                ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
@@ -355,7 +356,7 @@ else()
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/src)
-    include_directories(${PROJECT_SOURCE_DIR}/src_extra)
+    include_directories(${PROJECT_SOURCE_DIR}/plugins)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
 endif()
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
@@ -510,14 +511,6 @@ if(UA_BUILD_EXAMPLES)
 	endif()
 endif()
 
-# build documentation
 if(UA_BUILD_DOCUMENTATION)
-    find_package(Sphinx REQUIRED)
-    add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
-      -b latex -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc_latex"
-      COMMENT "Building LaTeX sources for documentation with Sphinx")
-    add_custom_target(doc ${SPHINX_EXECUTABLE}
-      -b html -c "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_SOURCE_DIR}/doc" "${PROJECT_BINARY_DIR}/doc"
-      COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_SOURCE_DIR}/doc/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
-      COMMENT "Building HTML documentation with Sphinx")
+    add_subdirectory(doc)
 endif()
