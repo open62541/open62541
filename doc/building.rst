@@ -105,11 +105,6 @@ Build Options
 Further options that are not inherited from the CMake configuration are defined
 in ua_config.h. Usually there is no need to adjust them.
 
-**UA_NON_LITTLEENDIAN_ARCHITECTURE**
-   Big-endian or mixed endian platform
-**UA_MIXED_ENDIAN**
-   Mixed-endian platform (e.g., ARM7TDMI)
-
 UA_BUILD_* group
 ~~~~~~~~~~~~~
 
