@@ -6,8 +6,7 @@
 void SubscriptionManager_init(UA_Session *session) {
     UA_SubscriptionManager *manager = &(session->subscriptionManager);
     LIST_INIT(&manager->serverSubscriptions);
-    manager->lastSessionID = (UA_UInt32) UA_DateTime_now();
-    manager->lastJobGuid = UA_Guid_random();
+    manager->lastSessionID = UA_UInt32_random();
 }
 
 void SubscriptionManager_deleteMembers(UA_Session *session, UA_Server *server) {
@@ -66,13 +65,5 @@ SubscriptionManager_deleteSubscription(UA_Server *server, UA_SubscriptionManager
 
 UA_UInt32 SubscriptionManager_getUniqueUIntID(UA_SubscriptionManager *manager) {
     UA_UInt32 id = ++(manager->lastSessionID);
-    return id;
-}
-
-UA_Guid SubscriptionManager_getUniqueGUID(UA_SubscriptionManager *manager) {
-    UA_Guid id;
-    unsigned long *incremental = (unsigned long *) &manager->lastJobGuid.data4[0];
-    incremental++;
-    UA_Guid_copy(&(manager->lastJobGuid), &id);
     return id;
 }

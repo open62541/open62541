@@ -14,7 +14,6 @@ UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID) {
     new->lastPublished  = 0;
     new->sequenceNumber = 1;
     memset(&new->timedUpdateJobGuid, 0, sizeof(UA_Guid));
-    new->timedUpdateJob          = NULL;
     new->timedUpdateIsRegistered = false;
     LIST_INIT(&new->MonitoredItems);
     LIST_INIT(&new->unpublishedNotifications);
@@ -38,9 +37,9 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
     Subscription_deleteUnpublishedNotification(0, true, subscription);
     
     // Unhook/Unregister any timed work assiociated with this subscription
-    if(subscription->timedUpdateJob) {
+    if(subscription->timedUpdateIsRegistered) {
         Subscription_unregisterUpdateJob(server, subscription);
-        UA_free(subscription->timedUpdateJob);
+        subscription->timedUpdateIsRegistered = false;
     }
 }
 
@@ -215,31 +214,17 @@ static void Subscription_timedUpdateNotificationsJob(UA_Server *server, void *da
     Subscription_updateNotifications(sub);
 }
 
-UA_StatusCode Subscription_createdUpdateJob(UA_Server *server, UA_Guid jobId, UA_Subscription *sub) {
-    if(server == NULL || sub == NULL)
-        return UA_STATUSCODE_BADSERVERINDEXINVALID;
-        
-    UA_Job *theWork;
-    theWork = (UA_Job *) UA_malloc(sizeof(UA_Job));
-    if(!theWork)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    
-   *theWork = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
-                        .job.methodCall = {.method = Subscription_timedUpdateNotificationsJob, .data = sub} };
-   
-   sub->timedUpdateJobGuid = jobId;
-   sub->timedUpdateJob     = theWork;
-   
-   return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode Subscription_registerUpdateJob(UA_Server *server, UA_Subscription *sub) {
     if(sub->publishingInterval <= 5 ) 
         return UA_STATUSCODE_BADNOTSUPPORTED;
+
+    UA_Job job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
+                           .job.methodCall = {.method = Subscription_timedUpdateNotificationsJob,
+                                              .data = sub} };
     
     /* Practically enough, the client sends a uint32 in ms, which we store as
        datetime, which here is required in as uint32 in ms as the interval */
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *sub->timedUpdateJob,
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
                                                     (UA_UInt32)sub->publishingInterval,
                                                     &sub->timedUpdateJobGuid);
     if(retval == UA_STATUSCODE_GOOD)

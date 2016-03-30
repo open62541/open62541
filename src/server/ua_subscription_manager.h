@@ -9,7 +9,6 @@
 
 typedef struct UA_SubscriptionManager {
     UA_UInt32 lastSessionID;
-    UA_Guid lastJobGuid;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
 } UA_SubscriptionManager;
 
@@ -26,5 +25,4 @@ SubscriptionManager_deleteMonitoredItem(UA_SubscriptionManager *manager, UA_UInt
                                         UA_UInt32 monitoredItemID);
 
 UA_UInt32 SubscriptionManager_getUniqueUIntID(UA_SubscriptionManager *manager);
-UA_Guid SubscriptionManager_getUniqueGUID(UA_SubscriptionManager *manager);
 #endif /* UA_SUBSCRIPTION_MANAGER_H_ */

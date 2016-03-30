@@ -71,7 +71,6 @@ typedef struct UA_Subscription {
     UA_UInt32 priority;
     UA_UInt32 sequenceNumber;
     UA_Guid timedUpdateJobGuid;
-    UA_Job *timedUpdateJob;
     UA_Boolean timedUpdateIsRegistered;
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification) unpublishedNotifications;
     size_t unpublishedNotificationsSize;

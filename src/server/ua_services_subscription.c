@@ -46,8 +46,6 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     newSubscription->priority                = request->priority;
     
     /* add the update job */
-    UA_Guid jobId = SubscriptionManager_getUniqueGUID(&session->subscriptionManager);
-    Subscription_createdUpdateJob(server, jobId, newSubscription);
     Subscription_registerUpdateJob(server, newSubscription);
     SubscriptionManager_addSubscription(&session->subscriptionManager, newSubscription);    
 }
