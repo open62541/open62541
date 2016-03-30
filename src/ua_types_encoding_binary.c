@@ -2,6 +2,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_statuscodes.h"
 #include "ua_types_generated.h"
+#include "stdio.h"
 
 /* All de- and encoding functions have the same signature up to the pointer type.
    So we can use a jump-table to switch into member types. */
@@ -337,6 +338,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
             i += j;
             retval = exchangeBuffer(pos, &end);
             if(retval != UA_STATUSCODE_GOOD)
+                printf("error occured, stopped encoding \n");
                 return retval;
         }
         // encode the remaining elements
@@ -356,6 +358,13 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
         if(retval == UA_STATUSCODE_BADENCODINGERROR) {
             /* exchange the buffer and try to encode the same element once more */
             retval = exchangeBuffer(&oldpos, &end); // exchange the buffer at the last correct position
+            if(retval != UA_STATUSCODE_GOOD){
+                printf("aborting encoding \n");
+                if(retval==UA_STATUSCODE_BADTCPMESSAGETOOLARGE){
+                    printf("aborting encoding - message too large \n");
+                }
+                return retval;
+            }
             *pos = oldpos; // oldpas was overwritten with the new position
             ptr -= contenttype->memSize; // re-encode the same member on the new buffer
             i--;
@@ -854,8 +863,13 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
 
         if(retval == UA_STATUSCODE_BADENCODINGERROR){
             retval = exchangeBuffer(pos, &end);
-            if(retval != UA_STATUSCODE_GOOD)
+            if(retval != UA_STATUSCODE_GOOD){
+                printf("aborting encoding \n");
+                if(retval==UA_STATUSCODE_BADTCPMESSAGETOOLARGE){
+                    printf("aborting encoding - message too large \n");
+                }
                 return retval;
+               }
             continue; //encoding has failed, try again with new buffer
         }
 
@@ -1076,7 +1090,10 @@ UA_encodeBinaryInternal(const void *src, bufpos pos, bufend end) {
             ptr += memSize;
             if(retval == UA_STATUSCODE_BADENCODINGERROR) {
                 /* exchange the buffer and try to encode the same type once more */
-                retval = exchangeBuffer(&oldpos, &end); // exchange the buffer at the last correct position
+                retval = exchangeBuffer(&oldpos, &end);
+                if(retval != UA_STATUSCODE_GOOD){
+                                return retval;
+                            }// exchange the buffer at the last correct position
                 *pos = oldpos; // oldpas was overwritten with the new position
                 ptr -= member->padding + memSize; // re-encode the same member on the new buffer
                 i--;
