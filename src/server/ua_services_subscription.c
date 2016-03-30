@@ -50,8 +50,8 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
 }
 
 static void
-createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *sub,
-                     const UA_MonitoredItemCreateRequest *request, UA_MonitoredItemCreateResult *result) {
+createMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
+                    const UA_MonitoredItemCreateRequest *request, UA_MonitoredItemCreateResult *result) {
     const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
     if(!target) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
@@ -67,7 +67,7 @@ createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *su
     UA_StatusCode retval = UA_NodeId_copy(&target->nodeId, &newMon->monitoredNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        MonitoredItem_delete(newMon);
+        MonitoredItem_delete(server, newMon);
         return;
     }
 
@@ -93,6 +93,9 @@ createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *su
     newMon->monitoredItemType = MONITOREDITEM_TYPE_CHANGENOTIFY;
     newMon->discardOldest = request->requestedParameters.discardOldest;
     LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
+
+    // todo: handle return code
+    MonitoredItem_registerSampleJob(server, newMon);
 
     // todo: add a job that samples the value (for fixed intervals)
     // todo: add a pointer to the monitoreditem to the variable, so that events get propagated
@@ -120,7 +123,7 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToCreateSize;
 
     for(size_t i = 0; i < request->itemsToCreateSize; i++)
-        createMonitoredItems(server, session, sub, &request->itemsToCreate[i], &response->results[i]);
+        createMonitoredItem(server, session, sub, &request->itemsToCreate[i], &response->results[i]);
 }
 
 void
@@ -155,9 +158,10 @@ Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest 
         if(sub->timedUpdateIsRegistered == false) {
             // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
             // NOTE:  There is a clone of this functionality in the Subscription_timedUpdateNotificationsJob
-            UA_MonitoredItem *mon;
-            LIST_FOREACH(mon, &sub->MonitoredItems, listEntry)
-                MonitoredItem_QueuePushDataValue(server, mon);
+            // done by the sampling job
+            /* UA_MonitoredItem *mon; */
+            /* LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) */
+            /*     MonitoredItem_QueuePushDataValue(server, mon); */
             
             // FIXME: We are forcing notification updates for the subscription. This
             // should be done by a timed work item.
@@ -285,7 +289,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
         response->results[i] =
-            UA_Session_deleteMonitoredItem(session, sub->subscriptionID,
+            UA_Session_deleteMonitoredItem(server, session, sub->subscriptionID,
                                            request->monitoredItemIds[i]);
 }
 
