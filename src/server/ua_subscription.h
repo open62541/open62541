@@ -5,6 +5,7 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
+#include "ua_session.h"
 
 /*****************/
 /* MonitoredItem */
@@ -59,7 +60,7 @@ typedef struct UA_unpublishedNotification {
     UA_NotificationMessage notification;
 } UA_unpublishedNotification;
 
-typedef struct UA_Subscription {
+struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
     UA_BoundedUInt32 lifeTime;
     UA_BoundedUInt32 keepAliveCount;
@@ -75,7 +76,7 @@ typedef struct UA_Subscription {
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification) unpublishedNotifications;
     size_t unpublishedNotificationsSize;
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
-} UA_Subscription;
+};
 
 UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);

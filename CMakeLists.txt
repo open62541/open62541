@@ -243,12 +243,10 @@ set(generate_subscriptiontypes "")
 if(UA_ENABLE_SUBSCRIPTIONS)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c
                           ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
   #append subscription headers at before ua_session
   list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
-  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
-                                                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
   set(generate_subscriptiontypes "--enable-subscription-types=1")
 endif()
 

@@ -1,6 +1,5 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_subscription_manager.h"
 #include "ua_subscription.h"
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
@@ -12,7 +11,7 @@
 void Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                 const UA_CreateSubscriptionRequest *request,
                                 UA_CreateSubscriptionResponse *response) {
-    response->subscriptionId = SubscriptionManager_getUniqueUIntID(&session->subscriptionManager);
+    response->subscriptionId = UA_Session_getUniqueSubscriptionID(session);
     UA_Subscription *newSubscription = UA_Subscription_new(response->subscriptionId);
     if(!newSubscription) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -47,7 +46,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     
     /* add the update job */
     Subscription_registerUpdateJob(server, newSubscription);
-    SubscriptionManager_addSubscription(&session->subscriptionManager, newSubscription);    
+    UA_Session_addSubscription(session, newSubscription);    
 }
 
 static void
@@ -72,7 +71,7 @@ createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *su
         return;
     }
 
-    newMon->itemId = ++(session->subscriptionManager.lastSessionID);
+    newMon->itemId = UA_Session_getUniqueSubscriptionID(session);
     result->monitoredItemId = newMon->itemId;
     newMon->clientHandle = request->requestedParameters.clientHandle;
 
@@ -102,8 +101,7 @@ createMonitoredItems(UA_Server *server, UA_Session *session, UA_Subscription *su
 void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_CreateMonitoredItemsRequest *request,
                                   UA_CreateMonitoredItemsResponse *response) {
-    UA_Subscription  *sub = SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
-                                                                    request->subscriptionId);
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
@@ -126,12 +124,8 @@ void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 }
 
 void
-Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request, UA_UInt32 requestId) {
-    UA_SubscriptionManager *manager= &session->subscriptionManager;
-    if(!manager)
-        return;
-
+Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest *request,
+                UA_UInt32 requestId) {
     UA_PublishResponse response;
     UA_PublishResponse_init(&response);
     response.responseHeader.requestHandle = request->requestHeader.requestHandle;
@@ -143,7 +137,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
         response.results[i] = UA_STATUSCODE_GOOD;
         UA_UInt32 sid = request->subscriptionAcknowledgements[i].subscriptionId;
-        UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, sid);
+        UA_Subscription *sub = UA_Session_getSubscriptionByID(session, sid);
         if(!sub) {
             response.results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             continue;
@@ -157,7 +151,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     // See if any new data is available
     UA_Subscription *sub;
-    LIST_FOREACH(sub, &manager->serverSubscriptions, listEntry) {
+    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
         if(sub->timedUpdateIsRegistered == false) {
             // FIXME: We are forcing a value update for monitored items. This should be done by the event system.
             // NOTE:  There is a clone of this functionality in the Subscription_timedUpdateNotificationsJob
@@ -205,7 +199,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         // request, but currently we need to return something to the client. If no
         // subscriptions have notifications, force one to generate a keepalive so we
         // don't return an empty message
-        sub = LIST_FIRST(&manager->serverSubscriptions);
+        sub = LIST_FIRST(&session->serverSubscriptions);
         if(sub) {
             response.subscriptionId = sub->subscriptionID;
             sub->keepAliveCount.current=sub->keepAliveCount.min;
@@ -226,8 +220,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 void
 Service_ModifySubscription(UA_Server *server, UA_Session *session, const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
-    UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(&session->subscriptionManager,
-                                                                   request->subscriptionId);
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
@@ -271,15 +264,13 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->subscriptionIdsSize; i++)
         response->results[i] =
-            SubscriptionManager_deleteSubscription(server, &session->subscriptionManager,
-                                                   request->subscriptionIds[i]);
+            UA_Session_deleteSubscription(server, session, request->subscriptionIds[i]);
 } 
 
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
-    UA_SubscriptionManager *manager = &session->subscriptionManager;
-    UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
@@ -294,14 +285,13 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
         response->results[i] =
-            SubscriptionManager_deleteMonitoredItem(manager, sub->subscriptionID,
-                                                    request->monitoredItemIds[i]);
+            UA_Session_deleteMonitoredItem(session, sub->subscriptionID,
+                                           request->monitoredItemIds[i]);
 }
 
-void Service_Republish(UA_Server *server, UA_Session *session,
-                       const UA_RepublishRequest *request, UA_RepublishResponse *response) {
-    UA_SubscriptionManager *manager = &session->subscriptionManager;
-    UA_Subscription *sub = SubscriptionManager_getSubscriptionByID(manager, request->subscriptionId);
+void Service_Republish(UA_Server *server, UA_Session *session, const UA_RepublishRequest *request,
+                       UA_RepublishResponse *response) {
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if (!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
