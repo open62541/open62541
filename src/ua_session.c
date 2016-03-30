@@ -1,6 +1,8 @@
 #include "ua_session.h"
-#include "server/ua_subscription.h"
 #include "ua_util.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "server/ua_subscription.h"
+#endif
 
 UA_Session adminSession = {
     .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
