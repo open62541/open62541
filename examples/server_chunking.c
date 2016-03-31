@@ -146,7 +146,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&myTooBigArrayVar);
     myTooBigArrayVar.description = UA_LOCALIZEDTEXT("en_US", "too big int32 array");
     myTooBigArrayVar.displayName = UA_LOCALIZEDTEXT("en_US", "too big int32 array");
-    arraySize = 15000; //a big array
+    arraySize = 19000; //a big array
     UA_Int32 *intTooBigArray = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
     for(size_t i=0;i<arraySize;i++){
         intTooBigArray[i] = (UA_Int32)i;

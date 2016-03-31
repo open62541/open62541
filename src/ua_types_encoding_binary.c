@@ -337,9 +337,10 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
             (*pos) += contenttype->memSize * j;
             i += j;
             retval = exchangeBuffer(pos, &end);
-            if(retval != UA_STATUSCODE_GOOD)
+            if(retval != UA_STATUSCODE_GOOD){
                 printf("error occured, stopped encoding \n");
                 return retval;
+            }
         }
         // encode the remaining elements
         memcpy(*pos, src, contenttype->memSize * (length-i));
@@ -869,7 +870,7 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
                     printf("aborting encoding - message too large \n");
                 }
                 return retval;
-               }
+            }
             continue; //encoding has failed, try again with new buffer
         }
 

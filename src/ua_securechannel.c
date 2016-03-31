@@ -140,14 +140,12 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     ci->messageSizeSoFar += offset;
 
     UA_Boolean chunkedMsg = (ci->chunksSoFar > 0 || ci->final == false);
-    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
-                        ci->messageSizeSoFar > connection->remoteConf.maxMessageSize)) && chunkedMsg;
+    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->localConf.maxChunkCount ||
+                        ci->messageSizeSoFar > connection->localConf.maxMessageSize)) && chunkedMsg;
 
     UA_SecureConversationMessageHeader respHeader;
+
     respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
-
-
-
     if(abortMsg){
         retval = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
         UA_String errorMsg = UA_STRING_ALLOC("Encoded message too long");
