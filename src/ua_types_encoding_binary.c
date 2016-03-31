@@ -354,7 +354,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
     for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; i++) {
         pass_type = contenttype;
         UA_Byte *oldpos = *pos;
-        retval = encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
+        retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
         ptr += contenttype->memSize;
         if(retval == UA_STATUSCODE_BADENCODINGERROR) {
             /* exchange the buffer and try to encode the same element once more */
@@ -364,11 +364,13 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
                 if(retval==UA_STATUSCODE_BADTCPMESSAGETOOLARGE){
                     printf("aborting encoding - message too large \n");
                 }
-                return retval;
             }
             *pos = oldpos; // oldpas was overwritten with the new position
             ptr -= contenttype->memSize; // re-encode the same member on the new buffer
             i--;
+        }
+        if(retval != UA_STATUSCODE_GOOD){
+            return retval;
         }
     }
     return retval;
@@ -973,15 +975,15 @@ DataValue_encodeBinary(UA_DataValue const *src, bufpos pos, bufend end) {
     UA_StatusCode retval = Byte_encodeBinary((const UA_Byte*) src, pos, end);
     if(src->hasValue)
         retval |= Variant_encodeBinary(&src->value, pos, end);
-    if(src->hasStatus)
+    if(src->hasStatus && retval==UA_STATUSCODE_GOOD)
         retval |= StatusCode_encodeBinary(&src->status, pos, end);
-    if(src->hasSourceTimestamp)
+    if(src->hasSourceTimestamp && retval==UA_STATUSCODE_GOOD)
         retval |= DateTime_encodeBinary(&src->sourceTimestamp, pos, end);
-    if(src->hasSourcePicoseconds)
+    if(src->hasSourcePicoseconds && retval==UA_STATUSCODE_GOOD)
         retval |= UInt16_encodeBinary(&src->sourcePicoseconds, pos, end);
-    if(src->hasServerTimestamp)
+    if(src->hasServerTimestamp && retval==UA_STATUSCODE_GOOD)
         retval |= DateTime_encodeBinary(&src->serverTimestamp, pos, end);
-    if(src->hasServerPicoseconds)
+    if(src->hasServerPicoseconds && retval == UA_STATUSCODE_GOOD)
         retval |= UInt16_encodeBinary(&src->serverPicoseconds, pos, end);
     return retval;
 }
@@ -1105,6 +1107,9 @@ UA_encodeBinaryInternal(const void *src, bufpos pos, bufend end) {
             ptr += sizeof(size_t);
             retval |= Array_encodeBinary(*(void *UA_RESTRICT const *)ptr, length, pass_type, pos, end);
             ptr += sizeof(void*);
+        }
+        if(retval!=UA_STATUSCODE_GOOD){
+            return retval;
         }
     }
     return retval;
