@@ -7,9 +7,7 @@
 #include "server/ua_services.h"
 #include "ua_client.h"
 #include "ua_nodeids.h"
-#include "ua_statuscodes.h"
 #include "ua_types.h"
-#include "ua_util.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -17,11 +15,12 @@
 #include <urcu.h>
 #endif
 
-UA_StatusCode readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                                        const UA_NumericRange *range, UA_DataValue *dataValue);
-UA_StatusCode readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                                        const UA_NumericRange *range, UA_DataValue *dataValue) 
-{
+/* copied definition */
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
+
+static UA_StatusCode
+readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+                          const UA_NumericRange *range, UA_DataValue *dataValue) {
   dataValue->hasValue = true;
   return UA_STATUSCODE_GOOD;
 }
@@ -71,7 +70,7 @@ static UA_Server* makeTestSequence(void) {
     UA_VariableAttributes_init(&vattr);
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
     UA_Variant_setArray(&vattr.value, &myIntegerArray, 9, &UA_TYPES[UA_TYPES_INT32]);
-    UA_UInt32 myIntegerDimensions[2] = {3,3};
+    UA_Int32 myIntegerDimensions[2] = {3,3};
     vattr.value.arrayDimensions = myIntegerDimensions;
     vattr.value.arrayDimensionsSize = 2;
     vattr.displayName = UA_LOCALIZEDTEXT("locale","myarray");

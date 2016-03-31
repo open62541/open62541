@@ -23,13 +23,8 @@ standard.
    in_a_nutshell
    building
    tutorials
-   datatypes
-
-   
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   types
+   constants
+   server
+   internal
 

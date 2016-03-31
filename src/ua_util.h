@@ -3,11 +3,7 @@
 
 #include "ua_config.h"
 
-/* Subtract from nodeids to get from the encoding to the content */
-#define UA_ENCODINGOFFSET_XML 1
-#define UA_ENCODINGOFFSET_BINARY 2
-
-#include <assert.h> // assert
+#include <assert.h>
 #define UA_assert(ignore) assert(ignore)
 
 /*********************/

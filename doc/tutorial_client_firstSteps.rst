@@ -27,7 +27,7 @@ As a recap, your directory structure should now look like this::
   │   ├── ua_nodeids.h
   │   ├── ua_server_external_ns.h
   │   ├── ua_server.h
-  │   ├── ua_statuscodes.h
+  │   ├── ua_constants.h
   │   ├── ua_transport_generated_encoding_binary.h
   │   ├── ua_transport_generated.h
   │   ├── ua_types_generated_encoding_binary.h
@@ -71,7 +71,7 @@ Let's recompile both server and client - if you feel up to it, you can create a 
 Asserting success/failure
 -------------------------
 
-Almost all functions of the open62541 API will return a ``UA_StatusCode``, which in the C world would be represented by a ``unsigned int``. OPC UA defines large number of good and bad return codes represented by this number. The constant UA_STATUSCODE_GOOD is defined as 0 in ``include/ua_statuscodes.h`` along with many other return codes. It pays off to check the return code of your function calls, as we already did implicitly in the client.
+Almost all functions of the open62541 API will return a ``UA_StatusCode``, which in the C world would be represented by a ``unsigned int``. OPC UA defines large number of good and bad return codes represented by this number. The constant UA_STATUSCODE_GOOD is defined as 0 in ``include/ua_constants.h`` along with many other return codes. It pays off to check the return code of your function calls, as we already did implicitly in the client.
 
 Minimalistic introduction to OPC UA nodes and node IDs
 ------------------------------------------------------

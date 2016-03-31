@@ -47,6 +47,14 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
+    /* floating point types may change the representaton due to several possible NaN values. */
+    if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
+       _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
+       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST ||
+       _i != UA_TYPES_MONITORINGPARAMETERS || _i != UA_TYPES_MONITOREDITEMCREATERESULT ||
+       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE)
+        return;
+
 	// given
 	UA_ByteString msg1, msg2;
 	size_t pos = 0;
@@ -64,9 +72,9 @@ START_TEST(encodeShallYieldDecode) {
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
 	pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
-	ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i", _i, UA_TYPES[_i].typeId.identifier.numeric);
-	ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
-    assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize));
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
+                  _i, UA_TYPES[_i].typeId.identifier.numeric);
+    ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
 	retval = UA_ByteString_allocBuffer(&msg2, 65000);
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 	pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], NULL, NULL, &msg2, &pos);
@@ -74,7 +82,7 @@ START_TEST(encodeShallYieldDecode) {
 	ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 	// then
-	ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == UA_TRUE, "messages differ idx=%d,nodeid=%i", _i,
+    ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true, "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 
 	// finally

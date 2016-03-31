@@ -7,9 +7,7 @@
 #include "server/ua_services.h"
 #include "ua_client.h"
 #include "ua_nodeids.h"
-#include "ua_statuscodes.h"
 #include "ua_types.h"
-#include "ua_util.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_MULTITHREADING

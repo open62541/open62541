@@ -4,13 +4,7 @@
 #include "queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
-#include "ua_connection.h"
-
-/**
- *  @ingroup communication
- *
- * @{
- */
+#include "ua_connection_internal.h"
 
 struct UA_Session;
 typedef struct UA_Session UA_Session;
@@ -65,6 +59,5 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
                                                   const void *content, const UA_DataType *contentType);
 
 void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
-/** @} */
 
 #endif /* UA_SECURECHANNEL_H_ */

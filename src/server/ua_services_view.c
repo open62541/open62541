@@ -1,8 +1,5 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_statuscodes.h"
-#include "ua_nodestore.h"
-#include "ua_util.h"
 
 static UA_StatusCode
 fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode *ref,

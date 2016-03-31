@@ -2,6 +2,7 @@
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
+#include "ua_connection_internal.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
 #include "ua_types_encoding_binary.h"

@@ -1,7 +1,7 @@
+#include <stdio.h>
+
 #include "ua_nodestore.h"
 #include "ua_util.h"
-#include "ua_statuscodes.h"
-#include <stdio.h>
 
 #define UA_NODESTORE_MINSIZE 64
 

@@ -1,17 +1,12 @@
-#include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_statuscodes.h"
-#include "ua_nodestore.h"
-#include "ua_session.h"
-#include "ua_types_generated_encoding_binary.h"
 
 /************/
 /* Add Node */
 /************/
 
 void
-UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
+Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                           const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                           UA_AddNodesResult *result) {
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
@@ -243,9 +238,11 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
             item.targetNodeClass = UA_NODECLASS_METHOD;
             Service_AddReferences_single(server, session, &item);
         } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
-          copyExistingVariable(server, session, &rd->nodeId.nodeId, &rd->referenceTypeId, nodeId, instantiationCallback);
+          copyExistingVariable(server, session, &rd->nodeId.nodeId,
+                               &rd->referenceTypeId, nodeId, instantiationCallback);
         else if(rd->nodeClass == UA_NODECLASS_OBJECT)
-          copyExistingObject(server, session, &rd->nodeId.nodeId, &rd->referenceTypeId, nodeId, instantiationCallback);
+          copyExistingObject(server, session, &rd->nodeId.nodeId,
+                             &rd->referenceTypeId, nodeId, instantiationCallback);
     }
 
     /* add a hastypedefinition reference */
@@ -293,7 +290,8 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     /* add the child properties */
     for(size_t i = 0; i < browseResult.referencesSize; i++) {
         UA_ReferenceDescription *rd = &browseResult.references[i];
-        copyExistingVariable(server, session, &rd->nodeId.nodeId, &rd->referenceTypeId, nodeId, instantiationCallback);
+        copyExistingVariable(server, session, &rd->nodeId.nodeId,
+                             &rd->referenceTypeId, nodeId, instantiationCallback);
     }
 
     /* add a hastypedefinition reference */
@@ -305,7 +303,6 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     addref.targetNodeId.nodeId = *typeId;
     addref.targetNodeClass = UA_NODECLASS_OBJECTTYPE;
     Service_AddReferences_single(server, session, &addref);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -505,7 +502,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
     }
 
     /* add it to the server */
-    UA_Server_addExistingNode(server, session, node, &item->parentNodeId.nodeId,
+    Service_AddNodes_existing(server, session, node, &item->parentNodeId.nodeId,
                               &item->referenceTypeId, result);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
@@ -583,7 +580,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
 /* Add Special Nodes (not possible over the wire) */
 /**************************************************/
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
@@ -625,7 +622,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     node->minimumSamplingInterval = attr.minimumSamplingInterval;
     node->valueRank = attr.valueRank;
     UA_RCU_LOCK();
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
+    Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &result);
     UA_RCU_UNLOCK();
     UA_AddNodesItem_deleteMembers(&item);
@@ -639,7 +636,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
 }
 
 #ifdef UA_ENABLE_METHODCALLS
-UA_StatusCode UA_EXPORT
+
+UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
@@ -683,7 +681,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_MethodAttributes_deleteMembers(&attrCopy);
 
     UA_RCU_LOCK();
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
+    Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &result);
     UA_RCU_UNLOCK();
     if(result.statusCode != UA_STATUSCODE_GOOD)
@@ -696,7 +694,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
     inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0,"InputArguments");
+    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0, "InputArguments");
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
@@ -704,17 +702,16 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult inputAddRes;
     UA_RCU_LOCK();
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &inputAddRes);
+    Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
+                             &parent.nodeId, &hasproperty, &inputAddRes);
     UA_RCU_UNLOCK();
     // todo: check if adding succeeded
     UA_AddNodesResult_deleteMembers(&inputAddRes);
     
     /* create OutputArguments */
-    /* FIXME:   See comment in inputArguments */
     UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
     outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0,"OutputArguments");
+    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0, "OutputArguments");
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->valueRank = 1;
@@ -722,7 +719,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult outputAddRes;
     UA_RCU_LOCK();
-    UA_Server_addExistingNode(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
+    Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
                               &parent.nodeId, &hasproperty, &outputAddRes);
     UA_RCU_UNLOCK();
     // todo: check if adding succeeded
@@ -733,41 +730,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     else
         UA_AddNodesResult_deleteMembers(&result);
     return result.statusCode;
-}
-
-static UA_StatusCode __UA_Server_editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
-  const struct {
-    UA_MethodCallback callback;
-    void *handle;
-  } *newCallback = handle;
-  
-  if (node == NULL)
-    return UA_STATUSCODE_BADNODEIDINVALID;
-  if (node->nodeClass != UA_NODECLASS_METHOD)
-    return UA_STATUSCODE_BADNODECLASSINVALID;
-  if (newCallback == NULL)
-    return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
-  
-  UA_MethodNode *mnode = (UA_MethodNode *) node;
-  mnode->attachedMethod = newCallback->callback;
-  mnode->methodHandle   = newCallback->handle;
-  return 0;
-}
-
-UA_StatusCode UA_EXPORT
-UA_Server_setMethodNode_callback( UA_Server *server, const UA_NodeId methodNodeId,
-                                  UA_MethodCallback method, void *handle) {
-  struct {
-    UA_MethodCallback callback;
-    void *handle;
-  } newCallback;  
-  newCallback.callback = method;
-  newCallback.handle   = handle;
-  UA_RCU_LOCK();
-  UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &methodNodeId,
-                            __UA_Server_editMethodCallback, &newCallback);
-  UA_RCU_UNLOCK();
-  return retval;
 }
 
 #endif
