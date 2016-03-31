@@ -87,7 +87,7 @@ typedef struct UA_ExternalNodeStore {
 
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
-                               UA_ExternalNodeStore *nodeStore);
+                               UA_ExternalNodeStore *nodeStore, UA_UInt16 *assignedNamespaceIndex);
 
 #ifdef __cplusplus
 }
