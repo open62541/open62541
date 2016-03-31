@@ -4,7 +4,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
-#include "stdio.h"
+
 #define SECURE_MESSAGE_HEADER 24
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_MessageSecurityMode_init(&channel->securityMode);
@@ -132,7 +132,6 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     UA_Connection *connection = channel->connection;
     if(!connection)
        return UA_STATUSCODE_BADINTERNALERROR;
-    printf("UA_SecureChannel_sendChunk - entered \n");
     /* adjust the buffer where the header was hidden */
     dst->data = &dst->data[-SECURE_MESSAGE_HEADER];
     dst->length += SECURE_MESSAGE_HEADER;
@@ -140,8 +139,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     ci->messageSizeSoFar += offset;
 
     UA_Boolean chunkedMsg = (ci->chunksSoFar > 0 || ci->final == false);
-    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->localConf.maxChunkCount ||
-                        ci->messageSizeSoFar > connection->localConf.maxMessageSize)) && chunkedMsg;
+    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
+                        ci->messageSizeSoFar > connection->remoteConf.maxMessageSize)) && chunkedMsg;
 
     UA_SecureConversationMessageHeader respHeader;
 
@@ -157,9 +156,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
         respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
         UA_String_deleteMembers(&errorMsg);
         ci->abort = true;
-        printf("aborting message \n");
 	}else{
-	    printf("offset = %i \n",offset);
 	    dst->length = offset;
         if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
@@ -185,23 +182,18 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, dst, &offset);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, dst, &offset);
     UA_SequenceHeader_encodeBinary(&seqHeader, dst, &offset);
-
-    printf("sending msg with buf at: %p, %i \n",dst->data,dst->length);
     connection->send(channel->connection, dst);
 
     // get new buffer for the next chunk
     if(!(ci->final || ci->abort)) {
         retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
-        printf("alloced mem for chk buf at: %p \n",dst->data);
         if(retval != UA_STATUSCODE_GOOD){
-            printf("UA_SecureChannel_sendChunk - exited \n");
             return retval;
         }
         /* hide the header of the buffer */
         dst->data = &dst->data[SECURE_MESSAGE_HEADER];
         dst->length = connection->localConf.sendBufferSize - SECURE_MESSAGE_HEADER;
     }
-    printf("UA_SecureChannel_sendChunk - exited \n");
     return retval;
 }
 
@@ -209,7 +201,6 @@ UA_StatusCode
 UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId, const void *content,
                                    const UA_DataType *contentType) {
     UA_Connection *connection = channel->connection;
-    printf("UA_SecureChannel_sendBinaryMessage - entered \n");
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -221,7 +212,6 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     UA_ByteString message;
     UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
                                                      &message);
-    printf("alloced mem for msg buf at: %p \n",message.data);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
