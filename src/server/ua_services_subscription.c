@@ -97,6 +97,20 @@ createMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub
     // todo: handle return code
     MonitoredItem_registerSampleJob(server, newMon);
 
+    // Triggering monitored callback on DataSource nodes
+    if (target->nodeClass == UA_NODECLASS_VARIABLE)
+    {
+        UA_VariableNode *varTarget = (UA_VariableNode*)target;
+
+        if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE)
+        {
+            UA_DataSource *dataSource = &varTarget->value.dataSource;
+            
+            dataSource->monitored(dataSource->handle, target, false/*, sub, session*/);
+            // FIXME: use returned status code to generate user feedback etc.
+        }
+    }
+
     // todo: add a job that samples the value (for fixed intervals)
     // todo: add a pointer to the monitoreditem to the variable, so that events get propagated
 }
