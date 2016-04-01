@@ -216,7 +216,8 @@ typedef struct {
      *        sourcetimestamp.
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
+     *         then no releasing of the value is done.
+     */
     UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,
                           UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
                           UA_DataValue *value);
@@ -233,6 +234,16 @@ typedef struct {
      */
     UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid,
                            const UA_Variant *data, const UA_NumericRange *range);
+
+    /* Triggered, if the the node gets monitored by a subscription.
+     *
+     * @param handle An optional pointer to user-defined data for the specific data source
+     * @param nodeid Id of the node in question
+     * @param removed Determines, if the monitoring on the node was removed or created.
+     * @return Returns a status code for logging. It could be used to determine,
+     *         if the subscription was successfull and might be returned to the user.
+     */
+    UA_StatusCode(*monitored)(void *handle, const UA_NodeId *nodeid, const UA_Boolean removed);
 } UA_DataSource;
 
 UA_StatusCode UA_EXPORT
