@@ -100,13 +100,13 @@ createMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub
     // Triggering monitored callback on DataSource nodes
     if (target->nodeClass == UA_NODECLASS_VARIABLE)
     {
-        UA_VariableNode *varTarget = (UA_VariableNode*)target;
+        const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
         if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE)
         {
             UA_DataSource *dataSource = &varTarget->value.dataSource;
             
-            dataSource->monitored(dataSource->handle, target, false/*, sub, session*/);
+            dataSource->monitored(dataSource->handle, target->nodeId, false/*, sub, session*/);
             // FIXME: use returned status code to generate user feedback etc.
         }
     }
