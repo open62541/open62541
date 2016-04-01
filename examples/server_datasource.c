@@ -56,11 +56,11 @@ monitoredHandler(void *handle, const UA_NodeId nodeid, const UA_Boolean removed)
     if (removed)
         // we know the nodeid is a string
         UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Stopped monitoring on Node %.*s",
-            nodeid->identifier.string.length, nodeid->identifier.string.data);
+            nodeid.identifier.string.length, nodeid.identifier.string.data);
     else
         // we know the nodeid is a string
         UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Started monitoring on Node %.*s",
-            nodeid->identifier.string.length, nodeid->identifier.string.data);
+            nodeid.identifier.string.length, nodeid.identifier.string.data);
 
     return UA_STATUSCODE_GOOD;
 }
