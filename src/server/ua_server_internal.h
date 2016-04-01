@@ -9,6 +9,10 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "ua_subscription_manager.h"
+#endif
+
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
