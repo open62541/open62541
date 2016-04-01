@@ -115,7 +115,7 @@ UA_Session_deleteMonitoredItem(UA_Server *server, UA_Session *session, UA_UInt32
                 {
                     UA_DataSource *dataSource = &varTarget->value.dataSource;
 
-                    dataSource->monitored(dataSource->handle, target, true);
+                    dataSource->monitored(dataSource->handle, target->nodeId, true);
                     // FIXME: use returned status code to generate (user) feedback etc...?
                 }
             }
