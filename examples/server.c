@@ -206,9 +206,9 @@ monitoredHandler(void *handle, const UA_NodeId nodeid, const UA_Boolean removed)
     // This handler can help managing the DataSources, e.g. activating them, etc..
 
     if (removed)
-        printf("Stop monitoring Node ns=%d; id=%d\n", nodeid->namespaceIndex, nodeid->identifier.numeric);
+        printf("Stop monitoring Node ns=%d; id=%d\n", nodeid.namespaceIndex, nodeid.identifier.numeric);
     else
-        printf("Start monitoring Node ns=%d; id=%d\n", nodeid->namespaceIndex, nodeid->identifier.numeric);
+        printf("Start monitoring Node ns=%d; id=%d\n", nodeid.namespaceIndex, nodeid.identifier.numeric);
     
     return UA_STATUSCODE_GOOD;
 }
