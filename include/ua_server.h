@@ -243,7 +243,7 @@ typedef struct {
      * @return Returns a status code for logging. It could be used to determine,
      *         if the subscription was successfull and might be returned to the user.
      */
-    UA_StatusCode(*monitored)(void *handle, const UA_NodeId *nodeid, const UA_Boolean removed);
+    UA_StatusCode(*monitored)(void *handle, const UA_NodeId nodeid, const UA_Boolean removed);
 } UA_DataSource;
 
 UA_StatusCode UA_EXPORT
