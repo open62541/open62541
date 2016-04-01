@@ -5,22 +5,11 @@
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
+#include "ua_session.h"
 
 /*****************/
 /* MonitoredItem */
 /*****************/
-
-typedef struct {
-    UA_Int32 currentValue;
-    UA_Int32 minValue;
-    UA_Int32 maxValue;
-} UA_Int32_BoundedValue;
-
-typedef struct {
-    UA_UInt32 currentValue;
-    UA_UInt32 minValue;
-    UA_UInt32 maxValue;
-} UA_UInt32_BoundedValue;
 
 typedef enum {
     MONITOREDITEM_TYPE_CHANGENOTIFY = 1,
@@ -29,12 +18,14 @@ typedef enum {
 } UA_MONITOREDITEM_TYPE;
 
 typedef struct MonitoredItem_queuedValue {
-    UA_DataValue value;
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
+    UA_DataValue value;
 } MonitoredItem_queuedValue;
 
 typedef struct UA_MonitoredItem {
     LIST_ENTRY(UA_MonitoredItem) listEntry;
+    UA_Guid sampleJobGuid;
+    UA_Boolean sampleJobIsRegistered;
     UA_UInt32 itemId;
     UA_MONITOREDITEM_TYPE monitoredItemType;
     UA_UInt32 timestampsToReturn;
@@ -43,23 +34,25 @@ typedef struct UA_MonitoredItem {
     UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
     UA_UInt32 samplingInterval; // [ms]
-    UA_UInt32_BoundedValue queueSize;
     UA_Boolean discardOldest;
-    UA_DateTime lastSampled;
     UA_ByteString lastSampledValue;
     // FIXME: indexRange is ignored; array values default to element 0
     // FIXME: dataEncoding is hardcoded to UA binary
     TAILQ_HEAD(QueueOfQueueDataValues, MonitoredItem_queuedValue) queue;
+    UA_BoundedUInt32 queueSize;
 } UA_MonitoredItem;
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
-void MonitoredItem_delete(UA_MonitoredItem *monitoredItem);
+void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void MonitoredItem_QueuePushDataValue(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void MonitoredItem_ClearQueue(UA_MonitoredItem *monitoredItem);
 UA_Boolean MonitoredItem_CopyMonitoredValueToVariant(UA_UInt32 attributeID, const UA_Node *src,
                                                      UA_DataValue *dst);
 UA_UInt32 MonitoredItem_QueueToDataChangeNotifications(UA_MonitoredItemNotification *dst,
                                                        UA_MonitoredItem *monitoredItem);
+
+UA_StatusCode MonitoredItem_unregisterUpdateJob(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -71,10 +64,10 @@ typedef struct UA_unpublishedNotification {
     UA_NotificationMessage notification;
 } UA_unpublishedNotification;
 
-typedef struct UA_Subscription {
+struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
-    UA_UInt32_BoundedValue lifeTime;
-    UA_UInt32_BoundedValue keepAliveCount;
+    UA_BoundedUInt32 lifeTime;
+    UA_BoundedUInt32 keepAliveCount;
     UA_Double publishingInterval;     // [ms] 
     UA_DateTime lastPublished;
     UA_UInt32 subscriptionID;
@@ -83,12 +76,11 @@ typedef struct UA_Subscription {
     UA_UInt32 priority;
     UA_UInt32 sequenceNumber;
     UA_Guid timedUpdateJobGuid;
-    UA_Job *timedUpdateJob;
     UA_Boolean timedUpdateIsRegistered;
     LIST_HEAD(UA_ListOfUnpublishedNotifications, UA_unpublishedNotification) unpublishedNotifications;
     size_t unpublishedNotificationsSize;
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
-} UA_Subscription;
+};
 
 UA_Subscription *UA_Subscription_new(UA_UInt32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);

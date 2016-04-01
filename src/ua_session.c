@@ -1,6 +1,8 @@
-#include "ua_util.h"
 #include "ua_session.h"
-#include "ua_statuscodes.h"
+#include "ua_util.h"
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "server/ua_subscription.h"
+#endif
 
 UA_Session adminSession = {
     .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
@@ -28,7 +30,8 @@ void UA_Session_init(UA_Session *session) {
     UA_DateTime_init(&session->validTill);
     session->channel = NULL;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    SubscriptionManager_init(session);
+    LIST_INIT(&session->serverSubscriptions);
+    session->lastSubscriptionID = UA_UInt32_random();
 #endif
     session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
     LIST_INIT(&session->continuationPoints);
@@ -49,10 +52,68 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     if(session->channel)
         UA_SecureChannel_detachSession(session->channel, session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    SubscriptionManager_deleteMembers(session, server);
+    UA_Subscription *currents, *temps;
+    LIST_FOREACH_SAFE(currents, &session->serverSubscriptions, listEntry, temps) {
+        LIST_REMOVE(currents, listEntry);
+        UA_Subscription_deleteMembers(currents, server);
+        UA_free(currents);
+    }
 #endif
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
     session->validTill = UA_DateTime_now() + (UA_DateTime)(session->timeout * UA_MSEC_TO_DATETIME);
 }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
+void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription) {
+    LIST_INSERT_HEAD(&session->serverSubscriptions, newSubscription, listEntry);
+}
+
+UA_StatusCode
+UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionID) {
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);    
+    if(!sub)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    LIST_REMOVE(sub, listEntry);
+    UA_Subscription_deleteMembers(sub, server);
+    UA_free(sub);
+    return UA_STATUSCODE_GOOD;
+} 
+
+UA_Subscription *
+UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
+    UA_Subscription *sub;
+    LIST_FOREACH(sub, &session->serverSubscriptions, listEntry) {
+        if(sub->subscriptionID == subscriptionID)
+            break;
+    }
+    return sub;
+}
+
+
+UA_StatusCode
+UA_Session_deleteMonitoredItem(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionID,
+                               UA_UInt32 monitoredItemID) {
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
+    if(!sub)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    
+    UA_MonitoredItem *mon, *tmp_mon;
+    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmp_mon) {
+        if(mon->itemId == monitoredItemID) {
+            LIST_REMOVE(mon, listEntry);
+            MonitoredItem_delete(server, mon);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+}
+
+UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
+    return ++(session->lastSubscriptionID);
+}
+
+
+#endif

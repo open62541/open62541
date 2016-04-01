@@ -16,7 +16,7 @@ if [ $ANALYZE = "true" ]; then
             --enable=style --force --std=c++11 -j 8 \
             --suppress=incorrectStringBooleanError \
             --suppress=invalidscanf --inline-suppr \
-            -I include src src_extra 2> cppcheck.txt
+            -I include src plugins 2> cppcheck.txt
         if [ -s cppcheck.txt ]; then
         	echo "\n\n====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt
@@ -40,7 +40,7 @@ else
 	if [ "$CC" = "gcc" ]; then
 		echo "Cross compile release build for MinGW 32 bit"
 		mkdir -p build && cd build
-		cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
+		cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
 		make -j8
 		zip -r open62541-win32.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 		cp open62541-win32.zip ..
@@ -48,7 +48,7 @@ else
 
 		echo "Cross compile release build for MinGW 64 bit"
 		mkdir -p build && cd build
-		cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
+		cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
 		make -j8
 		zip -r open62541-win64.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
 		cp open62541-win64.zip ..
@@ -56,7 +56,7 @@ else
 
 		echo "Cross compile release build for 32-bit linux"
 		mkdir -p build && cd build
-		cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
+		cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
 		make -j8
 		tar -pczf open62541-linux32.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 		cp open62541-linux32.tar.gz ..

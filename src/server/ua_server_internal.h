@@ -4,13 +4,10 @@
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_server_external_ns.h"
+#include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-#include "ua_subscription_manager.h"
-#endif
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -76,11 +73,6 @@ struct UA_Server {
     UA_ServerConfig config;
 };
 
-/* The node is assumed to be "finished", i.e. no instantiation from inheritance is necessary */
-void UA_Server_addExistingNode(UA_Server *server, UA_Session *session, UA_Node *node,
-                               const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                               UA_AddNodesResult *result);
-
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
@@ -93,5 +85,9 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
+
+#ifdef UA_BUILD_UNIT_TESTS
+UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
+#endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */

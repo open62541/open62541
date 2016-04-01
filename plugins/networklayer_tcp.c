@@ -429,16 +429,9 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             continue;
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
-            UA_Boolean realloced = false;
-            retval = UA_Connection_completeMessages(layer->mappings[i].connection, &buf, &realloced);
-            if(retval != UA_STATUSCODE_GOOD || buf.length == 0)
-                continue;
             js[j].job.binaryMessage.connection = layer->mappings[i].connection;
             js[j].job.binaryMessage.message = buf;
-            if(!realloced)
-                js[j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
-            else
-                js[j].type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
+            js[j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
             j++;
         } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_Connection *c = layer->mappings[i].connection;

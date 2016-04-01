@@ -590,6 +590,26 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     return result;
 }
 
+static void completeMessages(UA_Server *server, UA_Job *job) {
+    UA_Boolean realloced = UA_FALSE;
+    UA_StatusCode retval = UA_Connection_completeMessages(job->job.binaryMessage.connection,
+                                                          &job->job.binaryMessage.message, &realloced);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(retval == UA_STATUSCODE_BADOUTOFMEMORY)
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                           "Lost message(s) from Connection %i as memory could not be allocated",
+                           job->job.binaryMessage.connection->sockfd);
+        else if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                        "Could not merge half-received messages on Connection %i with error 0x%08x",
+                        job->job.binaryMessage.connection->sockfd, retval);
+        job->type = UA_JOBTYPE_NOTHING;
+        return;
+    }
+    if(realloced)
+        job->type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
+}
+
 UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #ifdef UA_ENABLE_MULTITHREADING
     /* Run work assigned for the main thread */
@@ -614,15 +634,21 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         else
             jobsSize = nl->getJobs(nl, &jobs, 0);
 
-#ifdef UA_ENABLE_MULTITHREADING
-        /* Filter out delayed work */
         for(size_t k = 0; k < jobsSize; k++) {
-            if(jobs[k].type != UA_JOBTYPE_METHODCALL_DELAYED)
+#ifdef UA_ENABLE_MULTITHREADING
+            /* Filter out delayed work */
+            if(jobs[k].type == UA_JOBTYPE_METHODCALL_DELAYED) {
+                addDelayedJob(server, &jobs[k]);
+                jobs[k].type = UA_JOBTYPE_NOTHING;
                 continue;
-            addDelayedJob(server, &jobs[k]);
-            jobs[k].type = UA_JOBTYPE_NOTHING;
+            }
+#endif
+            /* Merge half-received messages */
+            if(jobs[k].type == UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER)
+                completeMessages(server, &jobs[k]);
         }
 
+#ifdef UA_ENABLE_MULTITHREADING
         dispatchJobs(server, jobs, jobsSize);
         /* Wake up worker threads */
         if(jobsSize > 0)

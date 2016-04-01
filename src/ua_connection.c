@@ -1,5 +1,5 @@
 #include "ua_util.h"
-#include "ua_connection.h"
+#include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_securechannel.h"

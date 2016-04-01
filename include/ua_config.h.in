@@ -3,7 +3,7 @@
 
 #ifndef _XOPEN_SOURCE
 # define _XOPEN_SOURCE 500
-# define _BSD_SOURCE
+# define _DEFAULT_SOURCE
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
@@ -19,7 +19,9 @@
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 
-/* Function Export */
+/**
+ * Function Export
+ * --------------- */
 #ifdef _WIN32
 # ifdef UA_DYNAMIC_LINKING
 #  ifdef __GNUC__
@@ -42,11 +44,46 @@
 # endif
 #endif
 
-/* Endianness */
-// UA_NON_LITTLEENDIAN_ARCHITECTURE disables memcpying integer arrays directly
-// onto the message buffer. UA_MIXED_ENDIAN enables special encoding for floats
-// and doubles. Otherwise, they are endianness-switched similar to integers.
-#if defined(__LITTLE_ENDIAN__) || defined(_WIN32) || (!defined(__ANDROID__) && BYTE_ORDER == ORDER_LITTLE_ENDIAN)
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
+#else
+# define UA_INLINE inline
+#endif
+
+/**
+ * Non-aliasing pointers
+ * -------------------- */
+#ifdef _MSC_VER
+# define UA_RESTRICT __restrict
+#elif defined(__GNUC__)
+# define UA_RESTRICT __restrict__
+#else
+# define UA_RESTRICT restrict
+#endif
+
+/**
+ * Function attributes
+ * ------------------- */
+#ifdef __GNUC__
+# define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
+# define UA_FUNC_ATTR_PURE __attribute__ ((pure))
+# define UA_FUNC_ATTR_CONST __attribute__((const))
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+#else
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
+
+/**
+ * Integer Endianness
+ * ------------------ */
+#if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) \
+                        && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define htole16(x) (x)
 # define htole32(x) (x)
 # define htole64(x) (x)
@@ -76,78 +113,58 @@
 #  define le16toh(x) OSSwapLittleToHostInt16(x)
 #  define le32toh(x) OSSwapLittleToHostInt32(x)
 #  define le64toh(x) OSSwapLittleToHostInt64(x)
-#  define __BYTE_ORDER BYTE_ORDER
 # elif defined(__QNX__) || defined(__QNXNTO__)
 #  include <gulliver.h>
-#  if defined(__LITTLEENDIAN__)
-#   define __BYTE_ORDER __LITTLE_ENDIAN
-#  endif
 #  define htole16(x) ENDIAN_LE16(x)
 #  define htole32(x) ENDIAN_LE32(x)
 #  define htole64(x) ENDIAN_LE64(x)
 #  define le16toh(x) ENDIAN_LE16(x)
 #  define le32toh(x) ENDIAN_LE32(x)
 #  define le64toh(x) ENDIAN_LE64(x)
+# else
+#  define UA_ENCODING_INTEGER_GENERIC
+#  warning No native function for endianness conversion available. Use a slow generic conversion.
 # endif
-# if ( __BYTE_ORDER != __LITTLE_ENDIAN ) && (_BYTE_ORDER != _LITTLE_ENDIAN)
-#  define UA_NON_LITTLEENDIAN_ARCHITECTURE
+#endif
+
+/**
+ * Float Endianness
+ * ---------------- */
+
+/* Demote error to a warning on clang. There is no robust way to detect float
+ * endianness here. On x86/x86-64, floats are always in the right IEEE 754
+ * format. Then, the "Unknown float representation warning" can be ignored or
+ * disabled and the UA_ENCODING_FLOAT_GENERIC definition removed to get faster
+ * speed. */
+#if defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-W#warnings"
+#endif
+
+#if !defined(_WIN32)
+# if !defined(__FLOAT_WORD_ORDER__) || !defined(__BYTE_ORDER__) || \
+     !defined(__ORDER_LITTLE_ENDIAN__) || !defined(__ORDER_BIG_ENDIAN__)
+#  define UA_ENCODING_FLOAT_GENERIC
+#  warning Unknown float representation. Use a slow manual IEEE 754 conversion.
+/* Replace UA_ENCODING_FLOAT_GENERIC with the following section (and adjust
+   accordingly to your archtecture) if little-endian IEEE 754 can be achieved
+   with a simple byte-swap. For example for middle-endian encoding on some
+   ARM CPUs. */
+/* #define UA_ENCODING_FLOAT_SWAP */
+/* #define UA_swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24)) */
+/* #define UA_swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \ */
+/*                        ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \ */
+/*                        ((u64 >> 24) & 0x0000000000FF0000) | ((u64 >> 40) & 0x000000000000FF00) | (u64 << 56)) */
 # endif
 #endif
 
-/* Manually override */
-// If required, define UA_NON_LITTLEENDIAN_ARCHITECTURE, UA_MIXED_ENDIAN, and
-// the htole / letoh functions here. Even better, post an issue on github or the
-// mailing list, so we can include the architecture in the standard release.
-#define swap16(u16) ((u16 >> 8) | (u16 << 8))
-#define swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24))
-#define swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \
-                     ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \
-                     ((u64 >> 24) & 0x0000000000FF0000) | ((u64 >> 40) & 0x000000000000FF00) | (u64 << 56))
-
-#ifdef __ARM_ARCH_4T__
-# define UA_MIXED_ENDIAN
-# define UA_NON_LITTLEENDIAN_ARCHITECTURE
-# define htole16(x) swap16(x)
-# define htole32(x) swap32(x)
-# define htole64(x) swap64(x)
-# define le16toh(x) swap16(x)
-# define le32toh(x) swap32(x)
-# define le64toh(x) swap64(x)
+#if defined(__clang__)
+#pragma GCC diagnostic pop
 #endif
 
-#ifndef htole16
-# error The endianness of the architecture not known
-#endif
-
-/* Inline Functions */
-#ifdef _MSC_VER
-# define UA_INLINE __inline
-#else
-# define UA_INLINE inline
-#endif
-
-/* Define non-aliasing pointers */
-#ifdef _MSC_VER
-# define UA_RESTRICT __restrict
-#elif defined(__GNUC__)
-# define UA_RESTRICT __restrict__
-#else
-# define UA_RESTRICT restrict
-#endif
-
-/* Function attributes */
-#ifdef __GNUC__
-# define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
-# define UA_FUNC_ATTR_PURE __attribute__ ((pure))
-# define UA_FUNC_ATTR_CONST __attribute__((const))
-# define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
-#else
-# define UA_FUNC_ATTR_MALLOC
-# define UA_FUNC_ATTR_PURE
-# define UA_FUNC_ATTR_CONST
-# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
-#endif
-
+/**
+ * Embed unavailable libc functions
+ * -------------------------------- */
 #include <stddef.h>
 #ifdef UA_ENABLE_EMBEDDED_LIBC
   void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
