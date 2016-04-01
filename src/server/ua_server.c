@@ -48,7 +48,14 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
     .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2
+    .usernamePasswordLoginsSize = 2,
+    
+    .publishingIntervalLimits = { .max = 10000, .min = 0, .current = 0 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
+    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
+    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
+    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
+    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
 };
 
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
@@ -222,7 +229,7 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
     UA_RCU_LOCK();
-    UA_Server_addExistingNode(server, &adminSession, node, &parentNodeId,
+    Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
                               &referenceTypeId, &res);
     UA_RCU_UNLOCK();
     return res;
@@ -1191,6 +1198,36 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nod
     UA_RCU_UNLOCK();
     return retval;
 }
+
+#ifdef UA_ENABLE_METHODCALLS
+
+struct addMethodCallback {
+    UA_MethodCallback callback;
+    void *handle;
+};
+
+static UA_StatusCode
+editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
+    if(node->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    const struct addMethodCallback *newCallback = handle;
+    UA_MethodNode *mnode = (UA_MethodNode*) node;
+    mnode->attachedMethod = newCallback->callback;
+    mnode->methodHandle   = newCallback->handle;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+                                 UA_MethodCallback method, void *handle) {
+    struct addMethodCallback cb = { method, handle };
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &methodNodeId, editMethodCallback, &cb);
+    UA_RCU_UNLOCK();
+    return retval;
+}
+
+#endif
 
 UA_StatusCode
 __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeId attributeId, void *v) {

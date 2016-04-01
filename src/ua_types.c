@@ -1,6 +1,5 @@
 #include "ua_util.h"
 #include "ua_types.h"
-#include "ua_statuscodes.h"
 #include "ua_types_generated.h"
 
 #include "pcg_basic.h"
@@ -17,7 +16,6 @@ UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
 /***************************/
 /* Random Number Generator */
 /***************************/
-
 static UA_THREAD_LOCAL pcg32_random_t UA_rng = PCG32_INITIALIZER;
 
 UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
@@ -27,7 +25,6 @@ UA_EXPORT void UA_random_seed(UA_UInt64 seed) {
 /*****************/
 /* Builtin Types */
 /*****************/
-
 UA_EXPORT UA_UInt32 UA_UInt32_random(void) {
     return (UA_UInt32)pcg32_random_r(&UA_rng);
 }
@@ -321,7 +318,7 @@ static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
         p->arrayLength = 0;
     }
     if(p->arrayDimensions) {
-        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
     }
@@ -339,7 +336,7 @@ Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
     dst->type = src->type;
     if(src->arrayDimensions) {
         retval = UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
-            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+            (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
         if(retval == UA_STATUSCODE_GOOD)
             dst->arrayDimensionsSize = src->arrayDimensionsSize;
         else
@@ -369,9 +366,13 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     const UA_UInt32 *dims = &arrayLength;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
-        dims = v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; i++)
+        dims = (UA_UInt32*)v->arrayDimensions;
+        for(size_t i = 0; i < dims_count; i++) {
+            /* dimensions can have negative size similar to array lengths */
+            if(v->arrayDimensions[i] < 0)
+                return UA_STATUSCODE_BADINDEXRANGEINVALID;
             elements *= dims[i];
+        }
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -460,7 +461,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRan
         }
         dst->arrayDimensionsSize = src->arrayDimensionsSize;
         for(size_t k = 0; k < src->arrayDimensionsSize; k++)
-            dst->arrayDimensions[k] = range.dimensions[k].max - range.dimensions[k].min + 1;
+            dst->arrayDimensions[k] = (UA_Int32)(range.dimensions[k].max - range.dimensions[k].min + 1);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -801,8 +802,6 @@ void UA_delete(void *p, const UA_DataType *type) {
 /******************/
 
 void * UA_Array_new(size_t size, const UA_DataType *type) {
-    if(size > MAX_ARRAY_SIZE || type->memSize * size > MAX_ARRAY_SIZE)
-        return NULL;
     if(size == 0)
         return UA_EMPTY_ARRAY_SENTINEL;
     return UA_calloc(size, type->memSize);
@@ -817,9 +816,6 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
             *dst= UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
-
-    if(src_size > MAX_ARRAY_SIZE || type->memSize * src_size > MAX_ARRAY_SIZE)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(src_size, type->memSize);

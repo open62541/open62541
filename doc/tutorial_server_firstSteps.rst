@@ -101,7 +101,7 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    :> cd myApp
    :myApp> mkdir include
    :myApp> cp ../open62541/include/* ./include
-   :myApp> cp ../open62541/src_extra/*.h ./include
+   :myApp> cp ../open62541/plugins/*.h ./include
    :myApp> cp ../open62541/build/src_generated/*.h ./include
    :myApp> cp ../open62541/build/*.so .
    :myApp> tree
@@ -120,7 +120,7 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    │   ├── ua_nodeids.h
    │   ├── ua_server_external_ns.h
    │   ├── ua_server.h
-   │   ├── ua_statuscodes.h
+   │   ├── ua_constants.h
    │   ├── ua_transport_generated_encoding_binary.h
    │   ├── ua_transport_generated.h
    │   ├── ua_types_generated_encoding_binary.h

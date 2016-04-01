@@ -1,10 +1,10 @@
-OPC UA in a nutshell
-====================
+Introduction to OPC UA
+======================
 
 OPC UA, a collection of services
 --------------------------------
 
-In OPC-UA, all communication is based on service calls, each consisting of a request and a response
+In OPC UA, all communication is based on service calls, each consisting of a request and a response
 message. Be careful to note the difference between services and methods. Services are pre-defined in
 the standard and cannot be changed. But you can use the *Call* service to invoke user-defined
 methods on the server.
@@ -22,9 +22,9 @@ each service is implemented in a single function. See the \ref services section 
 +-----------------------------+-----------------------------+------------------------------+
 | GetEndpoints                | CloseSecureChannel          | ActivateSession              |
 +-----------------------------+-----------------------------+------------------------------+
-| RegisterServer              | CloseSession                |                              |
+| RegisterServer              |                             | CloseSession                 |
 +-----------------------------+-----------------------------+------------------------------+
-| Cancel                      |                             |                              |
+|                             |                             | Cancel                       |
 +-----------------------------+-----------------------------+------------------------------+
 
 **Interaction with the information model**

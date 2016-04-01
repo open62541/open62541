@@ -435,7 +435,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             LIST_REMOVE(ch, pointers);
             UA_free(ch);
         } else {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Received MSGA on an unknown request");
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "Received MSGA on an unknown request");
         }
 
         return;
@@ -497,6 +498,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(!session) {
         /* session id 0 -> anonymous session */
         UA_Session_init(&anonymousSession);
+        anonymousSession.sessionId = UA_NODEID_NUMERIC(0,0);
         anonymousSession.channel = channel;
         anonymousSession.activated = true;
         session = &anonymousSession;
