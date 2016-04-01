@@ -109,7 +109,7 @@ UA_Session_deleteMonitoredItem(UA_Server *server, UA_Session *session, UA_UInt32
             // Triggering monitored callback on DataSource nodes
             if (target->nodeClass == UA_NODECLASS_VARIABLE)
             {
-                UA_VariableNode *varTarget = (UA_VariableNode*)target;
+                const UA_VariableNode *varTarget = (const UA_VariableNode*)target;
 
                 if (varTarget->valueSource == UA_VALUESOURCE_DATASOURCE)
                 {
