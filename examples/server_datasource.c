@@ -49,7 +49,7 @@ writeInteger(void *handle, const UA_NodeId nodeid,
 }
 
 static UA_StatusCode
-monitoredHandler(void *handle, const UA_NodeId *nodeid, const bool removed)
+monitoredHandler(void *handle, const UA_NodeId *nodeid, const UA_Boolean removed)
 {
     // This handler can help managing the DataSources, e.g. activating them, etc..
 
