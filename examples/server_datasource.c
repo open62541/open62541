@@ -48,6 +48,22 @@ writeInteger(void *handle, const UA_NodeId nodeid,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+monitoredHandler(void *handle, const UA_NodeId *nodeid, const bool removed)
+{
+    // This handler can help managing the DataSources, e.g. activating them, etc..
+
+    if (removed)
+        // we know the nodeid is a string
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Stopped monitoring on Node %.*s",
+            nodeid->identifier.string.length, nodeid->identifier.string.data);
+    else
+        // we know the nodeid is a string
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Started monitoring on Node %.*s",
+            nodeid->identifier.string.length, nodeid->identifier.string.data);
+
+    return UA_STATUSCODE_GOOD;
+}
 
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
@@ -64,7 +80,7 @@ int main(int argc, char** argv) {
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_DataSource dateDataSource = (UA_DataSource) {
-        .handle = &myInteger, .read = readInteger, .write = writeInteger};
+        .handle = &myInteger, .read = readInteger, .write = writeInteger, .monitored = monitoredHandler};
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
