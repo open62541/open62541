@@ -201,9 +201,22 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 static UA_StatusCode
+monitoredHandler(void *handle, const UA_NodeId nodeid, const UA_Boolean removed)
+{
+    // This handler can help managing the DataSources, e.g. activating them, etc..
+
+    if (removed)
+        printf("Stop monitoring Node ns=%d; id=%d\n", nodeid.namespaceIndex, nodeid.identifier.numeric);
+    else
+        printf("Start monitoring Node ns=%d; id=%d\n", nodeid.namespaceIndex, nodeid.identifier.numeric);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 instantiationHandle(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
-  printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex, newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
-  return UA_STATUSCODE_GOOD;
+    printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex, newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char** argv) {
@@ -221,7 +234,8 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(config);
 
     // add node with the datetime data source
-    UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
+    UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData,
+        .write = NULL, .monitored = monitoredHandler};
     UA_VariableAttributes v_attr;
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
