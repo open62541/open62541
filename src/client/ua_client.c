@@ -629,9 +629,17 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
 }
 
 UA_StatusCode UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
-    return SecureChannelHandshake(client, true);
+    UA_StatusCode retval = SecureChannelHandshake(client, true);
+    if(retval == UA_STATUSCODE_GOOD)
+      client->state = UA_CLIENTSTATE_CONNECTED;
+    return retval;
 }
 
+UA_Client_State UA_EXPORT UA_Client_getState(UA_Client *client) {
+  if (client == NULL)
+    return UA_CLIENTSTATE_ERRORED;
+  return client->state;
+}
 /****************/
 /* Raw Services */
 /****************/
@@ -726,8 +734,11 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         UA_ByteString_deleteMembers(&reply);
     if(retval != UA_STATUSCODE_GOOD){
         UA_LOG_INFO(client->logger, UA_LOGCATEGORY_CLIENT, "Error receiving the response");
-        client->state = UA_CLIENTSTATE_ERRORED;
+        client->state = UA_CLIENTSTATE_FAULTED;
         respHeader->serviceResult = retval;
+    }
+    else {
+      client->state = UA_CLIENTSTATE_CONNECTED;
     }
     UA_LOG_DEBUG(client->logger, UA_LOGCATEGORY_CLIENT, "Received a response of type %i", responseId.identifier.numeric);
 }
