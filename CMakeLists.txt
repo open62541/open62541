@@ -245,8 +245,8 @@ if(UA_ENABLE_SUBSCRIPTIONS)
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
   #append subscription headers at before ua_session
-  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
-  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_nodestore.h" UaSessionPos) # position after session.h
+  list(INSERT internal_headers ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
   set(generate_subscriptiontypes "--enable-subscription-types=1")
 endif()
 

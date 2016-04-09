@@ -95,7 +95,7 @@ UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
 
 
 UA_StatusCode
-UA_Session_deleteMonitoredItem(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionID,
+UA_Session_deleteMonitoredItem(UA_Session *session, UA_UInt32 subscriptionID,
                                UA_UInt32 monitoredItemID) {
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
     if(!sub)
@@ -121,7 +121,7 @@ UA_Session_deleteMonitoredItem(UA_Server *server, UA_Session *session, UA_UInt32
             }
             
             LIST_REMOVE(mon, listEntry);
-            MonitoredItem_delete(server, mon);
+            MonitoredItem_delete(mon);
             return UA_STATUSCODE_GOOD;
         }
     }
