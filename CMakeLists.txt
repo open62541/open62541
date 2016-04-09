@@ -269,6 +269,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                                                 ${generate_subscriptiontypes}
                                                 ${generate_typeintrospection}
+                                                --additional-types ${PROJECT_SOURCE_DIR}/tools/schema/AdditionalTypes.txt
                                                 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
                                                 0
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd

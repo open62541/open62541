@@ -77,6 +77,19 @@ class TypeDescription(object):
         self.nodeid = nodeid
         self.namespaceid = namespaceid
 
+def parseAdditionalTypes(filename):
+    f = open(filename[0])
+    input_str = f.read()
+    f.close()
+    input_str = input_str.replace('\r','')
+    rows = input_str.split('\n')
+    for row in rows:
+        if minimal_types.count(row) > 0:
+            continue
+        else:
+            minimal_types.append(row);
+    return
+
 def parseTypeDescriptions(filename, namespaceid):
     definitions = {}
     f = open(filename[0])
@@ -437,6 +450,7 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
 parser = argparse.ArgumentParser()
 parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
 parser.add_argument('--enable-subscription-types', nargs=1, help='Generate datatypes necessary for Montoring and Subscriptions.')
+parser.add_argument('--additional-types', nargs=1, help='file with additional types, expanding minimal_types. (One type per line)')
 parser.add_argument('--typedescriptions', nargs=1, help='csv file with type descriptions')
 parser.add_argument('--typeintrospection', help='add the type and member names to the idatatype structures', action='store_true')
 parser.add_argument('namespace_id', type=int, help='the id of the target namespace')
@@ -450,6 +464,8 @@ typeintrospection = args.typeintrospection
 existing_types = OrderedDict()
 if args.enable_subscription_types:
     minimal_types = minimal_types + subscription_types
+if args.additional_types:
+    parseAdditionalTypes(args.additional_types)
 if args.namespace_id == 0 or args.ns0_types_xml:
     existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
 if args.ns0_types_xml:
