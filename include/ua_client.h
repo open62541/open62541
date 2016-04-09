@@ -14,6 +14,13 @@ extern "C" {
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
+typedef enum {
+  UA_CLIENTSTATE_READY,
+  UA_CLIENTSTATE_CONNECTED,
+  UA_CLIENTSTATE_FAULTED,
+  UA_CLIENTSTATE_ERRORED
+} UA_Client_State;
+
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout; //sync response timeout
     UA_UInt32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
@@ -106,6 +113,24 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
  * @return Indicates whether the operation succeeded or returns an error code
  */
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
+
+
+/**
+ * @brief Get the client connection status
+ * 
+ * Returns the client connection status, being one of the following:
+ * - UA_CLIENTSTATE_READY:     The client is not connected but initialized and ready to use.
+ * - UA_CLIENTSTATE_CONNECTED: The client is connected to a server.
+ * - UA_CLIENTSTATE_FAULTED:   An error has occured that might have influenced the connection state.
+ *                             A successfull service call or renewal of the secure channel will 
+ *                             reset the state to CONNECTED.
+ * - UA_CLIENTSTATE_ERRORED:   A non-recoverable error has occured and the connection is no longer
+ *                             reliable. The client needs to be disconnected and reinitialized to 
+ *                             recover into a CONNECTED state.
+ * @param client to use.
+ * @return Current state of the client.
+ */
+UA_Client_State UA_EXPORT UA_Client_getState(UA_Client *client);
 
 /****************/
 /* Raw Services */

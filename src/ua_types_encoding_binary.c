@@ -989,7 +989,11 @@ Variant_decodeBinary(bufpos pos, bufend end, UA_Variant *dst) {
 /* DataValue */
 static UA_StatusCode
 DataValue_encodeBinary(UA_DataValue const *src, bufpos pos, bufend end) {
-    UA_StatusCode retval = Byte_encodeBinary((const UA_Byte*) src, pos, end);
+    UA_Byte encodingMask = (UA_Byte)
+        (src->hasValue | (src->hasStatus << 1) | (src->hasSourceTimestamp << 2) |
+         (src->hasServerTimestamp << 3) | (src->hasSourcePicoseconds << 4) |
+         (src->hasServerPicoseconds << 5));
+    UA_StatusCode retval = Byte_encodeBinary(&encodingMask, pos, end);
     if(src->hasValue)
         retval |= Variant_encodeBinary(&src->value, pos, end);
     if(src->hasStatus)
@@ -1008,23 +1012,34 @@ DataValue_encodeBinary(UA_DataValue const *src, bufpos pos, bufend end) {
 #define MAX_PICO_SECONDS 999
 static UA_StatusCode
 DataValue_decodeBinary(bufpos pos, bufend end, UA_DataValue *dst) {
-    UA_StatusCode retval = Byte_decodeBinary(pos, end, (UA_Byte*) dst);
+    UA_Byte encodingMask;
+    UA_StatusCode retval = Byte_decodeBinary(pos, end, &encodingMask);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(dst->hasValue)
+    if(encodingMask & 0x01) {
+        dst->hasValue = true;
         retval |= Variant_decodeBinary(pos, end, &dst->value);
-    if(dst->hasStatus)
+    }
+    if(encodingMask & 0x02) {
+        dst->hasStatus = true;
         retval |= StatusCode_decodeBinary(pos, end, &dst->status);
-    if(dst->hasSourceTimestamp)
+    }
+    if(encodingMask & 0x04) {
+        dst->hasSourceTimestamp = true;
         retval |= DateTime_decodeBinary(pos, end, &dst->sourceTimestamp);
-    if(dst->hasSourcePicoseconds) {
+    }
+    if(encodingMask & 0x08) {
+        dst->hasServerTimestamp = true;
+        retval |= DateTime_decodeBinary(pos, end, &dst->serverTimestamp);
+    }
+    if(encodingMask & 0x10) {
+        dst->hasSourcePicoseconds = true;
         retval |= UInt16_decodeBinary(pos, end, &dst->sourcePicoseconds);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
-    if(dst->hasServerTimestamp)
-        retval |= DateTime_decodeBinary(pos, end, &dst->serverTimestamp);
-    if(dst->hasServerPicoseconds) {
+    if(encodingMask & 0x20) {
+        dst->hasServerPicoseconds = true;
         retval |= UInt16_decodeBinary(pos, end, &dst->serverPicoseconds);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -1037,7 +1052,10 @@ DataValue_decodeBinary(bufpos pos, bufend end, UA_DataValue *dst) {
 /* DiagnosticInfo */
 static UA_StatusCode
 DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, bufpos pos, bufend end) {
-    UA_StatusCode retval = Byte_encodeBinary((const UA_Byte *) src, pos, end);
+    UA_Byte encodingMask = (UA_Byte)
+        (src->hasSymbolicId | (src->hasNamespaceUri << 1) | (src->hasLocalizedText << 2) |
+         (src->hasLocale << 3) | (src->hasAdditionalInfo << 4) | (src->hasInnerDiagnosticInfo << 5));
+    UA_StatusCode retval = Byte_encodeBinary(&encodingMask, pos, end);
     if(src->hasSymbolicId)
         retval |= Int32_encodeBinary(&src->symbolicId, pos, end);
     if(src->hasNamespaceUri)
@@ -1057,23 +1075,37 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, bufpos pos, bufend end
 
 static UA_StatusCode
 DiagnosticInfo_decodeBinary(bufpos pos, bufend end, UA_DiagnosticInfo *dst) {
-    UA_StatusCode retval = Byte_decodeBinary(pos, end, (UA_Byte*) dst);
+    UA_Byte encodingMask;
+    UA_StatusCode retval = Byte_decodeBinary(pos, end, &encodingMask);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(dst->hasSymbolicId)
+    if(encodingMask & 0x01) {
+        dst->hasSymbolicId = true;
         retval |= Int32_decodeBinary(pos, end, &dst->symbolicId);
-    if(dst->hasNamespaceUri)
+    }
+    if(encodingMask & 0x02) {
+        dst->hasNamespaceUri = true;
         retval |= Int32_decodeBinary(pos, end, &dst->namespaceUri);
-    if(dst->hasLocalizedText)
+    }
+    if(encodingMask & 0x04) {
+        dst->hasLocalizedText = true;
         retval |= Int32_decodeBinary(pos, end, &dst->localizedText);
-    if(dst->hasLocale)
+    }
+    if(encodingMask & 0x08) {
+        dst->hasLocale = true;
         retval |= Int32_decodeBinary(pos, end, &dst->locale);
-    if(dst->hasAdditionalInfo)
+    }
+    if(encodingMask & 0x10) {
+        dst->hasAdditionalInfo = true;
         retval |= String_decodeBinary(pos, end, &dst->additionalInfo);
-    if(dst->hasInnerStatusCode)
+    }
+    if(encodingMask & 0x20) {
+        dst->hasInnerStatusCode = true;
         retval |= StatusCode_decodeBinary(pos, end, &dst->innerStatusCode);
-    if(dst->hasInnerDiagnosticInfo) {
-        // innerDiagnosticInfo is a pointer to struct, therefore allocate
+    }
+    if(encodingMask & 0x40) {
+        dst->hasInnerDiagnosticInfo = true;
+        /* innerDiagnosticInfo is a pointer to struct, therefore allocate */
         dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(dst->innerDiagnosticInfo)
             retval |= DiagnosticInfo_decodeBinary(pos, end, dst->innerDiagnosticInfo);
