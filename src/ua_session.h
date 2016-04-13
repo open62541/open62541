@@ -17,6 +17,7 @@ struct ContinuationPointEntry {
 };
 
 struct UA_Subscription;
+typedef struct UA_Subscription UA_Subscription;
 
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
