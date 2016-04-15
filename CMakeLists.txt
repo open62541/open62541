@@ -19,7 +19,8 @@ find_package(Git)
 if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags
                   RESULT_VARIABLE res_var
-                  OUTPUT_VARIABLE GIT_COM_ID )
+                  OUTPUT_VARIABLE GIT_COM_ID
+				  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     if(NOT ${res_var} EQUAL 0)
         set(GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
