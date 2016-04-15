@@ -22,6 +22,7 @@ import string
 
 __unique_item_id = 0
 
+defined_typealiases = []
 
 def substitutePunctuationCharacters(input):
   '''
@@ -73,7 +74,17 @@ class open62541_MacroHelper():
     symbolic_name = substitutePunctuationCharacters(nodename)
     if symbolic_name != nodename :
         log(self, "Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ", LOG_LEVEL_WARN)
-
+    
+    if symbolic_name in defined_typealiases:
+      log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+      extendedN = 1
+      while (symbolic_name+"_"+str(extendedN) in defined_typealiases):
+        log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+        extendedN+=1
+      symbolic_name = symbolic_name+"_"+str(extendedN) 
+      
+    defined_typealiases.append(symbolic_name)
+      
     code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + symbolic_name.upper() + " " + str(node.id().i))
     return code
 
