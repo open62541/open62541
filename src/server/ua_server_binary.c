@@ -505,17 +505,32 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     }
 
     /* Test if the session is valid */
-    if(!session->activated && requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST) {
+    if(!session->activated &&
+       requestType->typeIndex != UA_TYPES_CREATESESSIONREQUEST &&
+       requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST &&
+       requestType->typeIndex != UA_TYPES_FINDSERVERSREQUEST &&
+       requestType->typeIndex != UA_TYPES_GETENDPOINTSREQUEST &&
+       requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service with a non-activated session");
         sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
+
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(session == &anonymousSession &&
-       requestType->typeIndex > UA_TYPES_ACTIVATESESSIONREQUEST) {
+       requestType->typeIndex != UA_TYPES_CREATESESSIONREQUEST &&
+       requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST &&
+       requestType->typeIndex != UA_TYPES_FINDSERVERSREQUEST &&
+       requestType->typeIndex != UA_TYPES_GETENDPOINTSREQUEST &&
+       requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
+#ifdef UA_ENABLE_TYPENAMES
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Client sent a %s without a session", requestType->typeName);
+#else
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service without a session");
+#endif
         sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         return;
     }

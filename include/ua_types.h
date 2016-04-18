@@ -709,8 +709,8 @@ struct UA_DataType {
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de- and
                                     encoding functions */
     UA_Boolean fixedSize    : 1; /* The type (and its members) contains no pointers */
-    UA_Boolean zeroCopyable : 1; /* The type can be copied directly off the stream (given
-                                     that the endianness matches) */
+    UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
+                                    memory and on the binary stream. */
     UA_DataTypeMember *members;
 };
 
