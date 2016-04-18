@@ -4,18 +4,15 @@
 #include <stdio.h>
 
 #ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "logger_stdout.h"
-# include "networklayer_tcp.h"
+# include "ua_client.h"
+# include "ua_config_standard.h"
 #else
 # include "open62541.h"
 #endif
 
 int main(void) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-    UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,
-                                             "opc.tcp://localhost:16664");
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;

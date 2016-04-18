@@ -15,17 +15,20 @@ extern "C" {
  * @param namespaceIndex The namespace index of the URI. The value is unchanged in case of an error
  * @return Indicates whether the operation succeeded or returns an error code
  */
-UA_StatusCode UA_EXPORT UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex);
+UA_StatusCode UA_EXPORT
+UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex);
 
 #ifndef HAVE_NODEITER_CALLBACK
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
- f unction for each child node */                                                        
- typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+   function for each child node */                                                        
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
                                                   UA_NodeId referenceTypeId, void *handle);
 #endif
  
-UA_StatusCode UA_EXPORT UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) ;
+UA_StatusCode UA_EXPORT
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
+                               UA_NodeIteratorCallback callback, void *handle) ;
 
 /*******************/
 /* Node Management */

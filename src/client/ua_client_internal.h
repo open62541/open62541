@@ -52,8 +52,8 @@ typedef enum {
 } UA_Client_Authentication;
 
 struct UA_Client {
-    /* State */ //maybe it should be visible to user
-    UA_Client_State state;
+    /* State */
+    UA_ClientState state;
 
     /* Connection */
     UA_Connection connection;
@@ -79,7 +79,6 @@ struct UA_Client {
 #endif
     
     /* Config */
-    UA_Logger logger;
     UA_ClientConfig config;
     UA_DateTime scRenewAt;
 };

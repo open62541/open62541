@@ -10,7 +10,7 @@
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
-# include "logger_stdout.h"
+# include "ua_config_standard.h"
 # include "networklayer_tcp.h"
 #else
 # include "open62541.h"
