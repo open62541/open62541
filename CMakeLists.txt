@@ -235,11 +235,6 @@ else()
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
 endif()
 
-set(generate_typeintrospection "")
-if(UA_ENABLE_TYPENAMES)
-  set(generate_typeintrospection "--typeintrospection")
-endif()
-
 set(generate_subscriptiontypes "")
 if(UA_ENABLE_SUBSCRIPTIONS)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
@@ -268,10 +263,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                                                ${generate_subscriptiontypes}
-                                                ${generate_typeintrospection}
                                                 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
-                                                0
+                                                --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
@@ -284,9 +277,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                                                ${generate_typeintrospection}
-                                                --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                                                1
+                                                --namespace=1
+                                                --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                                                ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py

@@ -23,7 +23,6 @@ UA_THREAD_LOCAL const UA_DataType *type; // used to pass the datatype into the j
 /* Integer Types */
 /*****************/
 
-#ifdef UA_ENCODING_INTEGER_GENERIC
 static void UA_encode16(const UA_UInt16 v, UA_Byte buf[2]) {
     buf[0] = (UA_Byte)v; buf[1] = (UA_Byte)(v >> 8);
 }
@@ -50,7 +49,6 @@ static void UA_decode64(const UA_Byte buf[4], UA_UInt64 *v) {
                     (((UA_UInt64)buf[4]) << 32) + (((UA_UInt64)buf[5]) << 40) +
                     (((UA_UInt64)buf[6]) << 48) + (((UA_UInt64)buf[7]) << 56));
 }
-#endif
 
 /* Boolean */
 static UA_StatusCode
@@ -95,9 +93,8 @@ static UA_StatusCode
 UInt16_encodeBinary(UA_UInt16 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt16 le_uint16 = htole16(*src);
-    memcpy(*pos, &le_uint16, sizeof(UA_UInt16));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt16));
 #else
     UA_encode16(*src, *pos);
 #endif
@@ -114,9 +111,8 @@ static UA_StatusCode
 UInt16_decodeBinary(bufpos pos, bufend end, UA_UInt16 *dst) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt16));
-    *dst = le16toh(*dst);
 #else
     UA_decode16(*pos, dst);
 #endif
@@ -134,9 +130,8 @@ static UA_StatusCode
 UInt32_encodeBinary(UA_UInt32 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt32 le_uint32 = htole32(*src);
-    memcpy(*pos, &le_uint32, sizeof(UA_UInt32));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt32));
 #else
     UA_encode32(*src, *pos);
 #endif
@@ -158,9 +153,8 @@ static UA_StatusCode
 UInt32_decodeBinary(bufpos pos, bufend end, UA_UInt32 *dst) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt32));
-    *dst = le32toh(*dst);
 #else
     UA_decode32(*pos, dst);
 #endif
@@ -183,9 +177,8 @@ static UA_StatusCode
 UInt64_encodeBinary(UA_UInt64 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt64 le_uint64 = htole64(*src);
-    memcpy(*pos, &le_uint64, sizeof(UA_UInt64));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt64));
 #else
     UA_encode64(*src, *pos);
 #endif
@@ -207,9 +200,8 @@ static UA_StatusCode
 UInt64_decodeBinary(bufpos pos, bufend end, UA_UInt64 *dst) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt64));
-    *dst = le64toh(*dst);
 #else
     UA_decode64(*pos, dst);
 #endif
@@ -231,51 +223,12 @@ DateTime_decodeBinary(bufpos pos, bufend end, UA_DateTime *dst) {
 /* Floating Point Types */
 /************************/
 
-#if !defined(UA_ENCODING_FLOAT_SWAP) && !defined(UA_ENCODING_FLOAT_GENERIC)
-/* Encode natively */
+#if UA_BINARY_OVERLAYABLE_FLOAT
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary
 # define Double_decodeBinary UInt64_decodeBinary
 #else
-
-#ifdef UA_ENCODING_FLOAT_SWAP
-
-static UA_StatusCode
-Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
-    const UA_UInt32 *f = (const UA_UInt32*)src;
-    UA_UInt32 encoded = UA_swap32(*f);
-    return UInt32_encodeBinary(&encoded, pos, end);
-}
-
-static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
-    UA_UInt32 decoded;
-    UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    decoded = UA_swap32(decoded);
-    *dst = *(UA_Float*)decoded;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
-    const UA_UInt64 *f = (const UA_UInt64*)src;
-    UA_UInt64 encoded = UA_swap64(*f);
-    return UInt64_encodeBinary(&encoded, pos, end);
-}
-
-static UA_StatusCode Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
-    UA_UInt64 decoded;
-    UA_StatusCode retval = UInt64_decodeBinary(pos, end, &decoded);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    decoded = UA_swap64(decoded);
-    *dst = *(UA_Double*)decoded;
-    return UA_STATUSCODE_GOOD;
-}
-
-#else /* UA_ENCODING_FLOAT_GENERIC */
 
 #include <math.h>
 
@@ -377,7 +330,6 @@ Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
 }
 
 #endif
-#endif
 
 /******************/
 /* Array Handling */
@@ -396,15 +348,13 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
     if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         if(end < *pos + (contenttype->memSize * length))
             return UA_STATUSCODE_BADENCODINGERROR;
         memcpy(*pos, src, contenttype->memSize * length);
         (*pos) += contenttype->memSize * length;
         return retval;
     }
-#endif
 
     uintptr_t ptr = (uintptr_t)src;
     size_t encode_index = contenttype->builtin ? contenttype->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -437,8 +387,7 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         if(end < *pos + (contenttype->memSize * length))
             return UA_STATUSCODE_BADDECODINGERROR;
         memcpy(*dst, *pos, contenttype->memSize * length);
@@ -446,7 +395,6 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
         *out_length = length;
         return UA_STATUSCODE_GOOD;
     }
-#endif
 
     uintptr_t ptr = (uintptr_t)*dst;
     size_t decode_index = contenttype->builtin ? contenttype->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -1266,7 +1214,7 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_Da
 static size_t
 Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *contenttype) {
     size_t s = 4; // length
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         s += contenttype->memSize * length;
         return s;
     }
