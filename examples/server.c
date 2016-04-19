@@ -214,7 +214,6 @@ int main(int argc, char** argv) {
 
     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = Logger_Stdout;
     config.serverCertificate = loadCertificate();
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
