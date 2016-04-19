@@ -30,83 +30,90 @@ extern "C" {
  * Client
  * ======
  *
- * Client Lifecycle
- * ---------------- */
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-typedef enum {
-     UA_CLIENTSTATE_READY,     /* The client is not connected but initialized and ready to use. */
-     UA_CLIENTSTATE_CONNECTED, /* The client is connected to a server. */
-     UA_CLIENTSTATE_FAULTED,   /* An error has occured that might have influenced the connection
-                                  state. A successfull service call or renewal of the secure channel
-                                  will reset the state to CONNECTED. */
-     UA_CLIENTSTATE_ERRORED    /* A non-recoverable error has occured and the connection is no
-                                  longer reliable. The client needs to be disconnected and
-                                  reinitialized to recover into a CONNECTED state. */
-} UA_Client_State;
+ * Client Configuration
+ * -------------------- */
+typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf,
+                                                    const char *endpointUrl,
+                                                    UA_Logger logger);
 
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout; //sync response timeout
     UA_UInt32 secureChannelLifeTime; // lifetime in ms (then the channel needs to be renewed)
+    UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
+    UA_ConnectClientConnection connectionFunc;
 } UA_ClientConfig;
 
-extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
+/**
+ * Client Lifecycle
+ * ---------------- */
+typedef enum {
+     UA_CLIENTSTATE_READY,     /* The client is not connected but initialized and ready to
+                                  use. */
+     UA_CLIENTSTATE_CONNECTED, /* The client is connected to a server. */
+     UA_CLIENTSTATE_FAULTED,   /* An error has occured that might have influenced the
+                                  connection state. A successfull service call or renewal
+                                  of the secure channel will reset the state to
+                                  CONNECTED. */
+     UA_CLIENTSTATE_ERRORED    /* A non-recoverable error has occured and the connection
+                                  is no longer reliable. The client needs to be
+                                  disconnected and reinitialized to recover into a
+                                  CONNECTED state. */
+} UA_ClientState;
 
-/* Creates a new client
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
+/* Create a new client
  *
  * @param config for the new client. You can use UA_ClientConfig_standard which has sane defaults
  * @param logger function pointer to a logger function. See examples/logger_stdout.c for a simple
  *               implementation
  * @return return the new Client object */
-UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config, UA_Logger logger);
+UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
+
+/* Get the client connection status */
+UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client);
 
 /* Reset a client */
-void UA_EXPORT UA_Client_reset(UA_Client* client);
+void UA_EXPORT UA_Client_reset(UA_Client *client);
 
 /* Delete a client */
-void UA_EXPORT UA_Client_delete(UA_Client* client);
+void UA_EXPORT UA_Client_delete(UA_Client *client);
 
 /**
  * Manage the Connection
  * --------------------- */
-typedef UA_Connection (*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
-                                                    UA_Logger logger);
-
 /* Gets a list of endpoints of a server
  *
  * @param client to use
- * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
  * @param server url to connect (for example "opc.tcp://localhost:16664")
  * @param endpointDescriptionsSize size of the array of endpoint descriptions
  * @param endpointDescriptions array of endpoint descriptions that is allocated by the function (you need to free manually)
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
-UA_Client_getEndpoints(UA_Client *client, UA_ConnectClientConnection connectFunc,
-                       const char *serverUrl, size_t* endpointDescriptionsSize,
+UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+                       size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions);
 
 /* Connect to the selected server
  *
  * @param client to use
- * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
-UA_Client_connect(UA_Client *client, UA_ConnectClientConnection connFunc, const char *endpointUrl);
+UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
- * @param connection function. You can use ClientNetworkLayerTCP_connect from examples/networklayer_tcp.h
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
  * @param username
  * @param password
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
-UA_Client_connect_username(UA_Client *client, UA_ConnectClientConnection connFunc,
-                           const char *endpointUrl, const char *username, const char *password);
+UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
+                           const char *username, const char *password);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
@@ -114,14 +121,9 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
-
-/* Get the client connection status */
-UA_Client_State UA_EXPORT UA_Client_getState(UA_Client *client);
-
 /**
  * Raw Services
  * ------------
- *
  * The raw OPC UA services are exposed to the client. But most of them time, it is better to use the
  * convenience functions from `ua_client_highlevel.h` that wrap the raw services. See the Section
  * :ref:`services` for a detailed description of each service. */

@@ -10,54 +10,6 @@
 #include "ua_namespaceinit_generated.h"
 #endif
 
-#define MANUFACTURER_NAME "open62541"
-#define PRODUCT_NAME "open62541 OPC UA Server"
-#define PRODUCT_URI "urn:unconfigured:open62541"
-#define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
-#define UA_STRING_STATIC_NULL {0, NULL}
-
-UA_UsernamePasswordLogin usernamePasswords[2] =
-{ { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
-  { UA_STRING_STATIC("uset2"), UA_STRING_STATIC("password1") } };
-
-const UA_ServerConfig UA_ServerConfig_standard = {
-    .nThreads = 1,
-    .logger = NULL,
-
-    .buildInfo = {
-        .productUri = UA_STRING_STATIC(PRODUCT_URI),
-        .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
-        .productName = UA_STRING_STATIC(PRODUCT_NAME),
-        .softwareVersion = UA_STRING_STATIC("0"),
-        .buildNumber = UA_STRING_STATIC("0"),
-        .buildDate = 0},
-    .applicationDescription = {
-        .applicationUri = UA_STRING_STATIC("urn:unconfigured:application"),
-        .productUri = UA_STRING_STATIC("urn:unconfigured:product"),
-        .applicationName = { .locale = UA_STRING_STATIC(""), .text = UA_STRING_STATIC("open62541Server") },
-        .applicationType = UA_APPLICATIONTYPE_SERVER,
-        .gatewayServerUri = UA_STRING_STATIC_NULL,
-        .discoveryProfileUri = UA_STRING_STATIC_NULL,
-        .discoveryUrlsSize = 0,
-        .discoveryUrls = NULL
-    },
-    .serverCertificate = UA_STRING_STATIC_NULL,
-
-    .networkLayersSize = 0, .networkLayers = NULL,
-
-    .enableAnonymousLogin = true,
-    .enableUsernamePasswordLogin = true,
-    .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2,
-    
-    .publishingIntervalLimits = { .max = 10000, .min = 0, .current = 0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
-    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
-    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
-    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
-    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
-};
-
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
 #endif

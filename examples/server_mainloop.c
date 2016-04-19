@@ -13,7 +13,7 @@
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_server.h"
-# include "logger_stdout.h"
+# include "ua_config_standard.h"
 # include "networklayer_tcp.h"
 #else
 # include "open62541.h"
@@ -35,7 +35,6 @@ int main(int argc, char** argv) {
 
     UA_ServerConfig config = UA_ServerConfig_standard;
     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.logger = Logger_Stdout;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
