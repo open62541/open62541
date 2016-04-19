@@ -93,7 +93,7 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-//#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
@@ -131,7 +131,7 @@ UA_Server_addExternalNamespace(UA_Server *server,
 	UA_Server_addNamespace(server, url);
 	return UA_STATUSCODE_GOOD;
 }
-//#endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
+#endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 static UA_UInt16 addNamespaceInternal(UA_Server *server, UA_String *name) {
 	server->namespaces = UA_realloc(server->namespaces,
