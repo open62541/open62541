@@ -86,6 +86,12 @@ UA_Server_addExternalNamespace(UA_Server *server,
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 static UA_UInt16 addNamespaceInternal(UA_Server *server, UA_String *name) {
+    //check if the namespace already exists in the server's namespace array
+    for(UA_UInt16 i=0;i<server->namespacesSize;i++){
+        if(UA_String_equal(name, &(server->namespaces[i])))
+            return i;
+    }
+    //the namespace URI did not match - add a new namespace to the namsepace array
 	server->namespaces = UA_realloc(server->namespaces,
 		sizeof(UA_String) * (server->namespacesSize + 1));
 	UA_String_copy(name, &(server->namespaces[server->namespacesSize]));
