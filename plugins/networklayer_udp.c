@@ -171,7 +171,7 @@ static size_t ServerNetworkLayerUDP_getJobs(ServerNetworkLayerUDP *layer, UA_Job
     socklen_t sendsize = sizeof(sender);
     bzero(&sender, sizeof(sender));
     buf.length = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &sender, &sendsize);
-    if (buf.length <= 0) {
+    if (buf.length == 0) {
     } else {
         UDPConnection *c = malloc(sizeof(UDPConnection));
         if(!c){

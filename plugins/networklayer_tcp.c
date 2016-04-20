@@ -288,6 +288,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
+    //cppcheck-suppress unreadVariable
     ServerNetworkLayerTCP *layer = connection->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Closing the Connection %i",
                 connection->sockfd);

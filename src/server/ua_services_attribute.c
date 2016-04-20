@@ -10,9 +10,8 @@ readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     UA_UInt32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
-    UA_Byte c;
     while(progress < buflen) {
-        c = buf[progress];
+        UA_Byte c = buf[progress];
         if('0' > c || '9' < c)
             break;
         n = (n*10) + (UA_UInt32)(c-'0');

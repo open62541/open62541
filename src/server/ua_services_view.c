@@ -259,7 +259,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     }
 
     /* if the node has no references, just return */
-    if(node->referencesSize <= 0) {
+    if(node->referencesSize == 0) {
         result->referencesSize = 0;
         if(!all_refs && descr->includeSubtypes)
             UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
@@ -270,7 +270,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     size_t real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
         real_maxrefs = node->referencesSize;
-    if(node->referencesSize <= 0)
+    if(node->referencesSize == 0)
         real_maxrefs = 0;
     else if(real_maxrefs > node->referencesSize)
         real_maxrefs = node->referencesSize;
