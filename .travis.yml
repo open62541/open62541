@@ -42,7 +42,6 @@ addons:
       - build-essential
       - clang
       - cmake
-      - cppcheck
       - gcc-4.8
       - gcc-mingw-w64-i686
       - gcc-multilib
