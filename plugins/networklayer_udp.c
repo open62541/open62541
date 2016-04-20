@@ -170,9 +170,9 @@ static size_t ServerNetworkLayerUDP_getJobs(ServerNetworkLayerUDP *layer, UA_Job
     struct sockaddr sender;
     socklen_t sendsize = sizeof(sender);
     bzero(&sender, sizeof(sender));
-    buf.length = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &sender, &sendsize);
-    if (buf.length == 0) {
-    } else {
+	ssize_t rec_result = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &sender, &sendsize);
+    if (rec_result > 0) {
+    	buf.length = rec_result;
         UDPConnection *c = malloc(sizeof(UDPConnection));
         if(!c){
        	    free(items);
@@ -196,14 +196,13 @@ static size_t ServerNetworkLayerUDP_getJobs(ServerNetworkLayerUDP *layer, UA_Job
         items[j].job.binaryMessage.connection = (UA_Connection*)c;
         buf.data = NULL;
         j++;
-    }
+		*jobs = items;
+    } else {
+		free(items);
+		*jobs = NULL;
+	}
     if(buf.data)
         free(buf.data);
-    if(j == 0) {
-        free(items);
-        *jobs = NULL;
-    } else
-        *jobs = items;
     return j;
 }
 
