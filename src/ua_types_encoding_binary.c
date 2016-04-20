@@ -275,7 +275,7 @@ static long double unpack754(uint64_t i, unsigned bits, unsigned expbits) {
     long long shift = (long long)((i>>significandbits) & (uint64_t)((1LL<<expbits)-1)) - bias;
     while(shift > 0) { result *= 2.0; shift--; }
     while(shift < 0) { result /= 2.0; shift++; }
-    result *= (i>>(bits-1))&1? -1.0: 1.0;
+    result *= ((i>>(bits-1))&1)? -1.0: 1.0;
     return result;
 }
 
@@ -289,8 +289,10 @@ static UA_StatusCode
 Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
     UA_Float f = *src;
     UA_UInt32 encoded;
+    //cppcheck-suppress duplicateExpression
     if(f != f) encoded = FLOAT_NAN;
     else if(f == 0.0f) encoded = signbit(f) ? FLOAT_NEG_ZERO : 0;
+    //cppcheck-suppress duplicateExpression
     else if(f/f != f/f) encoded = f > 0 ? FLOAT_INF : FLOAT_NEG_INF;
     else encoded = (UA_UInt32)pack754(f, 32, 8);
     return UInt32_encodeBinary(&encoded, NULL, pos, end);
@@ -322,8 +324,10 @@ static UA_StatusCode
 Double_encodeBinary(UA_Double const *src, const UA_DataType *_, bufpos pos, bufend end) {
     UA_Double d = *src;
     UA_UInt64 encoded;
+    //cppcheck-suppress duplicateExpression
     if(d != d) encoded = DOUBLE_NAN;
     else if(d == 0.0) encoded = signbit(d) ? DOUBLE_NEG_ZERO : 0;
+    //cppcheck-suppress duplicateExpression
     else if(d/d != d/d) encoded = d > 0 ? DOUBLE_INF : DOUBLE_NEG_INF;
     else encoded = pack754(d, 64, 11);
     return UInt64_encodeBinary(&encoded, NULL, pos, end);
@@ -339,6 +343,7 @@ Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst, const UA_DataType *_
     else if(decoded == DOUBLE_NEG_ZERO) *dst = -0.0;
     else if(decoded == DOUBLE_INF) *dst = INFINITY;
     else if(decoded == DOUBLE_NEG_INF) *dst = -INFINITY;
+    //cppcheck-suppress redundantCondition
     if((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
        (decoded >= 0xfff0000000000001L && decoded <= 0xffffffffffffffffL)) *dst = NAN;
     else *dst = (UA_Double)unpack754(decoded, 64, 11);

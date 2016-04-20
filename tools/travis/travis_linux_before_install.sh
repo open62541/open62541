@@ -2,32 +2,26 @@
 set -ev
 
 if [ $ANALYZE = "true" ]; then
-
-	cd $LOCAL_PKG
-	# travis caches the $LOCAL_PKG dir. If it is loaded, we don't need to reinstall the packages
-	if [ "$CC" = "clang" ]; then
-		clang --version
-	else
-
-		if [ ! -f $LOCAL_PKG/.cached_analyze ]; then
-
-			# Install newer cppcheck
-			wget https://github.com/danmar/cppcheck/archive/1.73.tar.gz -O cppcheck-1.73.tar.gz
-			tar xf cppcheck-1.73.tar.gz
-			cd $LOCAL_PKG/cppcheck-1.73
-			make SRCDIR=build CFGDIR="$LOCAL_PKG/cppcheck-1.73/cfg" HAVE_RULES=yes CXXFLAGS="-O2 -DNDEBUG -Wall -Wno-sign-compare -Wno-unused-function" -j8
-			ln -s $LOCAL_PKG/cppcheck-1.73/cppcheck $LOCAL_PKG/cppcheck
-
-			# create cached flag
-			touch $LOCAL_PKG/.cached_analyze
-		else
-			echo "\n## Using local packages from cache\n"
-		fi
-
-		g++ --version
-		cppcheck --version
-	fi
-
+    cd $LOCAL_PKG
+    # travis caches the $LOCAL_PKG dir. If it is loaded, we don't need to reinstall the packages
+    if [ "$CC" = "clang" ]; then
+        clang --version
+    else
+        if [ ! -f $LOCAL_PKG/.cached_analyze ]; then
+            # Install newer cppcheck
+            wget https://github.com/danmar/cppcheck/archive/1.73.tar.gz -O cppcheck-1.73.tar.gz
+            tar xf cppcheck-1.73.tar.gz
+            cd $LOCAL_PKG/cppcheck-1.73
+            make SRCDIR=build CFGDIR="$LOCAL_PKG/cppcheck-1.73/cfg" HAVE_RULES=yes CXXFLAGS="-O2 -DNDEBUG -Wall -Wno-sign-compare -Wno-unused-function" -j8
+            ln -s $LOCAL_PKG/cppcheck-1.73/cppcheck $LOCAL_PKG/cppcheck
+            # create cached flag
+            touch $LOCAL_PKG/.cached_analyze
+        else
+            echo "\n## Using local packages from cache\n"
+        fi
+        g++ --version
+        cppcheck --version
+    fi
 else
 	cd $LOCAL_PKG
 
