@@ -43,7 +43,7 @@ static void UA_encode64(const UA_UInt64 v, UA_Byte buf[8]) {
     buf[4] = (UA_Byte)(v >> 32); buf[5] = (UA_Byte)(v >> 40);
     buf[6] = (UA_Byte)(v >> 48); buf[7] = (UA_Byte)(v >> 56);
 }
-static void UA_decode64(const UA_Byte buf[4], UA_UInt64 *v) {
+static void UA_decode64(const UA_Byte buf[8], UA_UInt64 *v) {
     *v = (UA_UInt64)((UA_UInt64)buf[0] + (((UA_UInt64)buf[1]) << 8) +
                     (((UA_UInt64)buf[2]) << 16) + (((UA_UInt64)buf[3]) << 24) +
                     (((UA_UInt64)buf[4]) << 32) + (((UA_UInt64)buf[5]) << 40) +
