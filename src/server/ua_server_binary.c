@@ -440,6 +440,10 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
         }
 
         return;
+    default:
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+            "Received unknown message chunk: %c", msg->data[*pos - 24 + 3]);
+        return;
     }
 
     retval |= UA_NodeId_decodeBinary(&bytes, pos, &requestTypeId);
