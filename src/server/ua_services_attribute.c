@@ -415,7 +415,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 		size_t offset = 0;
 		UA_ByteString str;
         UA_ByteString_allocBuffer(&str, 65536);
-        UA_StatusCode retval = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT], &str, &offset);
+        UA_StatusCode retval = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL, &str, &offset);
         UA_Array_delete(expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
         if(retval == UA_STATUSCODE_GOOD){
             additionalHeader.content.encoded.body.data = str.data;

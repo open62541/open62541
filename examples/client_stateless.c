@@ -86,7 +86,7 @@ int main(int argc , char *argv[]) {
 			UA_ReadRequest_calcSizeBinary(&req);**/
 
 	UA_TcpMessageHeader_init(&reqTcpHeader);
-	reqTcpHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+	reqTcpHeader.messageTypeAndChunkType = UA_MESSAGETYPE_MSG + UA_CHUNKTYPE_FINAL;
 
 	UA_TcpMessageHeader_encodeBinary(&reqTcpHeader, &message, &messagepos);
 	UA_UInt32_encodeBinary(&reqSecureChannelId, &message, &messagepos);
