@@ -107,8 +107,8 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     }
 	// when
 	void *obj2 = UA_new(&UA_TYPES[_i]);
-	pos = 0;
 	msg1.length = pos / 2;
+	pos = 0;
 	//fprintf(stderr,"testing %s with half buffer\n",UA_TYPES[_i].name);
 	retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
 	ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);

@@ -13,7 +13,6 @@ extern "C" {
 #include "ua_server.h"
 #include "ua_client.h"
 
-/** @brief Create the TCP networklayer and listen to the specified port */
 UA_ServerNetworkLayer UA_EXPORT
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port);
 

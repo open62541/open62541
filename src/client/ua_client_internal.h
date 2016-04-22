@@ -47,19 +47,13 @@ typedef struct UA_Client_Subscription_s {
 /**********/
 
 typedef enum {
-    UA_CLIENTSTATE_READY,
-    UA_CLIENTSTATE_CONNECTED,
-    UA_CLIENTSTATE_ERRORED
-} UA_Client_State;
-
-typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,
     UA_CLIENTAUTHENTICATION_USERNAME
 } UA_Client_Authentication;
 
 struct UA_Client {
-    /* State */ //maybe it should be visible to user
-    UA_Client_State state;
+    /* State */
+    UA_ClientState state;
 
     /* Connection */
     UA_Connection connection;
@@ -85,7 +79,6 @@ struct UA_Client {
 #endif
     
     /* Config */
-    UA_Logger logger;
     UA_ClientConfig config;
     UA_DateTime scRenewAt;
 };

@@ -26,5 +26,6 @@ standard.
    types
    constants
    server
+   client
    internal
 

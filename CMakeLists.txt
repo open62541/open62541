@@ -19,7 +19,8 @@ find_package(Git)
 if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags
                   RESULT_VARIABLE res_var
-                  OUTPUT_VARIABLE GIT_COM_ID )
+                  OUTPUT_VARIABLE GIT_COM_ID
+				  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     if(NOT ${res_var} EQUAL 0)
         set(GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
@@ -173,7 +174,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.h
-                     ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -215,6 +217,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.c
+                ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
@@ -234,19 +237,14 @@ else()
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
 endif()
 
-set(generate_typeintrospection "")
-if(UA_ENABLE_TYPENAMES)
-  set(generate_typeintrospection "--typeintrospection")
-endif()
-
 set(generate_subscriptiontypes "")
 if(UA_ENABLE_SUBSCRIPTIONS)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                           ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
   #append subscription headers at before ua_session
-  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
-  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_nodestore.h" UaSessionPos) # position after session.h
+  list(INSERT internal_headers ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
   set(generate_subscriptiontypes "--enable-subscription-types=1")
 endif()
 
@@ -267,10 +265,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                                                ${generate_subscriptiontypes}
-                                                ${generate_typeintrospection}
                                                 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
-                                                0
+                                                --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
@@ -283,9 +279,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                                                ${generate_typeintrospection}
-                                                --ns0-types-xml ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                                                1
+                                                --namespace=1
+                                                --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                                                ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py

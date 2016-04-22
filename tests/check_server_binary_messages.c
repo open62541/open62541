@@ -4,7 +4,7 @@
 
 #include "ua_server.h"
 #include "ua_server_internal.h"
-#include "logger_stdout.h"
+#include "ua_config_standard.h"
 #include "testing_networklayers.h"
 
 size_t files;

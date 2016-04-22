@@ -10,54 +10,6 @@
 #include "ua_namespaceinit_generated.h"
 #endif
 
-#define MANUFACTURER_NAME "open62541"
-#define PRODUCT_NAME "open62541 OPC UA Server"
-#define PRODUCT_URI "urn:unconfigured:open62541"
-#define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
-#define UA_STRING_STATIC_NULL {0, NULL}
-
-UA_UsernamePasswordLogin usernamePasswords[2] =
-{ { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
-  { UA_STRING_STATIC("uset2"), UA_STRING_STATIC("password1") } };
-
-const UA_ServerConfig UA_ServerConfig_standard = {
-    .nThreads = 1,
-    .logger = NULL,
-
-    .buildInfo = {
-        .productUri = UA_STRING_STATIC(PRODUCT_URI),
-        .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
-        .productName = UA_STRING_STATIC(PRODUCT_NAME),
-        .softwareVersion = UA_STRING_STATIC("0"),
-        .buildNumber = UA_STRING_STATIC("0"),
-        .buildDate = 0},
-    .applicationDescription = {
-        .applicationUri = UA_STRING_STATIC("urn:unconfigured:application"),
-        .productUri = UA_STRING_STATIC("urn:unconfigured:product"),
-        .applicationName = { .locale = UA_STRING_STATIC(""), .text = UA_STRING_STATIC("open62541Server") },
-        .applicationType = UA_APPLICATIONTYPE_SERVER,
-        .gatewayServerUri = UA_STRING_STATIC_NULL,
-        .discoveryProfileUri = UA_STRING_STATIC_NULL,
-        .discoveryUrlsSize = 0,
-        .discoveryUrls = NULL
-    },
-    .serverCertificate = UA_STRING_STATIC_NULL,
-
-    .networkLayersSize = 0, .networkLayers = NULL,
-
-    .enableAnonymousLogin = true,
-    .enableUsernamePasswordLogin = true,
-    .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2,
-    
-    .publishingIntervalLimits = { .max = 10000, .min = 0, .current = 0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
-    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
-    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
-    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
-    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
-};
-
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
 #endif
@@ -116,19 +68,16 @@ static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
 }
 
 UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex,
-                               const UA_String *url, UA_ExternalNodeStore *nodeStore) {
+UA_Server_addExternalNamespace(UA_Server *server,
+                               const UA_String *url, UA_ExternalNodeStore *nodeStore,UA_UInt16 *assignedNamespaceIndex) {
 	if (nodeStore == NULL)
 		return UA_STATUSCODE_BADARGUMENTSMISSING;
-	//only allow externalnamespace index equal to next namespaceindex
-	if (namespaceIndex != server->namespacesSize) {
-		return UA_STATUSCODE_BADINDEXRANGEINVALID;
-	}
 	UA_UInt32 size = server->externalNamespacesSize;
 	server->externalNamespaces =
 		UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
 	server->externalNamespaces[size].externalNodeStore = *nodeStore;
-	server->externalNamespaces[size].index = namespaceIndex;
+	server->externalNamespaces[size].index = server->namespacesSize;
+	*assignedNamespaceIndex  = server->namespacesSize;
 	UA_String_copy(url, &server->externalNamespaces[size].url);
 	server->externalNamespacesSize++;
 	UA_Server_addNamespace(server, url);

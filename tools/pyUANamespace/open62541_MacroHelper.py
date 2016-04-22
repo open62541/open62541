@@ -18,13 +18,34 @@
 
 from logger import *
 from ua_constants import *
+import string
 
 __unique_item_id = 0
+
+defined_typealiases = []
+
+def substitutePunctuationCharacters(input):
+  '''
+  replace punctuation characters in input
+  '''
+  # No punctuation characters <>!$
+  illegal_chars = list(string.punctuation)
+  # underscore is allowed
+  illegal_chars.remove('_')
+
+  illegal = "".join(illegal_chars)
+  substitution = ""
+  # Map all punctuation characters to underscore
+  for illegal_char in illegal_chars:
+      substitution = substitution + '_'
+
+  return input.translate(string.maketrans(illegal, substitution), illegal)
+
 
 class open62541_MacroHelper():
   def __init__(self, supressGenerationOfAttribute=[]):
     self.supressGenerationOfAttribute = supressGenerationOfAttribute
-    
+
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
       return "UA_EXPANDEDNODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
@@ -38,16 +59,35 @@ class open62541_MacroHelper():
       return ""
     else:
       return ""
-  
+
+
   def getNodeIdDefineString(self, node):
     code = []
     extrNs = node.browseName().split(":")
+    symbolic_name = ""
+    # strip all characters that would be illegal in C-Code
     if len(extrNs) > 1:
-      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[1].upper() + " " + str(node.id().i))
+        nodename = extrNs[1]
     else:
-      code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + extrNs[0].upper() + " " + str(node.id().i))
+        nodename = extrNs[0]
+
+    symbolic_name = substitutePunctuationCharacters(nodename)
+    if symbolic_name != nodename :
+        log(self, "Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ", LOG_LEVEL_WARN)
+    
+    if symbolic_name in defined_typealiases:
+      log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+      extendedN = 1
+      while (symbolic_name+"_"+str(extendedN) in defined_typealiases):
+        log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+        extendedN+=1
+      symbolic_name = symbolic_name+"_"+str(extendedN) 
+      
+    defined_typealiases.append(symbolic_name)
+      
+    code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + symbolic_name.upper() + " " + str(node.id().i))
     return code
-  
+
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
       return "UA_NODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
@@ -70,7 +110,7 @@ class open62541_MacroHelper():
     else:
       code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
     return code
-                               
+
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes):
     code = []
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
@@ -95,11 +135,11 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return code;
 
-    # If this is a method, construct in/outargs for addMethod 
+    # If this is a method, construct in/outargs for addMethod
     #inputArguments.arrayDimensionsSize = 0;
     #inputArguments.arrayDimensions = NULL;
     #inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    
+
     # Node ordering should have made sure that arguments, if they exist, have not been printed yet
     if node.nodeClass() == NODE_CLASS_METHOD:
       inArgVal = []
@@ -153,13 +193,13 @@ class open62541_MacroHelper():
 	  #if outArg.getValueFieldByAlias("ArrayDimensions") != None:
 	  #  code.append("outputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(outArg.getValueFieldByAlias("ArrayDimensions")) + ";")
 	  argumentCnt += 1
-	  
+
     # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
-    code.append("UA_%sAttributes_init(&attr);" %  nodetype); 
+    code.append("UA_%sAttributes_init(&attr);" %  nodetype);
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
-    
+
     if nodetype in ["Variable", "VariableType"]:
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
     elif nodetype == "Method":
@@ -167,7 +207,7 @@ class open62541_MacroHelper():
 	code.append("attr.executable = true;")
       if node.userExecutable():
 	code.append("attr.userExecutable = true;")
-	
+
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable"]:
       code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") # todo instantiation of object and variable types
@@ -178,19 +218,19 @@ class open62541_MacroHelper():
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
     else:
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
-    
-    # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using 
+
+    # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using
     # Djikstra (check that arguments have not been printed). (@ichrispa)
     code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
-      
+
     if nodetype in ["Object", "Variable"]:
-      code.append("       , typeDefinition") 
+      code.append("       , typeDefinition")
     if nodetype != "Method":
       code.append("       , attr, NULL, NULL);")
     else:
       code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
     return code
-    
+
   def getCreateNodeBootstrap(self, node):
     nodetype = ""
     code = []

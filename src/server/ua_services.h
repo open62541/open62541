@@ -13,6 +13,8 @@ extern "C" {
 #include "ua_nodes.h"
 
 /**
+ * .. _services:
+ *
  * Services
  * ========
  * The services defined in the OPC UA standard. */

@@ -4,7 +4,7 @@
 # include "ua_client_highlevel.h"
 # include "ua_nodeids.h"
 # include "networklayer_tcp.h"
-# include "logger_stdout.h"
+# include "ua_config_standard.h"
 # include "ua_types_encoding_binary.h"
 #else
 # include "open62541.h"
@@ -23,20 +23,23 @@ static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
   UA_NodeId *parent = (UA_NodeId *) handle;
   
-  if (!isInverse) {
-    printf("%d, %d --- %d ---> NodeId %d, %d\n", parent->namespaceIndex, parent->identifier.numeric, referenceTypeId.identifier.numeric, childId.namespaceIndex, childId.identifier.numeric);
+  if(!isInverse) {
+    printf("%d, %d --- %d ---> NodeId %d, %d\n",
+           parent->namespaceIndex, parent->identifier.numeric,
+           referenceTypeId.identifier.numeric, childId.namespaceIndex,
+           childId.identifier.numeric);
   }
   return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval =
-        UA_Client_getEndpoints(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664",
+        UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
                                &endpointArraySize, &endpointArray);
 
     //freeing the endpointArray
@@ -57,7 +60,7 @@ int main(int argc, char *argv[]) {
 
     //connect to a server
     //anonymous connect would be: retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
-    retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664", "user1", "password");
+    retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

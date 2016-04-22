@@ -46,7 +46,6 @@ static UA_StatusCode exchangeBuffer(bufpos pos, bufend *end) {
 /* Integer Types */
 /*****************/
 
-#ifdef UA_ENCODING_INTEGER_GENERIC
 static void UA_encode16(const UA_UInt16 v, UA_Byte buf[2]) {
     buf[0] = (UA_Byte)v; buf[1] = (UA_Byte)(v >> 8);
 }
@@ -73,7 +72,6 @@ static void UA_decode64(const UA_Byte buf[4], UA_UInt64 *v) {
                     (((UA_UInt64)buf[4]) << 32) + (((UA_UInt64)buf[5]) << 40) +
                     (((UA_UInt64)buf[6]) << 48) + (((UA_UInt64)buf[7]) << 56));
 }
-#endif
 
 /* Boolean */
 static UA_StatusCode
@@ -118,9 +116,8 @@ static UA_StatusCode
 UInt16_encodeBinary(UA_UInt16 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt16 le_uint16 = htole16(*src);
-    memcpy(*pos, &le_uint16, sizeof(UA_UInt16));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt16));
 #else
     UA_encode16(*src, *pos);
 #endif
@@ -137,9 +134,8 @@ static UA_StatusCode
 UInt16_decodeBinary(bufpos pos, bufend end, UA_UInt16 *dst) {
     if(*pos + sizeof(UA_UInt16) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt16));
-    *dst = le16toh(*dst);
 #else
     UA_decode16(*pos, dst);
 #endif
@@ -157,9 +153,8 @@ static UA_StatusCode
 UInt32_encodeBinary(UA_UInt32 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt32 le_uint32 = htole32(*src);
-    memcpy(*pos, &le_uint32, sizeof(UA_UInt32));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt32));
 #else
     UA_encode32(*src, *pos);
 #endif
@@ -181,9 +176,8 @@ static UA_StatusCode
 UInt32_decodeBinary(bufpos pos, bufend end, UA_UInt32 *dst) {
     if(*pos + sizeof(UA_UInt32) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt32));
-    *dst = le32toh(*dst);
 #else
     UA_decode32(*pos, dst);
 #endif
@@ -206,9 +200,8 @@ static UA_StatusCode
 UInt64_encodeBinary(UA_UInt64 const *src, bufpos pos, bufend end) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADENCODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
-    UA_UInt64 le_uint64 = htole64(*src);
-    memcpy(*pos, &le_uint64, sizeof(UA_UInt64));
+#if UA_BINARY_OVERLAYABLE_INTEGER
+    memcpy(*pos, src, sizeof(UA_UInt64));
 #else
     UA_encode64(*src, *pos);
 #endif
@@ -230,9 +223,8 @@ static UA_StatusCode
 UInt64_decodeBinary(bufpos pos, bufend end, UA_UInt64 *dst) {
     if(*pos + sizeof(UA_UInt64) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
-#ifndef UA_ENCODING_INTEGER_GENERIC
+#if UA_BINARY_OVERLAYABLE_INTEGER
     memcpy(dst, *pos, sizeof(UA_UInt64));
-    *dst = le64toh(*dst);
 #else
     UA_decode64(*pos, dst);
 #endif
@@ -254,51 +246,12 @@ DateTime_decodeBinary(bufpos pos, bufend end, UA_DateTime *dst) {
 /* Floating Point Types */
 /************************/
 
-#if !defined(UA_ENCODING_FLOAT_SWAP) && !defined(UA_ENCODING_FLOAT_GENERIC)
-/* Encode natively */
+#if UA_BINARY_OVERLAYABLE_FLOAT
 # define Float_encodeBinary UInt32_encodeBinary
 # define Float_decodeBinary UInt32_decodeBinary
 # define Double_encodeBinary UInt64_encodeBinary
 # define Double_decodeBinary UInt64_decodeBinary
 #else
-
-#ifdef UA_ENCODING_FLOAT_SWAP
-
-static UA_StatusCode
-Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
-    const UA_UInt32 *f = (const UA_UInt32*)src;
-    UA_UInt32 encoded = UA_swap32(*f);
-    return UInt32_encodeBinary(&encoded, pos, end);
-}
-
-static UA_StatusCode Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
-    UA_UInt32 decoded;
-    UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    decoded = UA_swap32(decoded);
-    *dst = *(UA_Float*)decoded;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-Double_encodeBinary(UA_Double const *src, bufpos pos, bufend end) {
-    const UA_UInt64 *f = (const UA_UInt64*)src;
-    UA_UInt64 encoded = UA_swap64(*f);
-    return UInt64_encodeBinary(&encoded, pos, end);
-}
-
-static UA_StatusCode Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
-    UA_UInt64 decoded;
-    UA_StatusCode retval = UInt64_decodeBinary(pos, end, &decoded);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    decoded = UA_swap64(decoded);
-    *dst = *(UA_Double*)decoded;
-    return UA_STATUSCODE_GOOD;
-}
-
-#else /* UA_ENCODING_FLOAT_GENERIC */
 
 #include <math.h>
 
@@ -400,7 +353,6 @@ Double_decodeBinary(bufpos pos, bufend end, UA_Double *dst) {
 }
 
 #endif
-#endif
 
 /******************/
 /* Array Handling */
@@ -419,8 +371,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
     if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         size_t i = 0; // the element we are at after exchanging the buffer
         while(end < *pos + (contenttype->memSize * (length-i))) {
             // fill the remaining buffer with elements, then exchange
@@ -438,7 +389,6 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
         (*pos) += contenttype->memSize * (length-i);
         return UA_STATUSCODE_GOOD;
     }
-#endif
 
     uintptr_t ptr = (uintptr_t)src;
     size_t encode_index = contenttype->builtin ? contenttype->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -472,7 +422,7 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
         return UA_STATUSCODE_GOOD;
     }
     size_t length = (size_t)signed_length;
-
+        
     /* filter out arrays that can obviously not be parsed, because the message
        is too small */
     if(*pos + ((contenttype->memSize * length) / 32) > end)
@@ -482,8 +432,7 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-#ifndef UA_NON_LITTLEENDIAN_ARCHITECTURE
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         if(end < *pos + (contenttype->memSize * length))
             return UA_STATUSCODE_BADDECODINGERROR;
         memcpy(*dst, *pos, contenttype->memSize * length);
@@ -491,7 +440,6 @@ Array_decodeBinary(bufpos pos, bufend end, UA_Int32 signed_length, void *UA_REST
         *out_length = length;
         return UA_STATUSCODE_GOOD;
     }
-#endif
 
     uintptr_t ptr = (uintptr_t)*dst;
     size_t decode_index = contenttype->builtin ? contenttype->typeIndex : UA_BUILTIN_TYPES_COUNT;
@@ -1050,7 +998,11 @@ Variant_decodeBinary(bufpos pos, bufend end, UA_Variant *dst) {
 /* DataValue */
 static UA_StatusCode
 DataValue_encodeBinary(UA_DataValue const *src, bufpos pos, bufend end) {
-    UA_StatusCode retval = Byte_encodeBinary((const UA_Byte*) src, pos, end);
+    UA_Byte encodingMask = (UA_Byte)
+        (src->hasValue | (src->hasStatus << 1) | (src->hasSourceTimestamp << 2) |
+         (src->hasServerTimestamp << 3) | (src->hasSourcePicoseconds << 4) |
+         (src->hasServerPicoseconds << 5));    
+UA_StatusCode retval = Byte_encodeBinary(&encodingMask, pos, end);
     if(src->hasValue)
         retval |= Variant_encodeBinary(&src->value, pos, end);
     if(src->hasStatus && retval==UA_STATUSCODE_GOOD)
@@ -1069,23 +1021,34 @@ DataValue_encodeBinary(UA_DataValue const *src, bufpos pos, bufend end) {
 #define MAX_PICO_SECONDS 999
 static UA_StatusCode
 DataValue_decodeBinary(bufpos pos, bufend end, UA_DataValue *dst) {
-    UA_StatusCode retval = Byte_decodeBinary(pos, end, (UA_Byte*) dst);
+    UA_Byte encodingMask;
+    UA_StatusCode retval = Byte_decodeBinary(pos, end, &encodingMask);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(dst->hasValue)
+    if(encodingMask & 0x01) {
+        dst->hasValue = true;
         retval |= Variant_decodeBinary(pos, end, &dst->value);
-    if(dst->hasStatus)
+    }
+    if(encodingMask & 0x02) {
+        dst->hasStatus = true;
         retval |= StatusCode_decodeBinary(pos, end, &dst->status);
-    if(dst->hasSourceTimestamp)
+    }
+    if(encodingMask & 0x04) {
+        dst->hasSourceTimestamp = true;
         retval |= DateTime_decodeBinary(pos, end, &dst->sourceTimestamp);
-    if(dst->hasSourcePicoseconds) {
+    }
+    if(encodingMask & 0x08) {
+        dst->hasServerTimestamp = true;
+        retval |= DateTime_decodeBinary(pos, end, &dst->serverTimestamp);
+    }
+    if(encodingMask & 0x10) {
+        dst->hasSourcePicoseconds = true;
         retval |= UInt16_decodeBinary(pos, end, &dst->sourcePicoseconds);
         if(dst->sourcePicoseconds > MAX_PICO_SECONDS)
             dst->sourcePicoseconds = MAX_PICO_SECONDS;
     }
-    if(dst->hasServerTimestamp)
-        retval |= DateTime_decodeBinary(pos, end, &dst->serverTimestamp);
-    if(dst->hasServerPicoseconds) {
+    if(encodingMask & 0x20) {
+        dst->hasServerPicoseconds = true;
         retval |= UInt16_decodeBinary(pos, end, &dst->serverPicoseconds);
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
@@ -1098,7 +1061,10 @@ DataValue_decodeBinary(bufpos pos, bufend end, UA_DataValue *dst) {
 /* DiagnosticInfo */
 static UA_StatusCode
 DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, bufpos pos, bufend end) {
-    UA_StatusCode retval = Byte_encodeBinary((const UA_Byte *) src, pos, end);
+    UA_Byte encodingMask = (UA_Byte)
+        (src->hasSymbolicId | (src->hasNamespaceUri << 1) | (src->hasLocalizedText << 2) |
+         (src->hasLocale << 3) | (src->hasAdditionalInfo << 4) | (src->hasInnerDiagnosticInfo << 5));
+    UA_StatusCode retval = Byte_encodeBinary(&encodingMask, pos, end);
     if(src->hasSymbolicId)
         retval |= Int32_encodeBinary(&src->symbolicId, pos, end);
     if(src->hasNamespaceUri)
@@ -1118,23 +1084,37 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, bufpos pos, bufend end
 
 static UA_StatusCode
 DiagnosticInfo_decodeBinary(bufpos pos, bufend end, UA_DiagnosticInfo *dst) {
-    UA_StatusCode retval = Byte_decodeBinary(pos, end, (UA_Byte*) dst);
+    UA_Byte encodingMask;
+    UA_StatusCode retval = Byte_decodeBinary(pos, end, &encodingMask);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(dst->hasSymbolicId)
+    if(encodingMask & 0x01) {
+        dst->hasSymbolicId = true;
         retval |= Int32_decodeBinary(pos, end, &dst->symbolicId);
-    if(dst->hasNamespaceUri)
+    }
+    if(encodingMask & 0x02) {
+        dst->hasNamespaceUri = true;
         retval |= Int32_decodeBinary(pos, end, &dst->namespaceUri);
-    if(dst->hasLocalizedText)
+    }
+    if(encodingMask & 0x04) {
+        dst->hasLocalizedText = true;
         retval |= Int32_decodeBinary(pos, end, &dst->localizedText);
-    if(dst->hasLocale)
+    }
+    if(encodingMask & 0x08) {
+        dst->hasLocale = true;
         retval |= Int32_decodeBinary(pos, end, &dst->locale);
-    if(dst->hasAdditionalInfo)
+    }
+    if(encodingMask & 0x10) {
+        dst->hasAdditionalInfo = true;
         retval |= String_decodeBinary(pos, end, &dst->additionalInfo);
-    if(dst->hasInnerStatusCode)
+    }
+    if(encodingMask & 0x20) {
+        dst->hasInnerStatusCode = true;
         retval |= StatusCode_decodeBinary(pos, end, &dst->innerStatusCode);
-    if(dst->hasInnerDiagnosticInfo) {
-        // innerDiagnosticInfo is a pointer to struct, therefore allocate
+    }
+    if(encodingMask & 0x40) {
+        dst->hasInnerDiagnosticInfo = true;
+        /* innerDiagnosticInfo is a pointer to struct, therefore allocate */
         dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(dst->innerDiagnosticInfo)
             retval |= DiagnosticInfo_decodeBinary(pos, end, dst->innerDiagnosticInfo);
@@ -1314,7 +1294,7 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_Da
 static size_t
 Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *contenttype) {
     size_t s = 4; // length
-    if(contenttype->zeroCopyable) {
+    if(contenttype->overlayable) {
         s += contenttype->memSize * length;
         return s;
     }

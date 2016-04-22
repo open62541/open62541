@@ -116,8 +116,6 @@ typedef struct {
     UA_BoundedUInt32 queueSizeLimits;
 } UA_ServerConfig;
 
-extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
-
 /**
  * Server Lifecycle
  * ---------------- */
