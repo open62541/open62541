@@ -58,7 +58,8 @@ class opcua_namespace():
   __binaryIndirectPointers__ = []
   name = ""
   knownNodeTypes = ""
-
+  namespaceIdentifiers = {} # list of 'int':'string' giving different namespace an array-mapable name
+  
   def __init__(self, name):
     self.nodes = []
     self.knownNodeTypes = ['variable', 'object', 'method', 'referencetype', \
@@ -67,8 +68,12 @@ class opcua_namespace():
     self.name = name
     self.nodeids = {}
     self.aliases = {}
+    self.namespaceIdentifiers = {}
     self.__binaryIndirectPointers__ = []
 
+  def addNamespace(self, numericId, stringURL):
+    self.namespaceIdentifiers[numericId] = stringURL
+    
   def linkLater(self, pointer):
     """ Called by nodes or references who have parsed an XML reference to a
         node represented by a string.
@@ -650,7 +655,16 @@ class opcua_namespace():
       
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
-
+    
+    # Before printing nodes, we need to request additional namespace arrays from the server
+    for nsid in self.namespaceIdentifiers:
+      if nsid == 0 or nsid==1:
+        continue
+      else:
+        name =  self.namespaceIdentifiers[nsid]
+        name = name.replace("\"","\\\"")
+        code.append("UA_Server_addNamespace(server, \"" + name.encode('UTF-8') + "\");")
+    
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
     # they can locate both source and target of the reference.

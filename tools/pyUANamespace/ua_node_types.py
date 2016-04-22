@@ -215,7 +215,10 @@ class opcua_node_id_t():
 
   def __str__(self):
     return self.__mystrname__
-
+  
+  def __eq__(self, nodeId2):    
+    return (self.toString() == nodeId2.toString())
+  
   def __repr__(self):
     return self.__mystrname__
 
