@@ -314,7 +314,13 @@ A minor list of some of the miriad things that can go wrong:
 Creating object instances
 -------------------------
 
-Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. As an example, we will modify the server to create 2 pump instances:
+Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node. 
+
+While variables are copied from the objetType definition (allowing the user for example to attach new dataSources to them), methods are always only linked. This paradigm is identical to languages like C++: The method called is always the same piece of code, but the first argument is a pointer to an object. Likewise, in OPC UA, only one methodCallback can be attached to a specific methodNode. If that methodNode is called, the parent objectId will be passed to the method - it is the methods job to derefence which object instance it belongs to in that moment.
+
+One of the problems arising from the server internally "building" new nodes as described in the type is that the user does not know which template creates which instance. This can be a problem - for example if a specific dataSource should be attached to each variableNode called "samples" later on. Unfortunately, we only know which template variable's Id the dataSource will be attached to - we do not know the nodeId of the instance of that variable. To easily cover usecases where variable instances Y derived from a definition template X should need to be manipulated in some maner, the stack provides an instantiation callback: Each time a new node is instantiated, the callback gets notified about the relevant data; the callback can then either manipulate the new node itself or just create a map/record for later use.
+
+Let's look at an example that will create a pump instance given the newly defined objectType:
 
 .. code-block:: c
 
@@ -349,16 +355,20 @@ Defining an object type is only usefull if it ends up making our lives easier in
       UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
       running = true;
 
+      UA_NodeId createdNodeId;
       UA_Int32 myHandle = 42;
-      UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(1, 0),
-                              UA_QUALIFIEDNAME(1, "Pump1"), UA_LOCALIZEDTEXT("en_US","Pump1"), UA_LOCALIZEDTEXT("en_US","A pump!"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                              0, 0, UA_EXPANDEDNODEID_NUMERIC(1, UA_NS1ID_PUMP), pumpInstantiationCallback, (void *) &myHandle, NULL);
+      UA_ObjectAttributes object_attr;
+      UA_ObjectAttributes_init(&object_attr);
       
-      UA_Server_addInstanceOf(server, UA_NODEID_NUMERIC(1, 0),
-                              UA_QUALIFIEDNAME(1, "Pump2"), UA_LOCALIZEDTEXT("en_US","Pump2"), UA_LOCALIZEDTEXT("en_US","Another pump!"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                              0, 0, UA_EXPANDEDNODEID_NUMERIC(1, UA_NS1ID_PUMP), pumpInstantiationCallback, (void *) &myHandle, NULL);
+      object_attr.description = UA_LOCALIZEDTEXT("en_US","A pump!");
+      object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Pump1");
+      
+      UA_InstantiationCallback theAnswerCallback = {.method=pumpInstantiationCallback, .handle=(void*) &myHandle};
+      
+      UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pump1"),
+                              UA_NODEID_NUMERIC(0, UA_NS1ID_PUMPTYPE), object_attr, theAnswerCallback, &createdNodeId);
                               
       UA_Server_run(server, 1, &running);
       UA_Server_delete(server);

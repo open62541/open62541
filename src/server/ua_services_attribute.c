@@ -229,7 +229,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         forceVariantSetScalar(&v->value, &node->nodeId, &UA_TYPES[UA_TYPES_NODEID]);
         break;
     case UA_ATTRIBUTEID_NODECLASS:
-        forceVariantSetScalar(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_INT32]);
+        forceVariantSetScalar(&v->value, &node->nodeClass, &UA_TYPES[UA_TYPES_NODECLASS]);
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
         forceVariantSetScalar(&v->value, &node->browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);

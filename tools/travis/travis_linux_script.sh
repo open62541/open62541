@@ -11,6 +11,16 @@ if [ $ANALYZE = "true" ]; then
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j 8
+		cd .. && rm build -rf
+
+		mkdir -p build
+		cd build
+        scan-build cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
+          -enable-checker security.insecureAPI.UncheckedReturn \
+          --status-bugs -v \
+          make -j 8
+		cd .. && rm build -rf
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
