@@ -163,6 +163,8 @@ class EnumerationType(Type):
         self.fixed_size = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
         self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
+        self.builtin = "true"
+        self.typeIndex = "UA_TYPES_INT32"
         self.elements = OrderedDict()
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
