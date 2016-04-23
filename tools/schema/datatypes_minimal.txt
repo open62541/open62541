@@ -152,3 +152,7 @@ ModifySubscriptionRequest
 ModifySubscriptionResponse
 RepublishRequest
 RepublishResponse
+MonitoredItemModifyRequest
+ModifyMonitoredItemsRequest
+MonitoredItemModifyResult
+ModifyMonitoredItemsResponse

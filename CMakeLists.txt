@@ -63,11 +63,11 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 
   # Debug
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-	#add_definitions(-fsanitize=address)
-    #list(APPEND open62541_LIBRARIES asan)
+	# add_definitions(-fsanitize=address)
+    # list(APPEND open62541_LIBRARIES asan)
 
-	#add_definitions(-fsanitize=undefined)
-    #list(APPEND open62541_LIBRARIES ubsan)
+	# add_definitions(-fsanitize=undefined)
+    # list(APPEND open62541_LIBRARIES ubsan)
 
   elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR
          CMAKE_BUILD_TYPE STREQUAL "Release")

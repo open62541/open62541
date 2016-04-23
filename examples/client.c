@@ -107,14 +107,14 @@ int main(int argc, char *argv[]) {
     
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
-    UA_UInt32 subId=0;
+    UA_UInt32 subId = 0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
     // .. and monitor TheAnswer
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId=0;
+    UA_UInt32 monId = 0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
                                              UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
     if (monId)
