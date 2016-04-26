@@ -305,7 +305,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
-    getsockname(newsockfd, (struct sockaddr*)&addr, &addrlen);
+    getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "New Connection %i over TCP from %s:%d",
                 newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     UA_Connection_init(c);
