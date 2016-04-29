@@ -45,11 +45,11 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLoginsSize = 2,
     
     .publishingIntervalLimits = { .max = 10000, .min = 100, .current = 0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
-    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 1, .current = 0 },
+    .keepAliveCountLimits = { .max = 100, .min = 1, .current = 0 },
     .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
-    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
-    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
+    .samplingIntervalLimits = { .max = 1000, .min = 50, .current = 0 },
+    .queueSizeLimits = { .max = 100, .min = 1, .current = 0 }
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
