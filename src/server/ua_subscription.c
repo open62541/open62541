@@ -260,7 +260,7 @@ static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
     data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
 
     /* Get the available sequence numbers from the retransmission queue */
-    size_t available = 0;
+    size_t available = 1;
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         available++;
@@ -271,6 +271,7 @@ static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
         response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
         i++;
     }
+    response->availableSequenceNumbers[i] = message->sequenceNumber;
     
     /* send out the response */
     UA_SecureChannel_sendBinaryMessage(channel, pre->requestId, response,
