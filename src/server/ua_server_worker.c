@@ -200,7 +200,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* search for matching entry */
-    UA_DateTime firstTime = UA_DateTime_nowMonotonic() + arw->interval;
+    UA_DateTime firstTime = UA_DateTime_nowMonotonic();
     tempTw = LIST_FIRST(&server->repeatedJobs);
     while(tempTw) {
         if(arw->interval == tempTw->interval) {
