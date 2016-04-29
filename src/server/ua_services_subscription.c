@@ -3,9 +3,9 @@
 #include "ua_subscription.h"
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
-    if(SRC > BOUNDS.max) DST = BOUNDS.max; \
-    else if(SRC < BOUNDS.min) DST = BOUNDS.min; \
-    else DST = SRC; \
+        if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
+        else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
+        else DST = SRC;                                \
     }
 
 static void
@@ -17,10 +17,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     Subscription_unregisterPublishJob(server, subscription);
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
                                requestedPublishingInterval, subscription->publishingInterval);
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
-                               requestedLifetimeCount, subscription->lifeTime);
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.keepAliveCountLimits,
                                requestedMaxKeepAliveCount, subscription->maxKeepAliveCount);
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
+                               requestedLifetimeCount, subscription->lifeTime);
+    if(subscription->lifeTime < 3 * subscription->maxKeepAliveCount)
+        subscription->lifeTime = 3 * subscription->maxKeepAliveCount;
     subscription->notificationsPerPublish = maxNotificationsPerPublish;
     subscription->priority = priority;
     Subscription_registerPublishJob(server, subscription);
@@ -155,6 +157,7 @@ Service_ModifyMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
         result->statusCode = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
+
     setMonitoredItemSettings(server, mon, MONITOREDITEM_TYPE_CHANGENOTIFY,
                              request->requestedParameters.clientHandle,
                              request->requestedParameters.samplingInterval,
