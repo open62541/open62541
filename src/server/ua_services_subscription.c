@@ -225,6 +225,17 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 void
 Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest *request,
                 UA_UInt32 requestId) {
+	/* Return an error if the session has no subscription */
+	if(LIST_EMPTY(&session->serverSubscriptions)) {
+		UA_PublishResponse response;
+		UA_PublishResponse_init(&response);
+		response.responseHeader.requestHandle = request->requestHeader.requestHandle;
+		response.responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+		UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &response,
+			                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+		return;
+	}
+
     // todo error handling for malloc
     UA_PublishResponseEntry *entry = UA_malloc(sizeof(UA_PublishResponseEntry));
     entry->requestId = requestId;
