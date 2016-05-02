@@ -84,10 +84,14 @@ typedef struct {
 } UA_UsernamePasswordLogin;
 
 typedef struct {
-    UA_UInt32 current;
     UA_UInt32 min;
     UA_UInt32 max;
-} UA_BoundedUInt32;
+} UA_UInt32Range;
+
+typedef struct {
+	UA_Double min;
+	UA_Double max;
+} UA_DoubleRange;
 
 typedef struct {
     UA_UInt16 nThreads; // only if multithreading is enabled
@@ -108,12 +112,14 @@ typedef struct {
     UA_UsernamePasswordLogin* usernamePasswordLogins;
 
     /* Limits for subscription settings */
-    UA_BoundedUInt32 publishingIntervalLimits;
-    UA_BoundedUInt32 lifeTimeCountLimits;
-    UA_BoundedUInt32 keepAliveCountLimits;
-    UA_BoundedUInt32 notificationsPerPublishLimits;
-    UA_BoundedUInt32 samplingIntervalLimits;
-    UA_BoundedUInt32 queueSizeLimits;
+	UA_DoubleRange publishingIntervalLimits;
+	UA_UInt32Range lifeTimeCountLimits;
+	UA_UInt32Range keepAliveCountLimits;
+	UA_UInt32Range notificationsPerPublishLimits;
+
+	/* Limits for monitoreditem settings */
+    UA_DoubleRange samplingIntervalLimits;
+	UA_UInt32Range queueSizeLimits;
 } UA_ServerConfig;
 
 /**

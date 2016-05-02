@@ -44,12 +44,12 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2,
     
-    .publishingIntervalLimits = { .max = 10000, .min = 100, .current = 0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 1, .current = 0 },
-    .keepAliveCountLimits = { .max = 100, .min = 1, .current = 0 },
-    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
-    .samplingIntervalLimits = { .max = 1000, .min = 50, .current = 0 },
-    .queueSizeLimits = { .max = 100, .min = 1, .current = 0 }
+	.publishingIntervalLimits = { .min = 100.0, .max = 3600.0 * 1000.0 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 1 },
+    .keepAliveCountLimits = { .max = 100, .min = 1 },
+    .notificationsPerPublishLimits = { .max = 1000, .min = 1 },
+	.samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
+    .queueSizeLimits = { .max = 100, .min = 1 }
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {

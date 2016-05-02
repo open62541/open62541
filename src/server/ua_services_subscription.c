@@ -15,8 +15,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 requestedMaxKeepAliveCount,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
     Subscription_unregisterPublishJob(server, subscription);
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
-                               requestedPublishingInterval, subscription->publishingInterval);
+	subscription->publishingInterval = requestedPublishingInterval;
+	UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
+		requestedPublishingInterval, subscription->publishingInterval);
+	/* check for nan*/
+	if(requestedPublishingInterval != requestedPublishingInterval)
+		subscription->publishingInterval = server->config.publishingIntervalLimits.min;
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.keepAliveCountLimits,
                                requestedMaxKeepAliveCount, subscription->maxKeepAliveCount);
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
@@ -99,8 +103,12 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     MonitoredItem_unregisterSampleJob(server, mon);
     mon->monitoringMode = monitoringMode;
     mon->clientHandle = clientHandle;
-    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                               samplingInterval, mon->samplingInterval);
+	mon->samplingInterval = samplingInterval;
+	UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+		samplingInterval, mon->samplingInterval);
+	/* Test for nan */
+	if(samplingInterval != samplingInterval)
+		mon->samplingInterval = server->config.samplingIntervalLimits.min;
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                queueSize, mon->maxQueueSize);
     mon->discardOldest = discardOldest;
