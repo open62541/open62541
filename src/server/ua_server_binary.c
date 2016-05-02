@@ -241,6 +241,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE];
         break;
+	case UA_NS0ID_SETPUBLISHINGMODEREQUEST:
+		*service = (UA_Service)Service_SetPublishingMode;
+		*requestType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST];
+		*responseType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE];
+		break;
     case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
         *service = (UA_Service)Service_DeleteSubscriptions;
         *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST];

@@ -141,6 +141,7 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->sequenceNumber = 1;
     new->currentKeepAliveCount = 0;
     new->maxKeepAliveCount = 0;
+	new->publishingEnabled = false;
     memset(&new->publishJobGuid, 0, sizeof(UA_Guid));
     new->publishJobIsRegistered = false;
     LIST_INIT(&new->retransmissionQueue);
@@ -194,15 +195,17 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Count the available notifications */
     size_t notifications = 0;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
-        MonitoredItem_queuedValue *qv;
-        TAILQ_FOREACH(qv, &mon->queue, listEntry) {
-            if(notifications >= sub->notificationsPerPublish)
-                break;
-            notifications++;
-        }
-    }
+	if(sub->publishingEnabled) {
+		UA_MonitoredItem *mon;
+		LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+			MonitoredItem_queuedValue *qv;
+			TAILQ_FOREACH(qv, &mon->queue, listEntry) {
+				if(notifications >= sub->notificationsPerPublish)
+					break;
+				notifications++;
+			}
+		}
+	}
 
     /* Continue only if we have data or want to send a keepalive */
     if(notifications == 0) {
@@ -241,6 +244,7 @@ static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
     dcn->monitoredItems = UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
     dcn->monitoredItemsSize = notifications;
     size_t l = 0;
+	UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
         MonitoredItem_queuedValue *qv, *qv_tmp;
         TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {

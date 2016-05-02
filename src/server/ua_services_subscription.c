@@ -39,7 +39,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     UA_Session_addSubscription(session, newSubscription);    
-    newSubscription->publishingMode = request->publishingEnabled;
+    newSubscription->publishingEnabled = request->publishingEnabled;
     setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
@@ -64,6 +64,32 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     response->revisedLifetimeCount = sub->lifeTime;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
     return;
+}
+
+void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+	const UA_SetPublishingModeRequest *request,	UA_SetPublishingModeResponse *response) {
+
+	if (request->subscriptionIdsSize <= 0) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+		return;
+	}
+
+	size_t size = request->subscriptionIdsSize;
+	response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_STATUSCODE]);
+	if(!response->results) {
+		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+		return;
+	}
+
+	response->resultsSize = size;
+	for(size_t i = 0; i < size; i++) {
+		UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionIds[i]);
+		if(!sub) {
+			response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+			continue;
+		}
+		sub->publishingEnabled = request->publishingEnabled;
+	}
 }
 
 static void

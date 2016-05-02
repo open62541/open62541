@@ -75,7 +75,7 @@ struct UA_Subscription {
     UA_Double publishingInterval;     // [ms] 
     UA_UInt32 subscriptionID;
     UA_UInt32 notificationsPerPublish;
-    UA_Boolean publishingMode;
+    UA_Boolean publishingEnabled;
     UA_UInt32 priority;
     UA_UInt32 sequenceNumber;
 

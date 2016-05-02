@@ -300,6 +300,11 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
                                 const UA_ModifySubscriptionRequest *request,
                                 UA_ModifySubscriptionResponse *response);
 
+/* Used to enable sending of Notifications on one or more Subscriptions. */
+void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+	                           const UA_SetPublishingModeRequest *request,
+	                           UA_SetPublishingModeResponse *response);
+
 /* Used for two purposes. First, it is used to acknowledge the receipt of
  * NotificationMessages for one or more Subscriptions. Second, it is used to
  * request the Server to return a NotificationMessage or a keep-alive
@@ -323,7 +328,6 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  const UA_DeleteSubscriptionsRequest *request,
                                  UA_DeleteSubscriptionsResponse *response);
 
-/* Not Implemented: Service_SetPublishingMode */
 /* Not Implemented: Service_TransferSubscription */
 
 #endif
