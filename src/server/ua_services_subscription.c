@@ -321,5 +321,5 @@ void Service_Republish(UA_Server *server, UA_Session *session, const UA_Republis
         response->responseHeader.serviceResult =
             UA_NotificationMessage_copy(&entry->message, &response->notificationMessage);
     else
-      response->responseHeader.serviceResult = UA_STATUSCODE_BADSEQUENCENUMBERINVALID;
+      response->responseHeader.serviceResult = UA_STATUSCODE_BADMESSAGENOTAVAILABLE;
 }
