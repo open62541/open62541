@@ -67,6 +67,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
+    sub->currentLifetimeCount = 0; /* Reset lifetime */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
@@ -96,6 +97,7 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 			continue;
 		}
 		sub->publishingEnabled = request->publishingEnabled;
+        sub->currentLifetimeCount = 0; /* Reset lifetime */
 	}
 }
 
@@ -165,6 +167,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
+    sub->currentLifetimeCount = 0; /* Reset lifetime */
     
     if(request->itemsToCreateSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -212,6 +215,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
+    sub->currentLifetimeCount = 0; /* Reset lifetime */
     
     if(request->itemsToModifySize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -323,6 +327,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
+    sub->currentLifetimeCount = 0; /* Reset lifetime */
     
     response->results = UA_malloc(sizeof(UA_StatusCode) * request->monitoredItemIdsSize);
     if(!response->results) {
@@ -343,6 +348,7 @@ void Service_Republish(UA_Server *server, UA_Session *session, const UA_Republis
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
+    sub->currentLifetimeCount = 0; /* Reset lifetime */
     
     /* Find the notification in the retransmission queue  */
     UA_NotificationMessageEntry *entry;
