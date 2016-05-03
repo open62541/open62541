@@ -65,12 +65,21 @@ typedef struct UA_NotificationMessageEntry {
     UA_NotificationMessage message;
 } UA_NotificationMessageEntry;
 
+/* We use only a subset of the states defined in the standard */
+typedef enum {
+	/* UA_SUBSCRIPTIONSTATE_CLOSED */
+	/* UA_SUBSCRIPTIONSTATE_CREATING */
+	UA_SUBSCRIPTIONSTATE_NORMAL,
+	UA_SUBSCRIPTIONSTATE_LATE,
+    UA_SUBSCRIPTIONSTATE_KEEPALIVE
+} UA_SubscriptionState;
+
 struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
 
     /* Settings */
     UA_Session *session;
-    UA_UInt32 lifeTime;
+    UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;
     UA_Double publishingInterval;     // [ms] 
     UA_UInt32 subscriptionID;
@@ -80,7 +89,9 @@ struct UA_Subscription {
     UA_UInt32 sequenceNumber;
 
     /* Runtime information */
+	UA_SubscriptionState state;
     UA_UInt32 currentKeepAliveCount;
+	UA_UInt32 currentLifetimeCount;
 
     /* Publish Job */
     UA_Guid publishJobGuid;
@@ -102,5 +113,6 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
 
+void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
 
 #endif /* UA_SUBSCRIPTION_H_ */

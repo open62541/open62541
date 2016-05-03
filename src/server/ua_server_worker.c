@@ -309,10 +309,17 @@ static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
             jobsCopy[i] = tw->jobs[i].job;
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
-        for(size_t i=0;i<tw->jobsSize;i++)
-            //processJobs may sort the list but dont delete entries
+		size_t size = tw->jobsSize;
+        for(size_t i = 0; i < size; i++)
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
 #endif
+
+		/* Elements are removed only here. Check if empty. */
+		if(tw->jobsSize == 0) {
+			LIST_REMOVE(tw, pointers);
+			UA_free(tw);
+			continue;
+		}
 
         /* set the time for the next execution */
         tw->nextTime += tw->interval;
@@ -349,14 +356,10 @@ static void removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
         for(size_t i = 0; i < tw->jobsSize; i++) {
             if(!UA_Guid_equal(jobId, &tw->jobs[i].id))
                 continue;
-            if(tw->jobsSize == 1) {
-                LIST_REMOVE(tw, pointers);
-                UA_free(tw);
-            } else {
-                tw->jobsSize--;
+			tw->jobsSize--; /* if size == 0, tw is freed during the next processing */
+            if(tw->jobsSize > 0)
                 tw->jobs[i] = tw->jobs[tw->jobsSize]; // move the last entry to overwrite
-            }
-            goto finish; // ugly break
+            goto finish;
         }
     }
  finish:

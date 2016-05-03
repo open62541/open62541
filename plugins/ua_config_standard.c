@@ -45,9 +45,9 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLoginsSize = 2,
     
 	.publishingIntervalLimits = { .min = 100.0, .max = 3600.0 * 1000.0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 1 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 3 },
     .keepAliveCountLimits = { .max = 100, .min = 1 },
-    .notificationsPerPublishLimits = { .max = 1000, .min = 1 },
+    .maxNotificationsPerPublish = 1000,
 	.samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
     .queueSizeLimits = { .max = 100, .min = 1 }
 };

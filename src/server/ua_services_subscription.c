@@ -24,10 +24,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.keepAliveCountLimits,
                                requestedMaxKeepAliveCount, subscription->maxKeepAliveCount);
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.lifeTimeCountLimits,
-                               requestedLifetimeCount, subscription->lifeTime);
-    if(subscription->lifeTime < 3 * subscription->maxKeepAliveCount)
-        subscription->lifeTime = 3 * subscription->maxKeepAliveCount;
-    subscription->notificationsPerPublish = maxNotificationsPerPublish;
+                               requestedLifetimeCount, subscription->lifeTimeCount);
+    if(subscription->lifeTimeCount < 3 * subscription->maxKeepAliveCount)
+        subscription->lifeTimeCount = 3 * subscription->maxKeepAliveCount;
+	subscription->notificationsPerPublish = maxNotificationsPerPublish;
+	if(maxNotificationsPerPublish == 0 || maxNotificationsPerPublish > server->config.maxNotificationsPerPublish)
+		subscription->notificationsPerPublish = server->config.maxNotificationsPerPublish;
     subscription->priority = priority;
     Subscription_registerPublishJob(server, subscription);
 }
@@ -47,8 +49,9 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
     setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
+    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount; /* immediately send the first response */
     response->revisedPublishingInterval = newSubscription->publishingInterval;
-    response->revisedLifetimeCount = newSubscription->lifeTime;
+    response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
 }
 
@@ -65,7 +68,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
     response->revisedPublishingInterval = sub->publishingInterval;
-    response->revisedLifetimeCount = sub->lifeTime;
+    response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
     return;
 }
@@ -73,7 +76,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
 void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 	const UA_SetPublishingModeRequest *request,	UA_SetPublishingModeResponse *response) {
 
-	if (request->subscriptionIdsSize <= 0) {
+	if(request->subscriptionIdsSize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 		return;
 	}
@@ -231,8 +234,8 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 }
 
 void
-Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest *request,
-                UA_UInt32 requestId) {
+Service_Publish(UA_Server *server, UA_Session *session,
+	            const UA_PublishRequest *request, UA_UInt32 requestId) {
 	/* Return an error if the session has no subscription */
 	if(LIST_EMPTY(&session->serverSubscriptions)) {
 		UA_PublishResponse response;
@@ -244,12 +247,12 @@ Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest 
 		return;
 	}
 
-    // todo error handling for malloc
+	// todo error handling for malloc
     UA_PublishResponseEntry *entry = UA_malloc(sizeof(UA_PublishResponseEntry));
-    entry->requestId = requestId;
+	entry->requestId = requestId;
     UA_PublishResponse *response = &entry->response;
-    UA_PublishResponse_init(response);
-    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
+	UA_PublishResponse_init(response);
+	response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     /* Delete Acknowledged Subscription Messages */
     response->results = UA_malloc(request->subscriptionAcknowledgementsSize * sizeof(UA_StatusCode));
@@ -284,7 +287,18 @@ Service_Publish(UA_Server *server, UA_Session *session, const UA_PublishRequest 
     /* Queue the publish response */
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Queued a publication message on session %u", session->authenticationToken.identifier.numeric);
+        "Queued a publication message on session %u", session->authenticationToken.identifier.numeric);
+
+    /* Answer immediately to a late subscription */
+    UA_Subscription *immediate;
+    LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
+        if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Response on a late subscription on session %u", session->authenticationToken.identifier.numeric);
+            UA_Subscription_publishCallback(server, immediate);
+            return;
+        }
+    }
 }
 
 void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,

@@ -52,7 +52,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         return;
     UA_DataValue_init(&newvalue->value);
     newvalue->clientHandle = monitoredItem->clientHandle;
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Creating a sample with client handle %u", newvalue->clientHandle);
   
     /* Read the value */
@@ -112,6 +112,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
+    //SampleCallback(server, mon);
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
                   .job.methodCall = {.method = (UA_ServerCallback)SampleCallback, .data = mon} };
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
@@ -138,12 +139,14 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
         return NULL;
     new->session = session;
     new->subscriptionID = subscriptionID;
-    new->sequenceNumber = 1;
-    new->currentKeepAliveCount = 0;
+    new->sequenceNumber = 0;
     new->maxKeepAliveCount = 0;
 	new->publishingEnabled = false;
     memset(&new->publishJobGuid, 0, sizeof(UA_Guid));
     new->publishJobIsRegistered = false;
+	new->currentKeepAliveCount = 0;
+	new->currentLifetimeCount = 0;
+	new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
     LIST_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->MonitoredItems);
     return new;
@@ -192,26 +195,37 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
-static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
+void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Count the available notifications */
     size_t notifications = 0;
-	if(sub->publishingEnabled) {
-		UA_MonitoredItem *mon;
-		LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
-			MonitoredItem_queuedValue *qv;
-			TAILQ_FOREACH(qv, &mon->queue, listEntry) {
-				if(notifications >= sub->notificationsPerPublish)
-					break;
-				notifications++;
-			}
-		}
-	}
+    UA_Boolean moreNotifications = false;
+    if(sub->publishingEnabled) {
+        UA_MonitoredItem *mon;
+        LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+            MonitoredItem_queuedValue *qv;
+            TAILQ_FOREACH(qv, &mon->queue, listEntry) {
+                if(notifications >= sub->notificationsPerPublish) {
+                    moreNotifications = true;
+                    break;
+                }
+                notifications++;
+            }
+        }
+    }
 
-    /* Continue only if we have data or want to send a keepalive */
+    /* Return if nothing to do */
     if(notifications == 0) {
         sub->currentKeepAliveCount++;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Sending out a keepalive on subscription %u on securechannel %u", sub->subscriptionID,
+            sub->session->authenticationToken.identifier.numeric);
+    } else {
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Sending out a publish response on subscription %u on securechannel %u " \
+            "with %u notifications", sub->subscriptionID,
+            sub->session->authenticationToken.identifier.numeric, (UA_UInt32)notifications);
     }
 
     /* Check if the securechannel is valid */
@@ -219,52 +233,81 @@ static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
     if(!channel)
         return;
 
-    /* Dequeue a response */
-    UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
-    if(!pre) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Cannot send a publish response on subscription %u " \
-                    "since the publish queue is empty on session %u",
-                    sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
-        return;
-    }
-    SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
+	/* Dequeue a response */
+	UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
+	if(!pre) {
+		UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+			"Cannot send a publish response on subscription %u " \
+			"since the publish queue is empty on session %u",
+			sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+		if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
+			sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+		} else {
+			sub->currentLifetimeCount++;
+			if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+				UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+					"End of lifetime for subscription %u on session %u",
+					sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+				UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
+			}
+		}
+		return;
+	}
+	SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
 
-    /* Prepare the response */
     UA_PublishResponse *response = &pre->response;
+    UA_UInt32 requestId = pre->requestId;
+
+	/* We have a request. Reset state to normal. */
+	sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+    sub->currentKeepAliveCount = 0;
+    sub->currentLifetimeCount = 0;
+
+	/* Prepare the response */
     response->responseHeader.timestamp = UA_DateTime_now();
     response->subscriptionId = sub->subscriptionID;
+	response->moreNotifications = moreNotifications;
     UA_NotificationMessage *message = &response->notificationMessage;
-    message->sequenceNumber = ++(sub->sequenceNumber);
     message->publishTime = response->responseHeader.timestamp;
-    message->notificationData = UA_ExtensionObject_new();
-    message->notificationDataSize = 1;
-    UA_ExtensionObject *data = message->notificationData;
-    UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-    dcn->monitoredItems = UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
-    dcn->monitoredItemsSize = notifications;
-    size_t l = 0;
-	UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
-        MonitoredItem_queuedValue *qv, *qv_tmp;
-        TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
-            if(notifications <= l)
-                break;
-            UA_MonitoredItemNotification *min = &dcn->monitoredItems[l];
-            min->clientHandle = qv->clientHandle;
-            min->value = qv->value;
-            TAILQ_REMOVE(&mon->queue, qv, listEntry);
-            UA_free(qv);
-            mon->currentQueueSize--;
-            l++;
+    if(notifications > 0) {
+        message->sequenceNumber = ++sub->sequenceNumber;
+
+        /* Collect the notification messages */
+        message->notificationData = UA_ExtensionObject_new();
+        message->notificationDataSize = 1;
+        UA_ExtensionObject *data = message->notificationData;
+        UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
+        dcn->monitoredItems = UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
+        dcn->monitoredItemsSize = notifications;
+        size_t l = 0;
+        UA_MonitoredItem *mon;
+        LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+            MonitoredItem_queuedValue *qv, *qv_tmp;
+            TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
+                if(notifications <= l)
+                    break;
+                UA_MonitoredItemNotification *min = &dcn->monitoredItems[l];
+                min->clientHandle = qv->clientHandle;
+                min->value = qv->value;
+                TAILQ_REMOVE(&mon->queue, qv, listEntry);
+                UA_free(qv);
+                mon->currentQueueSize--;
+                l++;
+            }
         }
-    }
-    data->encoding = UA_EXTENSIONOBJECT_DECODED;
-    data->content.decoded.data = dcn;
-    data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
+        data->encoding = UA_EXTENSIONOBJECT_DECODED;
+        data->content.decoded.data = dcn;
+        data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
+
+        /* Put the notification message into the retransmission queue */
+        UA_NotificationMessageEntry *retransmission = malloc(sizeof(UA_NotificationMessageEntry));
+        retransmission->message = response->notificationMessage;
+        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+    } else /* Send sequence number for the next notification */
+		message->sequenceNumber = sub->sequenceNumber + 1;
 
     /* Get the available sequence numbers from the retransmission queue */
-    size_t available = 1;
+    size_t available = 0;
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         available++;
@@ -275,31 +318,24 @@ static void PublishCallback(UA_Server *server, UA_Subscription *sub) {
         response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
         i++;
     }
-    response->availableSequenceNumbers[i] = message->sequenceNumber;
-    
-    /* send out the response */
-    UA_SecureChannel_sendBinaryMessage(channel, pre->requestId, response,
+
+    /* Send the response */
+    UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Sending out a publish response on subscription %u on securechannel %u " \
-                 "with %u notifications", sub->subscriptionID,
-                 sub->session->authenticationToken.identifier.numeric, (UA_UInt32)notifications);
 
-    /* Reset the keepalive count */
-    sub->currentKeepAliveCount = 0;
-
-    /* Put the notification message into the retransmission queue and delete the response */
-    UA_NotificationMessageEntry *retransmission = malloc(sizeof(UA_NotificationMessageEntry));
-    retransmission->message = response->notificationMessage;
-    UA_NotificationMessage_init(&response->notificationMessage);
-    LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
-    UA_PublishResponse_deleteMembers(response);
+    /* Remove the queued request */
+    UA_NotificationMessage_init(&response->notificationMessage); /* The notification message was put into the queue */
+    UA_PublishResponse_deleteMembers(&pre->response);
     UA_free(pre);
+
+    /* Repeat if there are more notifications to send */
+    if(moreNotifications)
+        UA_Subscription_publishCallback(server, sub);
 }
 
 UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
     UA_Job job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
-                           .job.methodCall = {.method = (UA_ServerCallback)PublishCallback, .data = sub} };
+                           .job.methodCall = {.method = (UA_ServerCallback)UA_Subscription_publishCallback, .data = sub} };
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Adding a subscription with %i millisec interval", (int)sub->publishingInterval);
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,

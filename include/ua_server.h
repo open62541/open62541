@@ -115,7 +115,7 @@ typedef struct {
 	UA_DoubleRange publishingIntervalLimits;
 	UA_UInt32Range lifeTimeCountLimits;
 	UA_UInt32Range keepAliveCountLimits;
-	UA_UInt32Range notificationsPerPublishLimits;
+	UA_UInt32 maxNotificationsPerPublish;
 
 	/* Limits for monitoreditem settings */
     UA_DoubleRange samplingIntervalLimits;
