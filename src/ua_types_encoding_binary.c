@@ -1296,7 +1296,8 @@ ExtensionObject_calcSizeBinary(const UA_ExtensionObject *src, UA_DataType *_) {
             return 0;
         s += NodeId_calcSizeBinary(&src->content.decoded.type->typeId, NULL);
         s += 4; // length
-        size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        size_t encode_index = src->content.decoded.type->builtin ?
+            src->content.decoded.type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         s += calcSizeBinaryJumpTable[encode_index](src->content.decoded.data, src->content.decoded.type);
     } else {
         s += NodeId_calcSizeBinary(&src->content.encoded.typeId, NULL);
