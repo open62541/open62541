@@ -39,7 +39,7 @@ typedef struct UA_MonitoredItem {
     UA_UInt32 currentQueueSize;
     UA_UInt32 maxQueueSize;
     UA_Boolean discardOldest;
-    // TODO: indexRange is ignored; array values default to element 0
+    UA_String indexRange;
     // TODO: dataEncoding is hardcoded to UA binary
 
     /* Sample Job */

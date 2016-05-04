@@ -120,13 +120,24 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     MonitoredItem_registerSampleJob(server, mon);
 }
 
+static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
 static void
 Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_Subscription *sub,
+                                    const UA_TimestampsToReturn timestampsToReturn,
                                     const UA_MonitoredItemCreateRequest *request,
                                     UA_MonitoredItemCreateResult *result) {
+    /* Check if the target exists */
     const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
     if(!target) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+        return;
+    }
+    // TODO: Check if the target node type has the requested attribute
+
+    /* Check if the encoding is supported */
+	if(request->itemToMonitor.dataEncoding.name.length > 0 &&
+       !UA_String_equal(&binEncoding, &request->itemToMonitor.dataEncoding.name)) {
+        result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
         return;
     }
 
@@ -146,12 +157,14 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     newMon->subscription = sub;
     newMon->attributeID = request->itemToMonitor.attributeId;
     newMon->itemId = UA_Session_getUniqueSubscriptionID(session);
+    newMon->timestampsToReturn = timestampsToReturn;
     setMonitoredItemSettings(server, newMon, MONITOREDITEM_TYPE_CHANGENOTIFY,
                              request->requestedParameters.clientHandle,
                              request->requestedParameters.samplingInterval,
                              request->requestedParameters.queueSize,
                              request->requestedParameters.discardOldest);
 
+    UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->itemId;
@@ -184,6 +197,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->itemsToCreateSize; i++)
         Service_CreateMonitoredItems_single(server, session, sub,
+                                            request->timestampsToReturn,
                                             &request->itemsToCreate[i],
                                             &response->results[i]);
 }

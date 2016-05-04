@@ -203,7 +203,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
                          const UA_ReadValueId *id, UA_DataValue *v) {
 	if(id->dataEncoding.name.length > 0 && !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = true;
-           v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
+           v->status = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
            return;
 	}
 

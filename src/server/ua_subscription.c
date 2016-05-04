@@ -13,6 +13,8 @@ UA_MonitoredItem * UA_MonitoredItem_new() {
     new->currentQueueSize = 0;
     new->maxQueueSize = 0;
     new->monitoredItemType = MONITOREDITEM_TYPE_CHANGENOTIFY; // TODO: This is currently hardcoded;
+    new->timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
+    UA_String_init(&new->indexRange);
     TAILQ_INIT(&new->queue);
     UA_NodeId_init(&new->monitoredNodeId);
     new->lastSampledValue = UA_BYTESTRING_NULL;
@@ -32,6 +34,7 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     }
     monitoredItem->currentQueueSize = 0;
     LIST_REMOVE(monitoredItem, listEntry);
+    UA_String_deleteMembers(&monitoredItem->indexRange);
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     UA_NodeId_deleteMembers(&monitoredItem->monitoredNodeId);
     UA_free(monitoredItem);
@@ -60,6 +63,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_ReadValueId_init(&rvid);
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
+    rvid.indexRange = monitoredItem->indexRange;
     UA_Subscription *sub = monitoredItem->subscription;
     Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn, &rvid, &newvalue->value);
 
