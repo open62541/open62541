@@ -120,7 +120,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     MonitoredItem_registerSampleJob(server, mon);
 }
 
-static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
+static const UA_String binaryEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
 static void
 Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                                     const UA_TimestampsToReturn timestampsToReturn,
@@ -136,7 +136,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
 
     /* Check if the encoding is supported */
 	if(request->itemToMonitor.dataEncoding.name.length > 0 &&
-       !UA_String_equal(&binEncoding, &request->itemToMonitor.dataEncoding.name)) {
+       !UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name)) {
         result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
         return;
     }
@@ -158,7 +158,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     newMon->attributeID = request->itemToMonitor.attributeId;
     newMon->itemId = UA_Session_getUniqueSubscriptionID(session);
     newMon->timestampsToReturn = timestampsToReturn;
-    setMonitoredItemSettings(server, newMon, MONITOREDITEM_TYPE_CHANGENOTIFY,
+    setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              request->requestedParameters.clientHandle,
                              request->requestedParameters.samplingInterval,
                              request->requestedParameters.queueSize,
@@ -212,7 +212,7 @@ Service_ModifyMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
         return;
     }
 
-    setMonitoredItemSettings(server, mon, MONITOREDITEM_TYPE_CHANGENOTIFY,
+    setMonitoredItemSettings(server, mon, mon->monitoringMode,
                              request->requestedParameters.clientHandle,
                              request->requestedParameters.samplingInterval,
                              request->requestedParameters.queueSize,
