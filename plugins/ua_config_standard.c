@@ -62,4 +62,5 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
         .recvBufferSize  = 65536,
         .maxMessageSize = 65536,
         .maxChunkCount = 1 },
-    .connectionFunc = UA_ClientConnectionTCP };
+    .connectionFunc = UA_ClientConnectionTCP
+};

@@ -4,9 +4,9 @@
 #include "ua_types_generated_encoding_binary.h"
 
 const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
-    .requestedPublishingInterval = 1000.0,
-    .requestedLifetimeCount = 100,
-    .requestedMaxKeepAliveCount = 10,
+    .requestedPublishingInterval = 500.0,
+    .requestedLifetimeCount = 10000,
+    .requestedMaxKeepAliveCount = 1,
     .maxNotificationsPerPublish = 10,
     .publishingEnabled = true,
     .priority = 0
