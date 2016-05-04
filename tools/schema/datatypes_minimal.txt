@@ -53,7 +53,6 @@ PublishRequest
 PublishResponse
 FindServersRequest
 FindServersResponse
-SetPublishingModeResponse
 SubscriptionAcknowledgement
 ReadRequest
 ReadResponse
@@ -62,7 +61,6 @@ TimestampsToReturn
 WriteRequest
 WriteResponse
 WriteValue
-SetPublishingModeRequest
 CreateMonitoredItemsResponse
 MonitoredItemCreateResult
 CreateMonitoredItemsRequest
