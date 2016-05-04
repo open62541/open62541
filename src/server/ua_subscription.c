@@ -311,8 +311,10 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         available++;
-    response->availableSequenceNumbers = UA_malloc(available * sizeof(UA_UInt32));
-    response->availableSequenceNumbersSize = available;
+    if(available > 0) {
+        response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
+        response->availableSequenceNumbersSize = available;
+    }
     size_t i = 0;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
         response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
@@ -324,7 +326,9 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Remove the queued request */
-    UA_NotificationMessage_init(&response->notificationMessage); /* The notification message was put into the queue */
+    UA_NotificationMessage_init(&response->notificationMessage); /* The notification message was put into the queue and is not freed */
+    response->availableSequenceNumbers = NULL; /* stack-allocated */
+    response->availableSequenceNumbersSize = 0;
     UA_PublishResponse_deleteMembers(&pre->response);
     UA_free(pre);
 

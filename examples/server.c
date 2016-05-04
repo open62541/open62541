@@ -161,7 +161,6 @@ getMonitoredItems(void *methodHandle, const UA_NodeId objectId,
                   size_t outputSize, UA_Variant *output) {
     UA_String tmp = UA_STRING("Hello World");
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
-    printf("getMonitoredItems was called\n");
     return UA_STATUSCODE_GOOD;
 }
 #endif

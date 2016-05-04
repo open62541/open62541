@@ -292,8 +292,9 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
 
 /* Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
-    struct RepeatedJobs *tw = NULL;
-    while((tw = LIST_FIRST(&server->repeatedJobs)) != NULL) {
+    struct RepeatedJobs *tw, *tmp_tw;
+    /* Iterate over the list of elements (sorted according to the next execution timestamp) */
+    LIST_FOREACH_SAFE(tw, &server->repeatedJobs, pointers, tmp_tw) {
         if(tw->nextTime > current)
             break;
 
@@ -318,16 +319,17 @@ static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
 		if(tw->jobsSize == 0) {
 			LIST_REMOVE(tw, pointers);
 			UA_free(tw);
+            UA_assert(LIST_FIRST(&server->repeatedJobs) != tw); /* Assert for static code checkers */
 			continue;
 		}
 
-        /* set the time for the next execution */
+        /* Set the time for the next execution */
         tw->nextTime += tw->interval;
         if(tw->nextTime < current)
             tw->nextTime = current;
 
-        //start iterating the list from the beginning
-        struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
+        /* Reinsert to keep the list sorted */
+        struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs);
         while(true) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)

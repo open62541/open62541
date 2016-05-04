@@ -358,7 +358,6 @@ chunkEntryFromRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
             return ch;
         }
     }
-
     return NULL;
 }
 
@@ -565,6 +564,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Processing a service with type id %u on Session %u",
                  requestType->typeId.identifier.numeric, session->authenticationToken.identifier.numeric);
+    UA_assert(service);
+    UA_assert(requestType);
+    UA_assert(responseType);
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
     init_response_header(request, response);
