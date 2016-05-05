@@ -34,7 +34,7 @@
  * 
  */
 
-#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
+#define MAXTIMEOUT 500 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {

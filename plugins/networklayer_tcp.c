@@ -154,6 +154,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 #else
     ssize_t ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 #endif
+
     if(ret == 0) {
         /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
@@ -392,7 +393,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     ServerNetworkLayerTCP *layer = nl->handle;
     fd_set fdset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
-    struct timeval tmptv = {0, timeout};
+    struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize;
     resultsize = select(highestfd+1, &fdset, NULL, NULL, &tmptv);
     if(resultsize < 0) {
