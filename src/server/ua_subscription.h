@@ -12,10 +12,10 @@
 /*****************/
 
 typedef enum {
-    MONITOREDITEM_TYPE_CHANGENOTIFY = 1,
-    MONITOREDITEM_TYPE_STATUSNOTIFY = 2,
-    MONITOREDITEM_TYPE_EVENTNOTIFY = 4
-} UA_MONITOREDITEM_TYPE;
+    UA_MONITOREDITEMTYPE_CHANGENOTIFY = 1,
+    UA_MONITOREDITEMTYPE_STATUSNOTIFY = 2,
+    UA_MONITOREDITEMTYPE_EVENTNOTIFY = 4
+} UA_MonitoredItemType;
 
 typedef struct MonitoredItem_queuedValue {
     TAILQ_ENTRY(MonitoredItem_queuedValue) listEntry;
@@ -29,7 +29,7 @@ typedef struct UA_MonitoredItem {
     /* Settings */
     UA_Subscription *subscription;
     UA_UInt32 itemId;
-    UA_MONITOREDITEM_TYPE monitoredItemType;
+    UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
     UA_NodeId monitoredNodeId; 

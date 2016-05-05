@@ -67,7 +67,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
     setSubscriptionSettings(server, sub, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    sub->currentLifetimeCount = 0; /* Reset lifetime */
+    sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
@@ -97,21 +97,22 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 			continue;
 		}
 		sub->publishingEnabled = request->publishingEnabled;
-        sub->currentLifetimeCount = 0; /* Reset lifetime */
+        sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
 	}
 }
 
 static void
 setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode, UA_UInt32 clientHandle,
-                         UA_Double samplingInterval, UA_UInt32 queueSize, UA_Boolean discardOldest) {
+                         UA_Double samplingInterval, UA_UInt32 queueSize,
+                         UA_Boolean discardOldest) {
     MonitoredItem_unregisterSampleJob(server, mon);
     mon->monitoringMode = monitoringMode;
     mon->clientHandle = clientHandle;
 	mon->samplingInterval = samplingInterval;
 	UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
 		samplingInterval, mon->samplingInterval);
-	/* Test for nan */
+	/* Check for nan */
 	if(samplingInterval != samplingInterval)
 		mon->samplingInterval = server->config.samplingIntervalLimits.min;
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
@@ -141,19 +142,18 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
         return;
     }
 
+    /* Create the monitoreditem */
     UA_MonitoredItem *newMon = UA_MonitoredItem_new();
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
     UA_StatusCode retval = UA_NodeId_copy(&target->nodeId, &newMon->monitoredNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         MonitoredItem_delete(server, newMon);
         return;
     }
-
     newMon->subscription = sub;
     newMon->attributeID = request->itemToMonitor.attributeId;
     newMon->itemId = UA_Session_getUniqueSubscriptionID(session);
@@ -163,12 +163,13 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
                              request->requestedParameters.samplingInterval,
                              request->requestedParameters.queueSize,
                              request->requestedParameters.discardOldest);
+    LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
 
+    /* Prepare the response */
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     result->revisedSamplingInterval = newMon->samplingInterval;
     result->revisedQueueSize = newMon->maxQueueSize;
     result->monitoredItemId = newMon->itemId;
-    LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
 }
 
 void
@@ -180,7 +181,9 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    sub->currentLifetimeCount = 0; /* Reset lifetime */
+
+    /* Reset the subscription lifetime */
+    sub->currentLifetimeCount = 0;
     
     if(request->itemsToCreateSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -196,10 +199,8 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToCreateSize;
 
     for(size_t i = 0; i < request->itemsToCreateSize; i++)
-        Service_CreateMonitoredItems_single(server, session, sub,
-                                            request->timestampsToReturn,
-                                            &request->itemsToCreate[i],
-                                            &response->results[i]);
+        Service_CreateMonitoredItems_single(server, session, sub, request->timestampsToReturn,
+                                            &request->itemsToCreate[i], &response->results[i]);
 }
 
 static void
@@ -229,7 +230,9 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    sub->currentLifetimeCount = 0; /* Reset lifetime */
+
+    /* Reset the subscription lifetime */
+    sub->currentLifetimeCount = 0;
     
     if(request->itemsToModifySize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -245,8 +248,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToModifySize;
 
     for(size_t i = 0; i < request->itemsToModifySize; i++)
-        Service_ModifyMonitoredItems_single(server, session, sub,
-                                            &request->itemsToModify[i],
+        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
                                             &response->results[i]);
 
 }
@@ -305,14 +307,16 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Queue the publish response */
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-        "Queued a publication message on session %u", session->authenticationToken.identifier.numeric);
+                 "Queued a publication message on session %u",
+                 session->authenticationToken.identifier.numeric);
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
     LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
         if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Response on a late subscription on session %u", session->authenticationToken.identifier.numeric);
+                         "Response on a late subscription on session %u",
+                         session->authenticationToken.identifier.numeric);
             UA_Subscription_publishCallback(server, immediate);
             return;
         }
@@ -341,7 +345,9 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    sub->currentLifetimeCount = 0; /* Reset lifetime */
+
+    /* Reset the subscription lifetime */
+    sub->currentLifetimeCount = 0;
     
     response->results = UA_malloc(sizeof(UA_StatusCode) * request->monitoredItemIdsSize);
     if(!response->results) {
@@ -362,7 +368,9 @@ void Service_Republish(UA_Server *server, UA_Session *session, const UA_Republis
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    sub->currentLifetimeCount = 0; /* Reset lifetime */
+
+    /* Reset the subscription lifetime */
+    sub->currentLifetimeCount = 0;
     
     /* Find the notification in the retransmission queue  */
     UA_NotificationMessageEntry *entry;

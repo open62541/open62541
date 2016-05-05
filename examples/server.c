@@ -427,7 +427,7 @@ int main(int argc, char** argv) {
     UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
   
     // Some easy localization
-    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
+    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en_US", "Objects");
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
     //start server
