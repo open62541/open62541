@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+ * Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the GNU Lesser General
@@ -23,11 +23,11 @@ extern "C" {
 #include "ua_config.h"
 
 /**
- * @defgroup logging Logging
- *
- * @brief Custom logging solutions can be "plugged in" with this interface
- *
- * @{
+ * Logging
+ * -------
+ * Servers and clients may contain a logger. Every logger needs to implement the
+ * `UA_Logger` signature. An example logger that writes to stdout is provided in
+ * the plugins folder.
  */
 
 typedef enum {
@@ -48,6 +48,10 @@ typedef enum {
     UA_LOGCATEGORY_USERLAND
 } UA_LogCategory;
     
+/* The signature of the logger. The msg string and following varargs are used to
+   include variable data similar to printf. Do not use the logger directly but
+   make use of the following macros that take the minimum log-level defined in
+   ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
 
 #if UA_LOGLEVEL <= 100
@@ -91,8 +95,6 @@ typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char
 #else
 #define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do {} while(0)
 #endif
-
-/** @} */
 
 #ifdef __cplusplus
 } // extern "C"
