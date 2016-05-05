@@ -17,6 +17,7 @@ generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${PROJECT_
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${PROJECT_BINARY_DIR}/doc_src/server.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${PROJECT_BINARY_DIR}/doc_src/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${PROJECT_BINARY_DIR}/doc_src/log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${PROJECT_BINARY_DIR}/doc_src/connection.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${PROJECT_BINARY_DIR}/doc_src/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst)
 
@@ -28,6 +29,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/log.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/connection.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
@@ -42,6 +44,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/log.rst
+  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/connection.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
   COMMENT "Building HTML documentation with Sphinx")

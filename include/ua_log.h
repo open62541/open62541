@@ -28,6 +28,10 @@ extern "C" {
  * Servers and clients may contain a logger. Every logger needs to implement the
  * `UA_Logger` signature. An example logger that writes to stdout is provided in
  * the plugins folder.
+ *
+ * Every log-message consists of a log-level, a log-category and a string
+ * message content. The timestamp of the log-message is created within the
+ * logger.
  */
 
 typedef enum {
@@ -48,10 +52,12 @@ typedef enum {
     UA_LOGCATEGORY_USERLAND
 } UA_LogCategory;
     
-/* The signature of the logger. The msg string and following varargs are used to
-   include variable data similar to printf. Do not use the logger directly but
-   make use of the following macros that take the minimum log-level defined in
-   ua_config.h into account. */
+/**
+ * The signature of the logger. The msg string and following varargs are
+ * formatted according to the rules of the printf command.
+ *
+ * Do not use the logger directly but make use of the following macros that take
+ * the minimum log-level defined in ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
 
 #if UA_LOGLEVEL <= 100

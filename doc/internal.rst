@@ -5,4 +5,5 @@ Internals
    services
    nodestore
    types_generated
+   connection
    log
