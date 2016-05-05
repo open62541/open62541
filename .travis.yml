@@ -50,7 +50,6 @@ addons:
       - libsubunit-dev
       - libx11-dev
       - mingw-w64
-      - python-lxml
       - wget
       - xutils-dev
       - zip
