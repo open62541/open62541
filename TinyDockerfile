@@ -1,11 +1,11 @@
 FROM alpine:3.3
 ADD . /tmp/open62541
 WORKDIR /tmp/open62541/build
-RUN apk add --no-cache cmake gcc musl-dev python py-lxml make && rm -rf /var/cache/apk/* && \
+RUN apk add --no-cache cmake gcc musl-dev python make && rm -rf /var/cache/apk/* && \
     cmake -D UA_ENABLE_AMALGAMATION=true /tmp/open62541 && \
     make && \
     cp *.h /usr/include/ && \
     cp *.so /usr/lib && \
     cp *.a /usr/lib && \
     make clean && \
-    apk del cmake gcc musl-dev python py-lxml make
+    apk del cmake gcc musl-dev python make

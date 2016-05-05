@@ -6,13 +6,8 @@ project(open62541 C)
 # Check Dependencies #
 ######################
 
-# Find Python and Python-lxml
+# Find Python
 find_package(PythonInterp REQUIRED)
-execute_process(COMMAND ${PYTHON_EXECUTABLE} -c "import lxml"
-                RESULT_VARIABLE IMPORT_LXML_RESULT)
-if(NOT "${IMPORT_LXML_RESULT}" STREQUAL "0")
-    message(FATAL_ERROR "Python-lxml is not installed.")
-endif()
 
 # Check for git
 find_package(Git)

@@ -17,7 +17,7 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
    
-   sudo apt-get install git build-essential gcc pkg-config cmake python python-lxml
+   sudo apt-get install git build-essential gcc pkg-config cmake python
 
    # enable additional features
    sudo apt-get install libexpat1-dev # for XML-encodingi
@@ -44,7 +44,6 @@ replace the compiler selection in the call to CMake.
 - Download and install
 
   - Python 2.7.x (Python 3.x should work, too): https://python.org/downloads
-  - Python lxml: https://pypi.python.org/pypi/lxml
   - CMake: http://www.cmake.org/cmake/resources/software.html
   - Microsoft Visual Studio 2015 Community Edition: https://www.visualstudio.com/products/visual-studio-community-vs
     
@@ -76,7 +75,6 @@ Building on OS X
 
    brew install cmake
    brew install libxml2
-   pip install lxml
    brew install check # for unit tests
    brew install userspace-rcu # for multi-threading support
    brew install graphviz doxygen # for documentation generation
