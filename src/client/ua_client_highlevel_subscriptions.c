@@ -91,9 +91,8 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         void (*handlingFunction)(UA_UInt32 handle, UA_DataValue *value, void *context),
-                                         void *handlingContext,
-                                         UA_UInt32 *newMonitoredItemId) {
+                                         UA_MonitoredItemHandlingFunction handlingFunction,
+                                         void *handlingContext, UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->SubscriptionID == subscriptionId)
