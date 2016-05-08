@@ -252,19 +252,19 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
 /********************/
 
 UA_StatusCode 
-__UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
+__UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_AttributeId attributeId,
                            const void *in, const UA_DataType *inDataType) {
     if(!in)
       return UA_STATUSCODE_BADTYPEMISMATCH;
     
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_NodeId_copy(&nodeId, &wValue.nodeId);
+    wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
     if(attributeId == UA_ATTRIBUTEID_VALUE)
-      UA_Variant_copy((const UA_Variant*)in, &wValue.value.value);
+        wValue.value.value = *(const UA_Variant*)in;
     else
-        UA_Variant_setScalarCopy(&wValue.value.value, in, inDataType);
+        UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType); /* hack. is never written into. */
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
@@ -273,23 +273,22 @@ __UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId a
     
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     UA_StatusCode retval = wResp.responseHeader.serviceResult;
-    UA_WriteValue_deleteMembers(&wValue);
     UA_WriteResponse_deleteMembers(&wResp);
     return retval;
 }
 
 UA_StatusCode
-UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Int32 *newArrayDimensions, size_t newArrayDimensionsSize) {
     if(!newArrayDimensions)
       return UA_STATUSCODE_BADTYPEMISMATCH;
     
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_NodeId_copy(&nodeId, &wValue.nodeId);
+    wValue.nodeId = nodeId;
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
-    UA_Variant_setArrayCopy(&wValue.value.value, newArrayDimensions,
-                            newArrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)newArrayDimensions,
+                        newArrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
@@ -298,7 +297,6 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
     
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     UA_StatusCode retval = wResp.responseHeader.serviceResult;
-    UA_WriteValue_deleteMembers(&wValue);
     UA_WriteResponse_deleteMembers(&wResp);
     return retval;
 }
@@ -308,11 +306,11 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
 /*******************/
 
 UA_StatusCode 
-__UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
+__UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_AttributeId attributeId,
                           void *out, const UA_DataType *outDataType) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
-    item.nodeId = nodeId;
+    item.nodeId = *nodeId;
     item.attributeId = attributeId;
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -354,7 +352,7 @@ __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId at
 }
 
 UA_StatusCode
-UA_Client_readArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        UA_Int32 **outArrayDimensions, size_t *outArrayDimensionsSize) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
