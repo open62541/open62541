@@ -97,10 +97,9 @@ static UA_INLINE UA_StatusCode
 UA_Client_readValueRankAttribute(UA_Client *client, UA_NodeId nodeId, UA_Int32 *outValueRank) {
     return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_VALUERANK, outValueRank, &UA_TYPES[UA_TYPES_INT32]); }
 
-// todo: fetch an array
-static UA_INLINE UA_StatusCode
-UA_Client_readArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId, UA_Int32 *outArrayDimensions) {
-    return __UA_Client_readAttribute(client, nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS, outArrayDimensions, &UA_TYPES[UA_TYPES_INT32]); }
+UA_StatusCode UA_EXPORT
+UA_Client_readArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+                                       UA_Int32 **outArrayDimensions, size_t *outArrayDimensionsSize);
 
 static UA_INLINE UA_StatusCode
 UA_Client_readAccessLevelAttribute(UA_Client *client, UA_NodeId nodeId, UA_UInt32 *outAccessLevel) {
@@ -197,10 +196,9 @@ static UA_INLINE UA_StatusCode
 UA_Client_writeValueRankAttribute(UA_Client *client, UA_NodeId nodeId, const UA_Int32 *newValueRank) {
     return __UA_Client_writeAttribute(client, nodeId, UA_ATTRIBUTEID_VALUERANK, newValueRank, &UA_TYPES[UA_TYPES_INT32]); }
 
-// todo: write an array
-static UA_INLINE UA_StatusCode
-UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId, const UA_Int32 *newArrayDimensions) {
-    return __UA_Client_writeAttribute(client, nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS, newArrayDimensions, &UA_TYPES[UA_TYPES_INT32]); }
+UA_StatusCode UA_EXPORT
+UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+                                        const UA_Int32 *newArrayDimensions, size_t newArrayDimensionsSize);
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeAccessLevelAttribute(UA_Client *client, UA_NodeId nodeId, const UA_UInt32 *newAccessLevel) {

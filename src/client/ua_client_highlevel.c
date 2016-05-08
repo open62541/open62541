@@ -247,9 +247,9 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
     return retval;
 }
 
-/**************/
-/* Attributes */
-/**************/
+/********************/
+/* Write Attributes */
+/********************/
 
 UA_StatusCode 
 __UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
@@ -257,26 +257,55 @@ __UA_Client_writeAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId a
     if(!in)
       return UA_STATUSCODE_BADTYPEMISMATCH;
     
-    UA_WriteRequest *wReq = UA_WriteRequest_new();
-    wReq->nodesToWrite = UA_WriteValue_new();
-    wReq->nodesToWriteSize = 1;
-    UA_NodeId_copy(&nodeId, &wReq->nodesToWrite[0].nodeId);
-    wReq->nodesToWrite[0].attributeId = attributeId;
-    if(attributeId == UA_ATTRIBUTEID_VALUE) {
-      UA_Variant_copy((const UA_Variant*)in, &wReq->nodesToWrite[0].value.value);
-      wReq->nodesToWrite[0].value.hasValue = true;
-    } else {
-        UA_Variant_setScalarCopy(&wReq->nodesToWrite[0].value.value, in, inDataType);
-        wReq->nodesToWrite[0].value.hasValue = true;
-    }
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_NodeId_copy(&nodeId, &wValue.nodeId);
+    wValue.attributeId = attributeId;
+    if(attributeId == UA_ATTRIBUTEID_VALUE)
+      UA_Variant_copy((const UA_Variant*)in, &wValue.value.value);
+    else
+        UA_Variant_setScalarCopy(&wValue.value.value, in, inDataType);
+    wValue.value.hasValue = true;
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = &wValue;
+    wReq.nodesToWriteSize = 1;
     
-    UA_WriteResponse wResp = UA_Client_Service_write(client, *wReq);
+    UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     UA_StatusCode retval = wResp.responseHeader.serviceResult;
-    
-    UA_WriteRequest_delete(wReq);
+    UA_WriteValue_deleteMembers(&wValue);
     UA_WriteResponse_deleteMembers(&wResp);
     return retval;
 }
+
+UA_StatusCode
+UA_Client_writeArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+                                        const UA_Int32 *newArrayDimensions, size_t newArrayDimensionsSize) {
+    if(!newArrayDimensions)
+      return UA_STATUSCODE_BADTYPEMISMATCH;
+    
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_NodeId_copy(&nodeId, &wValue.nodeId);
+    wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
+    UA_Variant_setArrayCopy(&wValue.value.value, newArrayDimensions,
+                            newArrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    wReq.nodesToWrite = &wValue;
+    wReq.nodesToWriteSize = 1;
+    
+    UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+    UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    UA_WriteValue_deleteMembers(&wValue);
+    UA_WriteResponse_deleteMembers(&wResp);
+    return retval;
+}
+
+/*******************/
+/* Read Attributes */
+/*******************/
 
 UA_StatusCode 
 __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId attributeId,
@@ -311,14 +340,59 @@ __UA_Client_readAttribute(UA_Client *client, UA_NodeId nodeId, UA_AttributeId at
     if(attributeId == UA_ATTRIBUTEID_VALUE) {
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
-    } else if(res->value.type != outDataType) {
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    } else {
+    } else if(UA_Variant_isScalar(&res->value) &&
+              res->value.type == outDataType) {
         memcpy(out, res->value.data, res->value.type->memSize);
         UA_free(res->value.data);
         res->value.data = NULL;
+    } else {
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
     UA_ReadResponse_deleteMembers(&response);
     return retval;
+}
+
+UA_StatusCode
+UA_Client_readArrayDimensionsAttribute(UA_Client *client, UA_NodeId nodeId,
+                                       UA_Int32 **outArrayDimensions, size_t *outArrayDimensionsSize) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = nodeId;
+    item.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &item;
+    request.nodesToReadSize = 1;
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    UA_DataValue *res = response.results;
+    if(res->hasStatus != UA_STATUSCODE_GOOD)
+        retval = res->hasStatus;
+    else if(!res->hasValue || UA_Variant_isScalar(&res->value))
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    if(UA_Variant_isScalar(&res->value) ||
+       res->value.type != &UA_TYPES[UA_TYPES_INT32]) {
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        goto cleanup;
+    }
+
+    *outArrayDimensions = res->value.data;
+    *outArrayDimensionsSize = res->value.arrayLength;
+    UA_free(res->value.data);
+    res->value.data = NULL;
+    res->value.arrayLength = 0;
+
+ cleanup:
+    UA_ReadResponse_deleteMembers(&response);
+    return retval;
+
 }
