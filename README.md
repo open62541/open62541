@@ -1,9 +1,9 @@
 open62541
 =========
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library that contains all the necessary tools to set up a dedicated OPC UA server, to integrate OPC UA-based communication into existing applications (linking with C++ projects [is possible](examples/server.cpp)), or to create an OPC UA client. The library is distributed as a single pair of [header](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.h) and [source](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
+open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. The library is distributed as a single pair of [header](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.h) and [source](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
 
-open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client implementations in the [/examples](examples/) directory are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
+open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client [examples](examples/) as well as popular [plugins](plugins/) are in the public domain (CC0 license). They can be used under any license and changes do not have to be published.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/open62541/open62541.png?branch=master)](https://travis-ci.org/open62541/open62541)
@@ -11,26 +11,26 @@ open62541 is licensed under the LGPL + static linking exception. That means **op
 [![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=master)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
-### Documentation
+### Using open62541
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
-Build instruction are here: https://github.com/open62541/open62541/wiki/Building-open62541.
+Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
+To use the latest improvements, download a recent build of the *single-file distributions* (the entire library merged into a single source and header file) from http://open62541.org/releases.
+Recent MSVC binaries of the library are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
+
 
 For discussion and help, you can use
 - the [mailing list](https://groups.google.com/d/forum/open62541)
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/open62541/open62541/issues)
 
-Automated builds of 50 last single-file distributions are available [here](http://open62541.org/releases).
-Automatically compiled MSVC binaries are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
-
 ### Contribute to open62541
-As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to contribute even without deep knowledge of the project or the UA standard:
+As an open source project, we invite new contributors to help improving open62541. If you are a developer, your bugfixes and new features are very welcome. Note that there are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
-- Improve the [documentation for 0.1](http://open62541.org/doc/0.1) and [documentation for 0.2](http://open62541.org/doc/current)
+- Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
-Compile the examples with the single file distribution `open62541.h` and `open62541.c` from the latest [release](https://github.com/open62541/open62541/releases).
+Compile the examples with the single file distribution `open62541.*` header and source files.
 With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
