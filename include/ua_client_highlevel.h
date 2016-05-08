@@ -26,8 +26,8 @@ extern "C" {
  * Highlevel Client Functionality
  * ------------------------------
  * The following definitions are convenience functions making use of the
- * standard OPC UA services in the background. */
-/**
+ * standard OPC UA services in the background.
+ *
  * Read Attributes
  * ===============
  * The following functions can be used to retrieve a single node attribute. Use
