@@ -123,6 +123,22 @@ outargMethod(UA_Server *server,
 
 #endif
 
+static UA_StatusCode
+monitoredHandler(UA_Server *server,
+                 const UA_NodeId *sessionId, void *sessionContext,
+                 const UA_NodeId *nodeId, void *nodeContext,
+                 const UA_Boolean removed)
+{
+    // This handler can help managing the DataSources, e.g. activating them, etc..
+
+    if (removed)
+        printf("Stop monitoring Node ns=%d; id=%d\n", nodeId->namespaceIndex, nodeId->identifier.numeric);
+    else
+        printf("Start monitoring Node ns=%d; id=%d\n", nodeId->namespaceIndex, nodeId->identifier.numeric);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 int
 main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
@@ -209,6 +225,7 @@ main(int argc, char **argv) {
     UA_DataSource dateDataSource;
     dateDataSource.read = readTimeData;
     dateDataSource.write = NULL;
+    dateDataSource.monitored = monitoredHandler;
     UA_VariableAttributes v_attr = UA_VariableAttributes_default;
     v_attr.description = UA_LOCALIZEDTEXT("en-US", "current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US", "current time");

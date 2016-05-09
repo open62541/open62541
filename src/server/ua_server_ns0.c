@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -552,7 +552,7 @@ UA_Server_initNS0(UA_Server *server) {
         return retVal;
 
     /* NamespaceArray */
-    UA_DataSource namespaceDataSource = {readNamespaces, NULL};
+    UA_DataSource namespaceDataSource = {readNamespaces, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                                    namespaceDataSource);
@@ -620,14 +620,14 @@ UA_Server_initNS0(UA_Server *server) {
                                &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL};
+    UA_DataSource serverStatus = {readStatus, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
     /* StartTime will be sampled in UA_Server_run_startup()*/
 
     /* CurrentTime */
-    UA_DataSource currentTime = {readCurrentTime, NULL};
+    UA_DataSource currentTime = {readCurrentTime, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
 
@@ -676,17 +676,17 @@ UA_Server_initNS0(UA_Server *server) {
                                &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
-    UA_DataSource serviceLevel = {readServiceLevel, NULL};
+    UA_DataSource serviceLevel = {readServiceLevel, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
     /* Auditing */
-    UA_DataSource auditing = {readAuditing, NULL};
+    UA_DataSource auditing = {readAuditing, NULL, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
 
     /* NamespaceArray */
-    UA_DataSource nsarray_datasource =  {readNamespaces, writeNamespaces};
+    UA_DataSource nsarray_datasource =  {readNamespaces, writeNamespaces, NULL};
     retVal |= UA_Server_setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), nsarray_datasource);
 

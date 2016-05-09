@@ -130,6 +130,27 @@ writeCurrentTime(UA_Server *server,
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
+
+static UA_StatusCode
+monitoredHandler(UA_Server *server,
+                 const UA_NodeId *sessionId, void *sessionContext,
+                 const UA_NodeId *nodeId, void *nodeContext,
+                 const UA_Boolean removed)
+{
+    // This handler can help managing the DataSources, e.g. activating them, etc..
+
+    if (removed)
+        // we know the nodeid is a string
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Stopped monitoring on Node %.*s",
+                    (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
+    else
+        // we know the nodeid is a string
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Started monitoring on Node %.*s",
+                    (int)nodeId->identifier.string.length, nodeId->identifier.string.data);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static void
 addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -145,6 +166,7 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_DataSource timeDataSource;
     timeDataSource.read = readCurrentTime;
     timeDataSource.write = writeCurrentTime;
+    timeDataSource.monitored = monitoredHandler;
     UA_Server_addDataSourceVariableNode(server, currentNodeId, parentNodeId,
                                         parentReferenceNodeId, currentName,
                                         variableTypeNodeId, attr,
