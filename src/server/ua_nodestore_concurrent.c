@@ -1,7 +1,7 @@
-#ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
-
 #include "ua_util.h"
 #include "ua_nodestore.h"
+
+#ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
 
 struct nodeEntry {
     struct cds_lfht_node htn; ///< Contains the next-ptr for urcu-hashmap

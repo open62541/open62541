@@ -1,9 +1,7 @@
-#ifndef UA_ENABLE_MULTITHREADING /* conditional compilation */
-
-#include <stdio.h>
-
 #include "ua_nodestore.h"
 #include "ua_util.h"
+
+#ifndef UA_ENABLE_MULTITHREADING /* conditional compilation */
 
 #define UA_NODESTORE_MINSIZE 64
 
