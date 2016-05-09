@@ -44,12 +44,12 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2,
     
-    .publishingIntervalLimits = { .max = 10000, .min = 0, .current = 0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 0, .current = 0 },
-    .keepAliveCountLimits = { .max = 100, .min = 0, .current = 0 },
-    .notificationsPerPublishLimits = { .max = 1000, .min = 1, .current = 0 },
-    .samplingIntervalLimits = { .max = 1000, .min = 5, .current = 0 },
-    .queueSizeLimits = { .max = 100, .min = 0, .current = 0 }
+	.publishingIntervalLimits = { .min = 100.0, .max = 3600.0 * 1000.0 },
+    .lifeTimeCountLimits = { .max = 15000, .min = 3 },
+    .keepAliveCountLimits = { .max = 100, .min = 1 },
+    .maxNotificationsPerPublish = 1000,
+	.samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
+    .queueSizeLimits = { .max = 100, .min = 1 }
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
@@ -62,4 +62,5 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
         .recvBufferSize  = 65536,
         .maxMessageSize = 65536,
         .maxChunkCount = 1 },
-    .connectionFunc = UA_ClientConnectionTCP };
+    .connectionFunc = UA_ClientConnectionTCP
+};

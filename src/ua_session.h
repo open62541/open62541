@@ -19,6 +19,12 @@ struct ContinuationPointEntry {
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
 
+typedef struct UA_PublishResponseEntry {
+    SIMPLEQ_ENTRY(UA_PublishResponseEntry) listEntry;
+    UA_UInt32 requestId;
+    UA_PublishResponse response;
+} UA_PublishResponseEntry;
+
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
     UA_Boolean        activated;
@@ -35,6 +41,7 @@ struct UA_Session {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 lastSubscriptionID;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
+    SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
 #endif
 };
 
@@ -53,10 +60,6 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
 
 UA_Subscription *
 UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID);
-
-UA_StatusCode
-UA_Session_deleteMonitoredItem(UA_Session *session, UA_UInt32 subscriptionID,
-                               UA_UInt32 monitoredItemID);
 
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,

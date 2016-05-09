@@ -63,11 +63,11 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 
   # Debug
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-	#add_definitions(-fsanitize=address)
-    #list(APPEND open62541_LIBRARIES asan)
+	# add_definitions(-fsanitize=address)
+    # list(APPEND open62541_LIBRARIES asan)
 
-	#add_definitions(-fsanitize=undefined)
-    #list(APPEND open62541_LIBRARIES ubsan)
+	# add_definitions(-fsanitize=undefined)
+    # list(APPEND open62541_LIBRARIES ubsan)
 
   elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR
          CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -265,6 +265,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
@@ -280,6 +281,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                                                 ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
 # nodeids

@@ -274,7 +274,9 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response);
 
-/* Not Implemented: Service_ModifyMonitoredItems */
+void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_ModifyMonitoredItemsRequest *request,
+                                  UA_ModifyMonitoredItemsResponse *response);
 /* Not Implemented: Service_SetMonitoringMode */
 /* Not Implemented: Service_SetTriggering */
 
@@ -297,6 +299,11 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
 void Service_ModifySubscription(UA_Server *server, UA_Session *session,
                                 const UA_ModifySubscriptionRequest *request,
                                 UA_ModifySubscriptionResponse *response);
+
+/* Used to enable sending of Notifications on one or more Subscriptions. */
+void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+	                           const UA_SetPublishingModeRequest *request,
+	                           UA_SetPublishingModeResponse *response);
 
 /* Used for two purposes. First, it is used to acknowledge the receipt of
  * NotificationMessages for one or more Subscriptions. Second, it is used to
@@ -321,7 +328,6 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  const UA_DeleteSubscriptionsRequest *request,
                                  UA_DeleteSubscriptionsResponse *response);
 
-/* Not Implemented: Service_SetPublishingMode */
 /* Not Implemented: Service_TransferSubscription */
 
 #endif

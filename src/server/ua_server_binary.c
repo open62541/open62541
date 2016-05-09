@@ -241,6 +241,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE];
         break;
+	case UA_NS0ID_SETPUBLISHINGMODEREQUEST:
+		*service = (UA_Service)Service_SetPublishingMode;
+		*requestType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST];
+		*responseType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE];
+		break;
     case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
         *service = (UA_Service)Service_DeleteSubscriptions;
         *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST];
@@ -255,6 +260,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_DeleteMonitoredItems;
         *requestType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE];
+        break;
+    case UA_NS0ID_MODIFYMONITOREDITEMSREQUEST:
+        *service = (UA_Service)Service_ModifyMonitoredItems;
+        *requestType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE];
         break;
 #endif
 
@@ -348,7 +358,6 @@ chunkEntryFromRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
             return ch;
         }
     }
-
     return NULL;
 }
 
@@ -543,7 +552,7 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     UA_Session_updateLifetime(session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The publish request is answered with a delay */
+    /* The publish request is answered asynchronously */
     if(requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY == UA_NS0ID_PUBLISHREQUEST) {
         Service_Publish(server, session, request, sequenceHeader.requestId);
         UA_deleteMembers(request, requestType);
@@ -552,6 +561,12 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 #endif
         
     /* Call the service */
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "Processing a service with type id %u on Session %u",
+                 requestType->typeId.identifier.numeric, session->authenticationToken.identifier.numeric);
+    UA_assert(service);
+    UA_assert(requestType);
+    UA_assert(responseType);
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
     init_response_header(request, response);
