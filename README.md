@@ -72,7 +72,7 @@ int main(int argc, char** argv)
 
     /* 3) add the variable */
     UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
-                              browseName, variableType, attr, NULL);
+                              browseName, variableType, attr, NULL, NULL);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, &running);
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-    	return retval;
+        return retval;
     }
 
     /* create a readrequest with one entry */
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     req.nodesToReadSize = 1;
-    
+
     /* define the node and attribute to be read */
     req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
