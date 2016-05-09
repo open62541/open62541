@@ -15,7 +15,7 @@ if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags
                   RESULT_VARIABLE res_var
                   OUTPUT_VARIABLE GIT_COM_ID
-				  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     if(NOT ${res_var} EQUAL 0)
         set(GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
@@ -55,7 +55,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
   # library linking
   set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
   if(NOT WIN32 AND NOT CYGWIN)
-	add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
+    add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     if(NOT APPLE)
       set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()
@@ -63,10 +63,10 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 
   # Debug
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-	# add_definitions(-fsanitize=address)
+    # add_definitions(-fsanitize=address)
     # list(APPEND open62541_LIBRARIES asan)
 
-	# add_definitions(-fsanitize=undefined)
+    # add_definitions(-fsanitize=undefined)
     # list(APPEND open62541_LIBRARIES ubsan)
 
   elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR
@@ -87,7 +87,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
       endif()
     endif()
   endif()
-  
+
   if(APPLE)
     set(CMAKE_MACOSX_RPATH 1)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
@@ -183,6 +183,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
@@ -210,6 +211,16 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
+                # nodestores
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
+                # method call
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
+                # subscriptions
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
+                # plugins and dependencies
                 ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
@@ -217,30 +228,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
                 ##TODO: make client stuff optional
 
-if(UA_ENABLE_METHODCALLS)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
-endif()
-
 if(UA_ENABLE_EMBEDDED_LIBC)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
-endif()
-
-if(UA_ENABLE_MULTITHREADING)
-  find_package(Threads REQUIRED)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
-else()
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c)
-endif()
-
-set(generate_subscriptiontypes "")
-if(UA_ENABLE_SUBSCRIPTIONS)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                          ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c)
-  #append subscription headers at before ua_session
-  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_nodestore.h" UaSessionPos) # position after session.h
-  list(INSERT internal_headers ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h)
-  set(generate_subscriptiontypes "--enable-subscription-types=1")
 endif()
 
 if(UA_ENABLE_GENERATE_NAMESPACE0)
@@ -380,10 +369,12 @@ if(UA_BUILD_EXAMPLESERVER)
     endif()
 
     if(UA_ENABLE_NONSTANDARD_UDP)
-      add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object> examples/networklayer_udp.c examples/server_udp.c)
+      add_executable(exampleServerUDP $<TARGET_OBJECTS:open62541-object>
+                                      examples/networklayer_udp.c
+                                      examples/server_udp.c)
       target_link_libraries(exampleServerUDP ${open62541_LIBRARIES} open62541)
       if(UA_ENABLE_MULTITHREADING)
-  	    target_link_libraries(exampleServerUDP urcu-cds urcu urcu-common)
+        target_link_libraries(exampleServerUDP urcu-cds urcu urcu-common)
       endif()
       if (NOT APPLE)
         target_link_libraries(exampleServerUDP rt)
@@ -403,12 +394,12 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
 endif()
 
 if(UA_BUILD_EXAMPLECLIENT)
-	add_definitions(-DBENCHMARK)
+    add_definitions(-DBENCHMARK)
     set(client_source $<TARGET_OBJECTS:open62541-object>)
-	add_executable(client_static examples/client.c ${client_source})
+    add_executable(client_static examples/client.c ${client_source})
     add_executable(client examples/client.c)
-	target_link_libraries(client_static ${open62541_LIBRARIES})
-	target_link_libraries(client open62541 ${open62541_LIBRARIES})
+    target_link_libraries(client_static ${open62541_LIBRARIES})
+    target_link_libraries(client open62541 ${open62541_LIBRARIES})
     if(WIN32)
         target_link_libraries(client_static ws2_32)
         target_link_libraries(client ws2_32)
@@ -422,7 +413,7 @@ if(UA_BUILD_EXAMPLECLIENT)
     endif()
     if(UA_ENABLE_NONSTANDARD_STATELESS AND NOT UA_ENABLE_AMALGAMATION)
         add_executable(client_stateless examples/client_stateless.c ${client_source})
-	    target_link_libraries(client_stateless open62541 ${open62541_LIBRARIES})
+        target_link_libraries(client_stateless open62541 ${open62541_LIBRARIES})
         if(UA_ENABLE_MULTITHREADING)
             target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
         endif()
@@ -430,7 +421,7 @@ if(UA_BUILD_EXAMPLECLIENT)
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
-	add_definitions(-DUA_BUILD_UNIT_TESTS)
+  add_definitions(-DUA_BUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
@@ -440,66 +431,66 @@ if(UA_BUILD_EXAMPLES)
     #FIXME: we had problem with static linking for msvs, here a quick and dirty workaround
     #http://stackoverflow.com/questions/3704374/linking-error-lnk2019-in-msvc-unresolved-symbols-with-imp-prefix-but-shoul
     #http://stackoverflow.com/questions/1089828/same-header-file-for-both-dll-and-static-library
-	list(APPEND LIBS ${open62541_LIBRARIES})
+    list(APPEND LIBS ${open62541_LIBRARIES})
     if(NOT WIN32)
-		list(APPEND LIBS pthread)
-		if (NOT APPLE)
-		    list(APPEND LIBS rt)
-		endif()
-	else()
-		list(APPEND LIBS ws2_32)
-	endif()
-	if(UA_ENABLE_MULTITHREADING)
-		list(APPEND LIBS urcu-cds urcu urcu-common)
-	endif(UA_ENABLE_MULTITHREADING)
-	
+      list(APPEND LIBS pthread)
+      if (NOT APPLE)
+        list(APPEND LIBS rt)
+      endif()
+    else()
+      list(APPEND LIBS ws2_32)
+    endif()
+    if(UA_ENABLE_MULTITHREADING)
+      list(APPEND LIBS urcu-cds urcu urcu-common)
+    endif(UA_ENABLE_MULTITHREADING)
+    
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_variable ${LIBS})
+    target_link_libraries(server_variable ${LIBS})
 
     add_executable(server_mainloop ${PROJECT_SOURCE_DIR}/examples/server_mainloop.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_mainloop ${LIBS})
+    target_link_libraries(server_mainloop ${LIBS})
 
-	add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_datasource ${LIBS})
+    add_executable(server_datasource ${PROJECT_SOURCE_DIR}/examples/server_datasource.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(server_datasource ${LIBS})
 
-	# add_executable(server_readspeed ${PROJECT_SOURCE_DIR}/examples/server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
-	# target_link_libraries(server_readspeed ${LIBS})
+    # add_executable(server_readspeed ${PROJECT_SOURCE_DIR}/examples/server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
+    # target_link_libraries(server_readspeed ${LIBS})
 
-	add_executable(server_firstSteps ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_firstSteps ${LIBS})
+    add_executable(server_firstSteps ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(server_firstSteps ${LIBS})
 
-	add_executable(client_firstSteps ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(client_firstSteps ${LIBS})
+    add_executable(client_firstSteps ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(client_firstSteps ${LIBS})
 
-	add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_repeated_job ${LIBS})
+    add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(server_repeated_job ${LIBS})
 
-	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-					   PRE_BUILD
-					   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
+                      PRE_BUILD
+                      COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
                                                     -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                                                     ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
                                                     ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
                                                     ${PROJECT_BINARY_DIR}/src_generated/nodeset
-					   DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-					           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-					           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-					   
-	add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c
+                      DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
+                              ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+
+    add_executable(server_nodeset ${PROJECT_SOURCE_DIR}/examples/server_nodeset.c
                                   ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
                                   $<TARGET_OBJECTS:open62541-object>)
-	target_link_libraries(server_nodeset ${LIBS})
+    target_link_libraries(server_nodeset ${LIBS})
 
-	if(UA_ENABLE_METHODCALLS)
-	  add_executable(server_method ${PROJECT_SOURCE_DIR}/examples/server_method.c $<TARGET_OBJECTS:open62541-object>)
-	  target_link_libraries(server_method ${LIBS})
-	endif()
+    if(UA_ENABLE_METHODCALLS)
+      add_executable(server_method ${PROJECT_SOURCE_DIR}/examples/server_method.c $<TARGET_OBJECTS:open62541-object>)
+      target_link_libraries(server_method ${LIBS})
+    endif()
 endif()
 
 if(UA_BUILD_DOCUMENTATION)

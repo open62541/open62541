@@ -1,3 +1,5 @@
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -57,7 +59,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     newvalue->clientHandle = monitoredItem->clientHandle;
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Sampling the value on monitoreditem %u", monitoredItem->itemId);
-  
+
     /* Read the value */
     UA_ReadValueId rvid;
     UA_ReadValueId_init(&rvid);
@@ -91,7 +93,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
                      "Do not sample since the data value has not changed");
         return;
     }
-  
+
     /* do we have space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
         if(!monitoredItem->discardOldest) {
@@ -107,7 +109,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_free(queueItem);
         monitoredItem->currentQueueSize--;
     }
-  
+
     /* add the sample */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = newValueAsByteString;
@@ -145,12 +147,12 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->subscriptionID = subscriptionID;
     new->sequenceNumber = 0;
     new->maxKeepAliveCount = 0;
-	new->publishingEnabled = false;
+    new->publishingEnabled = false;
     memset(&new->publishJobGuid, 0, sizeof(UA_Guid));
     new->publishJobIsRegistered = false;
-	new->currentKeepAliveCount = 0;
-	new->currentLifetimeCount = 0;
-	new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
+    new->currentKeepAliveCount = 0;
+    new->currentLifetimeCount = 0;
+    new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
     LIST_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->MonitoredItems);
     return new;
@@ -229,44 +231,44 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     if(!channel)
         return;
 
-	/* Dequeue a response */
-	UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
-	if(!pre) {
-		UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-			"Cannot send a publish response on subscription %u " \
-			"since the publish queue is empty on session %u",
-			sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
-		if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
-			sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-		} else {
-			sub->currentLifetimeCount++;
-			if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
-				UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-					"End of lifetime for subscription %u on session %u",
-					sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
-				UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
-			}
-		}
-		return;
-	}
-	SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
+    if(!pre) {
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Cannot send a publish response on subscription %u " \
+            "since the publish queue is empty on session %u",
+            sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+        if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
+            sub->state = UA_SUBSCRIPTIONSTATE_LATE;
+        } else {
+            sub->currentLifetimeCount++;
+            if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
+                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "End of lifetime for subscription %u on session %u",
+                    sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+                UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
+            }
+        }
+        return;
+    }
+    SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
     UA_PublishResponse *response = &pre->response;
     UA_UInt32 requestId = pre->requestId;
 
-	/* We have a request. Reset state to normal. */
-	sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+    /* We have a request. Reset state to normal. */
+    sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
     sub->currentLifetimeCount = 0;
 
-	/* Prepare the response */
+    /* Prepare the response */
     response->responseHeader.timestamp = UA_DateTime_now();
     response->subscriptionId = sub->subscriptionID;
-	response->moreNotifications = moreNotifications;
+    response->moreNotifications = moreNotifications;
     UA_NotificationMessage *message = &response->notificationMessage;
     message->publishTime = response->responseHeader.timestamp;
     if(notifications == 0) {
         /* Send sequence number for the next notification */
-		message->sequenceNumber = sub->sequenceNumber + 1;
+        message->sequenceNumber = sub->sequenceNumber + 1;
     } else {
         /* Increase the sequence number */
         message->sequenceNumber = ++sub->sequenceNumber;
@@ -367,3 +369,5 @@ UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscripti
                      "with status code 0x%08x\n", retval);
     return retval;
 }
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */

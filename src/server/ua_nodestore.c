@@ -1,3 +1,5 @@
+#ifndef UA_ENABLE_MULTITHREADING /* conditional compilation */
+
 #include <stdio.h>
 
 #include "ua_nodestore.h"
@@ -290,3 +292,5 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
             visitor((UA_Node*)&ns->entries[i]->node);
     }
 }
+
+#endif /* UA_ENABLE_MULTITHREADING */

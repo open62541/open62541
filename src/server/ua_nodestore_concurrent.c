@@ -1,3 +1,5 @@
+#ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
+
 #include "ua_util.h"
 #include "ua_nodestore.h"
 
@@ -222,3 +224,5 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
         cds_lfht_next(ht, &iter);
     }
 }
+
+#endif /* UA_ENABLE_MULTITHREADING */

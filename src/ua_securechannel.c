@@ -124,8 +124,7 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel){
 }
 
 UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                                  const void *content,
-                                                  const UA_DataType *contentType) {
+                                                  const void *content, const UA_DataType *contentType) {
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -147,8 +146,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     seqHeader.requestId = requestId;
 
     UA_ByteString message;
-    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize,
-                                                     &message);
+    UA_StatusCode retval = connection->getSendBuffer(connection, connection->remoteConf.recvBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

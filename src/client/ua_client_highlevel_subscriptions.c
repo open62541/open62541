@@ -1,3 +1,5 @@
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
 #include "ua_util.h"
@@ -297,3 +299,5 @@ UA_StatusCode UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *clie
     }
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */

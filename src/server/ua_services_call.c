@@ -1,3 +1,5 @@
+#ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
+
 #include "ua_services.h"
 #include "ua_server_internal.h"
 
@@ -6,13 +8,13 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
     UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     for(size_t i = 0; i < ofMethod->referencesSize; i++) {
-        if(ofMethod->references[i].isInverse == false && 
+        if(ofMethod->references[i].isInverse == false &&
             UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
             const UA_Node *refTarget =
                 UA_NodeStore_get(server->nodestore, &ofMethod->references[i].targetId.nodeId);
             if(!refTarget)
                 continue;
-            if(refTarget->nodeClass == UA_NODECLASS_VARIABLE && 
+            if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
                 refTarget->browseName.namespaceIndex == 0 &&
                 UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
                 return (const UA_VariableNode*) refTarget;
@@ -30,7 +32,7 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     // Note: The namespace compiler will compile nodes with their actual array dimensions
     // Todo: Check if this is standard conform for scalars
     if(arg->arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
-        if(var->arrayDimensionsSize != arg->arrayDimensionsSize) 
+        if(var->arrayDimensionsSize != arg->arrayDimensionsSize)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         
     UA_Int32 *varDims = var->arrayDimensions;
@@ -129,7 +131,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     }
     
     /* Verify method/object relations */
-    // Object must have a hasComponent reference (or any inherited referenceType from sayd reference) 
+    // Object must have a hasComponent reference (or any inherited referenceType from sayd reference)
     // to be valid for a methodCall...
     result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
     for(size_t i = 0; i < withObject->referencesSize; i++) {
@@ -204,3 +206,5 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
     for(size_t i = 0; i < request->methodsToCallSize;i++)
         Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
 }
+
+#endif /* UA_ENABLE_METHODCALLS */
