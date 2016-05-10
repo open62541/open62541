@@ -126,6 +126,23 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
+		
+		/* trying to use callback to auth user */
+		if (server->config.authCallback != NULL)
+		{
+			if (server->config.authCallback(&token->userName, &token->password))
+			{
+				/* success - activate */
+				/* FIXME: This is used 3 times.. we could make it a function */
+				if (foundSession->channel && foundSession->channel != channel)
+					UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+				UA_SecureChannel_attachSession(channel, foundSession);
+				foundSession->activated = true;
+				UA_Session_updateLifetime(foundSession);
+				return;
+			}
+		}
+
         /* ok, trying to match the username */
         for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
             UA_String *user = &server->config.usernamePasswordLogins[i].username;
