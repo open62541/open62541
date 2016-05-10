@@ -32,9 +32,6 @@ target_link_libraries(server_firstSteps ${LIBS})
 add_executable(client_firstSteps client_firstSteps.c)
 target_link_libraries(client_firstSteps ${LIBS})
 
-add_executable(server_chunking server_chunking.c)
-target_link_libraries(server_chunking ${LIBS})
-
 if(NOT UA_ENABLE_AMALGAMATION)
 	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
 		               PRE_BUILD
