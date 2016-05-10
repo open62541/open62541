@@ -101,7 +101,7 @@ UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client) {
 
 static UA_StatusCode HelAckHandshake(UA_Client *client) {
     UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_HELF;
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
 
     UA_TcpHelloMessage hello;
     UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
@@ -184,11 +184,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_SecureConversationMessageHeader messageHeader;
-    messageHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_OPNF;
-    if(renew)
+    messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+    if(renew){
         messageHeader.secureChannelId = client->channel.securityToken.channelId;
-    else
+    }else{
         messageHeader.secureChannelId = 0;
+    }
 
     UA_SequenceHeader seqHeader;
     seqHeader.sequenceNumber = ++client->channel.sequenceNumber;
@@ -488,7 +489,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.authenticationToken = client->authenticationToken;
 
     UA_SecureConversationMessageHeader msgHeader;
-    msgHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_CLOF;
+    msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_CLO + UA_CHUNKTYPE_FINAL;
     msgHeader.secureChannelId = client->channel.securityToken.channelId;
 
     UA_SymmetricAlgorithmSecurityHeader symHeader;
@@ -534,6 +535,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED)
         UA_Client_reset(client);
+
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection = client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl, client->config.logger);

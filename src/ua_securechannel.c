@@ -135,7 +135,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
 
     UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndFinal = UA_MESSAGETYPEANDFINAL_MSGF;
+    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_MSG + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = 0;
     respHeader.secureChannelId = channel->securityToken.channelId;
 
