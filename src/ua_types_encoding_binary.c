@@ -2,12 +2,17 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
 
-/* All de- and encoding functions have the same signature up to the pointer type.
-   So we can use a jump-table to switch into member types. */
-
+/* We give pointers to the current position and the last position in the buffer
+   instead of a string with an offset. */
 typedef UA_Byte * UA_RESTRICT * const bufpos;
 typedef UA_Byte const * bufend;
 
+/* Only structured types need a type-pointer for decoding. We pass the pointer
+   in a thread-local variable to minimize the signature of the de-/encoding
+   methods in the jumptable. */
+UA_THREAD_LOCAL const UA_DataType *pass_type;
+
+/* Jumptables for de-/encoding and computing the buffer length */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, bufpos pos, bufend end);
 static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
@@ -17,9 +22,8 @@ static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
 static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
-/* Data that is passed via thread-local storage to avoid passing it through every method call */
-UA_THREAD_LOCAL const UA_DataType *pass_type; // the datatype for encodeBinary and encodeArray
-UA_THREAD_LOCAL UA_ByteString *encodeBuf; // the original buffer that is exchanged when full
+/* Thread-local buffers used for exchanging the buffer for chunking */
+UA_THREAD_LOCAL UA_ByteString *encodeBuf; /* the original buffer */
 UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
 UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
@@ -46,6 +50,8 @@ static UA_StatusCode exchangeBuffer(bufpos pos, bufend *end) {
 /* Integer Types */
 /*****************/
 
+/* The following en/decoding functions are used only when the architecture isn't
+   little-endian. */
 static void UA_encode16(const UA_UInt16 v, UA_Byte buf[2]) {
     buf[0] = (UA_Byte)v; buf[1] = (UA_Byte)(v >> 8);
 }
@@ -793,16 +799,13 @@ ExtensionObject_decodeBinary(bufpos pos, bufend end, UA_ExtensionObject *dst) {
     } else {
         /* try to decode the content */
         pass_type = NULL;
-        UA_assert(typeId.identifier.byteString.data == NULL); //helping clang analyzer, typeId is numeric
-        UA_assert(typeId.identifier.string.data == NULL); //helping clang analyzer, typeId is numeric
+        /* helping clang analyzer, typeId is numeric */
+        UA_assert(typeId.identifier.byteString.data == NULL);
+        UA_assert(typeId.identifier.string.data == NULL);
         typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
         findDataType(&typeId, &pass_type);
         if(pass_type) {
-            /* UA_Int32 length = 0; */
-            /* retval |= Int32_decodeBinary(pos, end, &length); */
-            /* if(retval != UA_STATUSCODE_GOOD) */
-            /*     return retval; */
-            (*pos) += 4; // jump over the length
+            (*pos) += 4; /* jump over the length (todo: check if length matches) */
             dst->content.decoded.data = UA_new(pass_type);
             size_t decode_index = pass_type->builtin ? pass_type->typeIndex : UA_BUILTIN_TYPES_COUNT;
             if(dst->content.decoded.data) {
