@@ -2,12 +2,13 @@
 #define UA_TYPES_ENCODING_BINARY_H_
 
 #include "ua_types.h"
+#include "ua_securechannel.h"
 
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_ByteString *buf, size_t offset);
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(UA_ChunkInfo *handle, UA_ByteString *buf, size_t offset);
 
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer exchangeBufferCallback, void *exchangeBufferCallbackHandle,
+                UA_exchangeEncodeBuffer exchangeBufferCallback, UA_ChunkInfo *exchangeBufferCallbackHandle,
                 UA_ByteString *dst, size_t *offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_StatusCode

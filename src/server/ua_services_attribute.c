@@ -393,28 +393,31 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 
 #ifdef UA_ENABLE_NONSTANDARD_STATELESS
     /* Add an expiry header for caching */
-    if(session->sessionId.namespaceIndex == 0 && session->sessionId.identifierType == UA_NODEIDTYPE_NUMERIC && session->sessionId.identifier.numeric == 0){
-		UA_ExtensionObject additionalHeader;
-		UA_ExtensionObject_init(&additionalHeader);
-		additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-		additionalHeader.content.encoded.typeId =UA_TYPES[UA_TYPES_VARIANT].typeId;
+    if(session->sessionId.namespaceIndex == 0 &&
+       session->sessionId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       session->sessionId.identifier.numeric == 0){
+        UA_ExtensionObject additionalHeader;
+        UA_ExtensionObject_init(&additionalHeader);
+        additionalHeader.encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+        additionalHeader.content.encoded.typeId =UA_TYPES[UA_TYPES_VARIANT].typeId;
 
-		UA_Variant variant;
-		UA_Variant_init(&variant);
+        UA_Variant variant;
+        UA_Variant_init(&variant);
 
-		UA_DateTime* expireArray = NULL;
-		expireArray = UA_Array_new(request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
-		variant.data = expireArray;
+        UA_DateTime* expireArray = NULL;
+        expireArray = UA_Array_new(request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
+        variant.data = expireArray;
 
-		/*expires in 20 seconds*/
-		for(UA_UInt32 i = 0;i < response->resultsSize;i++) {
-			expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
-		}
-		UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
+        /* expires in 20 seconds */
+        for(UA_UInt32 i = 0;i < response->resultsSize;i++) {
+            expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
+        }
+        UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
 
-		size_t offset = 0;
-		UA_ByteString str;
-        UA_ByteString_allocBuffer(&str, 65536);
+        size_t offset = 0;
+        UA_ByteString str;
+        UA_ByteString_allocBuffer(&str, UA_calcSizeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT]));
+        /* No chunking callback for the encoding */
         UA_StatusCode retval = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL, &str, &offset);
         UA_Array_delete(expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
         if(retval == UA_STATUSCODE_GOOD){

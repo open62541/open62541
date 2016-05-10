@@ -1207,7 +1207,7 @@ static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type, UA_exchangeEncodeBuffer callback,
-                void *handle, UA_ByteString *dst, size_t *offset) {
+                UA_ChunkInfo *handle, UA_ByteString *dst, size_t *offset) {
     UA_Byte *pos = &dst->data[*offset];
     UA_Byte *end = &dst->data[dst->length];
     pass_type = type;
