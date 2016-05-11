@@ -28,6 +28,13 @@ extern "C" {
 #include "ua_job.h"
 #include "ua_connection.h"
 
+
+#ifdef _WIN32
+# include <winsock2.h>
+#else
+# include <netinet/in.h>
+#endif
+
 /**
  * Server
  * ======
@@ -110,7 +117,7 @@ typedef struct {
     UA_Boolean enableUsernamePasswordLogin;
     size_t usernamePasswordLoginsSize;
     UA_UsernamePasswordLogin* usernamePasswordLogins;
-	UA_Boolean (*authCallback)(const UA_String* username, const UA_String* password, const struct sockaddr_in* endpoint);
+	UA_Boolean (*authCallback)(const UA_String* username, const UA_String* password, struct sockaddr_in* endpoint);
 
     /* Limits for subscription settings */
 	UA_DoubleRange publishingIntervalLimits;
