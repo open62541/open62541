@@ -4,8 +4,8 @@
 #include "ua_types_generated_encoding_binary.h"
 
 #ifdef _WIN32
-# undef SLIST_ENTRY // fixes amalgation
 # include <ws2tcpip.h>
+# undef SLIST_ENTRY // fixes amalgation
 #else
 # include <netinet/in.h>
 # include <sys/socket.h>
