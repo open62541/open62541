@@ -110,7 +110,7 @@ typedef struct {
     UA_Boolean enableUsernamePasswordLogin;
     size_t usernamePasswordLoginsSize;
     UA_UsernamePasswordLogin* usernamePasswordLogins;
-	UA_Boolean (*authCallback)(const UA_String* username, const UA_String* password);
+	UA_Boolean (*authCallback)(const UA_String* username, const UA_String* password, const struct sockaddr_in* endpoint);
 
     /* Limits for subscription settings */
 	UA_DoubleRange publishingIntervalLimits;

@@ -130,7 +130,11 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
 		/* trying to use callback to auth user */
 		if (server->config.authCallback != NULL)
 		{
-			if (server->config.authCallback(&token->userName, &token->password))
+			struct sockaddr_in addr;
+			int addrlen = sizeof(struct sockaddr_in);
+			getpeername(channel->connection->sockfd, &addr, &addrlen);
+
+			if (server->config.authCallback(&token->userName, &token->password, &addr))
 			{
 				/* success - activate */
 				/* FIXME: This is used 3 times.. we could make it a function */
