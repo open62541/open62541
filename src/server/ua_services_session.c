@@ -8,6 +8,9 @@
 # include <ws2tcpip.h>
 #else
 # include <netinet/in.h>
+# ifndef __CYGWIN__
+#  include <netinet/tcp.h>
+# endif
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
