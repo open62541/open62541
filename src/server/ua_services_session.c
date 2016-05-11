@@ -5,7 +5,6 @@
 
 #ifdef _WIN32
 # undef SLIST_ENTRY // fixes amalgation
-# include <winsock2.h>
 # include <ws2tcpip.h>
 #else
 # include <netinet/in.h>
