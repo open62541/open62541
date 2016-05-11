@@ -8,6 +8,9 @@
 # include <ws2tcpip.h>
 #else
 # include <netinet/in.h>
+# ifdef __QNX__
+#  include <sys/socket.h>
+# endif
 #endif
 
 void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_CreateSessionRequest *request,
