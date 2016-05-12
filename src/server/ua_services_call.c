@@ -1,7 +1,7 @@
-#ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
-
 #include "ua_services.h"
 #include "ua_server_internal.h"
+
+#ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
 static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,

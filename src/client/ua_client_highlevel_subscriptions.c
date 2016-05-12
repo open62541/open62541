@@ -1,9 +1,9 @@
-#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
-
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
 #include "ua_util.h"
 #include "ua_types_generated_encoding_binary.h"
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
     .requestedPublishingInterval = 500.0,

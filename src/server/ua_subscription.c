@@ -1,9 +1,9 @@
-#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
-
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_nodestore.h"
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 /*****************/
 /* MonitoredItem */

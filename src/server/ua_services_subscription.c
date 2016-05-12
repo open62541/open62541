@@ -1,8 +1,8 @@
-#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
-
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_subscription.h"
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
