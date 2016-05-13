@@ -38,6 +38,7 @@ int main(int argc, char *argv[]) {
     //listing endpoints
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
+
     UA_StatusCode retval =
         UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
                                &endpointArraySize, &endpointArray);
