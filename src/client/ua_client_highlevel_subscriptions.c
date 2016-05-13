@@ -71,7 +71,7 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
                                                               mon->MonitoredItemId);
     }
     if(retval != UA_STATUSCODE_GOOD) {
-	    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
+        UA_DeleteSubscriptionsRequest_deleteMembers(&request);
         return retval;
     }
     
@@ -222,7 +222,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishResponse *response
     size_t i = 0;
     LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, tmpAck) {
         if(response->results[i] == UA_STATUSCODE_GOOD ||
-           response->results[i] == UA_STATUSCODE_BADSEQUENCENUMBERINVALID) {
+           response->results[i] == UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN) {
             LIST_REMOVE(ack, listEntry);
             UA_free(ack);
         }
