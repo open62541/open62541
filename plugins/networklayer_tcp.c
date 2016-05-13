@@ -427,8 +427,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
     for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
-        if(UA_fd_isset(layer->mappings[i].sockfd, &errset)) {}
-        else if(!UA_fd_isset(layer->mappings[i].sockfd, &fdset)) {
+        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) && !UA_fd_isset(layer->mappings[i].sockfd, &fdset)) {
           continue;
         }
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
