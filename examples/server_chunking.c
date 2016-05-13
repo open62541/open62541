@@ -92,7 +92,14 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    UA_ConnectionConfig UA_ConnectionConfig_chunking;
+
+    UA_ConnectionConfig_chunking.maxChunkCount = 10;
+    UA_ConnectionConfig_chunking.maxMessageSize = 65635;
+    UA_ConnectionConfig_chunking.recvBufferSize = 8192;
+    UA_ConnectionConfig_chunking.sendBufferSize = 8192;
+    UA_ConnectionConfig_chunking.protocolVersion = 1;
+        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_chunking, 16664);
         config.serverCertificate = loadCertificate();
         config.logger = Logger_Stdout;
         config.networkLayers = &nl;
