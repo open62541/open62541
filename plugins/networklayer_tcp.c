@@ -154,6 +154,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 #else
     ssize_t ret = recv(connection->sockfd, (char*)response->data, connection->localConf.recvBufferSize, 0);
 #endif
+
     if(ret == 0) {
         /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
@@ -306,7 +307,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
-    getsockname(newsockfd, (struct sockaddr*)&addr, &addrlen);
+    getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "New Connection %i over TCP from %s:%d",
                 newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     UA_Connection_init(c);
@@ -391,11 +392,12 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
 static size_t
 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout) {
     ServerNetworkLayerTCP *layer = nl->handle;
-    fd_set fdset;
+    fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
-    struct timeval tmptv = {0, timeout};
+    setFDSet(layer, &errset);
+    struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize;
-    resultsize = select(highestfd+1, &fdset, NULL, NULL, &tmptv);
+    resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
     if(resultsize < 0) {
         *jobs = NULL;
         return 0;
@@ -426,8 +428,9 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
     for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
-        if(!UA_fd_isset(layer->mappings[i].sockfd, &fdset))
-            continue;
+        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) && !UA_fd_isset(layer->mappings[i].sockfd, &fdset)) {
+          continue;
+        }
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
             js[j].job.binaryMessage.connection = layer->mappings[i].connection;

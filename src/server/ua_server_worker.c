@@ -34,7 +34,7 @@
  * 
  */
 
-#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
+#define MAXTIMEOUT 500 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
@@ -200,7 +200,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* search for matching entry */
-    UA_DateTime firstTime = UA_DateTime_nowMonotonic() + arw->interval;
+    UA_DateTime firstTime = UA_DateTime_nowMonotonic();
     tempTw = LIST_FIRST(&server->repeatedJobs);
     while(tempTw) {
         if(arw->interval == tempTw->interval) {
@@ -292,8 +292,9 @@ UA_StatusCode UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, UA_UInt32 
 
 /* Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
-    struct RepeatedJobs *tw = NULL;
-    while((tw = LIST_FIRST(&server->repeatedJobs)) != NULL) {
+    struct RepeatedJobs *tw, *tmp_tw;
+    /* Iterate over the list of elements (sorted according to the next execution timestamp) */
+    LIST_FOREACH_SAFE(tw, &server->repeatedJobs, pointers, tmp_tw) {
         if(tw->nextTime > current)
             break;
 
@@ -309,18 +310,26 @@ static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
             jobsCopy[i] = tw->jobs[i].job;
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
-        for(size_t i=0;i<tw->jobsSize;i++)
-            //processJobs may sort the list but dont delete entries
+		size_t size = tw->jobsSize;
+        for(size_t i = 0; i < size; i++)
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
 #endif
 
-        /* set the time for the next execution */
+		/* Elements are removed only here. Check if empty. */
+		if(tw->jobsSize == 0) {
+			LIST_REMOVE(tw, pointers);
+			UA_free(tw);
+            UA_assert(LIST_FIRST(&server->repeatedJobs) != tw); /* Assert for static code checkers */
+			continue;
+		}
+
+        /* Set the time for the next execution */
         tw->nextTime += tw->interval;
         if(tw->nextTime < current)
             tw->nextTime = current;
 
-        //start iterating the list from the beginning
-        struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs); // after which tw do we insert?
+        /* Reinsert to keep the list sorted */
+        struct RepeatedJobs *prevTw = LIST_FIRST(&server->repeatedJobs);
         while(true) {
             struct RepeatedJobs *n = LIST_NEXT(prevTw, pointers);
             if(!n || n->nextTime > tw->nextTime)
@@ -349,14 +358,10 @@ static void removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
         for(size_t i = 0; i < tw->jobsSize; i++) {
             if(!UA_Guid_equal(jobId, &tw->jobs[i].id))
                 continue;
-            if(tw->jobsSize == 1) {
-                LIST_REMOVE(tw, pointers);
-                UA_free(tw);
-            } else {
-                tw->jobsSize--;
+			tw->jobsSize--; /* if size == 0, tw is freed during the next processing */
+            if(tw->jobsSize > 0)
                 tw->jobs[i] = tw->jobs[tw->jobsSize]; // move the last entry to overwrite
-            }
-            goto finish; // ugly break
+            goto finish;
         }
     }
  finish:

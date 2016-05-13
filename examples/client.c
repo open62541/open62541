@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     //connect to a server
-    //anonymous connect would be: retval = UA_Client_connect_username(client, UA_ClientConnectionTCP, "opc.tcp://localhost:16664");
+    //anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
     retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -108,14 +108,14 @@ int main(int argc, char *argv[]) {
     
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     // Create a subscription with interval 0 (immediate)...
-    UA_UInt32 subId=0;
+    UA_UInt32 subId = 0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     
     // .. and monitor TheAnswer
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
-    UA_UInt32 monId=0;
+    UA_UInt32 monId = 0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
                                              UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
     if (monId)

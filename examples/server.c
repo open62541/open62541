@@ -161,7 +161,6 @@ getMonitoredItems(void *methodHandle, const UA_NodeId objectId,
                   size_t outputSize, UA_Variant *output) {
     UA_String tmp = UA_STRING("Hello World");
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
-    printf("getMonitoredItems was called\n");
     return UA_STATUSCODE_GOOD;
 }
 #endif
@@ -225,6 +224,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en_US","current time");
+	v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_NodeId dataSourceId;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
@@ -246,6 +246,7 @@ int main(int argc, char** argv) {
         UA_VariableAttributes_init(&v_attr);
         v_attr.description = UA_LOCALIZEDTEXT("en_US","temperature");
         v_attr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
+		v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), tempName,
@@ -271,6 +272,7 @@ int main(int argc, char** argv) {
             UA_VariableAttributes_init(&v_attr);
             v_attr.description = UA_LOCALIZEDTEXT("en_US","status LED");
             v_attr.displayName = UA_LOCALIZEDTEXT("en_US","status LED");
+			v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
             const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
             UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -287,6 +289,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&myVar);
     myVar.description = UA_LOCALIZEDTEXT("en_US", "the answer");
     myVar.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
+	myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
@@ -348,6 +351,7 @@ int main(int argc, char** argv) {
         char name[15];
         sprintf(name, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
+		attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 
         /* add a scalar node for every built-in type */
@@ -423,7 +427,7 @@ int main(int argc, char** argv) {
     UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
   
     // Some easy localization
-    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("de_DE", "Objekte");
+    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en_US", "Objects");
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
   
     //start server

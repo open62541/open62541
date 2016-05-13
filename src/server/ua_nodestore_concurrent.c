@@ -1,6 +1,8 @@
 #include "ua_util.h"
 #include "ua_nodestore.h"
 
+#ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
+
 struct nodeEntry {
     struct cds_lfht_node htn; ///< Contains the next-ptr for urcu-hashmap
     struct rcu_head rcu_head; ///< For call-rcu
@@ -222,3 +224,5 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
         cds_lfht_next(ht, &iter);
     }
 }
+
+#endif /* UA_ENABLE_MULTITHREADING */

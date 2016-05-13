@@ -29,12 +29,13 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = NULL;
+    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
+    LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);
     session->lastSubscriptionID = UA_UInt32_random();
+    SIMPLEQ_INIT(&session->responseQueue);
 #endif
-    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
-    LIST_INIT(&session->continuationPoints);
 }
 
 void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
@@ -57,6 +58,12 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
         LIST_REMOVE(currents, listEntry);
         UA_Subscription_deleteMembers(currents, server);
         UA_free(currents);
+    }
+    UA_PublishResponseEntry *entry;
+    while((entry = SIMPLEQ_FIRST(&session->responseQueue))) {
+        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+        UA_PublishResponse_deleteMembers(&entry->response);
+        UA_free(entry);
     }
 #endif
 }
@@ -90,25 +97,6 @@ UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
             break;
     }
     return sub;
-}
-
-
-UA_StatusCode
-UA_Session_deleteMonitoredItem(UA_Session *session, UA_UInt32 subscriptionID,
-                               UA_UInt32 monitoredItemID) {
-    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
-    if(!sub)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    
-    UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmp_mon) {
-        if(mon->itemId == monitoredItemID) {
-            LIST_REMOVE(mon, listEntry);
-            MonitoredItem_delete(mon);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 
 UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {

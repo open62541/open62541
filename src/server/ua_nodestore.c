@@ -1,7 +1,7 @@
-#include <stdio.h>
-
 #include "ua_nodestore.h"
 #include "ua_util.h"
+
+#ifndef UA_ENABLE_MULTITHREADING /* conditional compilation */
 
 #define UA_NODESTORE_MINSIZE 64
 
@@ -290,3 +290,5 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
             visitor((UA_Node*)&ns->entries[i]->node);
     }
 }
+
+#endif /* UA_ENABLE_MULTITHREADING */

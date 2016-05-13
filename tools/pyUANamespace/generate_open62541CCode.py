@@ -21,6 +21,7 @@ from sys import argv, exit
 from os import path
 from ua_namespace import *
 from logger import *
+from open62541_XMLPreprocessor import open62541_XMLPreprocessor
 
 def usage():
   print("Script usage:")
@@ -116,11 +117,26 @@ if __name__ == '__main__':
   # to any number of different OPC-UA namespaces.
   ns = opcua_namespace("open62541")
 
-  # Parse the XML files
+  # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
+  preProc = open62541_XMLPreprocessor()
   for xmlfile in infiles:
+    log(None, "Preprocessing " + str(xmlfile), LOG_LEVEL_INFO)
+    preProc.addDocument(xmlfile)
+  preProc.preprocessAll()
+  
+  for xmlfile in preProc.getPreProcessedFiles():
     log(None, "Parsing " + str(xmlfile), LOG_LEVEL_INFO)
     ns.parseXML(xmlfile)
-
+  
+  # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
+  namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
+  for key in namespaceArrayNames:
+    ns.addNamespace(key, namespaceArrayNames[key])
+    
+  # Remove any temp files - they are not needed after the AST is created
+  # Removed for debugging
+  preProc.removePreprocessedFiles()
+  
   # Remove blacklisted nodes from the namespace
   # Doing this now ensures that unlinkable pointers will be cleanly removed
   # during sanitation.

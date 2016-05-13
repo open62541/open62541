@@ -765,8 +765,7 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_Ad
 
     /* cast away the const to loop the call through UA_Server_editNode */
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                              (UA_EditNodeCallback)addOneWayReference,
-                                              item);
+                                              (UA_EditNodeCallback)addOneWayReference, item);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -782,7 +781,8 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_Ad
     return retval;
 } 
 
-void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
+void Service_AddReferences(UA_Server *server, UA_Session *session,
+                           const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response) {
 	if(request->referencesToAddSize <= 0) {
 		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

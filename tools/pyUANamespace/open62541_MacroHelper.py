@@ -24,24 +24,6 @@ __unique_item_id = 0
 
 defined_typealiases = []
 
-def substitutePunctuationCharacters(input):
-  '''
-  replace punctuation characters in input
-  '''
-  # No punctuation characters <>!$
-  illegal_chars = list(string.punctuation)
-  # underscore is allowed
-  illegal_chars.remove('_')
-
-  illegal = "".join(illegal_chars)
-  substitution = ""
-  # Map all punctuation characters to underscore
-  for illegal_char in illegal_chars:
-      substitution = substitution + '_'
-
-  return input.translate(string.maketrans(illegal, substitution), illegal)
-
-
 class open62541_MacroHelper():
   def __init__(self, supressGenerationOfAttribute=[]):
     self.supressGenerationOfAttribute = supressGenerationOfAttribute
@@ -60,7 +42,27 @@ class open62541_MacroHelper():
     else:
       return ""
 
+  def substitutePunctuationCharacters(self, input):
+    ''' substitutePunctuationCharacters
+    
+        Replace punctuation characters in input. Part of this class because it is used by
+        ua_namespace on occasion.
+        
+        returns: C-printable string representation of input
+    '''
+    # No punctuation characters <>!$
+    illegal_chars = list(string.punctuation)
+    # underscore is allowed
+    illegal_chars.remove('_')
 
+    illegal = "".join(illegal_chars)
+    substitution = ""
+    # Map all punctuation characters to underscore
+    for illegal_char in illegal_chars:
+        substitution = substitution + '_'
+
+    return input.translate(string.maketrans(illegal, substitution), illegal)
+  
   def getNodeIdDefineString(self, node):
     code = []
     extrNs = node.browseName().split(":")
@@ -71,7 +73,7 @@ class open62541_MacroHelper():
     else:
         nodename = extrNs[0]
 
-    symbolic_name = substitutePunctuationCharacters(nodename)
+    symbolic_name = self.substitutePunctuationCharacters(nodename)
     if symbolic_name != nodename :
         log(self, "Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ", LOG_LEVEL_WARN)
     

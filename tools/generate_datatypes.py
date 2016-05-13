@@ -5,10 +5,9 @@ import platform
 import getpass
 from collections import OrderedDict
 import re
-from lxml import etree
+import xml.etree.ElementTree as etree
 import itertools
 import argparse
-from pprint import pprint
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -163,6 +162,8 @@ class EnumerationType(Type):
         self.fixed_size = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
         self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
+        self.builtin = "true"
+        self.typeIndex = "UA_TYPES_INT32"
         self.elements = OrderedDict()
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
@@ -237,10 +238,6 @@ class StructType(Type):
 #########################
 
 def parseTypeDefinitions(outname, xmlDescription):
-    ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
-    tree = etree.parse(xmlDescription)
-    typeSnippets = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
-
     def typeReady(element):
         "Are all member types defined?"
         for child in element:
@@ -260,7 +257,9 @@ def parseTypeDefinitions(outname, xmlDescription):
         return False
 
     snippets = {}
-    for typeXml in typeSnippets:
+    for typeXml in etree.parse(xmlDescription).getroot():
+        if not typeXml.get("Name"):
+            continue
         name = typeXml.get("Name")
         snippets[name] = typeXml
 
