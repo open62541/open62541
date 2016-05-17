@@ -804,8 +804,6 @@ ExtensionObject_decodeBinary(bufpos pos, bufend end, UA_ExtensionObject *dst) {
 }
 
 /* Variant */
-/* Types that are not builtin get wrapped in an ExtensionObject */
-
 enum UA_VARIANT_ENCODINGMASKTYPE {
     UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK = 0x3F,        // bits 0:5
     UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS  = (0x01 << 6), // bit 6
@@ -819,69 +817,59 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
     const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     const UA_Boolean isBuiltin = src->type->builtin;
+
+    /* Encode the encodingbyte */
     UA_Byte encodingByte = 0;
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
         if(hasDimensions)
             encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
     }
-
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
-    size_t encode_index = src->type->typeIndex;
-    if(isBuiltin) {
-        /* Do an extra lookup. Enums are encoded as UA_UInt32. */
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK &
-            (UA_Byte) (src->type->typeIndex + 1);
-    } else {
-        encode_index = UA_BUILTIN_TYPES_COUNT;
-        /* wrap the datatype in an extensionobject */
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) 22;
-        typeId = src->type->typeId;
-        if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-            return UA_STATUSCODE_BADINTERNALERROR;
-        typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
-    }
+    if(isBuiltin)
+        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) (src->type->typeIndex + 1);
+    else
+        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) 22; /* ExtensionObject */
     UA_StatusCode retval = Byte_encodeBinary(&encodingByte, pos, end);
 
-    size_t length = src->arrayLength;
-    if(!isArray) {
-        length = 1;
+    /* Encode the content */
+    if(isBuiltin) {
+        if(!isArray) {
+            size_t encode_index = src->type->typeIndex;
+            pass_type = src->type;
+            retval |= encodeBinaryJumpTable[encode_index](src->data, pos, end);
+        } else
+            retval |= Array_encodeBinary(src->data, src->arrayLength, src->type, pos, end);
     } else {
+        /* Wrap not-builtin elements into an extensionobject */
         if(src->arrayDimensionsSize > UA_INT32_MAX)
             return UA_STATUSCODE_BADINTERNALERROR;
-        UA_Int32 encodeLength = -1;
-        if(src->arrayLength > 0)
-            encodeLength = (UA_Int32)src->arrayLength;
-        else if(src->data == UA_EMPTY_ARRAY_SENTINEL)
-            encodeLength = 0;
-        retval |= Int32_encodeBinary(&encodeLength, pos, end);
+        size_t length = 1;
+        if(isArray) {
+            length = src->arrayLength;
+            UA_Int32 encodedLength = (UA_Int32)src->arrayLength;
+            retval |= Int32_encodeBinary(&encodedLength, pos, end);
+        }
+        UA_ExtensionObject eo;
+        UA_ExtensionObject_init(&eo);
+        eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+        eo.content.decoded.type = src->type;
+        const UA_UInt16 memSize = src->type->memSize;
+        uintptr_t ptr = (uintptr_t)src->data;
+        for(size_t i = 0; i < length; i++) {
+            eo.content.decoded.data = (void*)ptr;
+            retval |= ExtensionObject_encodeBinary(&eo, pos, end);
+            if(retval == UA_STATUSCODE_BADENCODINGERROR) {
+                retval = exchangeBuffer(pos, &end);
+                if(retval != UA_STATUSCODE_GOOD)
+                    return retval;
+                i--;
+                continue;
+            }
+            ptr += memSize;
+        }
     }
 
-    uintptr_t ptr = (uintptr_t)src->data;
-    const UA_UInt16 memSize = src->type->memSize;
-    for(size_t i = 0; i < length; i++) {
-        UA_Byte *old_pos; // before encoding the actual content
-        if(!isBuiltin) {
-            /* The type is wrapped inside an extensionobject */
-            retval |= NodeId_encodeBinary(&typeId, pos, end);
-            UA_Byte eoEncoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-            retval |= Byte_encodeBinary(&eoEncoding, pos, end);
-            (*pos) += 4;
-            old_pos = *pos;
-        }
-        pass_type = src->type;
-        retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
-
-        if(!isBuiltin) {
-            /* Jump back and print the length of the extension object */
-            UA_Int32 encodingLength = (UA_Int32)(((uintptr_t)*pos - (uintptr_t)old_pos) / sizeof(UA_Byte));
-            old_pos -= 4;
-            retval |= Int32_encodeBinary(&encodingLength, &old_pos, end);
-        }
-        ptr += memSize;
-    }
-
+    /* Encode the dimensions */
     if(hasDimensions)
         retval |= Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsSize,
                                      &UA_TYPES[UA_TYPES_INT32], pos, end);
