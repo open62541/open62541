@@ -311,6 +311,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         available++;
+    //cppcheck-suppress knownConditionTrueFalse
     if(available > 0) {
         response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
         response->availableSequenceNumbersSize = available;
