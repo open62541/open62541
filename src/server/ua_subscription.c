@@ -80,7 +80,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     }
     size_t encodingOffset = 0;
     retval = UA_encodeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT],
-                             &newValueAsByteString, &encodingOffset);
+                             NULL, NULL, &newValueAsByteString, &encodingOffset);
 
     /* error or the content has not changed */
     if(retval != UA_STATUSCODE_GOOD ||
