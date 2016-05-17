@@ -178,7 +178,7 @@ UA_Guid UA_Guid_random(void) {
 
 /* ByteString */
 UA_StatusCode UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
-    if(!(bs->data = UA_calloc(length,sizeof(UA_Byte))))
+    if(!(bs->data = UA_malloc(length)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
