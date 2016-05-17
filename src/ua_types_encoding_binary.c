@@ -286,7 +286,7 @@ static long double unpack754(uint64_t i, unsigned bits, unsigned expbits) {
 #define FLOAT_NEG_ZERO 0x80000000
 
 static UA_StatusCode
-Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
+Float_encodeBinary(UA_Float const *src, const UA_DataType *_, bufpos pos, bufend end) {
     UA_Float f = *src;
     UA_UInt32 encoded;
     //cppcheck-suppress duplicateExpression
@@ -299,7 +299,7 @@ Float_encodeBinary(UA_Float const *src, bufpos pos, bufend end) {
 }
 
 static UA_StatusCode
-Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst) {
+Float_decodeBinary(bufpos pos, bufend end, UA_Float *dst, const UA_DataType *_) {
     UA_UInt32 decoded;
     UA_StatusCode retval = UInt32_decodeBinary(pos, end, &decoded, NULL);
     if(retval != UA_STATUSCODE_GOOD)
