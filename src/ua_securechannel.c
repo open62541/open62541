@@ -230,7 +230,8 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
         ci.messageType = UA_MESSAGETYPE_OPN;
     else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455)
         ci.messageType = UA_MESSAGETYPE_CLO;
-    retval = UA_encodeBinary(content, contentType, UA_SecureChannel_sendChunk, &ci, &message, &messagePos);
+    retval = UA_encodeBinary(content, contentType, (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
+                             &ci, &message, &messagePos);
 
     /* Abort message was sent, the buffer is already freed */
     if(ci.abort)
