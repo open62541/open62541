@@ -31,15 +31,7 @@ static UA_StatusCode exchangeBuffer(bufpos pos, bufend *end) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
     size_t offset = ((uintptr_t)*pos - (uintptr_t)encodeBuf->data) / sizeof(UA_Byte);
-    /* store pointers that may be overwritten within the exchangeBufferCallback */
-    UA_exchangeEncodeBuffer saveExchangeBufferCallback = exchangeBufferCallback;
-    void *saveExchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
-    UA_ByteString *buf = encodeBuf;
-    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, buf, offset);
-    /* restore saved pointers */
-    exchangeBufferCallback = saveExchangeBufferCallback;
-    exchangeBufferCallbackHandle = saveExchangeBufferCallbackHandle;
-    encodeBuf = buf;
+    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, encodeBuf, offset);
     /* set pos and end in order to continue encoding */
     *pos = encodeBuf->data;
     *end = &encodeBuf->data[encodeBuf->length];
@@ -404,9 +396,10 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *contenttyp
         ptr += contenttype->memSize;
         if(retval == UA_STATUSCODE_BADENCODINGERROR) {
             /* exchange the buffer and try to encode the same element once more */
-            retval = exchangeBuffer(&oldpos, &end); // exchange the buffer at the last correct position
-            *pos = oldpos; // oldpas was overwritten with the new position
-            ptr -= contenttype->memSize; // re-encode the same member on the new buffer
+            *pos = oldpos;
+            retval = exchangeBuffer(pos, &end);
+            /* Repeat encoding of the same element */
+            ptr -= contenttype->memSize;
             i--;
         }
     }
@@ -855,17 +848,19 @@ Variant_encodeBinary(UA_Variant const *src, bufpos pos, bufend end) {
         eo.content.decoded.type = src->type;
         const UA_UInt16 memSize = src->type->memSize;
         uintptr_t ptr = (uintptr_t)src->data;
-        for(size_t i = 0; i < length; i++) {
+        for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; i++) {
+            UA_Byte *oldpos = *pos;
             eo.content.decoded.data = (void*)ptr;
             retval |= ExtensionObject_encodeBinary(&eo, pos, end);
-            if(retval == UA_STATUSCODE_BADENCODINGERROR) {
-                retval = exchangeBuffer(pos, &end);
-                if(retval != UA_STATUSCODE_GOOD)
-                    return retval;
-                i--;
-                continue;
-            }
             ptr += memSize;
+            if(retval == UA_STATUSCODE_BADENCODINGERROR) {
+                /* exchange/send with the current buffer with chunking */
+                *pos = oldpos;
+                retval = exchangeBuffer(pos, &end);
+                /* encode the same element in the next iteration */
+                i--;
+                ptr -= memSize;
+            }
         }
     }
 
@@ -1107,10 +1102,11 @@ UA_encodeBinaryInternal(const void *src, bufpos pos, bufend end) {
             retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, pos, end);
             ptr += memSize;
             if(retval == UA_STATUSCODE_BADENCODINGERROR) {
-                /* exchange the buffer and try to encode the same type once more */
-                retval = exchangeBuffer(&oldpos, &end);
-                *pos = oldpos; // oldpas was overwritten with the new position
-                ptr -= member->padding + memSize; // re-encode the same member on the new buffer
+                /* exchange/send the buffer and try to encode the same type once more */
+                *pos = oldpos;
+                retval = exchangeBuffer(pos, &end);
+                /* re-encode the same member on the new buffer */
+                ptr -= member->padding + memSize;
                 i--;
             }
         } else {
