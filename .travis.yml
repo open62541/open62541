@@ -27,9 +27,6 @@ matrix:
       compiler: gcc
     - os: osx
       env: ANALYZE=true
-  allow_failures:
-    - env: ANALYZE=true
-      compiler: gcc
 
 addons:
   apt:

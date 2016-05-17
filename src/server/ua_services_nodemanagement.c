@@ -823,7 +823,6 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 	}
 #endif
 
-	response->resultsSize = size;
 	for(size_t i = 0; i < response->resultsSize; i++) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 		if(!isExternal[i])

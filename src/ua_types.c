@@ -541,9 +541,11 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     UA_StatusCode retval = UA_copy(p, new, type);
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_free(new);
+        //cppcheck-suppress memleak
 		return retval;
 	}
     UA_Variant_setScalar(v, new, type);
+    //cppcheck-suppress memleak
     return UA_STATUSCODE_GOOD;
 }
 

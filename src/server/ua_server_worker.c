@@ -554,6 +554,7 @@ static void processMainLoopJobs(UA_Server *server) {
         processJobs(server, &mlw->job, 1);
         next = (struct MainLoopJob*)mlw->node.next;
         UA_free(mlw);
+        //cppcheck-suppress unreadVariable
     } while((mlw = next));
     //UA_free(head);
 }
