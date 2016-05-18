@@ -56,7 +56,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              UA_OpenSecureChannelResponse *response) {
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
-    if(cm->currentChannelCount >= cm->maxChannelCount)
+    if(cm->currentChannelCount > cm->maxChannelCount)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry)

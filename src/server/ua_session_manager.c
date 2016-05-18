@@ -3,11 +3,9 @@
 
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sm, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId,
-                       UA_Server *server) {
+                       UA_UInt32 maxSessionLifeTime, UA_Server *server) {
     LIST_INIT(&sm->sessions);
     sm->maxSessionCount = maxSessionCount;
-    sm->lastSessionId   = startSessionId;
     sm->maxSessionLifeTime  = maxSessionLifeTime;
     sm->currentSessionCount = 0;
     sm->server = server;
@@ -73,8 +71,9 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     sm->currentSessionCount++;
+    sm->lastSessionId++;
     UA_Session_init(&newentry->session);
-    newentry->session.sessionId = UA_NODEID_NUMERIC(1, sm->lastSessionId++);
+    newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
     if(request->requestedSessionTimeout <= sm->maxSessionLifeTime &&

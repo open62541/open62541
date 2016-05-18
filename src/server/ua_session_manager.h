@@ -22,7 +22,7 @@ typedef struct UA_SessionManager {
 
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId, UA_Server *server);
+                       UA_UInt32 maxSessionLifeTime, UA_Server *server);
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager);
 
