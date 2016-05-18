@@ -755,7 +755,7 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, const 
         node->referencesSize = i+1;
     else
         UA_ReferenceNode_deleteMembers(&new_refs[i]);
-	return retval;
+    return retval;
 }
 
 UA_StatusCode
