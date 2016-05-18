@@ -79,8 +79,8 @@ else
 	make -j8
 	tar -pczf open62541-linux64.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 	cp open62541-linux64.tar.gz ..
-	cp open62541.h ../../ #copy single file-release
-	cp open62541.c ../../ #copy single file-release
+	cp open62541.h .. #copy single file-release
+	cp open62541.c .. #copy single file-release
 	cd .. && rm build -rf
 
 	if [ "$CC" = "gcc" ]; then
