@@ -442,7 +442,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
     } 
 
-#define MAXCHANNELCOUNT 103
+#define MAXCHANNELCOUNT 100
 #define STARTCHANNELID 1
 #define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
 #define STARTTOKENID 1
