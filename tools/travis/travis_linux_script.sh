@@ -90,7 +90,7 @@ else
 	
 	echo "Building the C++ example"
 	mkdir -p build && cd build
-	cp ../../open62541.* .
+	cp ../open62541.* .
 	gcc-4.8 -std=c99 -c open62541.c
 	g++-4.8 ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
 	cd .. && rm build -rf
