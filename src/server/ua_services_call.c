@@ -23,12 +23,53 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
     }
     return NULL;
 }
+static UA_StatusCode isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeId,size_t *maxDepth, UA_Boolean *found){
+    *maxDepth = *maxDepth-1;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    const UA_Node * node = UA_NodeStore_get(ns,rootNode);
+    if(node==NULL){
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    *found = false;
+    for(size_t i=0; i<node->referencesSize;i++){
+        if(UA_NodeId_equal(&node->references[i].referenceTypeId, referenceTypeId) &&
+                node->references[i].isInverse == false){
+           if(UA_NodeId_equal(&node->references[i].targetId.nodeId, nodeToFind)){
+               *found = true;
+               return UA_STATUSCODE_GOOD;
+           }
+           if(*maxDepth==0){
+               continue;
+           }
+           retval = isNodeInTree(ns,&node->references[i].targetId.nodeId,nodeToFind,referenceTypeId,maxDepth,found);
 
+           if(*found){
+               break;
+           }
+        }
+
+    }
+    *maxDepth=*maxDepth+1;
+    return retval;
+}
 static UA_StatusCode
-satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
-    if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType) )
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *arg) {
 
+    if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
+        if(!UA_NodeId_equal(&var->type->typeId, &UA_TYPES[UA_TYPES_INT32].typeId))
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        //enumerations are encoded as int32 -> if provided var is integer, check if a an enumeration type
+        UA_NodeId ENUMERATION_NODEID_NS0 = UA_NODEID_NUMERIC(0,29);
+        UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
+        UA_Boolean found = false;
+        size_t maxDepth = 1;
+        if(isNodeInTree(server->nodestore, &ENUMERATION_NODEID_NS0, &arg->dataType, &hasSubTypeNodeId, &maxDepth, &found)!=UA_STATUSCODE_GOOD){
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        if(!found){
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    }
     // Note: The namespace compiler will compile nodes with their actual array dimensions
     // Todo: Check if this is standard conform for scalars
     if(arg->arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
@@ -83,7 +124,7 @@ satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
 }
 
 static UA_StatusCode
-argConformsToDefinition(const UA_VariableNode *argRequirements, size_t argsSize, const UA_Variant *args) {
+argConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequirements, size_t argsSize, const UA_Variant *args) {
     if(argRequirements->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.variant.value.data;
@@ -99,7 +140,7 @@ argConformsToDefinition(const UA_VariableNode *argRequirements, size_t argsSize,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < argReqsSize; i++)
-        retval |= satisfySignature(&args[i], &argReqs[i]);
+        retval |= satisfySignature(server, &args[i], &argReqs[i]);
     return retval;
 }
 
@@ -134,15 +175,25 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     // Object must have a hasComponent reference (or any inherited referenceType from sayd reference)
     // to be valid for a methodCall...
     result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
+    UA_Boolean found = false;
+    size_t maxDepth = 10;
+    UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
+    UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
     for(size_t i = 0; i < withObject->referencesSize; i++) {
-        if(withObject->references[i].referenceTypeId.identifier.numeric == UA_NS0ID_HASCOMPONENT) {
-            // FIXME: Not checking any subtypes of HasComponent at the moment
-            if(UA_NodeId_equal(&withObject->references[i].targetId.nodeId, &methodCalled->nodeId)) {
+        if(UA_NodeId_equal(&withObject->references[i].targetId.nodeId, &methodCalled->nodeId)) {
+            if(UA_NodeId_equal(&withObject->references[i].referenceTypeId, &hasComponentNodeId)){
                 result->statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
+            UA_StatusCode retval = isNodeInTree(server->nodestore,&hasComponentNodeId,&withObject->references[i].referenceTypeId,&hasSubTypeNodeId,&maxDepth,&found);
+            if(retval == UA_STATUSCODE_GOOD && found){
+                result->statusCode = UA_STATUSCODE_GOOD;
+                break;
+            }
+            return;
         }
     }
+
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -156,7 +207,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     const UA_VariableNode *inputArguments;
     inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
     if(inputArguments) {
-        result->statusCode = argConformsToDefinition(inputArguments, request->inputArgumentsSize,
+        result->statusCode = argConformsToDefinition(server, inputArguments, request->inputArgumentsSize,
                                                      request->inputArguments);
         if(result->statusCode != UA_STATUSCODE_GOOD)
             return;
@@ -186,7 +237,6 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
     /* TODO: Verify Output Argument count, types and sizes */
 }
-
 void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *request,
                   UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CallRequest");

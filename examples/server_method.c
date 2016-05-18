@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"), 
                             helloAttr, &helloWorldMethod, NULL,
                             1, &inputArguments, 1, &outputArguments, NULL);
