@@ -104,7 +104,7 @@ before_deploy:
 - git clone https://github.com/raspberrypi/tools
 - cd -
 - export PATH=$PATH:~/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-- cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
+- cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
 - make 
 - tar -pczf open62541-raspberrypi.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
 - cp open62541-raspberrypi.tar.gz ..
