@@ -341,6 +341,8 @@ int main(int argc, char** argv) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
+    /** Fill demo nodes of different types **/
+
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
         if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
@@ -352,6 +354,8 @@ int main(int argc, char** argv) {
         sprintf(name, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
 		attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+		attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+		attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 
         /* add a scalar node for every built-in type */
@@ -386,6 +390,29 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                   qualifiedName, UA_NODEID_NULL, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
+    }
+
+    /** Hierarchy of depth 10 with forward and inverse references **/
+    /** Enter node "depth9" in CTT configuration - Project->Settings->Server Test->NodeIds->Paths->Starting Node 1 **/
+
+#define DEPTHID 50004
+    object_attr.description = UA_LOCALIZEDTEXT("en_US","DepthDemo");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en_US","DepthDemo");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),
+                            UA_NODEID_NUMERIC(1, DEMOID),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "DepthDemo"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+
+    id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
+    for(UA_UInt32 i = 1; i <= 20; i++) {
+        char name[15];
+        sprintf(name, "depth%i", i);
+        object_attr.description = UA_LOCALIZEDTEXT("en_US",name);
+        object_attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
+        UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id+i),
+                                UA_NODEID_NUMERIC(1, i==1 ? DEPTHID : id+i-1), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, name),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
     }
 
 #ifdef UA_ENABLE_METHODCALLS

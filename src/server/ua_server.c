@@ -804,6 +804,19 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                                 UA_NS0ID_BASEVARIABLETYPE, false);
     addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE,
                                 UA_NS0ID_BASEVARIABLETYPE, false);
+
+
+    //Event types folder below is needed by CTT
+    /***************/
+    /* Event Types */
+    /***************/
+
+    UA_ObjectNode *eventtypes = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)eventtypes, "EventTypes");
+    eventtypes->nodeId.identifier.numeric = UA_NS0ID_EVENTTYPESFOLDER;
+    addNodeInternal(server, (UA_Node*)eventtypes, UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), nodeIdOrganizes);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTTYPESFOLDER), nodeIdHasTypeDefinition,
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
 #endif
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
