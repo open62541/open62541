@@ -38,14 +38,14 @@ static UA_StatusCode isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,co
                *found = true;
                return UA_STATUSCODE_GOOD;
            }
-           if(*maxDepth==0){
-               continue;
+           if(*maxDepth>0){
+               retval = isNodeInTree(ns,&node->references[i].targetId.nodeId,nodeToFind,referenceTypeId,maxDepth,found);
+               if(*found){
+                   break;
+               }
            }
-           retval = isNodeInTree(ns,&node->references[i].targetId.nodeId,nodeToFind,referenceTypeId,maxDepth,found);
 
-           if(*found){
-               break;
-           }
+
         }
 
     }
@@ -58,7 +58,7 @@ satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *ar
     if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
         if(!UA_NodeId_equal(&var->type->typeId, &UA_TYPES[UA_TYPES_INT32].typeId))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        //enumerations are encoded as int32 -> if provided var is integer, check if a an enumeration type
+        //enumerations are encoded as int32 -> if provided var is integer, check if arg is an enumeration type
         UA_NodeId ENUMERATION_NODEID_NS0 = UA_NODEID_NUMERIC(0,29);
         UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
