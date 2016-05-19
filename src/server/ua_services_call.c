@@ -44,10 +44,7 @@ static UA_StatusCode isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,co
                    break;
                }
            }
-
-
         }
-
     }
     *maxDepth=*maxDepth+1;
     return retval;
