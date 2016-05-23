@@ -126,6 +126,11 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
+        if(token->userName.length == 0 && token->password.length == 0) {
+            /* empty username and password */
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            return;
+        }
         /* ok, trying to match the username */
         for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
             UA_String *user = &server->config.usernamePasswordLogins[i].username;

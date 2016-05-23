@@ -451,9 +451,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
 #define MAXSESSIONCOUNT 1000
 #define MAXSESSIONLIFETIME 3600000
-#define STARTSESSIONID 1
     UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME,
-                           STARTSESSIONID, server);
+                           server);
 
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
