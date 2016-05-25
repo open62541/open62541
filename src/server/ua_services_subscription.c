@@ -40,6 +40,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
 void Service_CreateSubscription(UA_Server *server, UA_Session *session,
                                 const UA_CreateSubscriptionRequest *request,
                                 UA_CreateSubscriptionResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateSubscriptionRequest");
     response->subscriptionId = UA_Session_getUniqueSubscriptionID(session);
     UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
     if(!newSubscription) {
@@ -62,6 +63,7 @@ void Service_CreateSubscription(UA_Server *server, UA_Session *session,
 void Service_ModifySubscription(UA_Server *server, UA_Session *session,
                                 const UA_ModifySubscriptionRequest *request,
                                 UA_ModifySubscriptionResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ModifySubscriptionRequest");
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -81,7 +83,7 @@ void Service_ModifySubscription(UA_Server *server, UA_Session *session,
 void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                const UA_SetPublishingModeRequest *request,
                                UA_SetPublishingModeResponse *response) {
-
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing SetPublishingModeRequest");
     if(request->subscriptionIdsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -161,7 +163,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     }
     newMon->subscription = sub;
     newMon->attributeID = request->itemToMonitor.attributeId;
-    newMon->itemId = UA_Session_getUniqueSubscriptionID(session);
+    newMon->itemId = ++(sub->lastMonitoredItemId);
     newMon->timestampsToReturn = timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              request->requestedParameters.clientHandle,
@@ -181,6 +183,7 @@ void
 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateMonitoredItemsRequest");
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -229,6 +232,7 @@ Service_ModifyMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
 void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_ModifyMonitoredItemsRequest *request,
                                   UA_ModifyMonitoredItemsResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ModifyMonitoredItemsRequest");
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -259,6 +263,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
 void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing PublishRequest");
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
         UA_PublishResponse response;
@@ -289,7 +294,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         UA_Subscription *sub = UA_Session_getSubscriptionByID(session, ack->subscriptionId);
         if(!sub) {
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Cannot process acknowledgements subscription %u", ack->subscriptionId);
             continue;
         }
@@ -309,17 +314,15 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Queue the publish response */
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Queued a publication message on session %u",
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message",
                  session->authenticationToken.identifier.numeric);
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
     LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
         if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Response on a late subscription on session %u",
-                         session->authenticationToken.identifier.numeric);
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Response on a late subscription",
+                                 session->authenticationToken.identifier.numeric);
             UA_Subscription_publishCallback(server, immediate);
             return;
         }
@@ -329,6 +332,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  const UA_DeleteSubscriptionsRequest *request,
                                  UA_DeleteSubscriptionsResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteSubscriptionsRequest");
     response->results = UA_malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -343,6 +347,7 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteMonitoredItemsRequest");
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -364,6 +369,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
 void Service_Republish(UA_Server *server, UA_Session *session, const UA_RepublishRequest *request,
                        UA_RepublishResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RepublishRequest");
     /* get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if (!sub) {

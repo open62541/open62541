@@ -335,17 +335,15 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
 
 void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
                   UA_ReadResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing ReadRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ReadRequest");
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
 
     if(request->timestampsToReturn > 3){
-    	response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-    	return;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
     }
 
     size_t size = request->nodesToReadSize;
@@ -357,7 +355,7 @@ void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *
 
     response->resultsSize = size;
     if(request->maxAge < 0) {
-    	response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
         return;
     }
 
@@ -560,7 +558,7 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
           }
       }
     }
-    
+
     if(!rangeptr) {
         UA_Variant_deleteMembers(&node->value.variant.value);
         UA_Variant_copy(newV, &node->value.variant.value);
@@ -585,103 +583,103 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     const UA_DataType *attr_type = NULL;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-	switch(wvalue->attributeId) {
+    switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
     case UA_ATTRIBUTEID_NODECLASS:
     case UA_ATTRIBUTEID_DATATYPE:
-		retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-		break;
-	case UA_ATTRIBUTEID_BROWSENAME:
-		CHECK_DATATYPE(QUALIFIEDNAME);
+        retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        break;
+    case UA_ATTRIBUTEID_BROWSENAME:
+        CHECK_DATATYPE(QUALIFIEDNAME);
         target = &node->browseName;
         attr_type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
-		break;
-	case UA_ATTRIBUTEID_DISPLAYNAME:
-		CHECK_DATATYPE(LOCALIZEDTEXT);
+        break;
+    case UA_ATTRIBUTEID_DISPLAYNAME:
+        CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->displayName;
         attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-		break;
-	case UA_ATTRIBUTEID_DESCRIPTION:
-		CHECK_DATATYPE(LOCALIZEDTEXT);
+        break;
+    case UA_ATTRIBUTEID_DESCRIPTION:
+        CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &node->description;
         attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-		break;
-	case UA_ATTRIBUTEID_WRITEMASK:
-		CHECK_DATATYPE(UINT32);
-		node->writeMask = *(UA_UInt32*)value;
-		break;
-	case UA_ATTRIBUTEID_USERWRITEMASK:
-		CHECK_DATATYPE(UINT32);
-		node->userWriteMask = *(UA_UInt32*)value;
-		break;    
-	case UA_ATTRIBUTEID_ISABSTRACT:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE |
+        break;
+    case UA_ATTRIBUTEID_WRITEMASK:
+        CHECK_DATATYPE(UINT32);
+        node->writeMask = *(UA_UInt32*)value;
+        break;
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+        CHECK_DATATYPE(UINT32);
+        node->userWriteMask = *(UA_UInt32*)value;
+        break;
+    case UA_ATTRIBUTEID_ISABSTRACT:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_REFERENCETYPE |
                               UA_NODECLASS_VARIABLETYPE | UA_NODECLASS_DATATYPE);
-		CHECK_DATATYPE(BOOLEAN);
-		((UA_ObjectTypeNode*)node)->isAbstract = *(UA_Boolean*)value;
-		break;
-	case UA_ATTRIBUTEID_SYMMETRIC:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
-		CHECK_DATATYPE(BOOLEAN);
-		((UA_ReferenceTypeNode*)node)->symmetric = *(UA_Boolean*)value;
-		break;
-	case UA_ATTRIBUTEID_INVERSENAME:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
-		CHECK_DATATYPE(LOCALIZEDTEXT);
+        CHECK_DATATYPE(BOOLEAN);
+        ((UA_ObjectTypeNode*)node)->isAbstract = *(UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_SYMMETRIC:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
+        CHECK_DATATYPE(BOOLEAN);
+        ((UA_ReferenceTypeNode*)node)->symmetric = *(UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_INVERSENAME:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_REFERENCETYPE);
+        CHECK_DATATYPE(LOCALIZEDTEXT);
         target = &((UA_ReferenceTypeNode*)node)->inverseName;
         attr_type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
-		break;
-	case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
-		CHECK_DATATYPE(BOOLEAN);
+        break;
+    case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
+        CHECK_DATATYPE(BOOLEAN);
         ((UA_ViewNode*)node)->containsNoLoops = *(UA_Boolean*)value;
-		break;
-	case UA_ATTRIBUTEID_EVENTNOTIFIER:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
-		CHECK_DATATYPE(BYTE);
+        break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW | UA_NODECLASS_OBJECT);
+        CHECK_DATATYPE(BYTE);
         ((UA_ViewNode*)node)->eventNotifier = *(UA_Byte*)value;
-		break;
-	case UA_ATTRIBUTEID_VALUE:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
+        break;
+    case UA_ATTRIBUTEID_VALUE:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         if(((const UA_VariableNode*)node)->valueSource == UA_VALUESOURCE_VARIANT)
             retval = CopyValueIntoNode((UA_VariableNode*)node, wvalue);
         else
             retval = Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)node, wvalue);
-		break;
-	case UA_ATTRIBUTEID_ACCESSLEVEL:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
-		CHECK_DATATYPE(BYTE);
-		((UA_VariableNode*)node)->accessLevel = *(UA_Byte*)value;
-		break;
-	case UA_ATTRIBUTEID_USERACCESSLEVEL:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
-		CHECK_DATATYPE(BYTE);
-		((UA_VariableNode*)node)->userAccessLevel = *(UA_Byte*)value;
-		break;
-	case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
-		CHECK_DATATYPE(DOUBLE);
-		((UA_VariableNode*)node)->minimumSamplingInterval = *(UA_Double*)value;
-		break;
-	case UA_ATTRIBUTEID_HISTORIZING:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
-		CHECK_DATATYPE(BOOLEAN);
-		((UA_VariableNode*)node)->historizing = *(UA_Boolean*)value;
-		break;
-	case UA_ATTRIBUTEID_EXECUTABLE:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
-		CHECK_DATATYPE(BOOLEAN);
-		((UA_MethodNode*)node)->executable = *(UA_Boolean*)value;
-		break;
-	case UA_ATTRIBUTEID_USEREXECUTABLE:
-		CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
-		CHECK_DATATYPE(BOOLEAN);
-		((UA_MethodNode*)node)->userExecutable = *(UA_Boolean*)value;
-		break;
-	default:
-		retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-		break;
-	}
+        break;
+    case UA_ATTRIBUTEID_ACCESSLEVEL:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE(BYTE);
+        ((UA_VariableNode*)node)->accessLevel = *(UA_Byte*)value;
+        break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE(BYTE);
+        ((UA_VariableNode*)node)->userAccessLevel = *(UA_Byte*)value;
+        break;
+    case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE(DOUBLE);
+        ((UA_VariableNode*)node)->minimumSamplingInterval = *(UA_Double*)value;
+        break;
+    case UA_ATTRIBUTEID_HISTORIZING:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE(BOOLEAN);
+        ((UA_VariableNode*)node)->historizing = *(UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_EXECUTABLE:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
+        CHECK_DATATYPE(BOOLEAN);
+        ((UA_MethodNode*)node)->executable = *(UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
+        CHECK_DATATYPE(BOOLEAN);
+        ((UA_MethodNode*)node)->userExecutable = *(UA_Boolean*)value;
+        break;
+    default:
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+        break;
+    }
     if(attr_type) {
         UA_deleteMembers(target, attr_type);
         retval = UA_copy(value, target, attr_type);
@@ -695,10 +693,8 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const
 
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing WriteRequest");
     UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing WriteRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
 
     if(request->nodesToWriteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -738,6 +734,6 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
-		  response->results[i] = Service_Write_single(server, session, &request->nodesToWrite[i]);
+            response->results[i] = Service_Write_single(server, session, &request->nodesToWrite[i]);
     }
 }

@@ -54,7 +54,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                UA_OpenSecureChannelResponse *response);
 
 /** Used to terminate a SecureChannel. */
-void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId);
+void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /**
  * Session Service Set

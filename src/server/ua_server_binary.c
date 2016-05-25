@@ -41,19 +41,19 @@ static UA_ByteString processChunk(UA_SecureChannel *channel, UA_Server *server,
     UA_ByteString bytes = UA_BYTESTRING_NULL;
     switch(messageHeader->messageTypeAndChunkType & 0xff000000) {
     case UA_CHUNKTYPE_INTERMEDIATE:
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk message");
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Chunk message");
         UA_SecureChannel_appendChunk(channel, requestId, msg, pos, chunksize);
         break;
     case UA_CHUNKTYPE_FINAL:
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Final chunk message");
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Final chunk message");
         bytes = UA_SecureChannel_finalizeChunk(channel, requestId, msg, pos, chunksize, deleteRequest);
         break;
     case UA_CHUNKTYPE_ABORT:
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk aborted");
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Chunk aborted");
         UA_SecureChannel_removeChunk(channel, requestId);
         break;
     default:
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Unknown chunk type");
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Unknown chunk type");
     }
     return bytes;
 }
@@ -378,14 +378,15 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     getServicePointers(requestTypeId.identifier.numeric, &requestType, &responseType, &service);
     if(!requestType) {
         /* The service is not supported */
-        if(requestTypeId.identifier.numeric==787)
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+        if(requestTypeId.identifier.numeric==787) {
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                         "Client requested a subscription, but those are not enabled "
                         "in the build. The message will be skipped");
-        else
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Unknown request: NodeId(ns=%d, i=%d)",
-                        requestTypeId.namespaceIndex, requestTypeId.identifier.numeric);
+        } else {
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                                "Unknown request: NodeId(ns=%d, i=%d)",
+                                requestTypeId.namespaceIndex, requestTypeId.identifier.numeric);
+        }
         sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
@@ -428,24 +429,10 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
        requestType->typeIndex != UA_TYPES_FINDSERVERSREQUEST &&
        requestType->typeIndex != UA_TYPES_GETENDPOINTSREQUEST &&
        requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Client tries to call a service with a non-activated session");
+        UA_LOG_INFO_SESSION(server->config.logger, session, "Service request on a non-activated session");
         sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
-#ifndef UA_ENABLE_NONSTANDARD_STATELESS
-    if(session == &anonymousSession &&
-       requestType->typeIndex != UA_TYPES_CREATESESSIONREQUEST &&
-       requestType->typeIndex != UA_TYPES_ACTIVATESESSIONREQUEST &&
-       requestType->typeIndex != UA_TYPES_FINDSERVERSREQUEST &&
-       requestType->typeIndex != UA_TYPES_GETENDPOINTSREQUEST &&
-       requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Client tries to call a service without a session");
-        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
-        return;
-    }
-#endif
 
     /* Update the session lifetime */
     UA_Session_updateLifetime(session);
@@ -460,9 +447,6 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
 #endif
 
     /* Call the service */
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Processing a service with type id %u on Session %u",
-                 requestType->typeId.identifier.numeric, session->authenticationToken.identifier.numeric);
     UA_assert(service);
     UA_assert(requestType);
     UA_assert(responseType);
@@ -508,10 +492,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHead
     if(tokenId != channel->securityToken.tokenId) {
         if(tokenId != channel->nextSecurityToken.tokenId) {
             /* close the securechannel but keep the connection open */
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                        "Request with a wrong security token. Closing the SecureChannel %i.",
-                        channel->securityToken.channelId);
-            Service_CloseSecureChannel(server, channel->securityToken.channelId);
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                                "Request with a wrong security token. Closing the SecureChannel.");
+            Service_CloseSecureChannel(server, channel);
             return;
         }
         UA_SecureChannel_revolveTokens(channel);
@@ -539,7 +522,7 @@ processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     if(retval != UA_STATUSCODE_GOOD || !connection->channel ||
        connection->channel->securityToken.channelId != channelId)
         return;
-    Service_CloseSecureChannel(server, channelId);
+    Service_CloseSecureChannel(server, connection->channel);
 }
 
 /* Process binary message received from Connection dose not modify UA_ByteString
@@ -571,11 +554,13 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
         case UA_MESSAGETYPE_HEL:
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                         "Process a HEL on Connection %i", connection->sockfd);
+                         "Connection %i | Process a HEL", connection->sockfd);
             processHEL(connection, msg, &pos);
             break;
 
         case UA_MESSAGETYPE_OPN:
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a OPN", connection->sockfd);
             processOPN(connection, server, msg, &pos);
             break;
 
@@ -583,31 +568,33 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                             "Received a MSG where the connection is not established on Connection %i",
+                             "Connection %i | Received a MSG, but the connection is not established",
                              connection->sockfd);
                 connection->close(connection);
                 return;
             }
 #endif
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                         "Process a MSG on Connection %i", connection->sockfd);
+                         "Connection %i | Process a MSG", connection->sockfd);
             processMSG(connection, server, &tcpMessageHeader, msg, &pos);
             break;
 
         case UA_MESSAGETYPE_CLO:
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a CLO", connection->sockfd);
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
 
         default:
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                        "Unknown request type on Connection %i", connection->sockfd);
+                        "Connection %i | Unknown request type", connection->sockfd);
         }
 
         /* Loop to process the next message in the stream */
         if(pos != targetpos) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                        "Message on Connection %i was not entirely processed. "
+                        "Connection %i | Message was not entirely processed. "
                         "Arrived at position %i, skip after the announced length to position %i",
                         connection->sockfd, pos, targetpos);
             pos = targetpos;

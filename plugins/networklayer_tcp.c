@@ -291,7 +291,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
 #endif
     //cppcheck-suppress unreadVariable
     ServerNetworkLayerTCP *layer = connection->handle;
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Closing the Connection %i",
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Closing the connection",
                 connection->sockfd);
     /* only "shutdown" here. this triggers the select, where the socket is
        "closed" in the mainloop */
@@ -308,7 +308,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
     getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "New Connection %i over TCP from %s:%d",
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
                 newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     UA_Connection_init(c);
     c->sockfd = newsockfd;

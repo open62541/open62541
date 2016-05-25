@@ -32,8 +32,7 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
             entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < now || !entry->channel.connection) {
-            UA_LOG_DEBUG(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "SecureChannel %i has timed out", entry->channel.securityToken.channelId);
+            UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, (&entry->channel), "SecureChannel has timed out");
             LIST_REMOVE(entry, pointers);
             UA_SecureChannel_deleteMembersCleanup(&entry->channel);
 #ifndef UA_ENABLE_MULTITHREADING

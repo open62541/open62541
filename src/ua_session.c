@@ -33,7 +33,7 @@ void UA_Session_init(UA_Session *session) {
     LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);
-    session->lastSubscriptionID = UA_UInt32_random();
+    session->lastSubscriptionID = 0;
     SIMPLEQ_INIT(&session->responseQueue);
 #endif
 }
@@ -80,14 +80,14 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
 
 UA_StatusCode
 UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionID) {
-    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);    
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     LIST_REMOVE(sub, listEntry);
     UA_Subscription_deleteMembers(sub, server);
     UA_free(sub);
     return UA_STATUSCODE_GOOD;
-} 
+}
 
 UA_Subscription *
 UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
