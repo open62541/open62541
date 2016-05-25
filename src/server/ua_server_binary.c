@@ -7,154 +7,54 @@
 #include "ua_transport_generated.h"
 #include "ua_transport_generated_encoding_binary.h"
 
-/** Max size of messages that are allocated on the stack */
-#define MAX_STACK_MESSAGE 65536
-
-static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *pos) {
-    UA_TcpHelloMessage helloMessage;
-    if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
-        connection->close(connection);
-        return;
-    }
-
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
-    connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
-        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
-        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
-    connection->state = UA_CONNECTION_ESTABLISHED;
-    UA_TcpHelloMessage_deleteMembers(&helloMessage);
-
-    // build acknowledge response
-    UA_TcpAcknowledgeMessage ackMessage;
-    ackMessage.protocolVersion = connection->localConf.protocolVersion;
-    ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
-    ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
-    ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
-    ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
-
-    UA_TcpMessageHeader ackHeader;
-    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
-    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
-
-    UA_ByteString ack_msg;
-    UA_ByteString_init(&ack_msg);
-    if(connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
-                                 &ack_msg) != UA_STATUSCODE_GOOD)
-        return;
-
-    size_t tmpPos = 0;
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
-    ack_msg.length = ackHeader.messageSize;
-    connection->send(connection, &ack_msg);
-}
-
-static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
-    if(connection->state != UA_CONNECTION_ESTABLISHED) {
-        connection->close(connection);
-        return;
-    }
-
-    UA_UInt32 secureChannelId;
-    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
-
-    //we can check secureChannelId also here -> if we are asked to isse a token it is 0, otherwise we have to renew
-    //issue
-    if(connection->channel == NULL && secureChannelId != 0){
-        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
-    }
-    //renew
-    if(connection->channel != NULL && secureChannelId != connection->channel->securityToken.channelId){
-        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
-    }
-
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &asymHeader);
-
-    UA_SequenceHeader seqHeader;
-    retval |= UA_SequenceHeader_decodeBinary(msg, pos, &seqHeader);
-
-    UA_NodeId requestType;
-    retval |= UA_NodeId_decodeBinary(msg, pos, &requestType);
-
-    UA_OpenSecureChannelRequest r;
-    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
-
-    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        UA_SequenceHeader_deleteMembers(&seqHeader);
-        UA_NodeId_deleteMembers(&requestType);
-        UA_OpenSecureChannelRequest_deleteMembers(&r);
-        connection->close(connection);
-        return;
-    }
-
-
-    UA_OpenSecureChannelResponse p;
-    UA_OpenSecureChannelResponse_init(&p);
-    Service_OpenSecureChannel(server, connection, &r, &p);
-    UA_OpenSecureChannelRequest_deleteMembers(&r);
-
-    UA_SecureChannel *channel = connection->channel;
-    if(!channel) {
-        connection->close(connection);
-        UA_OpenSecureChannelResponse_deleteMembers(&p);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        return;
-    }
-
-    /* send the response with an asymmetric security header */
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
-#endif
-
-    UA_SecureConversationMessageHeader respHeader;
-    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    respHeader.messageHeader.messageSize = 0;
-    respHeader.secureChannelId = p.securityToken.channelId;
-
-    UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
-                                               UA_ENCODINGOFFSET_BINARY);
-
-    UA_ByteString resp_msg;
-    UA_ByteString_init(&resp_msg);
-    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_OpenSecureChannelResponse_deleteMembers(&p);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        return;
-    }
-        
-    size_t tmpPos = 12; /* skip the secureconversationmessageheader for now */
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
-    retval |= UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
-    retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseSendBuffer(connection, &resp_msg);
-        connection->close(connection);
-    } else {
-        respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
-        tmpPos = 0;
-        UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
-        resp_msg.length = respHeader.messageHeader.messageSize;
-        connection->send(connection, &resp_msg);
-    }
-    UA_OpenSecureChannelResponse_deleteMembers(&p);
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-}
+/********************/
+/* Helper Functions */
+/********************/
 
 static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
     r->requestHandle = p->requestHandle;
     r->timestamp = UA_DateTime_now();
+}
+
+static void
+sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
+          UA_UInt32 requestId, UA_StatusCode error) {
+    UA_RequestHeader p;
+    if(UA_RequestHeader_decodeBinary(msg, &pos, &p) != UA_STATUSCODE_GOOD)
+        return;
+    UA_ResponseHeader r;
+    UA_ResponseHeader_init(&r);
+    init_response_header(&p, &r);
+    r.serviceResult = error;
+    UA_SecureChannel_sendBinaryMessage(channel, requestId, &r,
+                                       &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+    UA_RequestHeader_deleteMembers(&p);
+    UA_ResponseHeader_deleteMembers(&r);
+}
+
+/* Returns a complete decoded request (without securechannel headers + padding)
+   or UA_BYTESTRING_NULL */
+static UA_ByteString processChunk(UA_SecureChannel *channel, UA_Server *server,
+                                  const UA_TcpMessageHeader *messageHeader, UA_UInt32 requestId,
+                                  const UA_ByteString *msg, size_t pos, size_t chunksize,
+                                  UA_Boolean *deleteRequest) {
+    UA_ByteString bytes = UA_BYTESTRING_NULL;
+    switch(messageHeader->messageTypeAndChunkType & 0xff000000) {
+    case UA_CHUNKTYPE_INTERMEDIATE:
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk message");
+        UA_SecureChannel_appendChunk(channel, requestId, msg, pos, chunksize);
+        break;
+    case UA_CHUNKTYPE_FINAL:
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Final chunk message");
+        bytes = UA_SecureChannel_finalizeChunk(channel, requestId, msg, pos, chunksize, deleteRequest);
+        break;
+    case UA_CHUNKTYPE_ABORT:
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk aborted");
+        UA_SecureChannel_removeChunk(channel, requestId);
+    default:
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Unknown chunk type");
+    }
+    return bytes;
 }
 
 static void
@@ -242,11 +142,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE];
         break;
-	case UA_NS0ID_SETPUBLISHINGMODEREQUEST:
-		*service = (UA_Service)Service_SetPublishingMode;
-		*requestType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST];
-		*responseType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE];
-		break;
+    case UA_NS0ID_SETPUBLISHINGMODEREQUEST:
+        *service = (UA_Service)Service_SetPublishingMode;
+        *requestType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE];
+        break;
     case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
         *service = (UA_Service)Service_DeleteSubscriptions;
         *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST];
@@ -274,7 +174,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_Call;
         *requestType = &UA_TYPES[UA_TYPES_CALLREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CALLRESPONSE];
-	break;
+        break;
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT
@@ -305,166 +205,168 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
     }
 }
 
-static void
-sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t pos,
-          UA_UInt32 requestId, UA_StatusCode error) {
-    UA_RequestHeader p;
-    if(UA_RequestHeader_decodeBinary(msg, &pos, &p) != UA_STATUSCODE_GOOD)
+/*************************/
+/* Process Message Types */
+/*************************/
+
+/* HEL -> Open up the connection */
+static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *pos) {
+    UA_TcpHelloMessage helloMessage;
+    if(UA_TcpHelloMessage_decodeBinary(msg, pos, &helloMessage) != UA_STATUSCODE_GOOD) {
+        connection->close(connection);
         return;
-    UA_ResponseHeader r;
-    UA_ResponseHeader_init(&r);
-    init_response_header(&p, &r);
-    r.serviceResult = error;
-    UA_SecureChannel_sendBinaryMessage(channel, requestId, &r,
-                                       &UA_TYPES[UA_TYPES_SERVICEFAULT]);
-    UA_RequestHeader_deleteMembers(&p);
-    UA_ResponseHeader_deleteMembers(&r);
+    }
+
+    connection->state = UA_CONNECTION_ESTABLISHED;
+    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
+    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
+    connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
+    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
+    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
+        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
+    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
+        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
+    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
+    UA_TcpHelloMessage_deleteMembers(&helloMessage);
+
+    /* Build acknowledge response */
+    UA_TcpAcknowledgeMessage ackMessage;
+    ackMessage.protocolVersion = connection->localConf.protocolVersion;
+    ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
+    ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
+    ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
+    ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
+
+    UA_TcpMessageHeader ackHeader;
+    ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
+    ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
+
+    UA_ByteString ack_msg;
+    UA_ByteString_init(&ack_msg);
+    if(connection->getSendBuffer(connection, connection->localConf.sendBufferSize,
+                                 &ack_msg) != UA_STATUSCODE_GOOD)
+        return;
+
+    size_t tmpPos = 0;
+    UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
+    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
+    ack_msg.length = ackHeader.messageSize;
+    connection->send(connection, &ack_msg);
 }
 
-static void
-appendChunkedMessage(struct ChunkEntry *ch, const UA_ByteString *msg, size_t *pos) {
-    if (ch->invalid_message) {
+/* OPN -> Open up/renew the securechannel */
+static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
+    if(connection->state != UA_CONNECTION_ESTABLISHED) {
+        connection->close(connection);
         return;
     }
 
-    UA_UInt32 len;
-    *pos -= 20;
-    UA_UInt32_decodeBinary(msg, pos, &len);
-    if (len > msg->length) {
-        UA_ByteString_deleteMembers(&ch->bytes);
-        ch->invalid_message = true;
+    UA_UInt32 channelId;
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &channelId);
+
+    /* Opening up a channel with a channelid already set */
+    if(connection->channel == NULL && channelId != 0)
+        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
+    /* Renew a channel with the wrong channelid */
+    if(connection->channel != NULL && channelId != connection->channel->securityToken.channelId)
+        retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
+
+    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, pos, &asymHeader);
+
+    UA_SequenceHeader seqHeader;
+    retval |= UA_SequenceHeader_decodeBinary(msg, pos, &seqHeader);
+
+    UA_NodeId requestType;
+    retval |= UA_NodeId_decodeBinary(msg, pos, &requestType);
+
+    UA_OpenSecureChannelRequest r;
+    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, pos, &r);
+
+    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_SequenceHeader_deleteMembers(&seqHeader);
+        UA_NodeId_deleteMembers(&requestType);
+        UA_OpenSecureChannelRequest_deleteMembers(&r);
+        connection->close(connection);
         return;
     }
-    len -= 24;
-    *pos += 16; // 4 bytes consumed by decode above
 
-    UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + len);
-    if (! new_bytes) {
-        UA_ByteString_deleteMembers(&ch->bytes);
-        ch->invalid_message = true;
-        return;
-    }
-    ch->bytes.data = new_bytes;
-
-    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[*pos], len);
-    ch->bytes.length += len;
-    *pos += len;
-}
-
-static struct ChunkEntry*
-chunkEntryFromRequestId(UA_SecureChannel *channel, UA_UInt32 requestId) {
-    struct ChunkEntry *ch;
-    LIST_FOREACH(ch, &channel->chunks, pointers) {
-        if (ch->requestId == requestId) {
-            return ch;
-        }
-    }
-    return NULL;
-}
-
-static void
-processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
-    /* If we cannot decode these, don't respond */
-    UA_UInt32 secureChannelId = 0;
-    UA_UInt32 tokenId = 0;
-    UA_SequenceHeader sequenceHeader;
-    UA_NodeId requestTypeId;
-    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
-    retval |= UA_UInt32_decodeBinary(msg, pos, &tokenId);
-    retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-    if(retval != UA_STATUSCODE_GOOD)
-        return;
+    UA_OpenSecureChannelResponse p;
+    UA_OpenSecureChannelResponse_init(&p);
+    Service_OpenSecureChannel(server, connection, &r, &p);
+    UA_OpenSecureChannelRequest_deleteMembers(&r);
 
     UA_SecureChannel *channel = connection->channel;
-    UA_SecureChannel anonymousChannel;
     if(!channel) {
-        UA_SecureChannel_init(&anonymousChannel);
-        anonymousChannel.connection = connection;
-        channel = &anonymousChannel;
-    }
-
-    /* Test if the secure channel is ok */
-    if(secureChannelId != channel->securityToken.channelId)
-        return;
-    if(tokenId != channel->securityToken.tokenId) {
-        if(tokenId != channel->nextSecurityToken.tokenId) {
-            /* close the securechannel but keep the connection open */
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                        "Request with a wrong security token. Closing the SecureChannel %i.",
-                        channel->securityToken.channelId);
-            Service_CloseSecureChannel(server, channel->securityToken.channelId);
-            return;
-        }
-        UA_SecureChannel_revolveTokens(channel);
-    }
-
-    size_t final_chunked_pos = 0;
-    UA_ByteString bytes;
-    struct ChunkEntry *ch;
-    switch (msg->data[*pos - 24 + 3]) {
-    case 'C':
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk message");
-        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
-        if (! ch) {
-            ch = UA_calloc(1, sizeof(struct ChunkEntry));
-            ch->invalid_message = false;
-            ch->requestId = sequenceHeader.requestId;
-            UA_ByteString_init(&ch->bytes);
-            LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
-        }
-
-        appendChunkedMessage(ch, msg, pos);
-        return;
-    case 'F':
-        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
-        if (ch) {
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Final chunk message");
-            appendChunkedMessage(ch, msg, pos);
-
-            bytes = ch->bytes;
-            LIST_REMOVE(ch, pointers);
-            UA_free(ch);
-
-            final_chunked_pos = *pos;
-            *pos = 0;
-
-            // if the chunks have failed decoding
-            // message is invalid => return early
-            if (bytes.length == 0) {
-                *pos = final_chunked_pos;
-                return;
-            }
-        } else {
-            bytes = *msg;
-        }
-        break;
-    case 'A':
-        ch = chunkEntryFromRequestId(channel, sequenceHeader.requestId);
-        if (ch) {
-            UA_ByteString_deleteMembers(&ch->bytes);
-            LIST_REMOVE(ch, pointers);
-            UA_free(ch);
-        } else {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                        "Received MSGA on an unknown request");
-        }
-
-        return;
-    default:
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-            "Received unknown message chunk: %c", msg->data[*pos - 24 + 3]);
+        connection->close(connection);
+        UA_OpenSecureChannelResponse_deleteMembers(&p);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         return;
     }
 
-    retval |= UA_NodeId_decodeBinary(&bytes, pos, &requestTypeId);
-    if(retval != UA_STATUSCODE_GOOD)
+    /* send the response with an asymmetric security header */
+#ifndef UA_ENABLE_MULTITHREADING
+    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+#else
+    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+#endif
+
+    UA_SecureConversationMessageHeader respHeader;
+    respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+    respHeader.messageHeader.messageSize = 0;
+    respHeader.secureChannelId = p.securityToken.channelId;
+
+    UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
+                                               UA_ENCODINGOFFSET_BINARY);
+
+    UA_ByteString resp_msg;
+    UA_ByteString_init(&resp_msg);
+    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_OpenSecureChannelResponse_deleteMembers(&p);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         return;
+    }
+
+    size_t tmpPos = 12; /* skip the secureconversationmessageheader for now */
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos); // just mirror back
+    retval |= UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
+    retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &resp_msg);
+        connection->close(connection);
+    } else {
+        respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
+        tmpPos = 0;
+        UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
+        resp_msg.length = respHeader.messageHeader.messageSize;
+        connection->send(connection, &resp_msg);
+    }
+    UA_OpenSecureChannelResponse_deleteMembers(&p);
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+}
+
+static void
+processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId, const UA_ByteString *msg) {
+    /* At 0, the nodeid starts... */
+    size_t ppos = 0;
+    size_t *pos = &ppos;
+
+    UA_NodeId requestTypeId;
+    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, pos, &requestTypeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        sendError(channel, msg, *pos, requestId, retval);
+        return;
+    }
 
     /* Test if the service type nodeid has the right format */
     if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
        requestTypeId.namespaceIndex != 0) {
         UA_NodeId_deleteMembers(&requestTypeId);
-        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
 
@@ -483,15 +385,15 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Unknown request: NodeId(ns=%d, i=%d)",
                         requestTypeId.namespaceIndex, requestTypeId.identifier.numeric);
-        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
 
     /* Most services can only be called with a valid securechannel */
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
-    if(channel == &anonymousChannel &&
+    if(channel->securityToken.channelId == 0 &&
        requestType->typeIndex > UA_TYPES_OPENSECURECHANNELREQUEST) {
-        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
+        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         return;
     }
 #endif
@@ -499,9 +401,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     /* Decode the request */
     void *request = UA_alloca(requestType->memSize);
     size_t oldpos = *pos;
-    retval = UA_decodeBinary(&bytes, pos, request, requestType);
+    retval = UA_decodeBinary(msg, pos, request, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
-        sendError(channel, &bytes, oldpos, sequenceHeader.requestId, retval);
+        sendError(channel, msg, oldpos, requestId, retval);
         return;
     }
 
@@ -527,10 +429,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
        requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service with a non-activated session");
-        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         return;
     }
-
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
     if(session == &anonymousSession &&
        requestType->typeIndex != UA_TYPES_CREATESESSIONREQUEST &&
@@ -538,29 +439,25 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
        requestType->typeIndex != UA_TYPES_FINDSERVERSREQUEST &&
        requestType->typeIndex != UA_TYPES_GETENDPOINTSREQUEST &&
        requestType->typeIndex != UA_TYPES_OPENSECURECHANNELREQUEST) {
-#ifdef UA_ENABLE_TYPENAMES
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Client sent a %s without a session", requestType->typeName);
-#else
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Client tries to call a service without a session");
-#endif
-        sendError(channel, &bytes, *pos, sequenceHeader.requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+        sendError(channel, msg, *pos, requestId, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
         return;
     }
 #endif
 
+    /* Update the session lifetime */
     UA_Session_updateLifetime(session);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* The publish request is answered asynchronously */
+    /* The publish request is not answered immediately */
     if(requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY == UA_NS0ID_PUBLISHREQUEST) {
-        Service_Publish(server, session, request, sequenceHeader.requestId);
+        Service_Publish(server, session, request, requestId);
         UA_deleteMembers(request, requestType);
         return;
     }
 #endif
-        
+
     /* Call the service */
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Processing a service with type id %u on Session %u",
@@ -570,54 +467,95 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
     UA_assert(responseType);
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
-    init_response_header(request, response);
     service(server, session, request, response);
 
     /* Send the response */
-    retval = UA_SecureChannel_sendBinaryMessage(channel, sequenceHeader.requestId,
-                                                response, responseType);
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* e.g. UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED */
-        sendError(channel, &bytes, oldpos, sequenceHeader.requestId, retval);
-    }
+    init_response_header(request, response);
+    retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
+    if(retval != UA_STATUSCODE_GOOD)
+        sendError(channel, msg, oldpos, requestId, retval);
 
     /* Clean up */
-    if (final_chunked_pos) {
-        *pos = final_chunked_pos;
-        UA_ByteString_deleteMembers(&bytes);
-    }
-
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
-    return;
 }
 
+/* MSG -> Normal request */
+static void
+processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHeader *messageHeader,
+           const UA_ByteString *msg, size_t *pos) {
+    /* Decode the header */
+    UA_UInt32 secureChannelId = 0;
+    UA_UInt32 tokenId = 0;
+    UA_SequenceHeader sequenceHeader;
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    retval |= UA_UInt32_decodeBinary(msg, pos, &tokenId);
+    retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Set the SecureChannel, channelid = 0 -> anonymous channel */
+    UA_SecureChannel *channel = connection->channel;
+    UA_SecureChannel anonymousChannel;
+    if(!channel) {
+        UA_SecureChannel_init(&anonymousChannel);
+        anonymousChannel.connection = connection;
+        channel = &anonymousChannel;
+    }
+    if(secureChannelId != channel->securityToken.channelId) /* Not the channel we expected */
+        return;
+    if(tokenId != channel->securityToken.tokenId) {
+        if(tokenId != channel->nextSecurityToken.tokenId) {
+            /* close the securechannel but keep the connection open */
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "Request with a wrong security token. Closing the SecureChannel %i.",
+                        channel->securityToken.channelId);
+            Service_CloseSecureChannel(server, channel->securityToken.channelId);
+            return;
+        }
+        UA_SecureChannel_revolveTokens(channel);
+    }
+
+    /* Process chunk to get complete request */
+    UA_Boolean deleteRequest = false;
+    UA_ByteString request = processChunk(channel, server, messageHeader, sequenceHeader.requestId,
+                                         msg, *pos, messageHeader->messageSize - 24, &deleteRequest);
+    *pos += (messageHeader->messageSize - 24);
+    if(request.length == 0)
+        return;
+
+    /* Process the request */
+    processRequest(channel, server, sequenceHeader.requestId, &request);
+    if(deleteRequest)
+        UA_ByteString_deleteMembers(&request);
+}
+
+/* CLO -> Close the secure channel */
 static void
 processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
-    UA_UInt32 secureChannelId;
-    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &secureChannelId);
+    UA_UInt32 channelId;
+    UA_StatusCode retval = UA_UInt32_decodeBinary(msg, pos, &channelId);
     if(retval != UA_STATUSCODE_GOOD || !connection->channel ||
-       connection->channel->securityToken.channelId != secureChannelId)
+       connection->channel->securityToken.channelId != channelId)
         return;
-    Service_CloseSecureChannel(server, secureChannelId);
+    Service_CloseSecureChannel(server, channelId);
 }
 
-/**
- * process binary message received from Connection
- * dose not modify UA_ByteString you have to free it youself.
- * use of connection->getSendBuffer() and connection->send() to answer Message
- */
+/* Process binary message received from Connection dose not modify UA_ByteString
+ * you have to free it youself. use of connection->getSendBuffer() and
+ * connection->send() to answer Message */
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
     size_t pos = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
-        if(UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader)) {
+        /* Decode the message header */
+        UA_StatusCode retval = UA_TcpMessageHeader_decodeBinary(msg, &pos, &tcpMessageHeader);
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "Decoding of message header failed on Connection %i", connection->sockfd);
             connection->close(connection);
             break;
         }
-
         if(tcpMessageHeader.messageSize < 16) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "The message is suspiciously small on Connection %i", connection->sockfd);
@@ -625,16 +563,21 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         }
 
+        /* Set the expected position after processing the chunk */
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
+
+        /* Process the message */
         switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
         case UA_MESSAGETYPE_HEL:
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Process a HEL on Connection %i", connection->sockfd);
             processHEL(connection, msg, &pos);
             break;
+
         case UA_MESSAGETYPE_OPN:
             processOPN(connection, server, msg, &pos);
             break;
+
         case UA_MESSAGETYPE_MSG:
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
@@ -647,18 +590,20 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 #endif
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Process a MSG on Connection %i", connection->sockfd);
-            processMSG(connection, server, msg, &pos);
+            processMSG(connection, server, &tcpMessageHeader, msg, &pos);
             break;
+
         case UA_MESSAGETYPE_CLO:
             processCLO(connection, server, msg, &pos);
             connection->close(connection);
             return;
+
         default:
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "Unknown request type on Connection %i", connection->sockfd);
         }
 
-        UA_TcpMessageHeader_deleteMembers(&tcpMessageHeader);
+        /* Loop to process the next message in the stream */
         if(pos != targetpos) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                         "Message on Connection %i was not entirely processed. "

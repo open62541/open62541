@@ -249,3 +249,83 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     ci.final = UA_TRUE;
     return UA_SecureChannel_sendChunk(&ci, &message, messagePos);
 }
+
+/* assume that chunklength fits */
+static void appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
+                        size_t pos, size_t chunklength) {
+    UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
+    if(!new_bytes) {
+        UA_ByteString_deleteMembers(&ch->bytes);
+        return;
+    }
+    ch->bytes.data = new_bytes;
+    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[pos], chunklength);
+    ch->bytes.length += chunklength;
+}
+
+void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                  const UA_ByteString *msg, size_t pos, size_t chunklength) {
+    /* Check if the chunk fits into the message */
+    if(msg->length - pos < chunklength) {
+        UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
+        return;
+    }
+
+    /* Get/create the chunkentry */
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if(ch->requestId == requestId)
+            break;
+    }
+    if(!ch) {
+        ch = UA_malloc(sizeof(struct ChunkEntry));
+        if(!ch)
+            return;
+        ch->requestId = requestId;
+        UA_ByteString_init(&ch->bytes);
+        LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
+    }
+
+    appendChunk(ch, msg, pos, chunklength);
+}
+
+UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                             const UA_ByteString *msg, size_t pos, size_t chunklength,
+                                             UA_Boolean *deleteChunk) {
+    if(msg->length - pos < chunklength) {
+        UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
+        return UA_BYTESTRING_NULL;
+    }
+
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if(ch->requestId == requestId)
+            break;
+    }
+
+    UA_ByteString bytes;
+    if(!ch) {
+        *deleteChunk = false;
+        bytes.length = chunklength;
+        bytes.data = msg->data + pos;
+    } else {
+        *deleteChunk = true;
+        appendChunk(ch, msg, pos, chunklength);
+        bytes = ch->bytes;
+        LIST_REMOVE(ch, pointers);
+        UA_free(ch);
+    }
+    return bytes;
+}
+
+void UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId) {
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if(ch->requestId == requestId) {
+            UA_ByteString_deleteMembers(&ch->bytes);
+            LIST_REMOVE(ch, pointers);
+            UA_free(ch);
+            return;
+        }
+    }
+}
