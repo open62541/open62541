@@ -694,8 +694,6 @@ UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing WriteRequest");
-    UA_assert(server != NULL && session != NULL && request != NULL && response != NULL);
-
     if(request->nodesToWriteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
