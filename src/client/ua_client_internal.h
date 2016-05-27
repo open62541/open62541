@@ -68,7 +68,6 @@ struct UA_Client {
 
     /* Session */
     UA_UserTokenPolicy token;
-    UA_NodeId sessionId;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
     
