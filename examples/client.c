@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
                                                   &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
         return (int)retval;
     }
