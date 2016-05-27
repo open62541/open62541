@@ -90,7 +90,7 @@ void UA_Client_delete(UA_Client* client){
 }
 
 UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client) {
-    if (client == NULL)
+    if(!client)
         return UA_CLIENTSTATE_ERRORED;
     return client->state;
 }
@@ -329,14 +329,14 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     request.requestHeader.timeoutHint = 600000;
 
     //manual ExtensionObject encoding of the identityToken
-    if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
+    if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE) {
         UA_AnonymousIdentityToken* identityToken = UA_malloc(sizeof(UA_AnonymousIdentityToken));
         UA_AnonymousIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
         request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
         request.userIdentityToken.content.decoded.data = identityToken;
-    }else{
+    } else {
         UA_UserNameIdentityToken* identityToken = UA_malloc(sizeof(UA_UserNameIdentityToken));
         UA_UserNameIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
@@ -522,19 +522,20 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],NULL,NULL, &message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], NULL,
+                              NULL, &message, &offset);
 
     msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&msgHeader, &message, &offset);
 
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD) {
+        message.length = msgHeader.messageHeader.messageSize;
+        retval = client->connection.send(&client->connection, &message);
+    } else {
         client->connection.releaseSendBuffer(&client->connection, &message);
-        return retval;
     }
-
-    message.length = msgHeader.messageHeader.messageSize;
-    retval = client->connection.send(&client->connection, &message);
+    client->connection.close(&client->connection);
     return retval;
 }
 
@@ -549,7 +550,8 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    client->connection = client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl, client->config.logger);
+    client->connection = client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl,
+                                                       client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
@@ -570,6 +572,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
     /* always cleanup */
     cleanup:
+    UA_Client_disconnect(client);
     UA_Client_reset(client);
     return retval;
 }
@@ -629,13 +632,16 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
+    if(client->state != UA_CLIENTSTATE_CONNECTED)
+        return UA_STATUSCODE_BADNOTCONNECTED;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    //is a session established?
-    if(client->state == UA_CLIENTSTATE_CONNECTED && client->channel.connection->state == UA_CONNECTION_ESTABLISHED)
+    /* Is a session established? */
+    if(client->channel.connection->state == UA_CONNECTION_ESTABLISHED &&
+       !UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL))
         retval = CloseSession(client);
-    //is a secure channel established?
-    if(retval == UA_STATUSCODE_GOOD && client->channel.connection->state == UA_CONNECTION_ESTABLISHED)
-        retval = CloseSecureChannel(client);
+    /* Is a secure channel established? */
+    if(client->channel.connection->state == UA_CONNECTION_ESTABLISHED)
+        retval |= CloseSecureChannel(client);
     return retval;
 }
 
