@@ -237,7 +237,7 @@ typedef struct {
     UA_ConnectionConfig conf;
     UA_UInt16 port;
     UA_Logger logger; // Set during start
-    
+
     /* open sockets and connections */
     UA_Int32 serversockfd;
     size_t mappingsSize;
@@ -291,7 +291,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
 #endif
     //cppcheck-suppress unreadVariable
     ServerNetworkLayerTCP *layer = connection->handle;
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Closing the connection",
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Force closing the connection",
                 connection->sockfd);
     /* only "shutdown" here. this triggers the select, where the socket is
        "closed" in the mainloop */
@@ -346,12 +346,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
 #ifndef _MSC_VER
         du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d", hostname, layer->port);
 #else
-        du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE, "opc.tcp://%s:%d", hostname, layer->port);
+        du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
+                                        "opc.tcp://%s:%d", hostname, layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
     }
     UA_String_copy(&du, &nl->discoveryUrl);
-    
+
     /* open the server socket */
 #ifdef _WIN32
     if((layer->serversockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
@@ -428,9 +429,10 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
     for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
-        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) && !UA_fd_isset(layer->mappings[i].sockfd, &fdset)) {
+        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) &&
+           !UA_fd_isset(layer->mappings[i].sockfd, &fdset))
           continue;
-        }
+
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
             js[j].job.binaryMessage.connection = layer->mappings[i].connection;
@@ -439,6 +441,8 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             j++;
         } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_Connection *c = layer->mappings[i].connection;
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Connection closed from remote", c->sockfd);
             /* the socket was closed from remote */
             js[j].type = UA_JOBTYPE_DETACHCONNECTION;
             js[j].job.closeConnection = layer->mappings[i].connection;
@@ -453,8 +457,8 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     }
 
     if(j == 0) {
-    	free(js);
-    	js = NULL;
+        free(js);
+        js = NULL;
     }
 
     *jobs = js;

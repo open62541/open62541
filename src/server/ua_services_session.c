@@ -3,9 +3,8 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
-void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_CreateSessionRequest *request,
-                           UA_CreateSessionResponse *response) {
-    UA_SecureChannel *channel = session->channel;
+void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                           const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
     if(channel->securityToken.channelId == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
@@ -39,26 +38,15 @@ void Service_CreateSession(UA_Server *server, UA_Session *session, const UA_Crea
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
-    UA_LOG_DEBUG_SESSION(server->config.logger, newSession, "Session created");
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session %i created",
+                         newSession->sessionId.identifier.numeric);
 }
 
 void
-Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_ActivateSessionRequest *request,
-                        UA_ActivateSessionResponse *response) {
-    UA_SecureChannel *channel = session->channel;
-    // make the channel know about the session
-    UA_Session *foundSession =
-        UA_SessionManager_getSession(&server->sessionManager, &request->requestHeader.authenticationToken);
-
-    if(!foundSession) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "ActivateSession: No "
-                            "session found for the authentication token");
-        return;
-    }
-
-    if(foundSession->validTill < UA_DateTime_now()) {
-        UA_LOG_INFO_SESSION(server->config.logger, foundSession, "ActivateSession: SecureChannel %i wants "
+Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                        const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
+    if(session->validTill < UA_DateTime_now()) {
+        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
                             "to activate, but the session has timed out", channel->securityToken.channelId);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
@@ -67,7 +55,7 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
     if(request->userIdentityToken.encoding < UA_EXTENSIONOBJECT_DECODED ||
        (request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
         request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
-        UA_LOG_INFO_SESSION(server->config.logger, foundSession, "ActivateSession: SecureChannel %i wants "
+        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
                             "to activate, but the UserIdentify token is invalid",
                             channel->securityToken.channelId);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
@@ -93,15 +81,17 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
-        if(foundSession->channel && foundSession->channel != channel) {
-            UA_LOG_INFO_SESSION(server->config.logger, foundSession,
+        if(session->channel && session->channel != channel) {
+            /* Close the old SecureChannel (this also detaches it) */
+            UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "ActivateSession: Detach from old channel");
-            UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+            UA_SecureChannelManager_close(&server->secureChannelManager,
+                                          session->channel->securityToken.channelId);
         }
-        UA_SecureChannel_attachSession(channel, foundSession);
-        foundSession->activated = true;
-        UA_Session_updateLifetime(foundSession);
-        UA_LOG_INFO_SESSION(server->config.logger, foundSession, "ActivateSession: Session activated");
+        UA_SecureChannel_attachSession(channel, session);
+        session->activated = true;
+        UA_Session_updateLifetime(session);
+        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
         return;
     }
 
@@ -125,19 +115,19 @@ Service_ActivateSession(UA_Server *server, UA_Session *session, const UA_Activat
             if(!UA_String_equal(&token->userName, user) || !UA_String_equal(&token->password, pw))
                 continue;
             /* success - activate */
-            if(foundSession->channel && foundSession->channel != channel) {
-                UA_LOG_INFO_SESSION(server->config.logger, foundSession,
+            if(session->channel && session->channel != channel) {
+                UA_LOG_INFO_SESSION(server->config.logger, session,
                                     "ActivateSession: Detach from old channel");
-                UA_SecureChannel_detachSession(foundSession->channel, foundSession);
+                UA_SecureChannel_detachSession(session->channel, session);
             }
-            UA_SecureChannel_attachSession(channel, foundSession);
-            foundSession->activated = true;
-            UA_Session_updateLifetime(foundSession);
-            UA_LOG_INFO_SESSION(server->config.logger, foundSession, "ActivateSession: Session activated");
+            UA_SecureChannel_attachSession(channel, session);
+            session->activated = true;
+            UA_Session_updateLifetime(session);
+            UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
             return;
         }
         /* no match */
-        UA_LOG_INFO_SESSION(server->config.logger, foundSession,
+        UA_LOG_INFO_SESSION(server->config.logger, session,
                             "ActivateSession: Did not find matching username/password");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;

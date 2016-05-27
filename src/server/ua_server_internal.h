@@ -16,9 +16,9 @@
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
-	UA_UInt16 index;
-	UA_String url;
-	UA_ExternalNodeStore externalNodeStore;
+    UA_UInt16 index;
+    UA_String url;
+    UA_ExternalNodeStore externalNodeStore;
 } UA_ExternalNamespace;
 #endif
 
@@ -59,13 +59,13 @@ struct UA_Server {
     
 #ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
-	struct cds_wfcq_head dispatchQueue_head;
+    struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
     struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
-	struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
+    struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
     /* Config is the last element so that MSVC allows the usernamePasswordLogins
