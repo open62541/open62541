@@ -17,6 +17,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .nThreads = 1,
     .logger = Logger_Stdout,
 
+    /* Server Description */
     .buildInfo = {
         .productUri = UA_STRING_STATIC(PRODUCT_URI),
         .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
@@ -36,18 +37,31 @@ const UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrls = NULL },
     .serverCertificate = UA_STRING_STATIC_NULL,
 
+    /* Networking */
     .networkLayersSize = 0,
     .networkLayers = NULL,
 
+    /* Login */
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
     .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2,
 
+    /* Limits for SecureChannels */
+    .maxSecureChannels = 100,
+    .maxSecurityTokenLifetime = 10 * 60 * 1000, /* 10 minutes */
+
+    /* Limits for Sessions */
+    .maxSessions = 100,
+    .maxSessionTimeout = 60.0 * 60.0 * 1000.0, /* 1h */
+
+    /* Limits for Subscriptions */
     .publishingIntervalLimits = { .min = 100.0, .max = 3600.0 * 1000.0 },
     .lifeTimeCountLimits = { .max = 15000, .min = 3 },
     .keepAliveCountLimits = { .max = 100, .min = 1 },
     .maxNotificationsPerPublish = 1000,
+
+    /* Limits for MonitoredItems */
     .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
     .queueSizeLimits = { .max = 100, .min = 1 }
 };

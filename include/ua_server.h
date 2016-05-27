@@ -38,7 +38,7 @@ extern "C" {
  * are never called in parallel but only sequentially from the server's main
  * loop. So the network layer does not need to be thread-safe. */
 struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;    
+typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
 
 struct UA_ServerNetworkLayer {
     void *handle; // pointer to internal data
@@ -89,14 +89,15 @@ typedef struct {
 } UA_UInt32Range;
 
 typedef struct {
-	UA_Double min;
-	UA_Double max;
+    UA_Double min;
+    UA_Double max;
 } UA_DoubleRange;
 
 typedef struct {
-    UA_UInt16 nThreads; // only if multithreading is enabled
+    UA_UInt16 nThreads; /* only if multithreading is enabled */
     UA_Logger logger;
 
+    /* Server Description */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
@@ -111,15 +112,23 @@ typedef struct {
     size_t usernamePasswordLoginsSize;
     UA_UsernamePasswordLogin* usernamePasswordLogins;
 
-    /* Limits for subscription settings */
-	UA_DoubleRange publishingIntervalLimits;
-	UA_UInt32Range lifeTimeCountLimits;
-	UA_UInt32Range keepAliveCountLimits;
-	UA_UInt32 maxNotificationsPerPublish;
+    /* Limits for SecureChannels */
+    UA_UInt16 maxSecureChannels;
+    UA_UInt32 maxSecurityTokenLifetime; /* in ms */
 
-	/* Limits for monitoreditem settings */
+    /* Limits for Sessions */
+    UA_UInt16 maxSessions;
+    UA_Double maxSessionTimeout; /* in ms */
+
+    /* Limits for Subscriptions */
+    UA_DoubleRange publishingIntervalLimits;
+    UA_UInt32Range lifeTimeCountLimits;
+    UA_UInt32Range keepAliveCountLimits;
+    UA_UInt32 maxNotificationsPerPublish;
+
+    /* Limits for MonitoredItems */
     UA_DoubleRange samplingIntervalLimits;
-	UA_UInt32Range queueSizeLimits;
+    UA_UInt32Range queueSizeLimits;
 } UA_ServerConfig;
 
 /**

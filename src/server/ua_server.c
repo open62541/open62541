@@ -437,31 +437,17 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
            EndpointDescription */
         UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
         UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
-        
+
         /* copy the discovery url only once the networlayer has been started */
         // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
-    } 
+    }
 
-#define MAXCHANNELCOUNT 100
-#define STARTCHANNELID 1
-#define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
-#define STARTTOKENID 1
-    UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, server);
-
-#define MAXSESSIONCOUNT 1000
-#define MAXSESSIONLIFETIME 3600000
-#define STARTSESSIONID 1
-    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME,
-                           STARTSESSIONID, server);
+    UA_SecureChannelManager_init(&server->secureChannelManager, server);
+    UA_SessionManager_init(&server->sessionManager, server);
 
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
-
-    /**********************/
-    /* Server Information */
-    /**********************/
 
     server->startTime = UA_DateTime_now();
 
