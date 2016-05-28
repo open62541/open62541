@@ -511,7 +511,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
     if(!UA_NodeId_isNull(&item->typeDefinition.nodeId)) {
         if (instantiationCallback != NULL)
           instantiationCallback->method(result->addedNodeId, item->typeDefinition.nodeId,
-                                        instantiationCallback->handle); 
+                                        instantiationCallback->handle);
         
         if(item->nodeClass == UA_NODECLASS_OBJECT)
             result->statusCode = instantiateObjectNode(server, session, &result->addedNodeId,
@@ -528,6 +528,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
 
 void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing AddNodesRequest");
     if(request->nodesToAddSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -741,17 +742,17 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 /* Adds a one-way reference to the local nodestore */
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, const UA_AddReferencesItem *item) {
-	size_t i = node->referencesSize;
+    size_t i = node->referencesSize;
     size_t refssize = (i+1) | 3; // so the realloc is not necessary every time
-	UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * refssize);
-	if(!new_refs)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * refssize);
+    if(!new_refs)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     node->references = new_refs;
     UA_ReferenceNode_init(&new_refs[i]);
     UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &new_refs[i].referenceTypeId);
     retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[i].targetId);
     new_refs[i].isInverse = !item->isForward;
-    if(retval == UA_STATUSCODE_GOOD) 
+    if(retval == UA_STATUSCODE_GOOD)
         node->referencesSize = i+1;
     else
         UA_ReferenceNode_deleteMembers(&new_refs[i]);
@@ -779,22 +780,22 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_Ad
 
     // todo: remove reference if the second direction failed
     return retval;
-} 
+}
 
-void Service_AddReferences(UA_Server *server, UA_Session *session,
-                           const UA_AddReferencesRequest *request,
+void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response) {
-	if(request->referencesToAddSize <= 0) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-		return;
-	}
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing AddReferencesRequest");
+    if(request->referencesToAddSize <= 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
     size_t size = request->referencesToAddSize;
-	
+
     if(!(response->results = UA_malloc(sizeof(UA_StatusCode) * size))) {
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-		return;
-	}
-	response->resultsSize = size;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    response->resultsSize = size;
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
@@ -805,30 +806,30 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-	for(size_t j = 0; j < server->externalNamespacesSize; j++) {
-		size_t indicesSize = 0;
-		for(size_t i = 0;i < size;i++) {
-			if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
+    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+        size_t indicesSize = 0;
+        for(size_t i = 0;i < size;i++) {
+            if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
                != server->externalNamespaces[j].index)
-				continue;
-			isExternal[i] = true;
-			indices[indicesSize] = i;
-			indicesSize++;
-		}
-		if (indicesSize == 0)
-			continue;
-		UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-		ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
+                continue;
+            isExternal[i] = true;
+            indices[indicesSize] = i;
+            indicesSize++;
+        }
+        if (indicesSize == 0)
+            continue;
+        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+        ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
                            indices, indicesSize, response->results, response->diagnosticInfos);
-	}
+    }
 #endif
 
-	for(size_t i = 0; i < response->resultsSize; i++) {
+    for(size_t i = 0; i < response->resultsSize; i++) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-		if(!isExternal[i])
+        if(!isExternal[i])
 #endif
             Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
-	}
+    }
 }
 
 /****************/
@@ -865,7 +866,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_Node
         bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         bd.includeSubtypes = true;
         bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
-        
+
         /* browse type definitions with admin rights */
         UA_BrowseResult result;
         UA_BrowseResult_init(&result);
@@ -885,12 +886,13 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session, const UA_Node
         }
         UA_BrowseResult_deleteMembers(&result);
     }
-    
+
     return UA_NodeStore_remove(server->nodestore, nodeId);
 }
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_DeleteNodesRequest *request,
                          UA_DeleteNodesResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteNodesRequest");
     if(request->nodesToDeleteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -901,7 +903,7 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session, const UA_Delete
         return;
     }
     response->resultsSize = request->nodesToDeleteSize;
-    for(size_t i=0; i<request->nodesToDeleteSize; i++) {
+    for(size_t i = 0; i < request->nodesToDeleteSize; i++) {
         UA_DeleteNodesItem *item = &request->nodesToDelete[i];
         response->results[i] = Service_DeleteNodes_single(server, session, &item->nodeId,
                                                           item->deleteTargetReferences);
@@ -916,7 +918,7 @@ static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
     UA_Boolean edited = false;
-    for(size_t i = node->referencesSize - 1; ; i--) {
+    for(size_t i = node->referencesSize-1; ; i--) {
         if(i > node->referencesSize)
             break; /* underflow after i == 0 */
         if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &node->references[i].targetId.nodeId))
@@ -957,8 +959,10 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
 }
 
 void
-Service_DeleteReferences(UA_Server *server, UA_Session *session, const UA_DeleteReferencesRequest *request,
+Service_DeleteReferences(UA_Server *server, UA_Session *session,
+                         const UA_DeleteReferencesRequest *request,
                          UA_DeleteReferencesResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteReferencesRequest");
     if(request->referencesToDeleteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;

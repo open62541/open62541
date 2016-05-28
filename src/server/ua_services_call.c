@@ -28,13 +28,13 @@ static UA_StatusCode
 satisfySignature(const UA_Variant *var, const UA_Argument *arg) {
     if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType) )
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    
+
     // Note: The namespace compiler will compile nodes with their actual array dimensions
     // Todo: Check if this is standard conform for scalars
     if(arg->arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
         if(var->arrayDimensionsSize != arg->arrayDimensionsSize)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        
+
     UA_Int32 *varDims = var->arrayDimensions;
     size_t varDimsSize = var->arrayDimensionsSize;
     UA_Boolean scalar = UA_Variant_isScalar(var);
@@ -112,24 +112,24 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
         return;
     }
-    
+
     const UA_ObjectNode *withObject =
         (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, &request->objectId);
     if(!withObject) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
         return;
     }
-    
+
     if(methodCalled->nodeClass != UA_NODECLASS_METHOD) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
-    
+
     if(withObject->nodeClass != UA_NODECLASS_OBJECT && withObject->nodeClass != UA_NODECLASS_OBJECTTYPE) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
-    
+
     /* Verify method/object relations */
     // Object must have a hasComponent reference (or any inherited referenceType from sayd reference)
     // to be valid for a methodCall...
@@ -145,7 +145,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     }
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
-        
+
     /* Verify method executable */
     if(!methodCalled->executable || !methodCalled->userExecutable) {
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
@@ -172,7 +172,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
-    
+
     /* Call method if available */
     if(methodCalled->attachedMethod) {
         result->outputArguments = UA_Array_new(outputArguments->value.variant.value.arrayLength,
@@ -184,12 +184,12 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     }
     else
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
-    
     /* TODO: Verify Output Argument count, types and sizes */
 }
 
 void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *request,
                   UA_CallResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CallRequest");
     if(request->methodsToCallSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -202,7 +202,7 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
         return;
     }
     response->resultsSize = request->methodsToCallSize;
-    
+
     for(size_t i = 0; i < request->methodsToCallSize;i++)
         Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
 }

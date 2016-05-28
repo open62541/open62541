@@ -29,11 +29,9 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_Connection *c = channel->connection;
-    if(c) {
+    if(c)
         UA_Connection_detachSecureChannel(c);
-        if(c->close)
-            c->close(c);
-    }
+
     /* just remove the pointers and free the linked list (not the sessions) */
     struct SessionEntry *se, *temp;
     LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
