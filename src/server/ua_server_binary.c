@@ -51,6 +51,7 @@ static UA_ByteString processChunk(UA_SecureChannel *channel, UA_Server *server,
     case UA_CHUNKTYPE_ABORT:
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Chunk aborted");
         UA_SecureChannel_removeChunk(channel, requestId);
+        break;
     default:
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Unknown chunk type");
     }
