@@ -402,7 +402,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
     retval = UA_decodeBinary(msg, pos, request, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
-        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT], requestId, retval);
+        sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
 
@@ -410,18 +410,18 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
 
-    /* Find the matching session */
-    UA_Session *session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
-
-    /* CreateSession and ActivateSession don't need a session */
+    /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
         Service_CreateSession(server, channel, request, response);
         goto send_response;
     }
+
+    /* Find the matching session */
+    UA_Session *session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
+    if(!session)
+        session = UA_SessionManager_getSession(&server->sessionManager, &requestHeader->authenticationToken);
+
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
-        /* Search in all sessions, not only those of the channel */
-        if(!session)
-            session = UA_SessionManager_getSession(&server->sessionManager, &requestHeader->authenticationToken);
         if(!session) {
             sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
@@ -442,7 +442,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
             return;
         }
 
-        /* Set an anonymous, inactive session */
+        /* Set an anonymous, inactive session for services that need no session */
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_NUMERIC(0,0);
         anonymousSession.channel = channel;
@@ -455,6 +455,14 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
                             requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
         sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
         UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_deleteMembers(request, requestType);
+        return;
+    }
+
+    /* The session is bound to another channel */
+    if(session->channel != channel) {
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Client tries to use an obsolete securechannel");
+        sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -512,7 +520,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHead
     /* Is the channel attached to connection? */
     if(channelId != channel->securityToken.channelId) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | Received MSG with the channel id not bound to the connection", connection->sockfd);
+                    "Connection %i | Received MSG with the channel id %i not bound to the connection",
+                    connection->sockfd, channelId);
         Service_CloseSecureChannel(server, channel);
     }
 

@@ -24,8 +24,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    //TODO get maxResponseMessageSize internally
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
+    newSession->maxRequestMessageSize = channel->connection->localConf.maxMessageSize;
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
@@ -67,37 +67,22 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
     UA_String up = UA_STRING(USERNAME_POLICY);
 
     /* Compatibility notice: Siemens OPC Scout v10 provides an empty policyId,
-       this is not okay For compatibility we will assume that empty policyId ==
-       ANONYMOUS_POLICY
+       this is not okay For compatibility we will assume that empty policyId == ANONYMOUS_POLICY
        if(token.policyId->data == NULL)
            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     */
 
-    /* anonymous login */
     if(server->config.enableAnonymousLogin &&
        request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* anonymous login */
         const UA_AnonymousIdentityToken *token = request->userIdentityToken.content.decoded.data;
         if(token->policyId.data && !UA_String_equal(&token->policyId, &ap)) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
-        if(session->channel && session->channel != channel) {
-            /* Close the old SecureChannel (this also detaches it) */
-            UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "ActivateSession: Detach from old channel");
-            UA_SecureChannelManager_close(&server->secureChannelManager,
-                                          session->channel->securityToken.channelId);
-        }
-        UA_SecureChannel_attachSession(channel, session);
-        session->activated = true;
-        UA_Session_updateLifetime(session);
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
-        return;
-    }
-
-    /* username login */
-    if(server->config.enableUsernamePasswordLogin &&
-       request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+    } else if(server->config.enableUsernamePasswordLogin &&
+              request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        /* username login */
         const UA_UserNameIdentityToken *token = request->userIdentityToken.content.decoded.data;
         if(!UA_String_equal(&token->policyId, &up)) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -108,31 +93,39 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
-        /* ok, trying to match the username */
+
+        /* trying to match pw/username */
+        UA_Boolean match = false;
         for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
             UA_String *user = &server->config.usernamePasswordLogins[i].username;
             UA_String *pw = &server->config.usernamePasswordLogins[i].password;
-            if(!UA_String_equal(&token->userName, user) || !UA_String_equal(&token->password, pw))
-                continue;
-            /* success - activate */
-            if(session->channel && session->channel != channel) {
-                UA_LOG_INFO_SESSION(server->config.logger, session,
-                                    "ActivateSession: Detach from old channel");
-                UA_SecureChannel_detachSession(session->channel, session);
+            if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
+                match = true;
+                break;
             }
-            UA_SecureChannel_attachSession(channel, session);
-            session->activated = true;
-            UA_Session_updateLifetime(session);
-            UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
+        }
+        if(!match) {
+            UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Did not find matching username/password");
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }
-        /* no match */
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: Did not find matching username/password");
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+    } else {
+        /* Unsupported token type */
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         return;
     }
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+    /* Detach the old SecureChannel */
+    if(session->channel && session->channel != channel) {
+        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Detach from old channel");
+        UA_SecureChannel_detachSession(session->channel, session);
+    }
+
+    /* Attach to the SecureChannel and activate */
+    UA_SecureChannel_attachSession(channel, session);
+    session->activated = true;
+    UA_Session_updateLifetime(session);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
 }
 
 void
