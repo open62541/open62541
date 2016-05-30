@@ -165,6 +165,7 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     }
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
 
+    /* TODO: verify that remote and local configurations match, adjust local configuration in the other case */
     conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
     conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
     conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
@@ -353,7 +354,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     if(response.responseHeader.serviceResult) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with statuscode %i", response.responseHeader.serviceResult);
+                     "ActivateSession failed with statuscode 0x%08x", response.responseHeader.serviceResult);
     }
 
     UA_ActivateSessionRequest_deleteMembers(&request);
@@ -381,7 +382,7 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDes
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with statuscode %i", response.responseHeader.serviceResult);
+                     "GetEndpointRequest failed with statuscode 0x%08x", response.responseHeader.serviceResult);
         UA_GetEndpointsResponse_deleteMembers(&response);
         return response.responseHeader.serviceResult;
     }

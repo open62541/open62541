@@ -72,9 +72,9 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     .logger = Logger_Stdout,
     .localConnectionConfig = {
         .protocolVersion = 0,
-        .sendBufferSize = 65536,
-        .recvBufferSize  = 65536,
-        .maxMessageSize = 65536,
+        .sendBufferSize = 65535,
+        .recvBufferSize  = 65535,
+        .maxMessageSize = 65535,
         .maxChunkCount = 1 },
     .connectionFunc = UA_ClientConnectionTCP
 };
