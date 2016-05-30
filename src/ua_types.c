@@ -387,9 +387,9 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
     for(size_t i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
-            return UA_STATUSCODE_BADINDEXRANGENODATA;
-        if(range.dimensions[i].max >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        if(range.dimensions[i].max >= dims[i])
+            return UA_STATUSCODE_BADINDEXRANGENODATA;
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 

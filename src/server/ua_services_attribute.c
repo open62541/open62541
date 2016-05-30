@@ -576,7 +576,7 @@ static UA_StatusCode
 CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
                       UA_Node *node, const UA_WriteValue *wvalue) {
     if(!wvalue->value.hasValue)
-        return UA_STATUSCODE_BADNODATA;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     void *value = wvalue->value.value.data;
     void *target = NULL;

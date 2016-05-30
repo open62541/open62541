@@ -128,7 +128,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     MonitoredItem_registerSampleJob(server, mon);
 }
 
-static const UA_String binaryEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
+static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
 static void
 Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                                     const UA_TimestampsToReturn timestampsToReturn,
@@ -144,8 +144,15 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
 
     /* Check if the encoding is supported */
     if(request->itemToMonitor.dataEncoding.name.length > 0 &&
-       !UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name)) {
+       (!UA_String_equal(&binaryEncoding, &request->itemToMonitor.dataEncoding.name) ||
+       request->itemToMonitor.dataEncoding.namespaceIndex != 0)) {
         result->statusCode = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
+        return;
+    }
+
+    /* Check if the encoding is set for a value */
+    if(request->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE && request->itemToMonitor.dataEncoding.name.length > 0){
+        result->statusCode = UA_STATUSCODE_BADDATAENCODINGINVALID;
         return;
     }
 
