@@ -34,7 +34,7 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
 static const UA_Node *
 returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
                            const UA_ReferenceNode *reference) {
-    /*	prepare a read request in the external nodestore	*/
+    /* prepare a read request in the external nodestore */
     UA_ReadValueId *readValueIds = UA_Array_new(6,&UA_TYPES[UA_TYPES_READVALUEID]);
     UA_UInt32 *indices = UA_Array_new(6,&UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 indicesSize = 6;
@@ -108,9 +108,9 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     /* return the node from an external namespace*/
-	for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
-		if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
-			continue;
+    for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
+        if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
+            continue;
         *isExternal = true;
         return returnRelevantNodeExternal(&server->externalNamespaces[nsIndex].externalNodeStore,
                                           descr, reference);
@@ -361,14 +361,12 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
                     UA_BrowseResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing BrowseRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseRequest");
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
         return;
     }
-    
+
     if(request->nodesToBrowseSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -381,7 +379,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
         return;
     }
     response->resultsSize = size;
-    
+
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 #ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
@@ -436,24 +434,22 @@ UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean r
 
 void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing BrowseNextRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
-   if(request->continuationPointsSize <= 0) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing BrowseNextRequest");
+    if(request->continuationPointsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
-   }
-   size_t size = request->continuationPointsSize;
-   response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
-   if(!response->results) {
-       response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-       return;
-   }
+    }
+    size_t size = request->continuationPointsSize;
+    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
 
-   response->resultsSize = size;
-   for(size_t i = 0; i < size; i++)
-       UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
-                                   &request->continuationPoints[i], &response->results[i]);
+    response->resultsSize = size;
+    for(size_t i = 0; i < size; i++)
+        UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
+                                    &request->continuationPoints[i], &response->results[i]);
 }
 
 /***********************/
@@ -567,10 +563,8 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing TranslateBrowsePathsToNodeIdsRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
-	if(request->browsePathsSize <= 0) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing TranslateBrowsePathsToNodeIdsRequest");
+    if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
@@ -592,40 +586,37 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 #endif /*NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
-    	size_t indexSize = 0;
-    	for(size_t i = 0;i < size;i++) {
-    		if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
-    			continue;
-    		isExternal[i] = true;
-    		indices[indexSize] = i;
-    		indexSize++;
-    	}
-    	if(indexSize == 0)
-    		continue;
-    	UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-    	ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
-    			indices, indexSize, response->results, response->diagnosticInfos);
+        size_t indexSize = 0;
+        for(size_t i = 0;i < size;i++) {
+            if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
+                continue;
+            isExternal[i] = true;
+            indices[indexSize] = i;
+            indexSize++;
+        }
+        if(indexSize == 0)
+            continue;
+        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+        ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
+                indices, indexSize, response->results, response->diagnosticInfos);
     }
 #endif
 
     response->resultsSize = size;
     for(size_t i = 0; i < size; i++) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    	if(!isExternal[i])
+        if(!isExternal[i])
 #endif
-    		Service_TranslateBrowsePathsToNodeIds_single(server, session, &request->browsePaths[i],
+            Service_TranslateBrowsePathsToNodeIds_single(server, session, &request->browsePaths[i],
                                                          &response->results[i]);
     }
 }
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing RegisterNodesRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
-
-	//TODO: hang the nodeids to the session if really needed
-	response->responseHeader.timestamp = UA_DateTime_now();
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterNodesRequest");
+    //TODO: hang the nodeids to the session if really needed
+    response->responseHeader.timestamp = UA_DateTime_now();
     if(request->nodesToRegisterSize <= 0)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
     else {
@@ -639,12 +630,9 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session, const UA_Regi
 
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Processing UnRegisterNodesRequest for Session (ns=%i,i=%i)",
-                 session->sessionId.namespaceIndex, session->sessionId.identifier.numeric);
-
-	//TODO: remove the nodeids from the session if really needed
-	response->responseHeader.timestamp = UA_DateTime_now();
-	if(request->nodesToUnregisterSize==0)
-		response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing UnRegisterNodesRequest");
+    //TODO: remove the nodeids from the session if really needed
+    response->responseHeader.timestamp = UA_DateTime_now();
+    if(request->nodesToUnregisterSize==0)
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 }

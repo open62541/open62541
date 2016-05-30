@@ -96,8 +96,8 @@ struct UA_Connection {
 
     /* Receive a message from the remote connection
      *
-	 * @param connection The connection
-	 * @param response The response string. It is allocated by the connection
+     * @param connection The connection
+     * @param response The response string. It is allocated by the connection
      *        and needs to be freed with connection->releaseBuffer
      * @param timeout Timeout of the recv operation in milliseconds
      * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation

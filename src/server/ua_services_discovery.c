@@ -4,6 +4,7 @@
 
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request, UA_FindServersResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersRequest");
     /* copy ApplicationDescription from the config */
     UA_ApplicationDescription *descr = UA_malloc(sizeof(UA_ApplicationDescription));
     if(!descr) {
@@ -28,7 +29,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     size_t existing = descr->discoveryUrlsSize;
     descr->discoveryUrls = disc;
     descr->discoveryUrlsSize += server->config.networkLayersSize;
-        
+
     // TODO: Add nl only if discoveryUrl not already present
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
@@ -41,6 +42,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest");
     /* Test if one of the networklayers exposes the discoveryUrl of the requested endpoint */
     /* Disabled, servers in a virtualbox don't know their external hostname */
     /* UA_Boolean foundUri = false; */
@@ -57,9 +59,9 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     
     /* test if the supported binary profile shall be returned */
 #ifdef NO_ALLOCA
-	UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
+    UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
 #else
-	UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Byte) * server->endpointDescriptionsSize);
+    UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Byte) * server->endpointDescriptionsSize);
 #endif
     size_t relevant_count = 0;
     for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {

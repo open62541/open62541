@@ -29,11 +29,9 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
     UA_Connection *c = channel->connection;
-    if(c) {
+    if(c)
         UA_Connection_detachSecureChannel(c);
-        if(c->close)
-            c->close(c);
-    }
+
     /* just remove the pointers and free the linked list (not the sessions) */
     struct SessionEntry *se, *temp;
     LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
@@ -94,14 +92,15 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session) {
     if(session)
         session->channel = NULL;
-    struct SessionEntry *se, *temp;
-    LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
-        if(se->session != session)
-            continue;
-        LIST_REMOVE(se, pointers);
-        UA_free(se);
-        break;
+    struct SessionEntry *se;
+    LIST_FOREACH(se, &channel->sessions, pointers) {
+        if(se->session == session)
+            break;
     }
+    if(!se)
+        return;
+    LIST_REMOVE(se, pointers);
+    UA_free(se);
 }
 
 UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *token) {

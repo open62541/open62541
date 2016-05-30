@@ -51,7 +51,7 @@ typedef enum {
     UA_LOGCATEGORY_CLIENT,
     UA_LOGCATEGORY_USERLAND
 } UA_LogCategory;
-    
+
 /**
  * The signature of the logger. The msg string and following varargs are
  * formatted according to the rules of the printf command.

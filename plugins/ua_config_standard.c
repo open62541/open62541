@@ -44,7 +44,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     /* Login */
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
-	.authCallback = NULL,
+    .authCallback = NULL,
     .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2,
 

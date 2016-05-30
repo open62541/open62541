@@ -54,7 +54,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
                                UA_OpenSecureChannelResponse *response);
 
 /** Used to terminate a SecureChannel. */
-void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId);
+void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /**
  * Session Service Set
@@ -67,7 +67,7 @@ void Service_CloseSecureChannel(UA_Server *server, UA_UInt32 channelId);
  * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session. */
-void Service_CreateSession(UA_Server *server, UA_Session *session,
+void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response);
 
@@ -76,8 +76,8 @@ void Service_CreateSession(UA_Server *server, UA_Session *session,
  * Session. This Service request shall be issued by the Client before it issues
  * any other Service request after CreateSession. Failure to do so shall cause
  * the Server to close the Session. */
-void Service_ActivateSession(UA_Server *server, UA_Session *session,
-                             const UA_ActivateSessionRequest *request,
+void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                             UA_Session *session, const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response);
 
 /* Used to terminate a Session. */

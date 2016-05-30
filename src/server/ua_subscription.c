@@ -22,6 +22,7 @@ UA_MonitoredItem * UA_MonitoredItem_new() {
     new->lastSampledValue = UA_BYTESTRING_NULL;
     memset(&new->sampleJobGuid, 0, sizeof(UA_Guid));
     new->sampleJobIsRegistered = false;
+    new->itemId = 0;
     return new;
 }
 
@@ -44,21 +45,21 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
 static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Cannot process a monitoreditem that is not a data change notification");
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %i | MonitoredItem %i | "
+                     "Cannot process a monitoreditem that is not a data change notification",
+                     monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Skipped a sample due to lack of memory on monitoreditem %u", monitoredItem->itemId);
+                    "Session %i | MonitoredItem %i | Skipped a sample due to lack of memory",
+                    monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
     newvalue->clientHandle = monitoredItem->clientHandle;
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Sampling the value on monitoreditem %u", monitoredItem->itemId);
 
     /* Read the value */
     UA_ReadValueId rvid;
@@ -89,10 +90,17 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Do not sample since the data value has not changed");
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
+                     "MonitoredItem %u | Do not sample an unchanged value",
+                     monitoredItem->subscription->session->sessionId.identifier.numeric,
+                     monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
         return;
     }
+
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
+                 "MonitoredItem %u | Sampling the value",
+                 monitoredItem->subscription->session->sessionId.identifier.numeric,
+                 monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
 
     /* do we have space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
@@ -118,7 +126,6 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
-    //SampleCallback(server, mon);
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
                   .job.methodCall = {.method = (UA_ServerCallback)SampleCallback, .data = mon} };
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
@@ -152,6 +159,7 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->publishJobIsRegistered = false;
     new->currentKeepAliveCount = 0;
     new->currentLifetimeCount = 0;
+    new->lastMonitoredItemId = 0;
     new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
     LIST_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->MonitoredItems);
@@ -234,18 +242,17 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Dequeue a response */
     UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
     if(!pre) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Cannot send a publish response on subscription %u " \
-            "since the publish queue is empty on session %u",
-            sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Cannot send a publish response on subscription %u, "
+                             "since the publish queue is empty", sub->subscriptionID)
         if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
             sub->currentLifetimeCount++;
             if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "End of lifetime for subscription %u on session %u",
-                    sub->subscriptionID, sub->session->authenticationToken.identifier.numeric);
+                    "Session %u | Subscription %u | End of lifetime for subscription",
+                            sub->session->authenticationToken.identifier.numeric, sub->subscriptionID);
                 UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
             }
         }
@@ -322,10 +329,8 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Send the response */
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Sending out a publish response on subscription %u on securechannel %u " \
-                 "with %u notifications", sub->subscriptionID,
-                 sub->session->authenticationToken.identifier.numeric, (UA_UInt32)notifications);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                   "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -345,17 +350,10 @@ UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription
     UA_Job job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
                            .job.methodCall = {.method = (UA_ServerCallback)UA_Subscription_publishCallback,
                                               .data = sub} };
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "Adding a subscription with %i millisec interval", (int)sub->publishingInterval);
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
-                                                    (UA_UInt32)sub->publishingInterval,
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)sub->publishingInterval,
                                                     &sub->publishJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
         sub->publishJobIsRegistered = true;
-    else
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not register a subscription publication job " \
-                     "with status code 0x%08x\n", retval);
     return retval;
 }
 
@@ -363,12 +361,7 @@ UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscripti
     if(!sub->publishJobIsRegistered)
         return UA_STATUSCODE_GOOD;
     sub->publishJobIsRegistered = false;
-    UA_StatusCode retval = UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not remove a subscription publication job " \
-                     "with status code 0x%08x\n", retval);
-    return retval;
+    return UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

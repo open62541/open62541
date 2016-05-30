@@ -200,10 +200,22 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 static UA_StatusCode
-instantiationHandle(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
-  printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex,
-         newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
-  return UA_STATUSCODE_GOOD;
+instantiationHandle(UA_NodeId newNodeId, UA_NodeId templateId, void *handle) {
+    printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex,
+        newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_Boolean
+authCallback(const UA_String* username, const UA_String* password, struct sockaddr_in* endpoint) {
+    /* If both params are NULL, the callback was issued to check an anonymous login */
+    if (username && password)
+        printf("Auth user '%.*s' with password '%.*s'.\n", username->length, username->data, password->length, password->data);
+    else
+        printf("Auth anonymous user.\n");
+    
+    /* Allow access to all users (as it is an example) */
+    return true;
 }
 
 int main(int argc, char** argv) {
@@ -217,6 +229,7 @@ int main(int argc, char** argv) {
     config.serverCertificate = loadCertificate();
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+    config.authCallback = authCallback;
     UA_Server *server = UA_Server_new(config);
 
     // add node with the datetime data source
