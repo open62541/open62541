@@ -33,6 +33,10 @@ add_executable(check_memory check_memory.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_memory ${LIBS})
 add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
 
+add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_chunking ${LIBS})
+add_test(chunking ${CMAKE_CURRENT_BINARY_DIR}/check_chunking)
+
 # add_executable(check_stack check_stack.c)
 # target_link_libraries(check_stack ${LIBS})
 # add_test(stack ${CMAKE_CURRENT_BINARY_DIR}/check_stack)

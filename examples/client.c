@@ -20,9 +20,9 @@ static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void 
 }
 
 static UA_StatusCode
-nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
+nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
   UA_NodeId *parent = (UA_NodeId *) handle;
-  
+
   if(!isInverse) {
     printf("%d, %d --- %d ---> NodeId %d, %d\n",
            parent->namespaceIndex, parent->identifier.numeric,
@@ -35,48 +35,41 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
-    //listing endpoints
+    /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval =
-        UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
-                               &endpointArraySize, &endpointArray);
-
-    //freeing the endpointArray
+    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
+                                                  &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
-        //cleanup array
-        UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
         return (int)retval;
     }
-
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++){
-        printf("URL of endpoint %i is %.*s\n", (int)i, (int)endpointArray[i].endpointUrl.length, endpointArray[i].endpointUrl.data);
+        printf("URL of endpoint %i is %.*s\n", (int)i,
+               (int)endpointArray[i].endpointUrl.length,
+               endpointArray[i].endpointUrl.data);
     }
-
-    //cleanup array of enpoints
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
-    //connect to a server
-    //anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    /* Connect to a server */
+    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664"); */
     retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
-
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    // Browse some objects
-    printf("Browsing nodes in objects folder:\n");
 
+    /* Browse some objects */
+    printf("Browsing nodes in objects folder:\n");
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
-    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); //browse objects folder
-    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
-
+    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
     for (size_t i = 0; i < bResp.resultsSize; ++i) {
@@ -89,54 +82,50 @@ int main(int argc, char *argv[]) {
                        ref->displayName.text.data);
             } else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING) {
                 printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
-                       (int)ref->nodeId.nodeId.identifier.string.length, ref->nodeId.nodeId.identifier.string.data,
+                       (int)ref->nodeId.nodeId.identifier.string.length,
+                       ref->nodeId.nodeId.identifier.string.data,
                        (int)ref->browseName.name.length, ref->browseName.name.data,
                        (int)ref->displayName.text.length, ref->displayName.text.data);
             }
-            //TODO: distinguish further types
+            /* TODO: distinguish further types */
         }
     }
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
-    
-    // Same thing, this time using the node iterator...
+
+    /* Same thing, this time using the node iterator... */
     UA_NodeId *parent = UA_NodeId_new();
     *parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) parent);
+    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                   nodeIter, (void *) parent);
     UA_NodeId_delete(parent);
-    
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    // Create a subscription with interval 0 (immediate)...
+    /* Create a subscription */
     UA_UInt32 subId = 0;
     UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
-    
-    // .. and monitor TheAnswer
+    /* Add a MonitoredItem */
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
     UA_UInt32 monId = 0;
-    UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
-                                             UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
+    UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
+                                             &handler_TheAnswerChanged, NULL, &monId);
     if (monId)
         printf("Monitoring 'the.answer', id %u\n", subId);
-    
-    // First Publish always generates data (current value) and call out handler.
-    UA_Client_Subscriptions_manuallySendPublishRequest(client);
-    
-    // This should not generate anything
+    /* The first publish request should return the initial value of the variable */
     UA_Client_Subscriptions_manuallySendPublishRequest(client);
 #endif
-    
-    UA_Int32 value = 0;
-    // Read node's value
+
+    /* Read attribute */
     printf("\nReading the value of node (1, \"the.answer\"):\n");
+    UA_Int32 value = 0;
     UA_ReadRequest rReq;
     UA_ReadRequest_init(&rReq);
     rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     rReq.nodesToReadSize = 1;
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
-    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
+    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE; /* return the value attribute */
     UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
        rResp.resultsSize > 0 && rResp.results[0].hasValue &&
@@ -145,55 +134,49 @@ int main(int argc, char *argv[]) {
         value = *(UA_Int32*)rResp.results[0].value.data;
         printf("the value is: %i\n", value);
     }
-
     UA_ReadRequest_deleteMembers(&rReq);
     UA_ReadResponse_deleteMembers(&rResp);
 
+    /* Write node attribute */
     value++;
-    // Write node's value
     printf("\nWriting a value of node (1, \"the.answer\"):\n");
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = UA_WriteValue_new();
     wReq.nodesToWriteSize = 1;
-    wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
+    wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
     wReq.nodesToWrite[0].value.hasValue = true;
     wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
-    wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; //do not free the integer on deletion
+    wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; /* do not free the integer on deletion */
     wReq.nodesToWrite[0].value.value.data = &value;
-    
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
             printf("the new value is: %i\n", value);
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
 
-    // Alternate Form, this time using the hl API
+    /* Write node attribute (using the highlevel API) */
     value++;
     UA_Variant *myVariant = UA_Variant_new();
     UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
     UA_Client_writeValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), myVariant);
     UA_Variant_delete(myVariant);
-    
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    // Take another look at the.answer... this should call the handler.
+    /* Take another look at the.answer */
     UA_Client_Subscriptions_manuallySendPublishRequest(client);
-    
-    // Delete our subscription (which also unmonitors all items)
+    /* Delete the subscription */
     if(!UA_Client_Subscriptions_remove(client, subId))
         printf("Subscription removed\n");
 #endif
-    
+
 #ifdef UA_ENABLE_METHODCALLS
-    /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
-       FIXME: Provide a namespace 0 independant example on the server side
-     */
+    /* Call a remote method */
     UA_Variant input;
     UA_String argString = UA_STRING("Hello Server");
     UA_Variant_init(&input);
     UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
-    
     size_t outputSize;
     UA_Variant *output;
     retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -206,10 +189,10 @@ int main(int argc, char *argv[]) {
         printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
     }
     UA_Variant_deleteMembers(&input);
-
 #endif
 
-#ifdef UA_ENABLE_NODEMANAGEMENT 
+#ifdef UA_ENABLE_NODEMANAGEMENT
+    /* Add new nodes*/
     /* New ReferenceType */
     UA_NodeId ref_id;
     UA_ReferenceTypeAttributes ref_attr;
@@ -225,7 +208,7 @@ int main(int argc, char *argv[]) {
                                             ref_attr, &ref_id);
     if(retval == UA_STATUSCODE_GOOD )
         printf("Created 'NewReference' with numeric NodeID %u\n", ref_id.identifier.numeric);
-    
+
     /* New ObjectType */
     UA_NodeId objt_id;
     UA_ObjectTypeAttributes objt_attr;
@@ -240,7 +223,7 @@ int main(int argc, char *argv[]) {
                                          objt_attr, &objt_id);
     if(retval == UA_STATUSCODE_GOOD)
         printf("Created 'NewObjectType' with numeric NodeID %u\n", objt_id.identifier.numeric);
-    
+
     /* New Object */
     UA_NodeId obj_id;
     UA_ObjectAttributes obj_attr;
@@ -256,7 +239,7 @@ int main(int argc, char *argv[]) {
                                      obj_attr, &obj_id);
     if(retval == UA_STATUSCODE_GOOD )
         printf("Created 'NewObject' with numeric NodeID %u\n", obj_id.identifier.numeric);
-    
+
     /* New Integer Variable */
     UA_NodeId var_id;
     UA_VariableAttributes var_attr;
@@ -269,7 +252,7 @@ int main(int argc, char *argv[]) {
     UA_Variant_setScalar(&var_attr.value, &int_value, &UA_TYPES[UA_TYPES_INT32]);
     var_attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     retval = UA_Client_addVariableNode(client,
-                                       UA_NODEID_NUMERIC(1, 0), // Assign new/random NodeID  
+                                       UA_NODEID_NUMERIC(1, 0), // Assign new/random NodeID
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                        UA_QUALIFIEDNAME(0, "VariableNode"),
@@ -278,8 +261,8 @@ int main(int argc, char *argv[]) {
     if(retval == UA_STATUSCODE_GOOD )
         printf("Created 'NewVariable' with numeric NodeID %u\n", var_id.identifier.numeric);
 #endif
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return (int) UA_STATUSCODE_GOOD;
 }
-

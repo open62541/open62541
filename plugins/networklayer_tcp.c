@@ -69,11 +69,11 @@ socket_close(UA_Connection *connection) {
 static UA_StatusCode
 socket_write(UA_Connection *connection, UA_ByteString *buf) {
     size_t nWritten = 0;
-    while(buf->length > 0 && nWritten < (size_t)buf->length) {
+    do {
         ssize_t n = 0;
         do {
 #ifdef _WIN32
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data, (size_t)buf->length, 0);
+            n = send((SOCKET)connection->sockfd, (const char*)buf->data, buf->length, 0);
             const int last_error = WSAGetLastError();
             if(n < 0 && last_error != WSAEINTR && last_error != WSAEWOULDBLOCK) {
                 connection->close(connection);
@@ -82,7 +82,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
 #else
-            n = send(connection->sockfd, (const char*)buf->data, (size_t)buf->length, MSG_NOSIGNAL);
+            n = send(connection->sockfd, (const char*)buf->data, buf->length, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN) {
                 connection->close(connection);
                 socket_close(connection);
@@ -92,7 +92,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
 #endif
         } while(n == -1L);
         nWritten += (size_t)n;
-    }
+    } while(nWritten < buf->length);
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }
@@ -289,6 +289,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
+    //cppcheck-suppress unreadVariable
     ServerNetworkLayerTCP *layer = connection->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Closing the Connection %i",
                 connection->sockfd);
@@ -391,11 +392,12 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
 static size_t
 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout) {
     ServerNetworkLayerTCP *layer = nl->handle;
-    fd_set fdset;
+    fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
+    setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize;
-    resultsize = select(highestfd+1, &fdset, NULL, NULL, &tmptv);
+    resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
     if(resultsize < 0) {
         *jobs = NULL;
         return 0;
@@ -426,8 +428,9 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
     for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
-        if(!UA_fd_isset(layer->mappings[i].sockfd, &fdset))
-            continue;
+        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) && !UA_fd_isset(layer->mappings[i].sockfd, &fdset)) {
+          continue;
+        }
         UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
         if(retval == UA_STATUSCODE_GOOD) {
             js[j].job.binaryMessage.connection = layer->mappings[i].connection;

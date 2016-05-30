@@ -178,6 +178,10 @@ UA_Guid UA_Guid_random(void) {
 
 /* ByteString */
 UA_StatusCode UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
+    if(length == 0) {
+        UA_ByteString_init(bs);
+        return UA_STATUSCODE_GOOD;
+    }
     if(!(bs->data = UA_malloc(length)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
@@ -541,9 +545,11 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     UA_StatusCode retval = UA_copy(p, new, type);
 	if(retval != UA_STATUSCODE_GOOD) {
 		UA_free(new);
+        //cppcheck-suppress memleak
 		return retval;
 	}
     UA_Variant_setScalar(v, new, type);
+    //cppcheck-suppress memleak
     return UA_STATUSCODE_GOOD;
 }
 

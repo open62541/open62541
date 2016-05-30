@@ -1,4 +1,5 @@
-MessageTypeAndFinal
+MessageType
+ChunkType
 TcpMessageHeader
 TcpHelloMessage
 TcpAcknowledgeMessage

@@ -1,14 +1,12 @@
 #include "ua_session_manager.h"
 #include "ua_server_internal.h"
 
+#define STARTSESSIONID 1
+
 UA_StatusCode
-UA_SessionManager_init(UA_SessionManager *sm, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId,
-                       UA_Server *server) {
+UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
     LIST_INIT(&sm->sessions);
-    sm->maxSessionCount = maxSessionCount;
-    sm->lastSessionId   = startSessionId;
-    sm->maxSessionLifeTime  = maxSessionLifeTime;
+    sm->lastSessionId = STARTSESSIONID;
     sm->currentSessionCount = 0;
     sm->server = server;
     return UA_STATUSCODE_GOOD;
@@ -65,7 +63,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
                                 const UA_CreateSessionRequest *request, UA_Session **session) {
-    if(sm->currentSessionCount >= sm->maxSessionCount)
+    if(sm->currentSessionCount >= sm->server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
     session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
@@ -77,11 +75,11 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
     newentry->session.sessionId = UA_NODEID_NUMERIC(1, sm->lastSessionId++);
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
-    if(request->requestedSessionTimeout <= sm->maxSessionLifeTime &&
+    if(request->requestedSessionTimeout <= sm->server->config.maxSessionTimeout &&
        request->requestedSessionTimeout > 0)
         newentry->session.timeout = request->requestedSessionTimeout;
     else
-        newentry->session.timeout = sm->maxSessionLifeTime; // todo: remove when the CTT is fixed
+        newentry->session.timeout = sm->server->config.maxSessionTimeout;
 
     UA_Session_updateLifetime(&newentry->session);
     LIST_INSERT_HEAD(&sm->sessions, newentry, pointers);

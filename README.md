@@ -3,7 +3,7 @@ open62541
 
 open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. The library is distributed as a single pair of [header](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.h) and [source](https://github.com/open62541/open62541/releases/download/v0.1.1/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
 
-open62541 is licensed under the LGPL + static linking exception. That means **open62541 can be freely used also in commercial projects**, although changes to the open62541 library itself need to be released under the same license. The server and client [examples](examples/) as well as popular [plugins](plugins/) are in the public domain (CC0 license). They can be used under any license and changes do not have to be published.
+open62541 is licensed under the LGPL with static linking exception. That means **open62541 can be used in commercial projects** without affecting code that uses the library. However, changes to the open62541 library itself need to be released under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/open62541/open62541.png?branch=master)](https://travis-ci.org/open62541/open62541)
@@ -61,7 +61,7 @@ int main(int argc, char** argv)
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
 
     /* 2) define where the variable shall be added with which browsename */
     UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
@@ -72,7 +72,7 @@ int main(int argc, char** argv)
 
     /* 3) add the variable */
     UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
-                              browseName, variableType, attr, NULL);
+                              browseName, variableType, attr, NULL, NULL);
 
     /* run the server loop */
     UA_StatusCode retval = UA_Server_run(server, &running);
@@ -94,7 +94,7 @@ int main(int argc, char *argv[])
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-    	return retval;
+        return retval;
     }
 
     /* create a readrequest with one entry */
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
     UA_ReadRequest_init(&req);
     req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     req.nodesToReadSize = 1;
-    
+
     /* define the node and attribute to be read */
     req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;

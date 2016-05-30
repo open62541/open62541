@@ -2,15 +2,14 @@
 #include "ua_session.h"
 #include "ua_server_internal.h"
 
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
+
 UA_StatusCode
-UA_SecureChannelManager_init(UA_SecureChannelManager *cm, size_t maxChannelCount,
-                             UA_UInt32 tokenLifetime, UA_UInt32 startChannelId,
-                             UA_UInt32 startTokenId, UA_Server *server) {
+UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server) {
     LIST_INIT(&cm->channels);
-    cm->lastChannelId = startChannelId;
-    cm->lastTokenId = startTokenId;
-    cm->maxChannelLifetime = tokenLifetime;
-    cm->maxChannelCount = maxChannelCount;
+    cm->lastChannelId = STARTCHANNELID;
+    cm->lastTokenId = STARTTOKENID;
     cm->currentChannelCount = 0;
     cm->server = server;
     return UA_STATUSCODE_GOOD;
@@ -56,7 +55,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              UA_OpenSecureChannelResponse *response) {
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
-    if(cm->currentChannelCount >= cm->maxChannelCount)
+    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry)
@@ -76,11 +75,11 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
     entry->channel.securityToken.createdAt = UA_DateTime_now();
     entry->channel.securityToken.revisedLifetime =
-            (request->requestedLifetime > cm->maxChannelLifetime) ?
-                    cm->maxChannelLifetime : request->requestedLifetime;
-    /* pragmatic workaround to get clients requesting lifetime of 0 working */
+        (request->requestedLifetime > cm->server->config.maxSecurityTokenLifetime) ?
+        cm->server->config.maxSecurityTokenLifetime : request->requestedLifetime;
+    /* lifetime 0 -> set the maximum possible */
     if(entry->channel.securityToken.revisedLifetime == 0)
-        entry->channel.securityToken.revisedLifetime = cm->maxChannelLifetime;
+        entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
 
     UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
     entry->channel.serverAsymAlgSettings.securityPolicyUri = UA_STRING_ALLOC(
@@ -112,12 +111,11 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
         //channel->nextSecurityToken.tokenId = channel->securityToken.tokenId;
         channel->nextSecurityToken.createdAt = UA_DateTime_now();
         channel->nextSecurityToken.revisedLifetime =
-                (request->requestedLifetime > cm->maxChannelLifetime) ?
-                        cm->maxChannelLifetime : request->requestedLifetime;
-
-        /* pragmatic workaround to get clients requesting lifetime of 0 working */
+                (request->requestedLifetime > cm->server->config.maxSecurityTokenLifetime) ?
+                        cm->server->config.maxSecurityTokenLifetime : request->requestedLifetime;
+        /* lifetime 0 -> return the max lifetime */
         if(channel->nextSecurityToken.revisedLifetime == 0)
-            channel->nextSecurityToken.revisedLifetime = cm->maxChannelLifetime;
+            channel->nextSecurityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     }
 
     if(channel->clientNonce.data)

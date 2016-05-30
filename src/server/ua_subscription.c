@@ -80,7 +80,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     }
     size_t encodingOffset = 0;
     retval = UA_encodeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT],
-                             &newValueAsByteString, &encodingOffset);
+                             NULL, NULL, &newValueAsByteString, &encodingOffset);
 
     /* error or the content has not changed */
     if(retval != UA_STATUSCODE_GOOD ||
@@ -311,6 +311,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         available++;
+    //cppcheck-suppress knownConditionTrueFalse
     if(available > 0) {
         response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
         response->availableSequenceNumbersSize = available;

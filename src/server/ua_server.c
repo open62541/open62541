@@ -437,31 +437,17 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
            EndpointDescription */
         UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
         UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
-        
+
         /* copy the discovery url only once the networlayer has been started */
         // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
-    } 
+    }
 
-#define MAXCHANNELCOUNT 100
-#define STARTCHANNELID 1
-#define TOKENLIFETIME 600000 //this is in milliseconds //600000 seems to be the minimal allowet time for UaExpert
-#define STARTTOKENID 1
-    UA_SecureChannelManager_init(&server->secureChannelManager, MAXCHANNELCOUNT,
-                                 TOKENLIFETIME, STARTCHANNELID, STARTTOKENID, server);
-
-#define MAXSESSIONCOUNT 1000
-#define MAXSESSIONLIFETIME 3600000
-#define STARTSESSIONID 1
-    UA_SessionManager_init(&server->sessionManager, MAXSESSIONCOUNT, MAXSESSIONLIFETIME,
-                           STARTSESSIONID, server);
+    UA_SecureChannelManager_init(&server->secureChannelManager, server);
+    UA_SessionManager_init(&server->sessionManager, server);
 
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
-
-    /**********************/
-    /* Server Information */
-    /**********************/
 
     server->startTime = UA_DateTime_now();
 
@@ -804,6 +790,19 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                                 UA_NS0ID_BASEVARIABLETYPE, false);
     addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE,
                                 UA_NS0ID_BASEVARIABLETYPE, false);
+
+
+    //Event types folder below is needed by CTT
+    /***************/
+    /* Event Types */
+    /***************/
+
+    UA_ObjectNode *eventtypes = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)eventtypes, "EventTypes");
+    eventtypes->nodeId.identifier.numeric = UA_NS0ID_EVENTTYPESFOLDER;
+    addNodeInternal(server, (UA_Node*)eventtypes, UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER), nodeIdOrganizes);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTTYPESFOLDER), nodeIdHasTypeDefinition,
+            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
 #endif
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0

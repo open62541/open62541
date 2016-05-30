@@ -54,14 +54,14 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-	UA_DateTime currentTime = UA_DateTime_now();
+    UA_DateTime currentTime = UA_DateTime_now();
     UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
-	value->hasValue = true;
-	if(sourceTimeStamp) {
-		value->hasSourceTimestamp = true;
-		value->sourceTimestamp = currentTime;
-	}
-	return UA_STATUSCODE_GOOD;
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = currentTime;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 /*****************************/
@@ -78,22 +78,22 @@ readTemperature(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp
         return UA_STATUSCODE_GOOD;
     }
 
-	rewind(temperatureFile);
-	fflush(temperatureFile);
+    rewind(temperatureFile);
+    fflush(temperatureFile);
 
-	UA_Double currentTemperature;
-	if(fscanf(temperatureFile, "%lf", &currentTemperature) != 1){
-		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
-		exit(1);
-	}
+    UA_Double currentTemperature;
+    if(fscanf(temperatureFile, "%lf", &currentTemperature) != 1){
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
+        exit(1);
+    }
 
-	currentTemperature /= 1000.0;
+    currentTemperature /= 1000.0;
 
-	value->sourceTimestamp = UA_DateTime_now();
-	value->hasSourceTimestamp = true;
+    value->sourceTimestamp = UA_DateTime_now();
+    value->hasSourceTimestamp = true;
     UA_Variant_setScalarCopy(&value->value, &currentTemperature, &UA_TYPES[UA_TYPES_DOUBLE]);
-	value->hasValue = true;
-	return UA_STATUSCODE_GOOD;
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
 }
 
 /*************************/
@@ -118,7 +118,7 @@ readLedStatus(void *handle, UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
 
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-  
+
     if(sourceTimeStamp) {
         value->sourceTimestamp = UA_DateTime_now();
         value->hasSourceTimestamp = true;
@@ -133,25 +133,25 @@ writeLedStatus(void *handle, const UA_NodeId nodeid,
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
 #ifdef UA_ENABLE_MULTITHREADING
-	pthread_rwlock_wrlock(&writeLock);
+    pthread_rwlock_wrlock(&writeLock);
 #endif
-	if(data->data)
-		ledStatus = *(UA_Boolean*)data->data;
+    if(data->data)
+        ledStatus = *(UA_Boolean*)data->data;
 
-	if(triggerFile)
-		fseek(triggerFile, 0, SEEK_SET);
+    if(triggerFile)
+        fseek(triggerFile, 0, SEEK_SET);
 
-	if(ledFile) {
-		if(ledStatus == 1)
-			fprintf(ledFile, "%s", "1");
-		else
-			fprintf(ledFile, "%s", "0");
-		fflush(ledFile);
-	}
+    if(ledFile) {
+        if(ledStatus == 1)
+            fprintf(ledFile, "%s", "1");
+        else
+            fprintf(ledFile, "%s", "0");
+        fflush(ledFile);
+    }
 #ifdef UA_ENABLE_MULTITHREADING
-	pthread_rwlock_unlock(&writeLock);
+    pthread_rwlock_unlock(&writeLock);
 #endif
-	return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 
 #ifdef UA_ENABLE_METHODCALLS
@@ -167,13 +167,13 @@ getMonitoredItems(void *methodHandle, const UA_NodeId objectId,
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
-	running = 0;
+    running = 0;
 }
 
 static UA_ByteString loadCertificate(void) {
-	UA_ByteString certificate = UA_STRING_NULL;
-	FILE *fp = NULL;
-	if(!(fp=fopen("server_cert.der", "rb"))) {
+    UA_ByteString certificate = UA_STRING_NULL;
+    FILE *fp = NULL;
+    if(!(fp=fopen("server_cert.der", "rb"))) {
         errno = 0; // we read errno also from the tcp layer...
         return certificate;
     }
@@ -181,10 +181,10 @@ static UA_ByteString loadCertificate(void) {
     fseek(fp, 0, SEEK_END);
     certificate.length = (size_t)ftell(fp);
     certificate.data = malloc(certificate.length*sizeof(UA_Byte));
-	if(!certificate.data){
-		fclose(fp);
-		return certificate;
-	}
+    if(!certificate.data){
+        fclose(fp);
+        return certificate;
+    }
 
     fseek(fp, 0, SEEK_SET);
     if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
@@ -195,13 +195,14 @@ static UA_ByteString loadCertificate(void) {
 }
 
 static UA_StatusCode
-nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
+nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 instantiationHandle(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
-  printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex, newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
+  printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex,
+         newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
   return UA_STATUSCODE_GOOD;
 }
 
@@ -224,7 +225,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en_US","current time");
-	v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_NodeId dataSourceId;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
@@ -246,7 +247,7 @@ int main(int argc, char** argv) {
         UA_VariableAttributes_init(&v_attr);
         v_attr.description = UA_LOCALIZEDTEXT("en_US","temperature");
         v_attr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
-		v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), tempName,
@@ -272,7 +273,7 @@ int main(int argc, char** argv) {
             UA_VariableAttributes_init(&v_attr);
             v_attr.description = UA_LOCALIZEDTEXT("en_US","status LED");
             v_attr.displayName = UA_LOCALIZEDTEXT("en_US","status LED");
-			v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+            v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
             const UA_QualifiedName statusName = UA_QUALIFIEDNAME(0, "status LED");
             UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -289,7 +290,7 @@ int main(int argc, char** argv) {
     UA_VariableAttributes_init(&myVar);
     myVar.description = UA_LOCALIZEDTEXT("en_US", "the answer");
     myVar.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
-	myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
@@ -341,6 +342,8 @@ int main(int argc, char** argv) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
+    /** Fill demo nodes of different types **/
+
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
         if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
@@ -351,7 +354,9 @@ int main(int argc, char** argv) {
         char name[15];
         sprintf(name, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
-		attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
+        attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 
         /* add a scalar node for every built-in type */
@@ -388,6 +393,29 @@ int main(int argc, char** argv) {
         UA_Variant_deleteMembers(&attr.value);
     }
 
+    /** Hierarchy of depth 10 with forward and inverse references **/
+    /** Enter node "depth9" in CTT configuration - Project->Settings->Server Test->NodeIds->Paths->Starting Node 1 **/
+
+#define DEPTHID 50004
+    object_attr.description = UA_LOCALIZEDTEXT("en_US","DepthDemo");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en_US","DepthDemo");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),
+                            UA_NODEID_NUMERIC(1, DEMOID),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "DepthDemo"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+
+    id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
+    for(UA_UInt32 i = 1; i <= 20; i++) {
+        char name[15];
+        sprintf(name, "depth%i", i);
+        object_attr.description = UA_LOCALIZEDTEXT("en_US",name);
+        object_attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
+        UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id+i),
+                                UA_NODEID_NUMERIC(1, i==1 ? DEPTHID : id+i-1), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, name),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+    }
+
 #ifdef UA_ENABLE_METHODCALLS
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
@@ -421,15 +449,15 @@ int main(int argc, char** argv) {
                             (void *) server,    // Pass our server pointer as a handle to the method
                             1, &inputArguments, 1, &outputArguments, NULL);
 #endif
-   
+
     // Example for iterating over all nodes referenced by "Objects":
     //printf("Nodes connected to 'Objects':\n=============================\n");
     UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
-  
+
     // Some easy localization
     UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en_US", "Objects");
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
-  
+
     //start server
     UA_StatusCode retval = UA_Server_run(server, &running); //blocks until running=false
 
@@ -446,7 +474,7 @@ int main(int argc, char** argv) {
         fprintf(triggerFile, "%s", "mmc0");
         fclose(triggerFile);
     }
-  
+
     if(ledFile)
         fclose(ledFile);
 
