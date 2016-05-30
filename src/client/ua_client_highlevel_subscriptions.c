@@ -3,6 +3,8 @@
 #include "ua_util.h"
 #include "ua_types_generated_encoding_binary.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+
 const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
     .requestedPublishingInterval = 500.0,
     .requestedLifetimeCount = 10000,
@@ -297,3 +299,5 @@ UA_StatusCode UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *clie
     }
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
