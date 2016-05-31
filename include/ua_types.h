@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include <inttypes.h>
+#include <stdint.h>
 #include <stdbool.h>
 #include "ua_config.h"
 #include "ua_constants.h"
