@@ -76,7 +76,7 @@ UA_DateTime UA_DateTime_now(void) {
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
-#if defined(_WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32)
     LARGE_INTEGER freq, ticks;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&ticks);
