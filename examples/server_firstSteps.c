@@ -1,4 +1,9 @@
-//This file contains source-code that is discussed in a tutorial located here:
+/*
+ * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ */
+
+// This file contains source-code that is discussed in a tutorial located here:
 // http://open62541.org/doc/sphinx/tutorial_firstStepsServer.html
 
 #include <stdio.h>

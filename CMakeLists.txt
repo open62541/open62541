@@ -126,7 +126,7 @@ option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OF
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
 option(UA_ENABLE_EMBEDDED_CLOCK "Target has no standard time APIs (link custom implementation)" OFF)
-mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
+mark_as_advanced(UA_ENABLE_EMBEDDED_CLOCK)
 
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
@@ -414,13 +414,6 @@ if(UA_BUILD_EXAMPLECLIENT)
         target_link_libraries(client_static urcu-cds urcu urcu-common pthread)
         target_link_libraries(client urcu-cds urcu urcu-common pthread)
     endif()
-    if(UA_ENABLE_NONSTANDARD_STATELESS AND NOT UA_ENABLE_AMALGAMATION)
-        add_executable(client_stateless examples/client_stateless.c ${client_source})
-        target_link_libraries(client_stateless open62541 ${open62541_LIBRARIES})
-        if(UA_ENABLE_MULTITHREADING)
-            target_link_libraries(client_stateless urcu-cds urcu urcu-common pthread)
-        endif()
-    endif()
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
@@ -446,7 +439,7 @@ if(UA_BUILD_EXAMPLES)
     if(UA_ENABLE_MULTITHREADING)
       list(APPEND LIBS urcu-cds urcu urcu-common)
     endif(UA_ENABLE_MULTITHREADING)
-    
+
     add_executable(server_variable ${PROJECT_SOURCE_DIR}/examples/server_variable.c $<TARGET_OBJECTS:open62541-object>)
     target_link_libraries(server_variable ${LIBS})
 

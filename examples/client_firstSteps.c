@@ -2,6 +2,7 @@
 //http://open62541.org/doc/sphinx/tutorial_firstStepsClient.html
 
 #include <stdio.h>
+#include <inttypes.h>
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_client.h"
