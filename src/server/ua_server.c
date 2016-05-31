@@ -284,6 +284,56 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     return UA_STATUSCODE_GOOD;
 }
 
+/** TODO: rework the code duplication in the getter methods **/
+static UA_StatusCode
+readServiceLevel(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+           const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    value->value.type = &UA_TYPES[UA_TYPES_BYTE];
+    value->value.arrayLength = 0;
+    UA_Byte *byte = UA_Byte_new();
+    *byte = 255;
+    value->value.data = byte;
+    value->value.arrayDimensionsSize = 0;
+    value->value.arrayDimensions = NULL;
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/** TODO: rework the code duplication in the getter methods **/
+static UA_StatusCode
+readAuditing(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+           const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    value->value.arrayLength = 0;
+    UA_Boolean *boolean = UA_Boolean_new();
+    *boolean = false;
+    value->value.data = boolean;
+    value->value.arrayDimensionsSize = 0;
+    value->value.arrayDimensions = NULL;
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
                const UA_NumericRange *range, UA_DataValue *value) {
@@ -480,7 +530,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     /* Continue adding reference types with normal "addnode" */
     UA_ReferenceTypeNode *hierarchicalreferences = UA_NodeStore_newReferenceTypeNode();
-    copyNames((UA_Node*)hierarchicalreferences, "Hierarchicalreferences");
+    copyNames((UA_Node*)hierarchicalreferences, "HierarchicalReferences");
     hierarchicalreferences->nodeId.identifier.numeric = UA_NS0ID_HIERARCHICALREFERENCES;
     hierarchicalreferences->isAbstract = true;
     hierarchicalreferences->symmetric  = false;
@@ -498,7 +548,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_ReferenceTypeNode *haschild = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)haschild, "HasChild");
     haschild->nodeId.identifier.numeric = UA_NS0ID_HASCHILD;
-    haschild->isAbstract = true;
+    haschild->isAbstract = false;
     haschild->symmetric  = false;
     addNodeInternal(server, (UA_Node*)haschild,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES), nodeIdHasSubType);
@@ -566,7 +616,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)aggregates, "Aggregates");
     // Todo: Is there an inverse name?
     aggregates->nodeId.identifier.numeric = UA_NS0ID_AGGREGATES;
-    aggregates->isAbstract = true;
+    aggregates->isAbstract = false;
     aggregates->symmetric  = false;
     addNodeInternal(server, (UA_Node*)aggregates,
                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCHILD), nodeIdHasSubType);
@@ -912,6 +962,67 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY),
                          nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
 
+    UA_VariableNode *softwareCertificates = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)softwareCertificates, "SoftwareCertificates");
+    softwareCertificates->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_SOFTWARECERTIFICATES;
+    softwareCertificates->value.variant.value.type = &UA_TYPES[UA_TYPES_SIGNEDSOFTWARECERTIFICATE];
+    addNodeInternal(server, (UA_Node*)softwareCertificates,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_SOFTWARECERTIFICATES),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_VariableNode *maxQueryContinuationPoints = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)maxQueryContinuationPoints, "MaxQueryContinuationPoints");
+    maxQueryContinuationPoints->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXQUERYCONTINUATIONPOINTS;
+    maxQueryContinuationPoints->value.variant.value.type = &UA_TYPES[UA_TYPES_UINT16];
+    maxQueryContinuationPoints->value.variant.value.data = UA_UInt16_new();
+    //FIXME
+    *((UA_UInt16*)maxQueryContinuationPoints->value.variant.value.data) = 0;
+    addNodeInternal(server, (UA_Node*)maxQueryContinuationPoints,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXQUERYCONTINUATIONPOINTS),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_VariableNode *maxHistoryContinuationPoints = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)maxHistoryContinuationPoints, "MaxHistoryContinuationPoints");
+    maxHistoryContinuationPoints->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS;
+    maxHistoryContinuationPoints->value.variant.value.type = &UA_TYPES[UA_TYPES_UINT16];
+    maxHistoryContinuationPoints->value.variant.value.data = UA_UInt16_new();
+    //FIXME
+    *((UA_UInt16*)maxHistoryContinuationPoints->value.variant.value.data) = 0;
+    addNodeInternal(server, (UA_Node*)maxHistoryContinuationPoints,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_VariableNode *minSupportedSampleRate = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)minSupportedSampleRate, "MinSupportedSampleRate");
+    minSupportedSampleRate->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE;
+    minSupportedSampleRate->value.variant.value.type = &UA_TYPES[UA_TYPES_DOUBLE];
+    minSupportedSampleRate->value.variant.value.data = UA_Double_new();
+    //FIXME
+    *((UA_Double*)minSupportedSampleRate->value.variant.value.data) = 0.0;
+    addNodeInternal(server, (UA_Node*)minSupportedSampleRate,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_ObjectNode *modellingRules = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)modellingRules, "ModellingRules");
+    modellingRules->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES;
+    addNodeInternal(server, (UA_Node*)modellingRules,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_MODELLINGRULES),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
+
+    UA_ObjectNode *aggregateFunctions = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)aggregateFunctions, "AggregateFunctions");
+    aggregateFunctions->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_AGGREGATEFUNCTIONS;
+    addNodeInternal(server, (UA_Node*)aggregateFunctions,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES), nodeIdHasProperty);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_AGGREGATEFUNCTIONS),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
+
     UA_ObjectNode *serverdiagnostics = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)serverdiagnostics, "ServerDiagnostics");
     serverdiagnostics->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS;
@@ -1068,6 +1179,57 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON),
                          nodeIdHasTypeDefinition, expandedNodeIdBaseDataVariabletype, true);
+
+    UA_VariableNode *servicelevel = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)servicelevel, "ServiceLevel");
+    servicelevel->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL);
+    servicelevel->valueSource = UA_VALUESOURCE_DATASOURCE;
+    servicelevel->value.dataSource = (UA_DataSource) {.handle = server, .read = readServiceLevel, .write = NULL};
+    addNodeInternal(server, (UA_Node*)servicelevel,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasComponent);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_VariableNode *auditing = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)auditing, "Auditing");
+    auditing->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING);
+    auditing->valueSource = UA_VALUESOURCE_DATASOURCE;
+    auditing->value.dataSource = (UA_DataSource) {.handle = server, .read = readAuditing, .write = NULL};
+    addNodeInternal(server, (UA_Node*)auditing,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasComponent);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+    UA_ObjectNode *vendorServerInfo = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)vendorServerInfo, "VendorServerInfo");
+    vendorServerInfo->nodeId.identifier.numeric = UA_NS0ID_SERVER_VENDORSERVERINFO;
+    addNodeInternal(server, (UA_Node*)vendorServerInfo,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty);
+    /*
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_VENDORSERVERINFOTYPE), true);
+    */
+
+
+    UA_ObjectNode *serverRedundancy = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)serverRedundancy, "ServerRedundancy");
+    serverRedundancy->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERREDUNDANCY;
+    addNodeInternal(server, (UA_Node*)serverRedundancy,
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty);
+    /*
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY),
+                         nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERREDUNDANCYTYPE), true);
+    */
+
+    UA_VariableNode *redundancySupport = UA_NodeStore_newVariableNode();
+    copyNames((UA_Node*)redundancySupport, "RedundancySupport");
+    redundancySupport->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT);
+    //FIXME: enum is needed for type letting it uninitialized for now
+    addNodeInternal(server, (UA_Node*)redundancySupport, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY),
+            nodeIdHasComponent);
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT), nodeIdHasTypeDefinition,
+                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
     return server;
 }
 
