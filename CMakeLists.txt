@@ -125,6 +125,9 @@ option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 defin
 option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
+option(UA_ENABLE_EMBEDDED_CLOCK "Target has no standard time APIs (link custom implementation)" OFF)
+mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
+
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
 
