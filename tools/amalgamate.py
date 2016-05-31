@@ -24,12 +24,12 @@ includes = []
 print ("Starting amalgamating file "+ args.outfile)
 
 file = io.open(args.outfile, 'w')
-file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES 
+file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
  */
- 
- /*
+
+/*
  * Copyright (C) 2015 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
@@ -42,8 +42,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
  * details.
- */\n\n
- """ % args.version)
+ */\n\n""" % args.version)
 
 if not is_c:
     file.write(u'''#ifndef %s
@@ -51,20 +50,12 @@ if not is_c:
 
 #ifdef __cplusplus
 extern "C" {
-#endif\n\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
+#endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 if not is_c:
     for inc in includes:
         file.write(u"#include " + inc + "\n")
 else:
-    file.write(u'''#ifndef UA_DYNAMIC_LINKING
-# define UA_DYNAMIC_LINKING
-#endif
-
-#ifndef UA_INTERNAL
-#define UA_INTERNAL
-#endif
-\n''')
     file.write(u"#include \"" + outname + ".h\"\n")
 
 for fname in args.inputs:

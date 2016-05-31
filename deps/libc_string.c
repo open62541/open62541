@@ -6,15 +6,15 @@
 #include "ua_config.h"
 
 void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n) {
-	unsigned char *d = dest;
-	const unsigned char *s = src;
-	while(n--)
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    while(n--)
         *d++ = *s++;
-	return dest;
+    return dest;
 }
 
 void *memset(void *dest, int c, size_t n) {
-    unsigned char c8 = n;
+    unsigned char c8 = (unsigned char)c;
     unsigned char *target = dest;
     while(n--)
         *target++ = c8;
@@ -23,8 +23,7 @@ void *memset(void *dest, int c, size_t n) {
 
 size_t strlen(const char *str) {
     size_t len = 0;
-    for(const char *s = str; *s; s++)
-        len += 1;
+    for(const char *s = str; *s; s++, len++);
     return len;
 }
 
