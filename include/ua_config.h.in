@@ -172,11 +172,11 @@ extern "C" {
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
 # define UA_BINARY_OVERLAYABLE_INTEGER false
-# warning Slow Integer Encoding
+# warning Slow Integer Encoding. This warning can be removed safely. It is only an indicator that integer endianness could not be detected.
 #endif
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT false
-# warning Slow Float Encoding
+# warning Slow Float Encoding. This warning can be removed safely. It is only an indicator that the float encoding could not be detected.
 #endif
 
 #if defined(__clang__)
