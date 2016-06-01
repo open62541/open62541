@@ -28,7 +28,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .applicationDescription = {
         .applicationUri = UA_STRING_STATIC(APPLICATION_URI),
         .productUri = UA_STRING_STATIC(PRODUCT_URI),
-        .applicationName = { .locale = UA_STRING_STATIC(""),
+        .applicationName = { .locale = UA_STRING_STATIC("en"),
                              .text = UA_STRING_STATIC(APPLICATION_NAME) },
         .applicationType = UA_APPLICATIONTYPE_SERVER,
         .gatewayServerUri = UA_STRING_STATIC_NULL,

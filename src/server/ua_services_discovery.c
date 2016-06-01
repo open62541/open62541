@@ -99,8 +99,11 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
         retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-        UA_String_deleteMembers(&response->endpoints[k].endpointUrl);
-        retval = UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
+        /* replace endpoint's URL to the requested one if provided */
+        if(request->endpointUrl.length > 0){
+            UA_String_deleteMembers(&response->endpoints[k].endpointUrl);
+            retval = UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
+        }
         k++;
     }
 
