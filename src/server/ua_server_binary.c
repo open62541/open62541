@@ -435,7 +435,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     UA_Session anonymousSession;
     if(!session) {
         //allow calling getendpoint service with invalid authenticationToken
-        if(requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST]){
+        if(requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] && requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]){
             if(sessionRequired || !UA_NodeId_equal(&requestHeader->authenticationToken, &UA_NODEID_NULL)) {
                 UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Service request %i without a valid session",
                                     requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
