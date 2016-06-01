@@ -151,6 +151,9 @@ extern "C" {
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
     (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
 # define UA_BINARY_OVERLAYABLE_FLOAT true
+#elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
+    (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
+# define UA_BINARY_OVERLAYABLE_FLOAT true
 #endif
 
 /**

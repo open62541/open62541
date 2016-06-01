@@ -817,9 +817,10 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_, bufpos pos, bu
         if(hasDimensions)
             encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
     }
-    if(isBuiltin)
-        encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) (src->type->typeIndex + 1);
-    else
+    if(isBuiltin) {
+        UA_Byte t = (UA_Byte) (UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (src->type->typeIndex + 1));
+	encodingByte |= t;
+    } else
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) 22; /* ExtensionObject */
     UA_StatusCode retval = Byte_encodeBinary(&encodingByte, NULL, pos, end);
 
