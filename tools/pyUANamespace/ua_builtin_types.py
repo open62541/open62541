@@ -20,6 +20,7 @@ import sys
 import xml.dom.minidom as dom
 from ua_constants import *
 from logger import *
+from time import strftime, strptime
 from open62541_MacroHelper import open62541_MacroHelper
 
 def getNextElementNode(xmlvalue):
