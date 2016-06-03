@@ -58,7 +58,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
         UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
                             "to activate, but the UserIdentify token is invalid",
                             channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         return;
     }
 
