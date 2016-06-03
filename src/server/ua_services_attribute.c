@@ -89,17 +89,17 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     }
 
 static void handleServerTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
-	if(v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
-		v->hasServerTimestamp = true;
-		v->serverTimestamp = UA_DateTime_now();
-	}
+    if(v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
+        v->hasServerTimestamp = true;
+        v->serverTimestamp = UA_DateTime_now();
+    }
 }
 
 static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
-	if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
-		v->hasSourceTimestamp = true;
-		v->sourceTimestamp = UA_DateTime_now();
-	}
+    if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+        v->hasSourceTimestamp = true;
+        v->sourceTimestamp = UA_DateTime_now();
+    }
 }
 
 /* force cast for zero-copy reading. ensure that the variant is never written into. */
@@ -111,8 +111,8 @@ static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataTyp
 }
 
 static UA_StatusCode
-getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn timestamps,
-                     const UA_ReadValueId *id, UA_DataValue *v) {
+getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNode *vn,
+                     const UA_TimestampsToReturn timestamps, const UA_ReadValueId *id, UA_DataValue *v) {
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -136,6 +136,7 @@ getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn time
             handleSourceTimestamps(timestamps, v);
     } else {
         if(!vn->value.dataSource.read) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
             retval = UA_STATUSCODE_BADINTERNALERROR;
         } else {
             UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
@@ -150,14 +151,18 @@ getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn time
     return retval;
 }
 
-static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataValue *v) {
+static UA_StatusCode
+getVariableNodeDataType(UA_Server *server, UA_Session *session,
+                        const UA_VariableNode *vn, UA_DataValue *v) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
         forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId,
                               &UA_TYPES[UA_TYPES_NODEID]);
     } else {
-        if(!vn->value.dataSource.read)
+        if(!vn->value.dataSource.read) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
         /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
@@ -165,22 +170,26 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, false, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        if (val.hasValue && val.value.type != NULL)
+        if(val.hasValue && val.value.type)
           retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
         UA_DataValue_deleteMembers(&val);
     }
     return retval;
 }
 
-static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, UA_DataValue *v) {
+static UA_StatusCode
+getVariableNodeArrayDimensions(UA_Server *server, UA_Session *session,
+                               const UA_VariableNode *vn, UA_DataValue *v) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
         UA_Variant_setArray(&v->value, vn->value.variant.value.arrayDimensions,
                             vn->value.variant.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
         v->value.storageType = UA_VARIANT_DATA_NODELETE;
     } else {
-        if(!vn->value.dataSource.read)
+        if(!vn->value.dataSource.read) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
         UA_DataValue_init(&val);
@@ -276,11 +285,11 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = getVariableNodeValue((const UA_VariableNode*)node, timestamps, id, v);
+        retval = getVariableNodeValue(server, session, (const UA_VariableNode*)node, timestamps, id, v);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = getVariableNodeDataType((const UA_VariableNode*)node, v);
+        retval = getVariableNodeDataType(server, session, (const UA_VariableNode*)node, v);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -289,7 +298,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = getVariableNodeArrayDimensions((const UA_VariableNode*)node, v);
+        retval = getVariableNodeArrayDimensions(server, session, (const UA_VariableNode*)node, v);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
@@ -336,8 +345,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     handleServerTimestamps(timestamps, v);
 }
 
-void Service_Read(UA_Server *server, UA_Session *session, const UA_ReadRequest *request,
-                  UA_ReadResponse *response) {
+void Service_Read(UA_Server *server, UA_Session *session,
+                  const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ReadRequest");
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

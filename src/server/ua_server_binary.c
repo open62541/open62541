@@ -372,6 +372,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
        requestTypeId.namespaceIndex != 0) {
         UA_NodeId_deleteMembers(&requestTypeId);
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Received a non-numeric message type NodeId");
         sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT], requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
 
@@ -402,6 +403,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
     retval = UA_decodeBinary(msg, pos, request, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not decode the request");
         sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
@@ -423,6 +425,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {
+            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to activate a session that is not known in the server");
             sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
             return;
@@ -489,8 +492,10 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     /* Send the response */
     init_response_header(request, response);
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not send the message over the SecureChannel with error code 0x%08x", retval);
         sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT], requestId, retval);
+    }
 
     /* Clean up */
     UA_deleteMembers(request, requestType);
