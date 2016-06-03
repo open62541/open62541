@@ -804,14 +804,15 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
 
 static UA_StatusCode
 Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_, bufpos pos, bufend end) {
+    UA_Byte encodingByte = 0;
     if(!src->type)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return Byte_encodeBinary(&encodingByte, NULL, pos, end); /* empty variant */
+
     const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     const UA_Boolean isBuiltin = src->type->builtin;
 
     /* Encode the encodingbyte */
-    UA_Byte encodingByte = 0;
     if(isArray) {
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
         if(hasDimensions)
@@ -819,7 +820,7 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_, bufpos pos, bu
     }
     if(isBuiltin) {
         UA_Byte t = (UA_Byte) (UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (src->type->typeIndex + 1));
-	encodingByte |= t;
+        encodingByte |= t;
     } else
         encodingByte |= UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (UA_Byte) 22; /* ExtensionObject */
     UA_StatusCode retval = Byte_encodeBinary(&encodingByte, NULL, pos, end);
@@ -878,6 +879,8 @@ Variant_decodeBinary(bufpos pos, bufend end, UA_Variant *dst, const UA_DataType 
     UA_StatusCode retval = Byte_decodeBinary(pos, end, &encodingByte, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+    if(encodingByte == 0)
+        return UA_STATUSCODE_GOOD; /* empty Variant (was already _inited) */
     UA_Boolean isArray = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
     size_t typeIndex = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
     if(typeIndex > 24) /* the type must be builtin (maybe wrapped in an extensionobject) */
@@ -1339,10 +1342,10 @@ ExtensionObject_calcSizeBinary(const UA_ExtensionObject *src, UA_DataType *_) {
 
 static size_t
 Variant_calcSizeBinary(UA_Variant const *src, UA_DataType *_) {
-    size_t s = 1; // encoding byte
-
+    size_t s = 1; /* encoding byte */
     if(!src->type)
-        return 0;
+        return s;
+
     UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
     UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     UA_Boolean isBuiltin = src->type->builtin;
