@@ -1,12 +1,9 @@
 #include "ua_session_manager.h"
 #include "ua_server_internal.h"
 
-#define STARTSESSIONID 1
-
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
     LIST_INIT(&sm->sessions);
-    sm->lastSessionId = STARTSESSIONID;
     sm->currentSessionCount = 0;
     sm->server = server;
     return UA_STATUSCODE_GOOD;
@@ -72,7 +69,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
 
     sm->currentSessionCount++;
     UA_Session_init(&newentry->session);
-    newentry->session.sessionId = UA_NODEID_NUMERIC(1, sm->lastSessionId++);
+    newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
     if(request->requestedSessionTimeout <= sm->server->config.maxSessionTimeout &&
