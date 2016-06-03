@@ -171,6 +171,10 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
     conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
     conn->state = UA_CONNECTION_ESTABLISHED;
+    
+    if (conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
+      conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
+    
     return UA_STATUSCODE_GOOD;
 }
 
