@@ -94,6 +94,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             return;
         }
 
+        if(token->userName.length == 0 && token->password.length == 0) {
+            /* empty username and password */
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            return;
+        }
+
         /* trying to match pw/username */
         UA_Boolean match = false;
         for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
