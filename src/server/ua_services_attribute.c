@@ -110,8 +110,9 @@ static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataTyp
     v->storageType = UA_VARIANT_DATA_NODELETE;
 }
 
-static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn timestamps,
-                                          const UA_ReadValueId *id, UA_DataValue *v) {
+static UA_StatusCode
+getVariableNodeValue(const UA_VariableNode *vn, const UA_TimestampsToReturn timestamps,
+                     const UA_ReadValueId *id, UA_DataValue *v) {
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -134,7 +135,7 @@ static UA_StatusCode getVariableNodeValue(const UA_VariableNode *vn, const UA_Ti
         if(retval == UA_STATUSCODE_GOOD)
             handleSourceTimestamps(timestamps, v);
     } else {
-        if(vn->value.dataSource.read == NULL) {
+        if(!vn->value.dataSource.read) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
         } else {
             UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
@@ -155,7 +156,7 @@ static UA_StatusCode getVariableNodeDataType(const UA_VariableNode *vn, UA_DataV
         forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId,
                               &UA_TYPES[UA_TYPES_NODEID]);
     } else {
-        if(vn->value.dataSource.read == NULL)
+        if(!vn->value.dataSource.read)
             return UA_STATUSCODE_BADINTERNALERROR;
         /* Read from the datasource to see the data type */
         UA_DataValue val;
@@ -178,7 +179,7 @@ static UA_StatusCode getVariableNodeArrayDimensions(const UA_VariableNode *vn, U
                             vn->value.variant.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
         v->value.storageType = UA_VARIANT_DATA_NODELETE;
     } else {
-        if(vn->value.dataSource.read == NULL)
+        if(!vn->value.dataSource.read)
             return UA_STATUSCODE_BADINTERNALERROR;
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
@@ -198,20 +199,22 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 // static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"};
 
 /** Reads a single attribute from a node in the nodestore. */
-void Service_Read_single(UA_Server *server, UA_Session *session, const UA_TimestampsToReturn timestamps,
+void Service_Read_single(UA_Server *server, UA_Session *session,
+                         const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
-	if(id->dataEncoding.name.length > 0 && !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
+    if(id->dataEncoding.name.length > 0 &&
+       !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = true;
            v->status = UA_STATUSCODE_BADDATAENCODINGUNSUPPORTED;
            return;
-	}
+    }
 
-	//index range for a non-value
-	if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
-		v->hasStatus = true;
-		v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
-		return;
-	}
+    //index range for a non-value
+    if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
+        return;
+    }
 
     UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
     if(!node) {
@@ -276,7 +279,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session, const UA_Timest
         retval = getVariableNodeValue((const UA_VariableNode*)node, timestamps, id, v);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
-		CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
+        CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         retval = getVariableNodeDataType((const UA_VariableNode*)node, v);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
@@ -518,6 +521,12 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_VARIANT);
 
+    UA_Variant *oldV = &node->value.variant.value;
+    /* Don't run NodeId_equal on a NULL pointer (happens if the variable never
+       held a variant) */
+    if(!oldV->type)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Parse the range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
@@ -529,34 +538,31 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
         rangeptr = &range;
     }
 
-    /* The nodeid on the wire may be != the nodeid in the node: opaque types, enums and bytestrings.
-       nodeV contains the correct type definition. */
+    /* The nodeid on the wire may be != the nodeid in the node: opaque types,
+       enums and bytestrings. nodeV contains the correct type definition. */
     const UA_Variant *newV = &wvalue->value.value;
-    UA_Variant *oldV = &node->value.variant.value;
     UA_Variant cast_v;
-    if (oldV->type != NULL) { // Don't run NodeId_equal on a NULL pointer (happens if the variable never held a variant)
-      if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
-          cast_v = wvalue->value.value;
-          newV = &cast_v;
-          enum type_equivalence te1 = typeEquivalence(oldV->type);
-          enum type_equivalence te2 = typeEquivalence(newV->type);
-          if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
-              /* An enum was sent as an int32, or an opaque type as a bytestring. This is
-                detected with the typeIndex indicated the "true" datatype. */
-              cast_v.type = oldV->type;
-          } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
-                    newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
-              /* a string is written to a byte array */
-              UA_ByteString *str = (UA_ByteString*) newV->data;
-              cast_v.arrayLength = str->length;
-              cast_v.data = str->data;
-              cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
-          } else {
-              if(rangeptr)
-                  UA_free(range.dimensions);
-              return UA_STATUSCODE_BADTYPEMISMATCH;
-          }
-      }
+    if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
+        cast_v = wvalue->value.value;
+        newV = &cast_v;
+        enum type_equivalence te1 = typeEquivalence(oldV->type);
+        enum type_equivalence te2 = typeEquivalence(newV->type);
+        if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+            /* An enum was sent as an int32, or an opaque type as a bytestring. This is
+               detected with the typeIndex indicated the "true" datatype. */
+            cast_v.type = oldV->type;
+        } else if(oldV->type == &UA_TYPES[UA_TYPES_BYTE] && !UA_Variant_isScalar(oldV) &&
+                  newV->type == &UA_TYPES[UA_TYPES_BYTESTRING] && UA_Variant_isScalar(newV)) {
+            /* a string is written to a byte array */
+            UA_ByteString *str = (UA_ByteString*) newV->data;
+            cast_v.arrayLength = str->length;
+            cast_v.data = str->data;
+            cast_v.type = &UA_TYPES[UA_TYPES_BYTE];
+        } else {
+            if(rangeptr)
+                UA_free(range.dimensions);
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
     }
 
     if(!rangeptr) {
@@ -726,7 +732,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
                         indices, indexSize, response->results, response->diagnosticInfos);
     }
 #endif
-    
+
     response->resultsSize = request->nodesToWriteSize;
     for(size_t i = 0;i < request->nodesToWriteSize;i++) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
