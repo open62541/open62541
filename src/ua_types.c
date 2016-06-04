@@ -235,7 +235,7 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
 }
 
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
+    if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
         return false;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -323,7 +323,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
 static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
-    if(p->data > UA_EMPTY_ARRAY_SENTINEL) {
+    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
         if(p->arrayLength == 0)
             p->arrayLength = 1;
         UA_Array_delete(p->data, p->arrayLength, p->type);
@@ -411,7 +411,7 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
             found_contiguous = true;
             b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             s = dims[k] * running_dimssize;
-        } 
+        }
         f += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
         if(k == 0)
@@ -552,11 +552,11 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_copy(p, new, type);
-	if(retval != UA_STATUSCODE_GOOD) {
-		UA_free(new);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(new);
         //cppcheck-suppress memleak
-		return retval;
-	}
+        return retval;
+    }
     UA_Variant_setScalar(v, new, type);
     //cppcheck-suppress memleak
     return UA_STATUSCODE_GOOD;
@@ -578,7 +578,7 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
     UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    v->arrayLength = arraySize; 
+    v->arrayLength = arraySize;
     v->type = type;
     return UA_STATUSCODE_GOOD;
 }
@@ -686,16 +686,16 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)copyByte, // SByte
     (UA_copySignature)copyByte, // Byte
     (UA_copySignature)copy2Byte, // Int16
-    (UA_copySignature)copy2Byte, // UInt16 
-    (UA_copySignature)copy4Byte, // Int32 
-    (UA_copySignature)copy4Byte, // UInt32 
+    (UA_copySignature)copy2Byte, // UInt16
+    (UA_copySignature)copy4Byte, // Int32
+    (UA_copySignature)copy4Byte, // UInt32
     (UA_copySignature)copy8Byte, // Int64
-    (UA_copySignature)copy8Byte, // UInt64 
-    (UA_copySignature)copy4Byte, // Float 
-    (UA_copySignature)copy8Byte, // Double 
+    (UA_copySignature)copy8Byte, // UInt64
+    (UA_copySignature)copy4Byte, // Float
+    (UA_copySignature)copy8Byte, // Double
     (UA_copySignature)copyNoInit, // String
     (UA_copySignature)copy8Byte, // DateTime
-    (UA_copySignature)copyFixedSize, // Guid 
+    (UA_copySignature)copyFixedSize, // Guid
     (UA_copySignature)copyNoInit, // ByteString
     (UA_copySignature)copyNoInit, // XmlElement
     (UA_copySignature)NodeId_copy,
@@ -759,16 +759,16 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)nopDeleteMembers, // SByte
     (UA_deleteMembersSignature)nopDeleteMembers, // Byte
     (UA_deleteMembersSignature)nopDeleteMembers, // Int16
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt16 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Int32 
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt32 
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt16
+    (UA_deleteMembersSignature)nopDeleteMembers, // Int32
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt32
     (UA_deleteMembersSignature)nopDeleteMembers, // Int64
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt64 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Float 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Double 
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt64
+    (UA_deleteMembersSignature)nopDeleteMembers, // Float
+    (UA_deleteMembersSignature)nopDeleteMembers, // Double
     (UA_deleteMembersSignature)UA_deleteMembers, // String
     (UA_deleteMembersSignature)nopDeleteMembers, // DateTime
-    (UA_deleteMembersSignature)nopDeleteMembers, // Guid 
+    (UA_deleteMembersSignature)nopDeleteMembers, // Guid
     (UA_deleteMembersSignature)UA_deleteMembers, // ByteString
     (UA_deleteMembersSignature)UA_deleteMembers, // XmlElement
     (UA_deleteMembersSignature)NodeId_deleteMembers,
@@ -831,6 +831,9 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
             *dst= UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
+
+    if(!type)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(src_size, type->memSize);

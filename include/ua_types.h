@@ -164,7 +164,7 @@ typedef uint32_t UA_StatusCode;
 /** Forward Declaration of UA_DataType. See Section `Generic Type Handling`_
     for details. */
 struct UA_DataType;
-typedef struct UA_DataType UA_DataType; 
+typedef struct UA_DataType UA_DataType;
 
 /** The following functions are used for handling arrays of any data type. */
 
@@ -547,7 +547,7 @@ static UA_INLINE UA_Boolean
 UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
 }
-    
+
 /* Set the variant to a scalar value that already resides in memory. The value takes on
  * the lifecycle of the variant and is deleted with it.
  *
@@ -697,7 +697,7 @@ typedef struct {
                                      only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
 } UA_DataTypeMember;
-    
+
 struct UA_DataType {
 #ifdef UA_ENABLE_TYPENAMES
     const char *typeName;
