@@ -60,6 +60,18 @@ typedef enum {
  * the minimum log-level defined in ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
 
+/**
+ * Signatures for printing complex types
+ */
+
+#define PRINTF_GUID_FORMAT "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
+#define PRINTF_GUID_DATA(PREFIX) PREFIX.identifier.guid.data1, PREFIX.identifier.guid.data2, \
+                                 PREFIX.identifier.guid.data3, PREFIX.identifier.guid.data4[0], \
+                                 PREFIX.identifier.guid.data4[1], PREFIX.identifier.guid.data4[2], \
+                                 PREFIX.identifier.guid.data4[3], PREFIX.identifier.guid.data4[4], \
+                                 PREFIX.identifier.guid.data4[5], PREFIX.identifier.guid.data4[6], \
+                                 PREFIX.identifier.guid.data4[7]\
+
 #if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do { \
         if(LOGGER) LOGGER(UA_LOGLEVEL_TRACE, CATEGORY, __VA_ARGS__); } while(0)

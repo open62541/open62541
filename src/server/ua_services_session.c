@@ -38,8 +38,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session %i created",
-                         newSession->sessionId.identifier.numeric);
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " PRINTF_GUID_FORMAT " created",
+                         PRINTF_GUID_DATA(newSession->sessionId));
 }
 
 void

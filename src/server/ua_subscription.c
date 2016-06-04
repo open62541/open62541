@@ -45,17 +45,17 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
 static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %i | MonitoredItem %i | "
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | MonitoredItem %i | "
                      "Cannot process a monitoreditem that is not a data change notification",
-                     monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
+                     PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Session %i | MonitoredItem %i | Skipped a sample due to lack of memory",
-                    monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
+                    "Session " PRINTF_GUID_FORMAT " | MonitoredItem %i | Skipped a sample due to lack of memory",
+                    PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -90,16 +90,15 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | Subscription %u | "
                      "MonitoredItem %u | Do not sample an unchanged value",
-                     monitoredItem->subscription->session->sessionId.identifier.numeric,
-                     monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
+                     PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
         return;
     }
 
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | Subscription %u | "
                  "MonitoredItem %u | Sampling the value",
-                 monitoredItem->subscription->session->sessionId.identifier.numeric,
+                 PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId),
                  monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
 
     /* do we have space in the queue? */
