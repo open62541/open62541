@@ -128,7 +128,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
         instantiateVariableNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
     }
 
-    if(!instantiationCallback)
+    if(instantiationCallback)
         instantiationCallback->method(res.addedNodeId, node->nodeId, instantiationCallback->handle);
 
     UA_AddNodesResult_deleteMembers(&res);
@@ -185,7 +185,7 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
         instantiateObjectNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
     }
 
-    if(!instantiationCallback)
+    if(instantiationCallback)
         instantiationCallback->method(res.addedNodeId, node->nodeId, instantiationCallback->handle);
 
     UA_AddNodesResult_deleteMembers(&res);
@@ -444,6 +444,15 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
+
+        /* Objects must have a type reference. Default to BaseObjectType */
+        if(UA_NodeId_equal(&item->parentNodeId.nodeId, &UA_NODEID_NULL)) {
+            UA_AddNodesItem *writableItem = UA_alloca(sizeof(UA_AddNodesItem));
+            *writableItem = *item;
+            writableItem->parentNodeId.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+            item = writableItem;
+        }
+
         node = objectNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_VARIABLE:
@@ -451,6 +460,15 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
+
+        /* Variables must have a type reference. Default to BaseObjectType */
+        if(UA_NodeId_equal(&item->parentNodeId.nodeId, &UA_NODEID_NULL)) {
+            UA_AddNodesItem *writableItem = UA_alloca(sizeof(UA_AddNodesItem));
+            *writableItem = *item;
+            writableItem->parentNodeId.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE);
+            item = writableItem;
+        }
+
         node = variableNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_OBJECTTYPE:
@@ -508,7 +526,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
 
     /* instantiate if it has a type */
     if(!UA_NodeId_isNull(&item->typeDefinition.nodeId)) {
-        if(!instantiationCallback)
+        if(instantiationCallback)
             instantiationCallback->method(result->addedNodeId, item->typeDefinition.nodeId,
                                           instantiationCallback->handle);
 
