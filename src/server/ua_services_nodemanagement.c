@@ -49,7 +49,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         result->statusCode = UA_NodeId_copy(&node->nodeId, &result->addedNodeId);
     else
         return;
-    
+
     // reference back to the parent
     UA_AddReferencesItem item;
     UA_AddReferencesItem_init(&item);
@@ -557,14 +557,14 @@ void Service_AddNodes(UA_Server *server, UA_Session *session, const UA_AddNodesR
                server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indexSize] = i;
+            indices[indexSize] = (UA_UInt32)i;
             indexSize++;
         }
         if(indexSize == 0)
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->addNodes(ens->ensHandle, &request->requestHeader, request->nodesToAdd,
-                      indices, indexSize, response->results, response->diagnosticInfos);
+                      indices, (UA_UInt32)indexSize, response->results, response->diagnosticInfos);
     }
 #endif
     
@@ -813,14 +813,14 @@ void Service_AddReferences(UA_Server *server, UA_Session *session, const UA_AddR
                != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indicesSize] = i;
+            indices[indicesSize] = (UA_UInt32)i;
             indicesSize++;
         }
         if (indicesSize == 0)
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
-                           indices, indicesSize, response->results, response->diagnosticInfos);
+                           indices, (UA_UInt32)indicesSize, response->results, response->diagnosticInfos);
     }
 #endif
 

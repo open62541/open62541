@@ -381,14 +381,14 @@ void Service_Read(UA_Server *server, UA_Session *session,
             if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indexSize] = i;
+            indices[indexSize] = (UA_UInt32)i;
             indexSize++;
         }
         if(indexSize == 0)
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->readNodes(ens->ensHandle, &request->requestHeader, request->nodesToRead,
-                       indices, indexSize, response->results, false, response->diagnosticInfos);
+                       indices, (UA_UInt32)indexSize, response->results, false, response->diagnosticInfos);
     }
 #endif
 
@@ -731,7 +731,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
                server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indexSize] = i;
+            indices[indexSize] = (UA_UInt32)i;
             indexSize++;
         }
         if(indexSize == 0)

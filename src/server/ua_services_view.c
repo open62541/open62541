@@ -395,14 +395,15 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indexSize] = i;
+            indices[indexSize] = (UA_UInt32)i;
             indexSize++;
         }
         if(indexSize == 0)
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse, indices, indexSize,
-                         request->requestedMaxReferencesPerNode, response->results, response->diagnosticInfos);
+        ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse, indices,
+                         (UA_UInt32)indexSize, request->requestedMaxReferencesPerNode,
+                         response->results, response->diagnosticInfos);
     }
 #endif
 
@@ -591,14 +592,15 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
             if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
-            indices[indexSize] = i;
+            indices[indexSize] = (UA_UInt32)i;
             indexSize++;
         }
         if(indexSize == 0)
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
-                indices, indexSize, response->results, response->diagnosticInfos);
+                                           indices, (UA_UInt32)indexSize, response->results,
+                                           response->diagnosticInfos);
     }
 #endif
 
