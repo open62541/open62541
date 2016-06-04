@@ -23,50 +23,54 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
     }
     return NULL;
 }
-static UA_StatusCode isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeId,size_t *maxDepth, UA_Boolean *found){
+
+static UA_StatusCode
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeId, size_t *maxDepth, UA_Boolean *found){
     *maxDepth = *maxDepth-1;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    const UA_Node * node = UA_NodeStore_get(ns,rootNode);
-    if(node==NULL){
+    const UA_Node *node = UA_NodeStore_get(ns,rootNode);
+    if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
+
     *found = false;
-    for(size_t i=0; i<node->referencesSize;i++){
+    for(size_t i=0; i<node->referencesSize;i++) {
         if(UA_NodeId_equal(&node->references[i].referenceTypeId, referenceTypeId) &&
-                node->references[i].isInverse == false){
-           if(UA_NodeId_equal(&node->references[i].targetId.nodeId, nodeToFind)){
+           node->references[i].isInverse == false) {
+           if(UA_NodeId_equal(&node->references[i].targetId.nodeId, nodeToFind)) {
                *found = true;
                return UA_STATUSCODE_GOOD;
            }
-           if(*maxDepth>0){
-               retval = isNodeInTree(ns,&node->references[i].targetId.nodeId,nodeToFind,referenceTypeId,maxDepth,found);
-               if(*found){
+           if(*maxDepth > 0) {
+               retval = isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
+                                     referenceTypeId, maxDepth, found);
+               if(*found)
                    break;
-               }
            }
         }
     }
-    *maxDepth=*maxDepth+1;
+    *maxDepth = *maxDepth+1;
     return retval;
 }
+
 static UA_StatusCode
 satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *arg) {
-
     if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
         if(!UA_NodeId_equal(&var->type->typeId, &UA_TYPES[UA_TYPES_INT32].typeId))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
+
         //enumerations are encoded as int32 -> if provided var is integer, check if arg is an enumeration type
         UA_NodeId ENUMERATION_NODEID_NS0 = UA_NODEID_NUMERIC(0,29);
         UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
         size_t maxDepth = 1;
-        if(isNodeInTree(server->nodestore, &ENUMERATION_NODEID_NS0, &arg->dataType, &hasSubTypeNodeId, &maxDepth, &found)!=UA_STATUSCODE_GOOD){
+        UA_StatusCode retval = isNodeInTree(server->nodestore, &ENUMERATION_NODEID_NS0, &arg->dataType, &hasSubTypeNodeId, &maxDepth, &found);
+        if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        if(!found){
+        if(!found)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
     }
+
     // Note: The namespace compiler will compile nodes with their actual array dimensions
     // Todo: Check if this is standard conform for scalars
     if(arg->arrayDimensionsSize > 0 && var->arrayDimensionsSize > 0)
@@ -182,7 +186,8 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
                 result->statusCode = UA_STATUSCODE_GOOD;
                 break;
             }
-            UA_StatusCode retval = isNodeInTree(server->nodestore,&hasComponentNodeId,&withObject->references[i].referenceTypeId,&hasSubTypeNodeId,&maxDepth,&found);
+            UA_StatusCode retval = isNodeInTree(server->nodestore, &hasComponentNodeId, &withObject->references[i].referenceTypeId,
+                                                &hasSubTypeNodeId, &maxDepth, &found);
             if(retval == UA_STATUSCODE_GOOD && found){
                 result->statusCode = UA_STATUSCODE_GOOD;
                 break;
@@ -242,8 +247,7 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
         return;
     }
 
-    response->results = UA_Array_new(request->methodsToCallSize,
-                                     &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    response->results = UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
