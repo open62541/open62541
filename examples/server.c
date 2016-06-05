@@ -450,6 +450,13 @@ int main(int argc, char** argv) {
                             1, &inputArguments, 1, &outputArguments, NULL);
 #endif
 
+    /* Add the variable to some more places to get a node with three inverse references for the CTT */
+    UA_ExpandedNodeId answer_nodeid = UA_EXPANDEDNODEID_STRING(1, "the.answer");
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, DEMOID),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, true);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, SCALARID),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, true);
+
     // Example for iterating over all nodes referenced by "Objects":
     //printf("Nodes connected to 'Objects':\n=============================\n");
     UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, NULL);
