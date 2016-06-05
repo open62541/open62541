@@ -20,10 +20,10 @@ fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode
         if(curr->nodeClass == UA_NODECLASS_OBJECT || curr->nodeClass == UA_NODECLASS_VARIABLE) {
             for(size_t i = 0; i < curr->referencesSize; i++) {
                 UA_ReferenceNode *refnode = &curr->references[i];
-                if(refnode->referenceTypeId.identifier.numeric != UA_NS0ID_HASTYPEDEFINITION)
-                    continue;
-                retval |= UA_ExpandedNodeId_copy(&refnode->targetId, &descr->typeDefinition);
-                break;
+                if(refnode->referenceTypeId.identifier.numeric == UA_NS0ID_HASTYPEDEFINITION) {
+                    retval |= UA_ExpandedNodeId_copy(&refnode->targetId, &descr->typeDefinition);
+                    break;
+                }
             }
         }
     }
@@ -285,8 +285,8 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     UA_Boolean isExternal = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; referencesIndex++) {
-    	isExternal = false;
-    	const UA_Node *current =
+        isExternal = false;
+        const UA_Node *current =
             returnRelevantNode(server, descr, all_refs, &node->references[referencesIndex],
                                relevant_refs, relevant_refs_size, &isExternal);
         if(!current)
@@ -299,13 +299,6 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
                                                descr->resultMask, &result->references[referencesCount]);
             referencesCount++;
         }
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-        /* relevant_node returns a node malloced by the nodestore.
-           if it is external (there is no UA_Node_new function) */
-   //     if(isExternal == true)
-   //         UA_Node_deleteMembersAnyNodeClass(current);
-   //TODO something's wrong here...
-#endif
     }
 
     result->referencesSize = referencesCount;
@@ -584,7 +577,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 #else
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /*NO_ALLOCA */
+#endif /* NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         size_t indexSize = 0;

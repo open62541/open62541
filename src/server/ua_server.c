@@ -184,7 +184,7 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
     UA_AddNodesResult_init(&res);
     UA_RCU_LOCK();
     Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
-                              &referenceTypeId, &res);
+                              &referenceTypeId, &UA_NODEID_NULL, NULL, &res);
     UA_RCU_UNLOCK();
     return res;
 }
@@ -194,7 +194,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                    const UA_DataType *attributeType, 
+                    const UA_DataType *attributeType,
                     UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
@@ -503,8 +503,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /**************/
     /* References */
     /**************/
+
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
-    /* Bootstrap by manually inserting "references" and "hassubtype" */
+    /* Bootstrap reference hierarchy by manually inserting "references" and "hassubtype" */
+
     UA_ReferenceTypeNode *references = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)references, "References");
     references->nodeId.identifier.numeric = UA_NS0ID_REFERENCES;
@@ -608,8 +610,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     generatesevent->nodeId.identifier.numeric = UA_NS0ID_GENERATESEVENT;
     generatesevent->isAbstract = false;
     generatesevent->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)generatesevent, nodeIdNonHierarchicalReferences,
-                    nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)generatesevent, nodeIdNonHierarchicalReferences, nodeIdHasSubType);
 
     UA_ReferenceTypeNode *aggregates = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)aggregates, "Aggregates");
@@ -617,8 +618,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     aggregates->nodeId.identifier.numeric = UA_NS0ID_AGGREGATES;
     aggregates->isAbstract = false;
     aggregates->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)aggregates,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCHILD), nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)aggregates, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCHILD), nodeIdHasSubType);
 
     // complete bootstrap of hassubtype
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCHILD), nodeIdHasSubType,
@@ -639,8 +639,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hascomponent->nodeId.identifier.numeric = UA_NS0ID_HASCOMPONENT;
     hascomponent->isAbstract = false;
     hascomponent->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)hascomponent,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES), nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)hascomponent, UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES), nodeIdHasSubType);
 
     UA_ReferenceTypeNode *hasnotifier = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)hasnotifier, "HasNotifier");
@@ -648,8 +647,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hasnotifier->nodeId.identifier.numeric = UA_NS0ID_HASNOTIFIER;
     hasnotifier->isAbstract = false;
     hasnotifier->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)hasnotifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE),
-                    nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)hasnotifier, UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE), nodeIdHasSubType);
 
     UA_ReferenceTypeNode *hasorderedcomponent = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)hasorderedcomponent, "HasOrderedComponent");
@@ -657,8 +655,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hasorderedcomponent->nodeId.identifier.numeric = UA_NS0ID_HASORDEREDCOMPONENT;
     hasorderedcomponent->isAbstract = false;
     hasorderedcomponent->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)hasorderedcomponent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                    nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)hasorderedcomponent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), nodeIdHasSubType);
 
     UA_ReferenceTypeNode *hasmodelparent = UA_NodeStore_newReferenceTypeNode();
     copyNames((UA_Node*)hasmodelparent, "HasModelParent");
@@ -706,18 +703,24 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hashistoricalconfiguration->nodeId.identifier.numeric = UA_NS0ID_HASHISTORICALCONFIGURATION;
     hashistoricalconfiguration->isAbstract = false;
     hashistoricalconfiguration->symmetric  = false;
-    addNodeInternal(server, (UA_Node*)hashistoricalconfiguration,
-                    UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES), nodeIdHasSubType);
+    addNodeInternal(server, (UA_Node*)hashistoricalconfiguration, UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES), nodeIdHasSubType);
 
-    /*****************/
-    /* Basic Folders */
-    /*****************/
+    /********************/
+    /* Object Hierarchy */
+    /********************/
 
+    /* Bootstrap object hierarchy by manually inserting "root" and "baseobjecttype" */
     UA_ObjectNode *root = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
+
+    UA_ObjectTypeNode *baseobjtype = UA_NodeStore_newObjectTypeNode();
+    copyNames((UA_Node*)baseobjtype, "BaseObjectType");
+    baseobjtype->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
+
     UA_RCU_LOCK();
     UA_NodeStore_insert(server->nodestore, (UA_Node*)root);
+    UA_NodeStore_insert(server->nodestore, (UA_Node*)baseobjtype);
     UA_RCU_UNLOCK();
 
     UA_ObjectNode *objects = UA_NodeStore_newObjectNode();
@@ -756,9 +759,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     objecttypes->nodeId.identifier.numeric = UA_NS0ID_OBJECTTYPESFOLDER;
     addNodeInternal(server, (UA_Node*)objecttypes, UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
                     nodeIdOrganizes);
+    /* Link in the bootstrapped baseobjecttype */
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), nodeIdOrganizes,
+                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), true);
 
-    addObjectTypeNode(server, "BaseObjectType", UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER,
-                      UA_NS0ID_ORGANIZES);
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTTYPESFOLDER), nodeIdHasTypeDefinition,
                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
@@ -772,6 +776,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCETYPESFOLDER),
                          nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
+
     addObjectTypeNode(server, "ServerType", UA_NS0ID_SERVERTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
     addObjectTypeNode(server, "ServerDiagnosticsType", UA_NS0ID_SERVERDIAGNOSTICSTYPE,
                       UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
@@ -840,8 +845,6 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addVariableTypeNode_subtype(server, "PropertyType", UA_NS0ID_PROPERTYTYPE,
                                 UA_NS0ID_BASEVARIABLETYPE, false);
 
-
-    //Event types folder below is needed by CTT
     /***************/
     /* Event Types */
     /***************/
@@ -855,7 +858,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #endif
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
-    //load the generated namespace
+    /* load the generated namespace externally */
     ua_namespaceinit_generated(server);
 #endif
 

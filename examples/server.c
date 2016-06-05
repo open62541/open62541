@@ -200,7 +200,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 static UA_StatusCode
-instantiationHandle(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
+instantiationHandle(const UA_NodeId newNodeId, const UA_NodeId templateId, void *handle ) {
   printf("Instantiated Node ns=%d; id=%d from ns=%d; id=%d\n", newNodeId.namespaceIndex,
          newNodeId.identifier.numeric, templateId.namespaceIndex, templateId.identifier.numeric);
   return UA_STATUSCODE_GOOD;

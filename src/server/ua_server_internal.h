@@ -90,4 +90,8 @@ void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
+UA_StatusCode
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeId, size_t maxDepth, UA_Boolean *found);
+
 #endif /* UA_SERVER_INTERNAL_H_ */
