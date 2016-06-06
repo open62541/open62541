@@ -30,9 +30,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpointDescriptions)
-        response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+    if(server->endpointDescriptionsSize > 0)
+        response->responseHeader.serviceResult |= UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
                                &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
