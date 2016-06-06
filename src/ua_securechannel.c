@@ -15,7 +15,8 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
     UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
     UA_ByteString_init(&channel->clientNonce);
     UA_ByteString_init(&channel->serverNonce);
-    channel->sequenceNumber = 0;
+    channel->receiveSequenceNumber = 0;
+    channel->sendSequenceNumber = 0;
     channel->connection = NULL;
     LIST_INIT(&channel->sessions);
     LIST_INIT(&channel->chunks);
@@ -169,9 +170,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
 #else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sequenceNumber, 1);
+    seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
 #endif
 
     /* Encode the header at the beginning of the buffer */

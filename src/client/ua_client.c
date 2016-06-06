@@ -192,7 +192,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         messageHeader.secureChannelId = 0;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = ++client->channel.sequenceNumber;
+    seqHeader.sequenceNumber = ++client->channel.sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
@@ -508,7 +508,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     symHeader.tokenId = channel->securityToken.tokenId;
 
     UA_SequenceHeader seqHeader;
-    seqHeader.sequenceNumber = ++channel->sequenceNumber;
+    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);

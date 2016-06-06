@@ -40,7 +40,8 @@ struct UA_SecureChannel {
     UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
     UA_ByteString  clientNonce;
     UA_ByteString  serverNonce;
-    UA_UInt32      sequenceNumber;
+    UA_UInt32      receiveSequenceNumber;
+    UA_UInt32      sendSequenceNumber;
     UA_Connection *connection;
     LIST_HEAD(session_pointerlist, SessionEntry) sessions;
     LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
