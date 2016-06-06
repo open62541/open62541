@@ -45,14 +45,16 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
             if(UA_DateTime_now() > current->session.validTill) {
                 UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                             "Try to use Session with token %i, but has timed out", token->identifier.numeric);
+                             "Try to use Session with token " PRINTF_GUID_FORMAT ", but has timed out",
+                             PRINTF_GUID_DATA((*token)));
                 return NULL;
             }
             return &current->session;
         }
     }
     UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Try to use Session with token %i but is not found", token->identifier.numeric);
+                 "Try to use Session with token " PRINTF_GUID_FORMAT " but is not found",
+                 PRINTF_GUID_DATA((*token)));
     return NULL;
 }
 

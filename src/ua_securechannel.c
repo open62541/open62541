@@ -22,17 +22,19 @@ void UA_SecureChannel_init(UA_SecureChannel *channel) {
 }
 
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
+    /* Delete members */
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->serverAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->serverNonce);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&channel->clientAsymAlgSettings);
     UA_ByteString_deleteMembers(&channel->clientNonce);
     UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
-    UA_Connection *c = channel->connection;
-    if(c)
-        UA_Connection_detachSecureChannel(c);
 
-    /* just remove the pointers and free the linked list (not the sessions) */
+    /* Detach from the channel */
+    if(channel->connection)
+        UA_Connection_detachSecureChannel(channel->connection);
+
+    /* Remove session pointers (not the sessions) */
     struct SessionEntry *se, *temp;
     LIST_FOREACH_SAFE(se, &channel->sessions, pointers, temp) {
         if(se->session)
@@ -41,6 +43,7 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
         UA_free(se);
     }
 
+    /* Remove the buffered chunks */
     struct ChunkEntry *ch, *temp_ch;
     LIST_FOREACH_SAFE(ch, &channel->chunks, pointers, temp_ch) {
         UA_ByteString_deleteMembers(&ch->bytes);
