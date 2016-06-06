@@ -302,14 +302,13 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
  * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences);
-    
+
 /**
  * The instantiation callback is used to track the addition of new nodes. It is
  * also called for all sub-nodes contained in an object or variable type node
- * that is instantiated.
- */
-typedef struct UA_InstantiationCallback_s {
-  UA_StatusCode (*method)(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
+ * that is instantiated. */
+typedef struct {
+  UA_StatusCode (*method)(const UA_NodeId objectId, const UA_NodeId typeDefinitionId, void *handle);
   void *handle;
 } UA_InstantiationCallback;
 
