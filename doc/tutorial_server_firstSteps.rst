@@ -107,25 +107,26 @@ Let's build a very rudimentary server. Create a separate folder for your applica
    :myApp> tree
    .
    ├── include
-   │   ├── logger_stdout.h
-   │   ├── networklayer_tcp.h
-   │   ├── networklayer_udp.h
-   │   ├── ua_client.h
-   │   ├── ua_client_highlevel.h
-   │   ├── ua_config.h
-   │   ├── ua_config.h.in
-   │   ├── ua_connection.h
-   │   ├── ua_job.h
-   │   ├── ua_log.h
-   │   ├── ua_nodeids.h
-   │   ├── ua_server_external_ns.h
-   │   ├── ua_server.h
-   │   ├── ua_constants.h
-   │   ├── ua_transport_generated_encoding_binary.h
-   │   ├── ua_transport_generated.h
-   │   ├── ua_types_generated_encoding_binary.h
-   │   ├── ua_types_generated.h
-   │   └── ua_types.h
+   │   ├── logger_stdout.h
+   │   ├── networklayer_tcp.h
+   │   ├── networklayer_udp.h
+   │   ├── ua_client.h
+   │   ├── ua_client_highlevel.h
+   │   ├── ua_config.h
+   │   ├── ua_config.h.in
+   │   ├── ua_config_standard.h
+   │   ├── ua_connection.h
+   │   ├── ua_constants.h
+   │   ├── ua_job.h
+   │   ├── ua_log.h
+   │   ├── ua_nodeids.h
+   │   ├── ua_server_external_ns.h
+   │   ├── ua_server.h
+   │   ├── ua_transport_generated_encoding_binary.h
+   │   ├── ua_transport_generated.h
+   │   ├── ua_types_generated_encoding_binary.h
+   │   ├── ua_types_generated.h
+   │   └── ua_types.h
    ├── libopen62541.so
    └── myServer.c
    :myApp> touch myServer.c
@@ -138,14 +139,16 @@ Open myServer.c and write/paste your minimal server application:
 
    # include "ua_types.h"
    # include "ua_server.h"
+   # include "ua_config_standard.h"
    # include "logger_stdout.h"
    # include "networklayer_tcp.h"
 
    UA_Boolean running;
    UA_Logger logger = Logger_Stdout;
+
    int main(void) {
      UA_ServerConfig config = UA_ServerConfig_standard;
-     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, logger);
+     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
      config.logger = Logger_Stdout;
      config.networkLayers = &nl;
      config.networkLayersSize = 1;
