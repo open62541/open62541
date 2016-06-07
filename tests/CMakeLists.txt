@@ -97,23 +97,14 @@ target_include_directories(check_server_binary_messages PRIVATE ${PROJECT_SOURCE
 target_link_libraries(check_server_binary_messages ${LIBS})
 add_dependencies(check_server_binary_messages client_HELOPN.bin)
 
-add_test(check_server_binary_messages_helopn ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin)
-
-add_test(check_server_binary_messages_helopn ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
-
-add_test(check_server_binary_messages_activate_session ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
-                                                       ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                                                       ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin)
-
 add_test(check_server_binary_messages_browse ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
                                              ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                                              ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin)
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
 
 add_test(check_server_binary_messages_read ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin)
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
