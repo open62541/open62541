@@ -6,9 +6,9 @@ open62541 (http://open62541.org) is an open source and free implementation of OP
 open62541 is licensed under the LGPL with static linking exception. That means **open62541 can be used in commercial projects** without affecting code that uses the library. However, changes to the open62541 library itself need to be released under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be used under any license and changes don't have to be published.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
-[![Build Status](https://travis-ci.org/open62541/open62541.png?branch=master)](https://travis-ci.org/open62541/open62541)
-[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/master?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/master)
-[![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=master)](https://coveralls.io/r/open62541/open62541?branch=master)
+[![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
+[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/0.2)
+[![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=0.2)](https://coveralls.io/r/open62541/open62541?branch=0.2)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
 ### Using open62541
