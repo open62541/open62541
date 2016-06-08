@@ -5,6 +5,68 @@
 /* Helper Functions */
 /********************/
 
+/* Returns the type and all subtypes. We start with an array with a single root nodeid. When a relevant
+ * reference is found, we add the nodeids to the back of the array and increase the size. Since the hierarchy
+ * is not cyclic, we can safely progress in the array to process the newly found referencetype nodeids. */
+UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    const UA_Node *node = UA_NodeStore_get(ns, root);
+    if(!node)
+        return UA_STATUSCODE_BADNOMATCH;
+    if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+
+    size_t results_size = 20; // probably too big, but saves mallocs
+    UA_NodeId *results = UA_malloc(sizeof(UA_NodeId) * results_size);
+    if(!results)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_NodeId_copy(root, &results[0]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(results);
+        return retval;
+    }
+
+    size_t idx = 0; // where are we currently in the array?
+    size_t last = 0; // where is the last element in the array?
+    const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    do {
+        node = UA_NodeStore_get(ns, &results[idx]);
+        if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
+            continue;
+        for(size_t i = 0; i < node->referencesSize; i++) {
+            if(node->references[i].isInverse == true ||
+               !UA_NodeId_equal(&hasSubtypeNodeId, &node->references[i].referenceTypeId))
+                continue;
+
+            if(++last >= results_size) { // is the array big enough?
+                UA_NodeId *new_results = UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
+                if(!new_results) {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                results = new_results;
+                results_size *= 2;
+            }
+
+            retval = UA_NodeId_copy(&node->references[i].targetId.nodeId, &results[last]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                last--; // for array_delete
+                break;
+            }
+        }
+    } while(++idx <= last && retval == UA_STATUSCODE_GOOD);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
+        return retval;
+    }
+
+    *typeHierarchy = results;
+    *typeHierarchySize = last + 1;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
