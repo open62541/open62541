@@ -917,10 +917,14 @@ Variant_decodeBinary(bufpos pos, bufend end, UA_Variant *dst, const UA_DataType 
 
         /* search for the datatype. use extensionobject if nothing is found */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-        if(typeId.namespaceIndex != 0 || eo_encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
-           findDataType(&typeId, &dst->type) != UA_STATUSCODE_GOOD)
-                *pos = old_pos; /* the datatype is unknown. roll back the
-                                   position and decode as an extensionobject */
+        if(typeId.namespaceIndex == 0 && eo_encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+            typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
+            if(findDataType(&typeId, &dst->type) == UA_STATUSCODE_GOOD)
+                (*pos) += 4; /* jump over the length (todo: check if length matches) */
+            else
+                *pos = old_pos; /* jump back and decode as extensionobject */
+        } else
+            *pos = old_pos; /* jump back and decode as extensionobject */
         UA_NodeId_deleteMembers(&typeId);
 
         /* decode the type */
