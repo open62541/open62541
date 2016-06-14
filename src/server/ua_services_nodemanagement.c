@@ -859,9 +859,15 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_Ad
     /* cast away the const to loop the call through UA_Server_editNode */
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                               (UA_EditNodeCallback)addOneWayReference, item);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    if(retval != UA_STATUSCODE_GOOD){
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+		/*	Not completely clean, as this is allowed for external nodes only
+		(standard states that in that case only the source node has 
+		to be edited), but for now it works	*/
+		if(item->isForward || retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+#endif
+		return retval;
+	}
     UA_AddReferencesItem secondItem;
     secondItem = *item;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
@@ -871,6 +877,13 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_Ad
                                 (UA_EditNodeCallback)addOneWayReference, &secondItem);
 
     // todo: remove reference if the second direction failed
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+	/*	Same as above but in this case, target and source are switched 
+	as this is the other direction of the reference*/
+	if(retval == UA_STATUSCODE_BADNODEIDUNKNOWN && item->isForward)
+		return UA_STATUSCODE_GOOD;
+	else
+#endif
     return retval;
 }
 
