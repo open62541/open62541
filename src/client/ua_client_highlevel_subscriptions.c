@@ -227,15 +227,16 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request, 
         UA_SubscriptionAcknowledgement *orig_ack = &request->subscriptionAcknowledgements[i];
         UA_Client_NotificationsAckNumber *ack;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-            if(ack->subAck.subscriptionId != orig_ack->subscriptionId ||
-               ack->subAck.sequenceNumber != orig_ack->sequenceNumber)
-                continue;
-            LIST_REMOVE(ack, listEntry);
-            UA_free(ack);
-            break;
+            if(ack->subAck.subscriptionId == orig_ack->subscriptionId &&
+               ack->subAck.sequenceNumber == orig_ack->sequenceNumber) {
+                LIST_REMOVE(ack, listEntry);
+                UA_free(ack);
+                UA_assert(ack != LIST_FIRST(&client->pendingNotificationsAcks));
+                break;
+            }
         }
     }
-    
+
     /* Process the notification messages */
     UA_NotificationMessage *msg = &response->notificationMessage;
     for(size_t k = 0; k < msg->notificationDataSize; k++) {
