@@ -232,6 +232,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request, 
                 continue;
             LIST_REMOVE(ack, listEntry);
             UA_free(ack);
+            break;
         }
     }
     
