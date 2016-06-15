@@ -11,8 +11,8 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 typedef struct UA_Client_NotificationsAckNumber_s {
-    UA_SubscriptionAcknowledgement subAck;
     LIST_ENTRY(UA_Client_NotificationsAckNumber_s) listEntry;
+    UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
 typedef struct UA_Client_MonitoredItem_s {
