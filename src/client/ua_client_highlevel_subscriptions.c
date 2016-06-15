@@ -217,45 +217,50 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishResponse *response
                  sub->SubscriptionID, response->notificationMessage.notificationDataSize);
 
     /* Check if the server has acknowledged any of our ACKS */
-    // TODO: The acks should be attached to the subscription
-    UA_Client_NotificationsAckNumber *ack, *tmpAck;
-    size_t i = 0;
-    LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, tmpAck) {
-        if(response->results[i] == UA_STATUSCODE_GOOD ||
-           response->results[i] == UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN) {
-            LIST_REMOVE(ack, listEntry);
-            UA_free(ack);
+    UA_Client_NotificationsAckNumber *ack=NULL, *tmpAck=NULL;
+    if(response->resultsSize>0){
+        // TODO: The acks should be attached to the subscription
+        size_t i = 0;
+        LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, tmpAck) {
+            if(response->results[i] == UA_STATUSCODE_GOOD ||
+               response->results[i] == UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN) {
+                LIST_REMOVE(ack, listEntry);
+                UA_free(ack);
+            }
+            i++;
         }
-        i++;
     }
     
     /* Process the notification messages */
     UA_NotificationMessage *msg = &response->notificationMessage;
-    for(size_t k = 0; k < msg->notificationDataSize; k++) {
-        if(msg->notificationData[k].encoding != UA_EXTENSIONOBJECT_DECODED)
-            continue;
-        
-        /* Currently only dataChangeNotifications are supported */
-        if(msg->notificationData[k].content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION])
-            continue;
-        
-        UA_DataChangeNotification *dataChangeNotification = msg->notificationData[k].content.decoded.data;
-        for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; j++) {
-            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
-            UA_Client_MonitoredItem *mon;
-            LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
-                if(mon->ClientHandle == mitemNot->clientHandle) {
-                    mon->handler(mon->MonitoredItemId, &mitemNot->value, mon->handlerContext);
-                    break;
+
+    if(response->notificationMessage.notificationDataSize>0){
+        for(size_t k = 0; k < msg->notificationDataSize; k++) {
+            if(msg->notificationData[k].encoding != UA_EXTENSIONOBJECT_DECODED)
+                continue;
+
+            /* Currently only dataChangeNotifications are supported */
+            if(msg->notificationData[k].content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION])
+                continue;
+
+            UA_DataChangeNotification *dataChangeNotification = msg->notificationData[k].content.decoded.data;
+            for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; j++) {
+                UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
+                UA_Client_MonitoredItem *mon;
+                LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+                    if(mon->ClientHandle == mitemNot->clientHandle) {
+                        mon->handler(mon->MonitoredItemId, &mitemNot->value, mon->handlerContext);
+                        break;
+                    }
                 }
+                if(!mon)
+                    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                                 "Could not process a notification with clienthandle %u on subscription %u",
+                                 mitemNot->clientHandle, sub->SubscriptionID);
             }
-            if(!mon)
-                UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                             "Could not process a notification with clienthandle %u on subscription %u",
-                             mitemNot->clientHandle, sub->SubscriptionID);
         }
     }
-    
+
     /* Add to the list of pending acks */
     tmpAck = UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
     tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
