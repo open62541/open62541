@@ -37,7 +37,7 @@ START_TEST(processMessage) {
         UA_ByteString msg = readFile(filenames[i]);
         UA_Boolean reallocated;
         UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
-        if(retval == UA_STATUSCODE_GOOD)
+        if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
             UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
