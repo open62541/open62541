@@ -58,6 +58,7 @@ static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
         if(LIST_EMPTY(&(entry->channel.sessions))){
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, (&entry->channel), "Channel was purged since maxSecureChannels was reached and channel had no session attached");
             removeSecureChannel(cm, entry);
+            UA_assert(entry != LIST_FIRST(&cm->channels));
             return true;
         }
     }
