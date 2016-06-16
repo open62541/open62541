@@ -138,7 +138,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     /* Check if the target exists */
     const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
     if(!target) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
     // TODO: Check if the target node type has the requested attribute
