@@ -459,11 +459,11 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
     UA_NodeId *reftypes = NULL;
     size_t reftypes_count = 1; // all_refs or no subtypes => 1
     UA_Boolean all_refs = false;
-    if(UA_NodeId_isNull(&elem->referenceTypeId) || UA_NodeId_isEmptyString(&elem->referenceTypeId) || UA_NodeId_isEmptyGUID(&elem->referenceTypeId) || UA_NodeId_isEmptyByteString(&elem->referenceTypeId))
+    if(UA_NodeId_isNull(&elem->referenceTypeId)) {
         all_refs = true;
-    else if(!elem->includeSubtypes)
+    } else if(!elem->includeSubtypes) {
         reftypes = (UA_NodeId*)(uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
-    else {
+    } else {
         retval = findSubTypes(server->nodestore, &elem->referenceTypeId, &reftypes, &reftypes_count);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
