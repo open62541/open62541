@@ -853,7 +853,7 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, const 
 
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item) {
-UA_StatusCode retval;
+UA_StatusCode retval = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 	UA_Boolean handledExternally = UA_FALSE;
 #endif  
@@ -866,7 +866,7 @@ UA_StatusCode retval;
                 continue;
 		} else {
 			UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-			ens->addOneWayReference(ens->ensHandle, item);
+			retval = ens->addOneWayReference(ens->ensHandle, item);
 			handledExternally = UA_TRUE;
 			break;
         }
@@ -898,7 +898,7 @@ UA_StatusCode retval;
                 continue;
 		} else {
 			UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-			ens->addOneWayReference(ens->ensHandle, &secondItem);
+			retval = ens->addOneWayReference(ens->ensHandle, &secondItem);
 			handledExternally = UA_TRUE;
 			break;
         }
