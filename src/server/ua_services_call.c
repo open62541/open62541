@@ -201,8 +201,33 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
     }
     response->resultsSize = request->methodsToCallSize;
 
-    for(size_t i = 0; i < request->methodsToCallSize;i++)
-        Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+    UA_Boolean isExternal[request->methodsToCallSize];
+    UA_UInt32 indices[request->methodsToCallSize];
+    memset(isExternal, false, sizeof(UA_Boolean) * request->methodsToCallSize);
+    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+        size_t indexSize = 0;
+        for(size_t i = 0;i < request->methodsToCallSize;i++) {
+            if(request->methodsToCall[i].methodId.namespaceIndex != server->externalNamespaces[j].index)
+                continue;
+            isExternal[i] = true;
+            indices[indexSize] = (UA_UInt32)i;
+            indexSize++;
+        }
+        if(indexSize == 0)
+            continue;
+        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+        ens->call(ens->ensHandle, &request->requestHeader, request->methodsToCall,
+                       indices, (UA_UInt32)indexSize, response->results);
+    }
+#endif
+	
+    for(size_t i = 0; i < request->methodsToCallSize;i++){
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+        if(!isExternal[i])
+#endif    
+			Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
+	}
 }
 
 #endif /* UA_ENABLE_METHODCALLS */

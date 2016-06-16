@@ -73,6 +73,10 @@ typedef UA_Int32 (*UA_ExternalNodeStore_translateBrowsePathsToNodeIds)
 (void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath, UA_UInt32 *indices,
  UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
 
+typedef UA_Int32 (*UA_ExternalNodeStore_call)
+(void *ensHandle, const UA_RequestHeader *requestHeader, UA_CallMethodRequest *request, UA_UInt32 *indices,
+ UA_UInt32 indicesSize,UA_CallMethodResult *results);
+ 
 typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
 
 typedef struct UA_ExternalNodeStore {
@@ -85,6 +89,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_translateBrowsePathsToNodeIds translateBrowsePathsToNodeIds;
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
+	UA_ExternalNodeStore_call call;
 	UA_ExternalNodeStore_addOneWayReference addOneWayReference;
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
