@@ -28,6 +28,7 @@ extern "C" {
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
+#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS

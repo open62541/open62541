@@ -339,6 +339,37 @@ UA_NodeId_isNull(const UA_NodeId *p) {
             p->identifier.numeric == 0);
 }
 
+static UA_INLINE UA_Boolean
+UA_NodeId_isEmptyString(const UA_NodeId *p) {
+    return (p->namespaceIndex == 0 &&
+            p->identifierType == UA_NODEIDTYPE_STRING &&
+            p->identifier.string.length == 0);
+}
+
+static UA_INLINE UA_Boolean
+UA_NodeId_isEmptyGUID(const UA_NodeId *p) {
+    return (p->namespaceIndex == 0 &&
+            p->identifierType == UA_NODEIDTYPE_GUID &&
+            p->identifier.guid.data1 == 0 &&
+            p->identifier.guid.data2 == 0 &&
+            p->identifier.guid.data3 == 0 &&
+            p->identifier.guid.data4[0] == 0 &&
+            p->identifier.guid.data4[1] == 0 &&
+            p->identifier.guid.data4[2] == 0 &&
+            p->identifier.guid.data4[3] == 0 &&
+            p->identifier.guid.data4[4] == 0 &&
+            p->identifier.guid.data4[5] == 0 &&
+            p->identifier.guid.data4[6] == 0 &&
+            p->identifier.guid.data4[7] == 0);
+}
+
+static UA_INLINE UA_Boolean
+UA_NodeId_isEmptyByteString(const UA_NodeId *p) {
+    return (p->namespaceIndex == 0 &&
+            p->identifierType == UA_NODEIDTYPE_BYTESTRING &&
+            p->identifier.byteString.length == 0);
+}
+
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
 /** The following functions are shorthand for creating NodeIds. */
@@ -439,6 +470,12 @@ typedef struct {
     UA_UInt16 namespaceIndex;
     UA_String name;
 } UA_QualifiedName;
+
+static UA_INLINE UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q) {
+    return (q->namespaceIndex == 0 &&
+            q->name.length == 0);
+}
 
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {

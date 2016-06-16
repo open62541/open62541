@@ -26,7 +26,6 @@ else()
     set(GIT_COMMIT_ID "unknown--no-git-found")
     message(STATUS "Git not found. Build will not contain git revision info." )
 endif()
-add_definitions("-DVERSION=${GIT_COMMIT_ID}")
 
 message(STATUS "Git version: "  ${GIT_COMMIT_ID})
 

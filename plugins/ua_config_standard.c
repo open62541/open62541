@@ -1,8 +1,8 @@
 #include "ua_config_standard.h"
 
-#define MANUFACTURER_NAME "open62541.org"
+#define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
-#define PRODUCT_URI "urn:unconfigured:open62541"
+#define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
 
@@ -22,8 +22,8 @@ const UA_ServerConfig UA_ServerConfig_standard = {
         .productUri = UA_STRING_STATIC(PRODUCT_URI),
         .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
         .productName = UA_STRING_STATIC(PRODUCT_NAME),
-        .softwareVersion = UA_STRING_STATIC("0"),
-        .buildNumber = UA_STRING_STATIC("0"),
+        .softwareVersion = UA_STRING_STATIC(UA_GIT_COMMIT_ID),
+        .buildNumber = UA_STRING_STATIC(__DATE__ " " __TIME__),
         .buildDate = 0 },
     .applicationDescription = {
         .applicationUri = UA_STRING_STATIC(APPLICATION_URI),
@@ -48,7 +48,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLoginsSize = 2,
 
     /* Limits for SecureChannels */
-    .maxSecureChannels = 100,
+    .maxSecureChannels = 40,
     .maxSecurityTokenLifetime = 10 * 60 * 1000, /* 10 minutes */
 
     /* Limits for Sessions */

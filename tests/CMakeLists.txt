@@ -76,7 +76,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                           ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
                           ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
                           ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_Writebin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
                   PRE_BUILD
                   COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
                                  ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
@@ -112,7 +112,7 @@ add_test(check_server_binary_messages_read ${CMAKE_CURRENT_BINARY_DIR}/check_ser
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
 
-add_test(check_server_binary_messages_read ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
+add_test(check_server_binary_messages_write ${CMAKE_CURRENT_BINARY_DIR}/check_server_binary_messages
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin

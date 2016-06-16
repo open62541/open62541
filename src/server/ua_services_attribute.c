@@ -156,14 +156,19 @@ getVariableNodeDataType(UA_Server *server, UA_Session *session,
                         const UA_VariableNode *vn, UA_DataValue *v) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
-        forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId,
-                              &UA_TYPES[UA_TYPES_NODEID]);
+        if(vn->value.variant.value.type) {
+            forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        } else {
+            UA_NodeId nullid;
+            UA_NodeId_init(&nullid);
+            UA_Variant_setScalarCopy(&v->value, &nullid, &UA_TYPES[UA_TYPES_NODEID]);
+        }
     } else {
+        /* Read from the datasource to see the data type */
         if(!vn->value.dataSource.read) {
             UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
-        /* Read from the datasource to see the data type */
         UA_DataValue val;
         UA_DataValue_init(&val);
         val.hasValue = false; // always assume we are not given a value by userspace
@@ -207,10 +212,11 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /* clang complains about unused variables */
 // static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"};
 
-/** Reads a single attribute from a node in the nodestore. */
+/* Reads a single attribute from a node in the nodestore */
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Read the attribute %i", id->attributeId);
     if(id->dataEncoding.name.length > 0 &&
        !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = true;
@@ -218,7 +224,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
            return;
     }
 
-    //index range for a non-value
+    /* index range for a non-value */
     if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE){
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
