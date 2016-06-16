@@ -23,12 +23,12 @@ extern "C" {
 #ifndef _XOPEN_SOURCE
 # define _XOPEN_SOURCE 500
 #endif
-#ifndef _DEFAULT_SOURCEAMALGAMA
+#ifndef _DEFAULT_SOURCE
 # define _DEFAULT_SOURCE
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
-#define GIT_COMMIT_ID "${GIT_COMMIT_ID}"
+#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
