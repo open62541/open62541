@@ -614,6 +614,10 @@ static void completeMessages(UA_Server *server, UA_Job *job) {
     }
     if(realloced)
         job->type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
+
+    /* discard the job if message is empty - also no leak is possible here */
+    if(job->job.binaryMessage.message.length == 0)
+        job->type = UA_JOBTYPE_NOTHING;
 }
 
 UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {

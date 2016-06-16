@@ -248,7 +248,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
             sub->currentLifetimeCount++;
-            if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
+            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Session %u | Subscription %u | End of lifetime for subscription",
                             sub->session->authenticationToken.identifier.numeric, sub->subscriptionID);
@@ -257,6 +257,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         }
         return;
     }
+
     SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
     UA_PublishResponse *response = &pre->response;
     UA_UInt32 requestId = pre->requestId;
