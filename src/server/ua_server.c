@@ -737,6 +737,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_NodeStore_insert(server->nodestore, (UA_Node*)root);
     UA_NodeStore_insert(server->nodestore, (UA_Node*)baseobjtype);
     UA_RCU_UNLOCK();
+
+    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), nodeIdHasTypeDefinition,
+                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
+
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
 
     UA_ObjectNode *objects = UA_NodeStore_newObjectNode();
@@ -867,10 +871,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_ObjectNode *servernode = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)servernode, "Server");
     servernode->nodeId.identifier.numeric = UA_NS0ID_SERVER;
-    addNodeInternal(server, (UA_Node*)servernode, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                    nodeIdOrganizes);
-    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasTypeDefinition,
-                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), true);
+    addNodeInternalWithType(server, (UA_Node*)servernode, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            nodeIdOrganizes, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE));
 
     UA_VariableNode *namespaceArray = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)namespaceArray, "NamespaceArray");
