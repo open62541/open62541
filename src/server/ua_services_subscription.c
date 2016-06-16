@@ -135,13 +135,16 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
                                     const UA_TimestampsToReturn timestampsToReturn,
                                     const UA_MonitoredItemCreateRequest *request,
                                     UA_MonitoredItemCreateResult *result) {
-    /* Check if the target exists */
-    const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
-    if(!target) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+    /* Make an example read to get errors in the itemToMonitor */
+    UA_DataValue v;
+    UA_DataValue_init(&v);
+    Service_Read_single(server, session, timestampsToReturn, &request->itemToMonitor, &v);
+    if(v.hasStatus != UA_STATUSCODE_GOOD) {
+        result->statusCode = v.status;
+        UA_DataValue_deleteMembers(&v);
         return;
     }
-    // TODO: Check if the target node type has the requested attribute
+    UA_DataValue_deleteMembers(&v);
 
     /* Check if the encoding is supported */
     if(request->itemToMonitor.dataEncoding.name.length > 0 &&
@@ -163,7 +166,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    UA_StatusCode retval = UA_NodeId_copy(&target->nodeId, &newMon->monitoredNodeId);
+    UA_StatusCode retval = UA_NodeId_copy(&request->itemToMonitor.nodeId, &newMon->monitoredNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         MonitoredItem_delete(server, newMon);
@@ -192,6 +195,13 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateMonitoredItemsRequest");
+
+    /* check if the timestampstoreturn is valid */
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
+
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -241,6 +251,13 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_ModifyMonitoredItemsRequest *request,
                                   UA_ModifyMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ModifyMonitoredItemsRequest");
+
+    /* check if the timestampstoreturn is valid */
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
+
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -394,6 +411,13 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteMonitoredItemsRequest");
+
+    if(request->monitoredItemIdsSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
