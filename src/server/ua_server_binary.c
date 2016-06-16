@@ -173,6 +173,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE];
         break;
+    case UA_NS0ID_SETMONITORINGMODEREQUEST:
+        *service = (UA_Service)Service_SetMonitoringMode;
+        *requestType = &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE];
+        break;
 #endif
 
 #ifdef UA_ENABLE_METHODCALLS

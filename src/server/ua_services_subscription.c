@@ -125,7 +125,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                queueSize, mon->maxQueueSize);
     mon->discardOldest = discardOldest;
-    MonitoredItem_registerSampleJob(server, mon);
+    if(monitoringMode == UA_MONITORINGMODE_REPORTING)
+        MonitoredItem_registerSampleJob(server, mon);
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
@@ -262,10 +263,42 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToModifySize;
 
     for(size_t i = 0; i < request->itemsToModifySize; i++)
-        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
-                                            &response->results[i]);
+        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i], &response->results[i]);
 
 }
+
+void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
+                               const UA_SetMonitoringModeRequest *request,
+                               UA_SetMonitoringModeResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing SetMonitoringMode");
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
+    if(!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+
+    if(request->monitoredItemIdsSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    response->results = UA_Array_new(request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    response->resultsSize = request->monitoredItemIdsSize;
+
+    for(size_t i = 0; i < response->resultsSize; i++) {
+        UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->monitoredItemIds[i]);
+        if(mon)
+            setMonitoredItemSettings(server, mon, request->monitoringMode, mon->clientHandle,
+                                     mon->samplingInterval, mon->maxQueueSize, mon->discardOldest);
+        else
+            response->results[i] = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    }
+}
+
 
 void
 Service_Publish(UA_Server *server, UA_Session *session,
