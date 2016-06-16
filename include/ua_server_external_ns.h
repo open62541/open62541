@@ -42,6 +42,9 @@ typedef UA_Int32 (*UA_ExternalNodeStore_addReferences)
 (void *ensHandle, const UA_RequestHeader *requestHeader, UA_AddReferencesItem* referencesToAdd,
  UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
  UA_DiagnosticInfo *diagnosticInfos);
+ 
+ typedef UA_Int32 (*UA_ExternalNodeStore_addOneWayReference)
+(void *ensHandle, const UA_AddReferencesItem *item);
 
 typedef UA_Int32 (*UA_ExternalNodeStore_deleteNodes)
 (void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteNodesItem *nodesToDelete, UA_UInt32 *indices,
@@ -87,6 +90,7 @@ typedef struct UA_ExternalNodeStore {
 	UA_ExternalNodeStore_addReferences addReferences;
 	UA_ExternalNodeStore_deleteReferences deleteReferences;
 	UA_ExternalNodeStore_call call;
+	UA_ExternalNodeStore_addOneWayReference addOneWayReference;
 	UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 

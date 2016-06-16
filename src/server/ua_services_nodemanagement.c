@@ -853,37 +853,65 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node, const 
 
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session, const UA_AddReferencesItem *item) {
-    if(item->targetServerUri.length > 0)
+UA_StatusCode retval;
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+	UA_Boolean handledExternally = UA_FALSE;
+#endif  
+	if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
 
-    /* cast away the const to loop the call through UA_Server_editNode */
-    UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                              (UA_EditNodeCallback)addOneWayReference, item);
-    if(retval != UA_STATUSCODE_GOOD){
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-		/*	Not completely clean, as this is allowed for external nodes only
-		(standard states that in that case only the source node has 
-		to be edited), but for now it works	*/
-		if(item->isForward || retval != UA_STATUSCODE_BADNODEIDUNKNOWN)
+    for(size_t j = 0; j <server->externalNamespacesSize; j++) {
+        if(item->sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
+                continue;
+		} else {
+			UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+			ens->addOneWayReference(ens->ensHandle, item);
+			handledExternally = UA_TRUE;
+			break;
+        }
+        
+    }
+	if(handledExternally == UA_FALSE) {
 #endif
+    /* cast away the const to loop the call through UA_Server_editNode 
+		beware the "if" above for external nodestores	*/
+    retval = UA_Server_editNode(server, session, &item->sourceNodeId,
+                                              (UA_EditNodeCallback)addOneWayReference, item);
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+	}
+#endif
+
+    if(retval != UA_STATUSCODE_GOOD){
 		return retval;
 	}
+	
     UA_AddReferencesItem secondItem;
     secondItem = *item;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
     secondItem.sourceNodeId = item->targetNodeId.nodeId;
     secondItem.isForward = !item->isForward;
-    retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                (UA_EditNodeCallback)addOneWayReference, &secondItem);
-
-    // todo: remove reference if the second direction failed
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-	/*	Same as above but in this case, target and source are switched 
-	as this is the other direction of the reference*/
-	if(retval == UA_STATUSCODE_BADNODEIDUNKNOWN && item->isForward)
-		return UA_STATUSCODE_GOOD;
-	else
+    handledExternally = UA_FALSE;
+	for(size_t j = 0; j <server->externalNamespacesSize; j++) {
+        if(secondItem.sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
+                continue;
+		} else {
+			UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
+			ens->addOneWayReference(ens->ensHandle, &secondItem);
+			handledExternally = UA_TRUE;
+			break;
+        }
+        
+    }
+	if(handledExternally == UA_FALSE) {
 #endif
+	retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
+                                (UA_EditNodeCallback)addOneWayReference, &secondItem);
+#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+	}
+#endif
+    // todo: remove reference if the second direction failed
     return retval;
 }
 
