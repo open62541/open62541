@@ -48,7 +48,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .usernamePasswordLoginsSize = 2,
 
     /* Limits for SecureChannels */
-    .maxSecureChannels = 100,
+    .maxSecureChannels = 40,
     .maxSecurityTokenLifetime = 10 * 60 * 1000, /* 10 minutes */
 
     /* Limits for Sessions */
