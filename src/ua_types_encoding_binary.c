@@ -262,8 +262,8 @@ static uint64_t pack754(long double f, unsigned bits, unsigned expbits) {
     while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
     fnorm = fnorm - 1.0;
     long long significand = (long long)(fnorm * ((float)(1LL<<significandbits) + 0.5f));
-    long long exp = shift + ((1<<(expbits-1)) - 1);
-    return (uint64_t)((sign<<(bits-1)) | (exp<<(bits-expbits-1)) | significand);
+    long long exponent = shift + ((1<<(expbits-1)) - 1);
+    return (uint64_t)((sign<<(bits-1)) | (exponent<<(bits-expbits-1)) | significand);
 }
 
 static long double unpack754(uint64_t i, unsigned bits, unsigned expbits) {
