@@ -26,15 +26,18 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
 static UA_StatusCode
 satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *arg) {
-    if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
+  if(var == NULL || var->type == NULL) 
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+  
+  if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
         if(!UA_NodeId_equal(&var->type->typeId, &UA_TYPES[UA_TYPES_INT32].typeId))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-        //enumerations are encoded as int32 -> if provided var is integer, check if arg is an enumeration type
-        UA_NodeId ENUMERATION_NODEID_NS0 = UA_NODEID_NUMERIC(0,29);
+        /* enumerations are encoded as int32 -> if provided var is integer, check if arg is an enumeration type */
+        UA_NodeId enumerationNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION);
         UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
-        UA_StatusCode retval = isNodeInTree(server->nodestore, &arg->dataType, &ENUMERATION_NODEID_NS0, &hasSubTypeNodeId, 1, &found);
+        UA_StatusCode retval = isNodeInTree(server->nodestore, &arg->dataType, &enumerationNodeId, &hasSubTypeNodeId, 1, 1, &found);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(!found)
@@ -122,7 +125,7 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     UA_Boolean found = false;
     UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
     result->statusCode = isNodeInTree(server->nodestore, &request->methodId, &request->objectId,
-                                      &hasComponentNodeId, 1, &found);
+                                      &hasComponentNodeId, 1, 1, &found);
     if(!found)
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
     if(result->statusCode != UA_STATUSCODE_GOOD)

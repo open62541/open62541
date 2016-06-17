@@ -91,7 +91,11 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
 UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count);
+
+UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeId, size_t maxDepth, UA_Boolean *found);
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
+             size_t maxDepth, UA_Boolean *found);
 
 #endif /* UA_SERVER_INTERNAL_H_ */
