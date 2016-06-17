@@ -91,7 +91,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
