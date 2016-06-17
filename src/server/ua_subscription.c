@@ -111,10 +111,12 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
             return;
         }
         MonitoredItem_queuedValue *queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
-        TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
-        UA_DataValue_deleteMembers(&queueItem->value);
-        UA_free(queueItem);
-        monitoredItem->currentQueueSize--;
+        if (queueItem != NULL) {
+          TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
+          UA_DataValue_deleteMembers(&queueItem->value);
+          UA_free(queueItem);
+          monitoredItem->currentQueueSize--;
+        }
     }
 
     /* add the sample */

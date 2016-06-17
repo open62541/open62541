@@ -26,7 +26,10 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
 static UA_StatusCode
 satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *arg) {
-    if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
+  if(var == NULL || var->type == NULL) 
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+  
+  if(!UA_NodeId_equal(&var->type->typeId, &arg->dataType)){
         if(!UA_NodeId_equal(&var->type->typeId, &UA_TYPES[UA_TYPES_INT32].typeId))
             return UA_STATUSCODE_BADINVALIDARGUMENT;
 
