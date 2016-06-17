@@ -22,12 +22,12 @@ As a recap, your directory structure should now look like this::
   │   ├── ua_config.h
   │   ├── ua_config.h.in
   │   ├── ua_connection.h
+  │   ├── ua_constants.h
   │   ├── ua_job.h
   │   ├── ua_log.h
   │   ├── ua_nodeids.h
   │   ├── ua_server_external_ns.h
   │   ├── ua_server.h
-  │   ├── ua_constants.h
   │   ├── ua_transport_generated_encoding_binary.h
   │   ├── ua_transport_generated.h
   │   ├── ua_types_generated_encoding_binary.h
@@ -49,10 +49,11 @@ To create a really basic client, navigate back into the myApp folder from the pr
     #include "ua_server.h"
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
+    #include "ua_config_standard.h"
     
     int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-      UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,"opc.tcp://localhost:16664");
+      UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+      UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
       if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
