@@ -131,48 +131,49 @@ Let us extend the client with with an action reading node's value:
 
 .. code-block:: c
 
-    #include <stdio.h>
-    #include <stdio.h>
-    
-    #include "ua_types.h"
-    #include "ua_server.h"
-    #include "logger_stdout.h"
-    #include "networklayer_tcp.h"
-    
-    int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout);
-      UA_StatusCode retval = UA_Client_connect(client, UA_ClientConnectionTCP,"opc.tcp://localhost:16664");
-      if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-      }
-    
-      //variable to store data
-      UA_DateTime raw_date = 0;
-    
-      UA_ReadRequest rReq;
-      UA_ReadRequest_init(&rReq);
-      rReq.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-      rReq.nodesToReadSize = 1;
-      rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
-      rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    
-      UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
-      if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-         rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-         UA_Variant_isScalar(&rResp.results[0].value) &&
-         rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
-             raw_date = *(UA_DateTime*)rResp.results[0].value.data;
-             printf("raw date is: %" PRId64 "\n", raw_date);
-      }
-    
-      UA_ReadRequest_deleteMembers(&rReq);
-      UA_ReadResponse_deleteMembers(&rResp);
-    
-      UA_Client_disconnect(client);
-      UA_Client_delete(client);
-      return 0;
-    }
+#include <stdio.h>
+
+     #include "ua_types.h"
+     #include "ua_server.h"
+     //#include "logger_stdout.h"
+     #include "networklayer_tcp.h"
+     #include "ua_config_standard.h"
+     #include <inttypes.h>
+     
+     int main(void) {
+       UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+       UA_StatusCode retval = UA_Client_connect(client,"opc.tcp://localhost:16664");
+       if(retval != UA_STATUSCODE_GOOD) {
+         UA_Client_delete(client);
+         return retval;
+       }
+     
+       //variable to store data
+       UA_DateTime raw_date = 0;
+     
+       UA_ReadRequest rReq;
+       UA_ReadRequest_init(&rReq);
+       rReq.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
+       rReq.nodesToReadSize = 1;
+       rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
+       rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
+     
+       UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
+       if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+          rResp.resultsSize > 0 && rResp.results[0].hasValue &&
+          UA_Variant_isScalar(&rResp.results[0].value) &&
+          rResp.results[0].value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
+              raw_date = *(UA_DateTime*)rResp.results[0].value.data;
+              printf("raw date is: %" PRId64 "\n", raw_date);
+       }
+     
+       UA_ReadRequest_deleteMembers(&rReq);
+       UA_ReadResponse_deleteMembers(&rResp);
+     
+       UA_Client_disconnect(client);
+       UA_Client_delete(client);
+       return 0;
+     }
 
 You should see raw time in milliseconds since January 1, 1601 UTC midnight::
 
