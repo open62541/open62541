@@ -47,7 +47,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'open62541'
-copyright = u'2015, The open62541 authors'
+copyright = u'2016, The open62541 authors'
 author = u'The open62541 authors'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -55,7 +55,7 @@ author = u'The open62541 authors'
 # built documents.
 #
 # The short X.Y version.
-version = '0'
+version = '0.2'
 # The full version, including alpha/beta/rc tags.
 release = '1'
 
