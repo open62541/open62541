@@ -131,8 +131,8 @@ Let us extend the client with with an action reading node's value:
 
 .. code-block:: c
 
-#include <stdio.h>
-
+     #include <stdio.h>
+     
      #include "ua_types.h"
      #include "ua_server.h"
      //#include "logger_stdout.h"
