@@ -32,9 +32,9 @@ The members of the struct are
 
 * storageType:  used to declare who the owner of data is and to which lifecycle it belongs. Three different cases are possible:
 
- * UA_VARIANT_DATA: this is the simplest case. The data belongs to the variant, which means if the variant is deleted so does the data which is kept inside
+ * UA_VARIANT_DATA: this is the simplest case. The data belongs to the variant, which means if the variant is deleted so does the data which is kept inside,
  
- * UA_VARIANT_DATASOURCE: in this case user-defined functions are called to access the data. The signature of the functions is defined by UA_VariantDataSource structure. A use-case could be to access a sensor only when the data is asked by some client
+ * UA_VARIANT_NODELETE: in this case user-defined data is inside of the variant, meaning that the data will not be automatically freed by the stack.
 
 * arrayLength: length of the array (-1 if a scalar is saved)
 
