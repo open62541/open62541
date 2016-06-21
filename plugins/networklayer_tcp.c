@@ -314,9 +314,14 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
-    getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
-                newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
+    if(res == 0) {
+        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
+                    newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    } else {
+        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP, getpeername failed with errno %i",
+                       newsockfd, errno);
+    }
     UA_Connection_init(c);
     c->sockfd = newsockfd;
     c->handle = layer;
@@ -404,8 +409,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
-    UA_Int32 resultsize;
-    resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
+    UA_Int32 resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
     if(resultsize < 0) {
         *jobs = NULL;
         return 0;
@@ -418,8 +422,8 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
         socklen_t cli_len = sizeof(cli_addr);
         int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
         int i = 1;
-        setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
         if(newsockfd >= 0) {
+            setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
             socket_set_nonblocking(newsockfd);
             ServerNetworkLayerTCP_add(layer, newsockfd);
         }
