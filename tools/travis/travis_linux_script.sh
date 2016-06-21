@@ -107,7 +107,7 @@ else
 	cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_METHODCALLS=ON -DUA_BUILD_DEMO_NODESET=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_BUILD_EXAMPLESERVER=ON -DUA_ENABLE_COVERAGE=ON ..
 	make -j8 && make test ARGS="-V"
 	echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
-	(valgrind --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+	(valgrind --leak-check=yes --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
 	# only run coveralls on main repo, otherwise it fails uploading the files
 	echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
 	if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
