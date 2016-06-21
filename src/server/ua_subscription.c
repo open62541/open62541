@@ -158,7 +158,7 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->currentKeepAliveCount = 0;
     new->currentLifetimeCount = 0;
     new->lastMonitoredItemId = 0;
-    new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
+    new->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     LIST_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->MonitoredItems);
     return new;
@@ -338,7 +338,6 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Remove the queued request */
-    UA_NotificationMessage_init(&response->notificationMessage); /* message was copied to the queue */
     response->availableSequenceNumbers = NULL; /* stack-allocated */
     response->availableSequenceNumbersSize = 0;
     UA_PublishResponse_deleteMembers(&pre->response);
