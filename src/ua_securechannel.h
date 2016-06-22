@@ -29,7 +29,7 @@ typedef struct {
     UA_UInt16 chunksSoFar;
     size_t messageSizeSoFar;
     UA_Boolean final;
-    UA_Boolean abort;
+    UA_StatusCode errorCode;
 } UA_ChunkInfo;
 
 struct UA_SecureChannel {

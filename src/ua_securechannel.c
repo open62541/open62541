@@ -4,7 +4,6 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
-#include <stdio.h>
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
@@ -140,35 +139,35 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
 
-    UA_Boolean abortMsg = (ci->abort || ++ci->chunksSoFar > connection->remoteConf.maxChunkCount ||
-                           ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize);
+    if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount ||
+       ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize)
+        ci->errorCode = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
     /* Prepare the chunk headers */
     UA_SecureConversationMessageHeader respHeader;
     respHeader.secureChannelId = channel->securityToken.channelId;
     respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
-    if(!abortMsg) {
+    if(ci->errorCode == UA_STATUSCODE_GOOD) {
         if(ci->final)
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
         else
             respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
     } else {
+        /* abort message */
+        ci->final = true; /* mark as finished */
         respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
-        ci->abort = true;
-        UA_StatusCode retval = UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-        UA_String errorMsg = UA_STRING("Encoded message too long");
+        UA_String errorMsg;
+        UA_String_init(&errorMsg);
         offset = UA_SECURE_MESSAGE_HEADER_LENGTH;
-        UA_UInt32_encodeBinary(&retval,dst,&offset);
-        UA_String_encodeBinary(&errorMsg,dst,&offset);
+        UA_UInt32_encodeBinary(&ci->errorCode, dst, &offset);
+        UA_String_encodeBinary(&errorMsg, dst, &offset);
     }
     respHeader.messageHeader.messageSize = (UA_UInt32)offset;
     ci->messageSizeSoFar += offset;
 
-    printf("send chunk of length %i\n", respHeader.messageHeader.messageSize);
-
+    /* Encode the header at the beginning of the buffer */
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
-
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
 #ifndef UA_ENABLE_MULTITHREADING
@@ -176,8 +175,6 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
 #else
     seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
 #endif
-
-    /* Encode the header at the beginning of the buffer */
     size_t offset_header = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, dst, &offset_header);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, dst, &offset_header);
@@ -188,7 +185,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     connection->send(channel->connection, dst);
 
     /* Replace with the buffer for the next chunk */
-    if(!ci->final && !ci->abort) {
+    if(!ci->final) {
         UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -196,9 +193,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
         dst->data = &dst->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
         dst->length = connection->localConf.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
     }
-    if(ci->abort)
-        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-    return UA_STATUSCODE_GOOD;
+    return ci->errorCode;
 }
 
 UA_StatusCode
@@ -232,7 +227,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     ci.messageSizeSoFar = 0;
     ci.final = false;
     ci.messageType = UA_MESSAGETYPE_MSG;
-    ci.abort = false;
+    ci.errorCode = UA_STATUSCODE_GOOD;
     if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449)
         ci.messageType = UA_MESSAGETYPE_OPN;
     else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455)
@@ -240,15 +235,16 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     retval = UA_encodeBinary(content, contentType, (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
                              &ci, &message, &messagePos);
 
-    /* Abort message was sent, the buffer is already freed */
-    if(ci.abort)
-        return retval;
-
     /* Encoding failed, release the message */
     if(retval != UA_STATUSCODE_GOOD) {
-        /* Unhide the beginning of the buffer (header) */
-        message.data = &message.data[-UA_SECURE_MESSAGE_HEADER_LENGTH];
-        connection->releaseSendBuffer(connection, &message);
+        if(!ci.final) {
+            ci.errorCode = retval;
+            UA_SecureChannel_sendChunk(&ci, &message, messagePos);
+        } else {
+            /* Unhide the beginning of the buffer (header) */
+            message.data = &message.data[-UA_SECURE_MESSAGE_HEADER_LENGTH];
+            connection->releaseSendBuffer(connection, &message);
+        }
         return retval;
     }
 
