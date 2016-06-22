@@ -21,9 +21,6 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <string.h>
-#include <stdlib.h>
-#include <inttypes.h>
 #include <stdbool.h>
 #include "ua_config.h"
 #include "ua_constants.h"
@@ -219,11 +216,9 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
  * of the char-array. */
 static UA_INLINE UA_String
-UA_STRING(const char *chars) {
+UA_STRING(char *chars) {
     UA_String str; str.length = strlen(chars);
-    str.length = strlen(chars);
-    str.data = (UA_Byte *) malloc(str.length ); memcpy(str.data, chars, str.length ); 
-    return str;
+    str.data = (UA_Byte*)chars; return str;
 }
 
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
@@ -295,7 +290,7 @@ UA_StatusCode UA_EXPORT UA_ByteString_allocBuffer(UA_ByteString *bs, size_t leng
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 static UA_INLINE UA_ByteString
-UA_BYTESTRING( char *chars) {
+UA_BYTESTRING(char *chars) {
     UA_ByteString str; str.length = strlen(chars);
     str.data = (UA_Byte*)chars; return str;
 }
@@ -337,12 +332,7 @@ typedef struct {
 
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
-static UA_INLINE UA_Boolean
-UA_NodeId_isNull(const UA_NodeId *p) {
-    return (p->namespaceIndex == 0 &&
-            p->identifierType == UA_NODEIDTYPE_NUMERIC &&
-            p->identifier.numeric == 0);
-}
+UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
@@ -425,7 +415,7 @@ UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
 }
 
 static UA_INLINE UA_ExpandedNodeId
-UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex,  char *chars) {
+UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
@@ -445,11 +435,16 @@ typedef struct {
     UA_String name;
 } UA_QualifiedName;
 
+static UA_INLINE UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q) {
+    return (q->namespaceIndex == 0 &&
+            q->name.length == 0);
+}
+
 static UA_INLINE UA_QualifiedName
-UA_QUALIFIEDNAME(UA_UInt16 nsIndex, const char *chars) {
+UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
     UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
-    qn.name.length = strlen(chars);
-    qn.name.data = (UA_Byte *) malloc(qn.name.length ); memcpy(qn.name.data, chars, qn.name.length ); return qn;
+    qn.name = UA_STRING(chars); return qn;
 }
 
 static UA_INLINE UA_QualifiedName
@@ -468,7 +463,7 @@ typedef struct {
 } UA_LocalizedText;
 
 static UA_INLINE UA_LocalizedText
-UA_LOCALIZEDTEXT( const char *locale,  const char *text) {
+UA_LOCALIZEDTEXT(char *locale, char *text) {
     UA_LocalizedText lt; lt.locale = UA_STRING(locale);
     lt.text = UA_STRING(text); return lt;
 }

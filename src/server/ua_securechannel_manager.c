@@ -24,6 +24,17 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     }
 }
 
+static void removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry){
+    LIST_REMOVE(entry, pointers);
+    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
+#ifndef UA_ENABLE_MULTITHREADING
+    cm->currentChannelCount--;
+    UA_free(entry);
+#else
+    cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
+    UA_Server_delayedFree(cm->server, entry);
+#endif
+}
 /* remove channels that were not renewed or who have no connection attached */
 void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime now) {
     channel_list_entry *entry, *temp;
@@ -33,19 +44,25 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < now || !entry->channel.connection) {
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, (&entry->channel), "SecureChannel has timed out");
-            LIST_REMOVE(entry, pointers);
-            UA_SecureChannel_deleteMembersCleanup(&entry->channel);
-#ifndef UA_ENABLE_MULTITHREADING
-            cm->currentChannelCount--;
-            UA_free(entry);
-#else
-            cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
-            UA_Server_delayedFree(cm->server, entry);
-#endif
+            removeSecureChannel(cm, entry);
         } else if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
         }
     }
+}
+
+/* remove the first channel that has no session attached */
+static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
+    channel_list_entry *entry;
+    LIST_FOREACH(entry, &cm->channels, pointers) {
+        if(LIST_EMPTY(&(entry->channel.sessions))){
+            UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, (&entry->channel), "Channel was purged since maxSecureChannels was reached and channel had no session attached");
+            removeSecureChannel(cm, entry);
+            UA_assert(entry != LIST_FIRST(&cm->channels));
+            return true;
+        }
+    }
+    return false;
 }
 
 UA_StatusCode
@@ -54,8 +71,11 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              UA_OpenSecureChannelResponse *response) {
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
-    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels)
+    //check if there exists a free SC, otherwise try to purge one SC without a session
+    //the purge has been introduced to pass CTT, it is not clear what strategy is expected here
+    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels && !purgeFirstChannelWithoutSession(cm)){
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;

@@ -72,8 +72,13 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
     do {
         ssize_t n = 0;
         do {
+        /*
+         * If the OS throws EMSGSIZE, force a smaller packet size:
+         *  size_t bytes_to_send = buf->length - nWritten >  1024 ? 1024 : buf->length - nWritten;
+         */
+            size_t bytes_to_send = buf->length - nWritten;
 #ifdef _WIN32
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data, buf->length, 0);
+            n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten, bytes_to_send, 0);
             const int last_error = WSAGetLastError();
             if(n < 0 && last_error != WSAEINTR && last_error != WSAEWOULDBLOCK) {
                 connection->close(connection);
@@ -82,7 +87,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
 #else
-            n = send(connection->sockfd, (const char*)buf->data, buf->length, MSG_NOSIGNAL);
+            n = send(connection->sockfd, (const char*)buf->data + nWritten, bytes_to_send, MSG_NOSIGNAL);
             if(n == -1L && errno != EINTR && errno != EAGAIN) {
                 connection->close(connection);
                 socket_close(connection);
@@ -111,9 +116,9 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_UInt32 timeout_usec = timeout * 1000;
     #ifdef __APPLE__
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
-	#else
+    #else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
-	#endif
+    #endif
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&tmptv, sizeof(struct timeval));
 #else
         DWORD timeout_dw = timeout;
@@ -135,9 +140,9 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_UInt32 timeout_usec = timeout * 1000;
     #ifdef __APPLE__
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
-	#else
+    #else
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
-	#endif
+    #endif
         UA_Int32 retval;
 
         FD_ZERO(&fdset);
@@ -289,10 +294,12 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
-    //cppcheck-suppress unreadVariable
+#if UA_LOGLEVEL <= 300
+   //cppcheck-suppress unreadVariable
     ServerNetworkLayerTCP *layer = connection->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Force closing the connection",
                 connection->sockfd);
+#endif
     /* only "shutdown" here. this triggers the select, where the socket is
        "closed" in the mainloop */
     shutdown(connection->sockfd, 2);
@@ -307,9 +314,14 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
-    getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
-                newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
+    if(res == 0) {
+        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
+                    newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+    } else {
+        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP, getpeername failed with errno %i",
+                       newsockfd, errno);
+    }
     UA_Connection_init(c);
     c->sockfd = newsockfd;
     c->handle = layer;
@@ -397,8 +409,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
-    UA_Int32 resultsize;
-    resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
+    UA_Int32 resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
     if(resultsize < 0) {
         *jobs = NULL;
         return 0;
@@ -411,8 +422,8 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
         socklen_t cli_len = sizeof(cli_addr);
         int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
         int i = 1;
-        setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
         if(newsockfd >= 0) {
+            setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
             socket_set_nonblocking(newsockfd);
             ServerNetworkLayerTCP_add(layer, newsockfd);
         }

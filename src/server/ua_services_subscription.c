@@ -125,7 +125,8 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.queueSizeLimits,
                                queueSize, mon->maxQueueSize);
     mon->discardOldest = discardOldest;
-    MonitoredItem_registerSampleJob(server, mon);
+    if(monitoringMode == UA_MONITORINGMODE_REPORTING)
+        MonitoredItem_registerSampleJob(server, mon);
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
@@ -134,13 +135,16 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
                                     const UA_TimestampsToReturn timestampsToReturn,
                                     const UA_MonitoredItemCreateRequest *request,
                                     UA_MonitoredItemCreateResult *result) {
-    /* Check if the target exists */
-    const UA_Node *target = UA_NodeStore_get(server->nodestore, &request->itemToMonitor.nodeId);
-    if(!target) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
+    /* Make an example read to get errors in the itemToMonitor */
+    UA_DataValue v;
+    UA_DataValue_init(&v);
+    Service_Read_single(server, session, timestampsToReturn, &request->itemToMonitor, &v);
+    if(v.hasStatus != UA_STATUSCODE_GOOD) {
+        result->statusCode = v.status;
+        UA_DataValue_deleteMembers(&v);
         return;
     }
-    // TODO: Check if the target node type has the requested attribute
+    UA_DataValue_deleteMembers(&v);
 
     /* Check if the encoding is supported */
     if(request->itemToMonitor.dataEncoding.name.length > 0 &&
@@ -162,7 +166,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    UA_StatusCode retval = UA_NodeId_copy(&target->nodeId, &newMon->monitoredNodeId);
+    UA_StatusCode retval = UA_NodeId_copy(&request->itemToMonitor.nodeId, &newMon->monitoredNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         result->statusCode = retval;
         MonitoredItem_delete(server, newMon);
@@ -191,6 +195,13 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateMonitoredItemsRequest");
+
+    /* check if the timestampstoreturn is valid */
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
+
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -240,6 +251,13 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_ModifyMonitoredItemsRequest *request,
                                   UA_ModifyMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ModifyMonitoredItemsRequest");
+
+    /* check if the timestampstoreturn is valid */
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
+
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -262,10 +280,42 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToModifySize;
 
     for(size_t i = 0; i < request->itemsToModifySize; i++)
-        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
-                                            &response->results[i]);
+        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i], &response->results[i]);
 
 }
+
+void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
+                               const UA_SetMonitoringModeRequest *request,
+                               UA_SetMonitoringModeResponse *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing SetMonitoringMode");
+    UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
+    if(!sub) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+
+    if(request->monitoredItemIdsSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    response->results = UA_Array_new(request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(!response->results) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    response->resultsSize = request->monitoredItemIdsSize;
+
+    for(size_t i = 0; i < response->resultsSize; i++) {
+        UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->monitoredItemIds[i]);
+        if(mon)
+            setMonitoredItemSettings(server, mon, request->monitoringMode, mon->clientHandle,
+                                     mon->samplingInterval, mon->maxQueueSize, mon->discardOldest);
+        else
+            response->results[i] = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    }
+}
+
 
 void
 Service_Publish(UA_Server *server, UA_Session *session,
@@ -340,6 +390,12 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  const UA_DeleteSubscriptionsRequest *request,
                                  UA_DeleteSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteSubscriptionsRequest");
+
+    if(request->subscriptionIdsSize == 0){
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
     response->results = UA_malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -355,6 +411,13 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteMonitoredItemsRequest");
+
+    if(request->monitoredItemIdsSize == 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;

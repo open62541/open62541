@@ -44,18 +44,18 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | MonitoredItem %i | "
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "MonitoredItem %i | "
                      "Cannot process a monitoreditem that is not a data change notification",
-                     PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->itemId);
+                     monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Session " PRINTF_GUID_FORMAT " | MonitoredItem %i | Skipped a sample due to lack of memory",
-                    PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "MonitoredItem %i | "
+                            "Skipped a sample due to lack of memory", monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -67,7 +67,6 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    UA_Subscription *sub = monitoredItem->subscription;
     Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn, &rvid, &newvalue->value);
 
     /* encode to see if the data has changed */
@@ -90,16 +89,14 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | Subscription %u | "
-                     "MonitoredItem %u | Do not sample an unchanged value",
-                     PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId), monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                             "MonitoredItem %u | Do not sample an unchanged value",
+                             sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session " PRINTF_GUID_FORMAT " | Subscription %u | "
-                 "MonitoredItem %u | Sampling the value",
-                 PRINTF_GUID_DATA(monitoredItem->subscription->session->sessionId),
-                 monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | Sampling the value",
+                         sub->subscriptionID, monitoredItem->itemId);
 
     /* do we have space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
@@ -250,15 +247,15 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
             sub->currentLifetimeCount++;
-            if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
-                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Session %u | Subscription %u | End of lifetime for subscription",
-                            sub->session->authenticationToken.identifier.numeric, sub->subscriptionID);
+            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+                UA_LOG_INFO_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                    "End of lifetime for subscription", sub->subscriptionID);
                 UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
             }
         }
         return;
     }
+
     SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
     UA_PublishResponse *response = &pre->response;
     UA_UInt32 requestId = pre->requestId;
@@ -310,8 +307,13 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
         /* Put the notification message into the retransmission queue */
         UA_NotificationMessageEntry *retransmission = malloc(sizeof(UA_NotificationMessageEntry));
-        retransmission->message = response->notificationMessage;
-        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        if(retransmission) {
+            UA_NotificationMessage_copy(&response->notificationMessage, &retransmission->message);
+            LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        } else {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                   "Could not allocate memory for retransmission", sub->subscriptionID);
+        }
     }
 
     /* Get the available sequence numbers from the retransmission queue */
@@ -331,7 +333,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                   "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
+                         "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 

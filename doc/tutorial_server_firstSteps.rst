@@ -186,24 +186,24 @@ We will also make a slight change to our server: We want it to exit cleanly when
 
     UA_Boolean running = true;
     static void stopHandler(int signal) {
-        running = false;
+      running = false;
     }
     
     int main(void) {
-        signal(SIGINT,  stopHandler);
-        signal(SIGTERM, stopHandler);
+      signal(SIGINT,  stopHandler);
+      signal(SIGTERM, stopHandler);
     
-        UA_ServerConfig config = UA_ServerConfig_standard;
-        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
-        config.logger = Logger_Stdout;
-        config.networkLayers = &nl;
-        config.networkLayersSize = 1;
-        UA_Server *server = UA_Server_new(config);
+      UA_ServerConfig config = UA_ServerConfig_standard;
+      UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664, Logger_Stdout);
+      config.logger = Logger_Stdout;
+      config.networkLayers = &nl;
+      config.networkLayersSize = 1;
+      UA_Server *server = UA_Server_new(config);
     
-        UA_StatusCode retval = UA_Server_run(server, &running);
-        UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-        return retval;
+      UA_StatusCode retval = UA_Server_run(server, &running);
+      UA_Server_delete(server);
+      nl.deleteMembers(&nl);
+      return retval;
     }
 
 Note that this file can be found as "examples/server_firstSteps.c" in the repository.

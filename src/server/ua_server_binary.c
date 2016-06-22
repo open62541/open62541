@@ -173,6 +173,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE];
         break;
+    case UA_NS0ID_SETMONITORINGMODEREQUEST:
+        *service = (UA_Service)Service_SetMonitoringMode;
+        *requestType = &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE];
+        break;
 #endif
 
 #ifdef UA_ENABLE_METHODCALLS
@@ -447,7 +452,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
-        if(sessionRequired || !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
+        if(sessionRequired) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Service request %i without a valid session",
                                 requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
             sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);

@@ -91,7 +91,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
@@ -232,6 +232,30 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
     if(retval != UA_STATUSCODE_GOOD)
         NodeId_deleteMembers(dst, NULL);
     return retval;
+}
+
+UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
+    if(p->namespaceIndex != 0)
+        return false;
+    switch(p->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        return (p->identifier.numeric == 0);
+    case UA_NODEIDTYPE_GUID:
+        return (p->identifier.guid.data1 == 0 &&
+                p->identifier.guid.data2 == 0 &&
+                p->identifier.guid.data3 == 0 &&
+                p->identifier.guid.data4[0] == 0 &&
+                p->identifier.guid.data4[1] == 0 &&
+                p->identifier.guid.data4[2] == 0 &&
+                p->identifier.guid.data4[3] == 0 &&
+                p->identifier.guid.data4[4] == 0 &&
+                p->identifier.guid.data4[5] == 0 &&
+                p->identifier.guid.data4[6] == 0 &&
+                p->identifier.guid.data4[7] == 0);
+    default:
+        break;
+    }
+    return (p->identifier.string.length == 0);
 }
 
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
@@ -393,7 +417,7 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     /* Test the integrity of the range */
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;

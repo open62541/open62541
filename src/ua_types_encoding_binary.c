@@ -262,8 +262,8 @@ static uint64_t pack754(long double f, unsigned bits, unsigned expbits) {
     while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
     fnorm = fnorm - 1.0;
     long long significand = (long long)(fnorm * ((float)(1LL<<significandbits) + 0.5f));
-    long long exp = shift + ((1<<(expbits-1)) - 1);
-    return (uint64_t)((sign<<(bits-1)) | (exp<<(bits-expbits-1)) | significand);
+    long long exponent = shift + ((1<<(expbits-1)) - 1);
+    return (uint64_t)((sign<<(bits-1)) | (exponent<<(bits-expbits-1)) | significand);
 }
 
 static long double unpack754(uint64_t i, unsigned bits, unsigned expbits) {
@@ -917,11 +917,18 @@ Variant_decodeBinary(bufpos pos, bufend end, UA_Variant *dst, const UA_DataType 
 
         /* search for the datatype. use extensionobject if nothing is found */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-        if(typeId.namespaceIndex != 0 || eo_encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
-           findDataType(&typeId, &dst->type) != UA_STATUSCODE_GOOD)
-                *pos = old_pos; /* the datatype is unknown. roll back the
-                                   position and decode as an extensionobject */
-        UA_NodeId_deleteMembers(&typeId);
+        if(typeId.namespaceIndex == 0 && typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           eo_encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+            UA_assert(typeId.identifier.byteString.data == NULL); /* for clang analyzer <= 3.7 */
+            typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
+            if(findDataType(&typeId, &dst->type) == UA_STATUSCODE_GOOD)
+                (*pos) += 4; /* jump over the length (todo: check if length matches) */
+            else
+                *pos = old_pos; /* jump back and decode as extensionobject */
+        } else {
+            *pos = old_pos; /* jump back and decode as extensionobject */
+            UA_NodeId_deleteMembers(&typeId);
+        }
 
         /* decode the type */
         dst->data = UA_calloc(1, dst->type->memSize);
