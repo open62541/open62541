@@ -238,12 +238,9 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     /* Encoding failed, release the message */
     if(retval != UA_STATUSCODE_GOOD) {
         if(!ci.final) {
+            /* the abort message was not send */
             ci.errorCode = retval;
             UA_SecureChannel_sendChunk(&ci, &message, messagePos);
-        } else {
-            /* Unhide the beginning of the buffer (header) */
-            message.data = &message.data[-UA_SECURE_MESSAGE_HEADER_LENGTH];
-            connection->releaseSendBuffer(connection, &message);
         }
         return retval;
     }
@@ -274,12 +271,14 @@ void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId
         return;
     }
 
-    /* Get/create the chunkentry */
+    /* Get the chunkentry */
     struct ChunkEntry *ch;
     LIST_FOREACH(ch, &channel->chunks, pointers) {
         if(ch->requestId == requestId)
             break;
     }
+
+    /* No chunkentry on the channel, create one */
     if(!ch) {
         ch = UA_malloc(sizeof(struct ChunkEntry));
         if(!ch)
