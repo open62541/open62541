@@ -64,15 +64,15 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
 /**
  * Chunking
  * -------- */
-/* Pos is initially set to the beginning of the chunk content. chunklength is
+/* Offset is initially set to the beginning of the chunk content. chunklength is
    the length of the decoded chunk content (minus header, padding, etc.) */
 void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                  const UA_ByteString *msg, size_t pos, size_t chunklength);
+                                  const UA_ByteString *msg, size_t offset, size_t chunklength);
 
 /* deleteChunk indicates if the returned bytestring was copied off the network
    buffer (and needs to be freed) or points into the msg */
 UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                             const UA_ByteString *msg, size_t pos, size_t chunklength,
+                                             const UA_ByteString *msg, size_t offset, size_t chunklength,
                                              UA_Boolean *deleteChunk);
 
 void UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId);

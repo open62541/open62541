@@ -51,7 +51,7 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     size_t dimensionsMax = 0;
     struct UA_NumericRangeDimension *dimensions = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t pos = 0;
+    size_t offset = 0;
     while(true) {
         /* alloc dimensions */
         if(idx >= dimensionsMax) {
@@ -66,23 +66,23 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         }
 
         /* read the dimension */
-        size_t progress = readDimension(&str->data[pos], str->length - pos, &dimensions[idx]);
+        size_t progress = readDimension(&str->data[offset], str->length - offset, &dimensions[idx]);
         if(progress == 0) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
-        pos += progress;
+        offset += progress;
         idx++;
 
         /* loop into the next dimension */
-        if(pos >= str->length)
+        if(offset >= str->length)
             break;
 
-        if(str->data[pos] != ',') {
+        if(str->data[offset] != ',') {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
-        pos++;
+        offset++;
     }
 
     if(retval == UA_STATUSCODE_GOOD && idx > 0) {

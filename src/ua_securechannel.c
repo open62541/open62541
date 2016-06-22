@@ -4,6 +4,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
+#include <stdio.h>
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
@@ -138,11 +139,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->data = &dst->data[-UA_SECURE_MESSAGE_HEADER_LENGTH];
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
-    ci->messageSizeSoFar += offset;
 
-    UA_Boolean chunkedMsg = (ci->chunksSoFar > 0 || ci->final == false);
-    UA_Boolean abortMsg = ((++ci->chunksSoFar >= connection->remoteConf.maxChunkCount ||
-                            ci->messageSizeSoFar > connection->remoteConf.maxMessageSize)) && chunkedMsg;
+    UA_Boolean abortMsg = (ci->abort || ++ci->chunksSoFar > connection->remoteConf.maxChunkCount ||
+                           ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize);
 
     /* Prepare the chunk headers */
     UA_SecureConversationMessageHeader respHeader;
@@ -163,6 +162,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
         UA_String_encodeBinary(&errorMsg,dst,&offset);
     }
     respHeader.messageHeader.messageSize = (UA_UInt32)offset;
+    ci->messageSizeSoFar += offset;
+
+    printf("send chunk of length %i\n", respHeader.messageHeader.messageSize);
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
@@ -194,6 +196,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
         dst->data = &dst->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
         dst->length = connection->localConf.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
     }
+    if(ci->abort)
+        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -255,21 +259,21 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
 
 /* assume that chunklength fits */
 static void appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
-                        size_t pos, size_t chunklength) {
+                        size_t offset, size_t chunklength) {
     UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
     if(!new_bytes) {
         UA_ByteString_deleteMembers(&ch->bytes);
         return;
     }
     ch->bytes.data = new_bytes;
-    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[pos], chunklength);
+    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[offset], chunklength);
     ch->bytes.length += chunklength;
 }
 
 void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                  const UA_ByteString *msg, size_t pos, size_t chunklength) {
+                                  const UA_ByteString *msg, size_t offset, size_t chunklength) {
     /* Check if the chunk fits into the message */
-    if(msg->length - pos < chunklength) {
+    if(msg->length - offset < chunklength) {
         UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
         return;
     }
@@ -289,13 +293,13 @@ void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId
         LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
     }
 
-    appendChunk(ch, msg, pos, chunklength);
+    appendChunk(ch, msg, offset, chunklength);
 }
 
 UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                             const UA_ByteString *msg, size_t pos, size_t chunklength,
+                                             const UA_ByteString *msg, size_t offset, size_t chunklength,
                                              UA_Boolean *deleteChunk) {
-    if(msg->length - pos < chunklength) {
+    if(msg->length - offset < chunklength) {
         UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
         return UA_BYTESTRING_NULL;
     }
@@ -310,10 +314,10 @@ UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt3
     if(!ch) {
         *deleteChunk = false;
         bytes.length = chunklength;
-        bytes.data = msg->data + pos;
+        bytes.data = msg->data + offset;
     } else {
         *deleteChunk = true;
-        appendChunk(ch, msg, pos, chunklength);
+        appendChunk(ch, msg, offset, chunklength);
         bytes = ch->bytes;
         LIST_REMOVE(ch, pointers);
         UA_free(ch);
