@@ -121,15 +121,6 @@ argConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequirement
 void
 Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *request,
                     UA_CallMethodResult *result) {
-    /* Verify method/object relations. Object must have a hasComponent reference to the method node. */
-    UA_Boolean found = false;
-    UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
-    result->statusCode = isNodeInTree(server->nodestore, &request->methodId, &request->objectId,
-                                      &hasComponentNodeId, 1, 1, &found);
-    if(!found)
-        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-    if(result->statusCode != UA_STATUSCODE_GOOD)
-        return;
 
     /* Get/verify the method node */
     const UA_MethodNode *methodCalled =
@@ -158,6 +149,26 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
+
+    /* Verify method/object relations. Object must have a hasComponent or a subtype of hasComponent reference to the method node. */
+    /* Therefore, check every reference between the parent object and the method node if there is a hasComponent (or subtype) reference */
+    UA_Boolean found = false;
+    UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
+    UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
+    for(size_t i=0;i<methodCalled->referencesSize;i++){
+        if (methodCalled->references[i].isInverse && UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId,&withObject->nodeId)){
+            //TODO adjust maxDepth to needed tree depth (define a variable in config?)
+    	    isNodeInTree(server->nodestore, &methodCalled->references[i].referenceTypeId, &hasComponentNodeId,
+    	         &hasSubTypeNodeId, 1, 1, &found);
+            if(found){
+                break;
+    	    }
+        }
+    }
+    if(!found)
+        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
+    if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
 
     /* Verify Input Argument count, types and sizes */
     const UA_VariableNode *inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
