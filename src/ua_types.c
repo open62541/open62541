@@ -51,59 +51,6 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 }
 
 /* DateTime */
-
-/* Implement UA_DateTime_now and UA_DateTime_nowMonotonic outside of the
-   library. This becomes necessary on embedded targets when the POSIX/Windows
-   API is not available. */
-#ifndef UA_ENABLE_EMBEDDED_CLOCK
-
-UA_DateTime UA_DateTime_now(void) {
-#if defined(_WIN32) && !defined(__MINGW32__)
-    /* Windows filetime has the same definition as UA_DateTime */
-    FILETIME ft;
-    SYSTEMTIME st;
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &ft);
-    ULARGE_INTEGER ul;
-    ul.LowPart = ft.dwLowDateTime;
-    ul.HighPart = ft.dwHighDateTime;
-    return (UA_DateTime)ul.QuadPart;
-#else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
-#endif
-}
-
-UA_DateTime UA_DateTime_nowMonotonic(void) {
-#if defined(_WIN32)
-    LARGE_INTEGER freq, ticks;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME;
-    ticks2dt /= freq.QuadPart;
-    return (UA_DateTime)(ticks.QuadPart * ticks2dt);
-#elif defined(__APPLE__) || defined(__MACH__)
-    /* OS X does not have clock_gettime, use clock_get_time */
-    clock_serv_t cclock;
-    mach_timespec_t mts;
-    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
-    clock_get_time(cclock, &mts);
-    mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
-#elif defined(__CYGWIN__) || !defined(CLOCK_MONOTONIC_RAW)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
-#else
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
-#endif
-}
-
-#endif
-
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;

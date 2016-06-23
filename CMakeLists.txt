@@ -124,9 +124,6 @@ option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 defin
 option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
-option(UA_ENABLE_EMBEDDED_CLOCK "Target has no standard time APIs (link custom implementation)" OFF)
-mark_as_advanced(UA_ENABLE_EMBEDDED_CLOCK)
-
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
 
@@ -223,6 +220,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
+                ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/plugins/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/plugins/logger_stdout.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c

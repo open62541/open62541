@@ -142,8 +142,6 @@ This group contains build options related to the supported OPC UA features.
    Measure the coverage of unit tests
 **UA_ENABLE_EMBEDDED_LIBC**
    Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling).
-**UA_ENABLE_EMBEDDED_CLOCK**
-   Do not implement the time-handling functions where no standard API can be used on embedded targets. Instead, link in a custom implementation.
 
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
