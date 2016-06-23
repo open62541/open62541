@@ -47,7 +47,6 @@ To create a really basic client, navigate back into the myApp folder from the pr
     
     #include "ua_types.h"
     #include "ua_server.h"
-    #include "logger_stdout.h"
     #include "networklayer_tcp.h"
     #include "ua_config_standard.h"
     
@@ -135,7 +134,6 @@ Let us extend the client with with an action reading node's value:
     
     #include "ua_types.h"
     #include "ua_server.h"
-    //#include "logger_stdout.h"
     #include "networklayer_tcp.h"
     #include "ua_config_standard.h"
     #include <inttypes.h>
@@ -190,7 +188,6 @@ As the last step for this tutorial, we are going to convert the raw date value i
     
     #include "ua_types.h"
     #include "ua_server.h"
-    //#include "logger_stdout.h"
     #include "networklayer_tcp.h"
     #include "ua_config_standard.h"
     #include <inttypes.h>
