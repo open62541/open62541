@@ -1,7 +1,5 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 //to compile with single file releases:
 // * single-threaded: gcc -std=c99 server.c open62541.c -o server
 // * multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread
@@ -11,7 +9,8 @@
 # include "ua_types.h"
 # include "ua_server.h"
 # include "ua_config_standard.h"
-# include "networklayer_tcp.h"
+# include "ua_network_tcp.h"
+# include "ua_log_stdout.h"
 #else
 # include "open62541.h"
 #endif
@@ -41,7 +40,7 @@
 /****************************/
 
 UA_Boolean running = 1;
-UA_Logger logger = Logger_Stdout;
+UA_Logger logger = UA_Log_Stdout;
 
 /*************************/
 /* Read-only data source */

@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdbool.h>
 #include "ua_config.h"
 #include "ua_constants.h"
+#include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Data Types
@@ -504,6 +504,8 @@ typedef struct {
 } UA_ExtensionObject;
 
 /**
+ * .. _variant:
+ *
  * Variant
  * ^^^^^^^
  * Variants may contain data of any type. See the Section `Generic Type

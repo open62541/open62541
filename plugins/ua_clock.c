@@ -4,7 +4,9 @@
 #include "ua_types.h"
 
 #include <time.h>
-#if !defined(_WIN32) || defined(__MINGW32__)
+#if defined(_WIN32)
+# include <windows.h>
+#else
 # include <sys/time.h>
 #endif
 
@@ -14,7 +16,7 @@
 #endif
 
 UA_DateTime UA_DateTime_now(void) {
-#if defined(_WIN32) && !defined(__MINGW32__)
+#if defined(_WIN32)
     /* Windows filetime has the same definition as UA_DateTime */
     FILETIME ft;
     SYSTEMTIME st;
@@ -36,8 +38,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     LARGE_INTEGER freq, ticks;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME;
-    ticks2dt /= freq.QuadPart;
+    UA_Double ticks2dt = UA_SEC_TO_DATETIME / freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 #elif defined(__APPLE__) || defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
@@ -47,7 +48,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
-#elif defined(__CYGWIN__) || !defined(CLOCK_MONOTONIC_RAW)
+#elif !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);

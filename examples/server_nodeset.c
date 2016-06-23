@@ -1,7 +1,5 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
 #include <stdlib.h>
@@ -10,7 +8,8 @@
 # include "ua_types.h"
 # include "ua_server.h"
 # include "ua_config_standard.h"
-# include "networklayer_tcp.h"
+# include "ua_network_tcp.h"
+# include "ua_log_stdout.h"
 #else
 # include "open62541.h"
 #endif
@@ -18,7 +17,7 @@
 /* files nodeset.h and nodeset.c are created from server_nodeset.xml in the /src_generated directory by CMake */
 #include "nodeset.h"
 
-UA_Logger logger = Logger_Stdout;
+UA_Logger logger = UA_Log_Stdout;
 UA_Boolean running = true;
 
 static void stopHandler(int sign) {

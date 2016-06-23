@@ -1,4 +1,9 @@
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
 #include "ua_config_standard.h"
+#include "ua_log_stdout.h"
+#include "ua_network_tcp.h"
 
 #define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
@@ -15,7 +20,7 @@ UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 const UA_ServerConfig UA_ServerConfig_standard = {
     .nThreads = 1,
-    .logger = Logger_Stdout,
+    .logger = UA_Log_Stdout,
 
     /* Server Description */
     .buildInfo = {
@@ -69,7 +74,7 @@ const UA_ServerConfig UA_ServerConfig_standard = {
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     .timeout = 5000,
     .secureChannelLifeTime = 600000,
-    .logger = Logger_Stdout,
+    .logger = UA_Log_Stdout,
     .localConnectionConfig = {
         .protocolVersion = 0,
         .sendBufferSize = 65535,

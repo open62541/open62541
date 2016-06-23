@@ -58,29 +58,16 @@
 # warning The compiler does not allow thread-local variables. The library can be built, but will not be thread safe.
 #endif
 
-/********************/
-/* System Libraries */
-/********************/
-
-#ifdef _WIN32
-# include <winsock2.h> //needed for amalgamation
-# include <windows.h>
-# undef SLIST_ENTRY
-#endif
-
-#include <time.h>
-#if !defined(_WIN32) || defined(__MINGW32__)
-# include <sys/time.h>
-#endif
-
-#if defined(__APPLE__) || defined(__MACH__)
-#include <mach/clock.h>
-#include <mach/mach.h>
-#endif
-
 /*************************/
 /* External Dependencies */
 /*************************/
+
+/* Fix redefinition of SLIST_ENTRY on windows */
+#ifdef _WIN32
+# include <winsock2.h>
+# include <windows.h>
+# undef SLIST_ENTRY
+#endif
 
 #include "queue.h"
 

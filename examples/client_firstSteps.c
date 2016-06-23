@@ -1,5 +1,5 @@
-//This file contains source-code that is discussed in a tutorial located here:
-//http://open62541.org/doc/sphinx/tutorial_firstStepsClient.html
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <stdio.h>
 #include <inttypes.h>
@@ -7,6 +7,7 @@
 #ifdef UA_NO_AMALGAMATION
 # include "ua_client.h"
 # include "ua_config_standard.h"
+# include "ua_network_tcp.h"
 #else
 # include "open62541.h"
 #endif

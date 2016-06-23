@@ -1,15 +1,11 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #ifndef UA_CONFIG_STANDARD_H_
 #define UA_CONFIG_STANDARD_H_
 
 #include "ua_server.h"
 #include "ua_client.h"
-#include "logger_stdout.h"
-#include "networklayer_tcp.h"
 
 #ifdef __cplusplus
 extern "C" {
