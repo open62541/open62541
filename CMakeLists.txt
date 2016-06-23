@@ -139,6 +139,10 @@ if(UA_ENABLE_NONSTANDARD_UDP)
   set(UA_ENABLE_NONSTANDARD_STATELESS ON)
 endif()
 
+option(UA_ENABLE_THREAD_LOCAL "Turn on thread local variables without enabling multi-threaded nodestore" OFF)
+mark_as_advanced(UA_ENABLE_THREAD_LOCAL)
+
+
 # Build Targets
 option(UA_BUILD_EXAMPLESERVER "Build the example server" OFF)
 option(UA_BUILD_EXAMPLECLIENT "Build a test client" OFF)
