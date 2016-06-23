@@ -141,8 +141,6 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     Service_Read_single(server, session, timestampsToReturn, &request->itemToMonitor, &v);
     if(v.hasStatus != UA_STATUSCODE_GOOD) {
         result->statusCode = v.status;
-        UA_DataValue_deleteMembers(&v);
-        return;
     }
     UA_DataValue_deleteMembers(&v);
 
