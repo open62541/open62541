@@ -139,7 +139,9 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     UA_DataValue v;
     UA_DataValue_init(&v);
     Service_Read_single(server, session, timestampsToReturn, &request->itemToMonitor, &v);
-    if(v.hasStatus != UA_STATUSCODE_GOOD) {
+
+    /* Allow return codes "good" and "uncertain" */
+    if(v.hasStatus && (v.status >> 30) > 1) {
         result->statusCode = v.status;
         UA_DataValue_deleteMembers(&v);
         return;

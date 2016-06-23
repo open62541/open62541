@@ -5,33 +5,111 @@
 /* Helper Functions */
 /********************/
 
-/* Recursively searches "upwards" in the tree following a specific reference type */
+/* Returns the type and all subtypes. We start with an array with a single root nodeid. When a relevant
+ * reference is found, we add the nodeids to the back of the array and increase the size. Since the hierarchy
+ * is not cyclic, we can safely progress in the array to process the newly found referencetype nodeids. */
+UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    const UA_Node *node = UA_NodeStore_get(ns, root);
+    if(!node)
+        return UA_STATUSCODE_BADNOMATCH;
+    if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+
+    size_t results_size = 20; // probably too big, but saves mallocs
+    UA_NodeId *results = UA_malloc(sizeof(UA_NodeId) * results_size);
+    if(!results)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_NodeId_copy(root, &results[0]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(results);
+        return retval;
+    }
+
+    size_t idx = 0; // where are we currently in the array?
+    size_t last = 0; // where is the last element in the array?
+    const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    do {
+        node = UA_NodeStore_get(ns, &results[idx]);
+        if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
+            continue;
+        for(size_t i = 0; i < node->referencesSize; i++) {
+            if(node->references[i].isInverse == true ||
+               !UA_NodeId_equal(&hasSubtypeNodeId, &node->references[i].referenceTypeId))
+                continue;
+
+            if(++last >= results_size) { // is the array big enough?
+                UA_NodeId *new_results = UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
+                if(!new_results) {
+                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    break;
+                }
+                results = new_results;
+                results_size *= 2;
+            }
+
+            retval = UA_NodeId_copy(&node->references[i].targetId.nodeId, &results[last]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                last--; // for array_delete
+                break;
+            }
+        }
+    } while(++idx <= last && retval == UA_STATUSCODE_GOOD);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
+        return retval;
+    }
+
+    *typeHierarchy = results;
+    *typeHierarchySize = last + 1;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Recursively searches "upwards" in the tree following specific reference types */
 UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeId, size_t maxDepth, UA_Boolean *found) {
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
+             size_t maxDepth, UA_Boolean *found) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(UA_NodeId_equal(rootNode, nodeToFind)) {
         *found = true;
         return UA_STATUSCODE_GOOD;
     }
+
+    *found = false;
     const UA_Node *node = UA_NodeStore_get(ns,rootNode);
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    *found = false;
     maxDepth = maxDepth - 1;
     for(size_t i = 0; i < node->referencesSize; i++) {
-        if(!UA_NodeId_equal(&node->references[i].referenceTypeId, referenceTypeId))
-            continue; /* not the reference type we are looking for */
+        /* Search only upwards */
         if(!node->references[i].isInverse)
-            continue; /* search only upwards */
+            continue;
+
+        /* Go up only for some reference types */
+        UA_Boolean reftype_found = false;
+        for(size_t j = 0; j < referenceTypeIdsSize; j++) {
+            if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j])) {
+                reftype_found = true;
+                break;
+            }
+        }
+        if(!reftype_found)
+            continue;
+
+        /* Is the it node we seek? */
         if(UA_NodeId_equal(&node->references[i].targetId.nodeId, nodeToFind)) {
             *found = true;
             return UA_STATUSCODE_GOOD;
         }
-        if(maxDepth > 0) { /* recurse */
+
+        /* Recurse */
+        if(maxDepth > 0) {
             retval = isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
-                                  referenceTypeId, maxDepth, found);
+                                  referenceTypeIds, referenceTypeIdsSize, maxDepth, found);
             if(*found || retval != UA_STATUSCODE_GOOD)
                 break;
         }
@@ -125,7 +203,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         } else {
             /* Check if the supplied type is a subtype of BaseObjectType */
             UA_Boolean found = false;
-            result->statusCode = isNodeInTree(server->nodestore, typeDefinition, &baseobjtype, &hassubtype, 10, &found);
+            result->statusCode = isNodeInTree(server->nodestore, typeDefinition, &baseobjtype, &hassubtype, 1, 10, &found);
             if(!found)
                 result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             if(result->statusCode != UA_STATUSCODE_GOOD) {
@@ -147,7 +225,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         } else {
             /* Check if the supplied type is a subtype of BaseVariableType */
             UA_Boolean found = false;
-            result->statusCode = isNodeInTree(server->nodestore, typeDefinition, &basevartype, &hassubtype, 10, &found);
+            result->statusCode = isNodeInTree(server->nodestore, typeDefinition, &basevartype, &hassubtype, 1, 10, &found);
             if(!found)
                 result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             if(result->statusCode != UA_STATUSCODE_GOOD) {
@@ -227,7 +305,12 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
         const UA_NodeId hasTypeDef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
         if(!UA_NodeId_equal(&rn->referenceTypeId, &hasTypeDef))
             continue;
-        instantiateVariableNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
+        UA_StatusCode retval = instantiateVariableNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
+        if(retval != UA_STATUSCODE_GOOD) {
+            Service_DeleteNodes_single(server, &adminSession, &res.addedNodeId, true);
+            UA_AddNodesResult_deleteMembers(&res);
+            return retval;
+        }
     }
 
     if(instantiationCallback)
@@ -284,7 +367,12 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *vari
         const UA_NodeId hasTypeDef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
         if(!UA_NodeId_equal(&rn->referenceTypeId, &hasTypeDef))
             continue;
-        instantiateObjectNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
+        UA_StatusCode retval = instantiateObjectNode(server, session, &res.addedNodeId, &rn->targetId.nodeId, instantiationCallback);
+        if(retval != UA_STATUSCODE_GOOD) {
+            Service_DeleteNodes_single(server, &adminSession, &res.addedNodeId, true);
+            UA_AddNodesResult_deleteMembers(&res);
+            return retval;
+        }
     }
 
     if(instantiationCallback)

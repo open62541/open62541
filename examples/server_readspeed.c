@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
     UA_ByteString response_msg;
     retval |= UA_ByteString_allocBuffer(&response_msg, 1000);
     size_t offset = 0;
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], NULL, NULL, &request_msg, &offset);
     
     clock_t begin, end;
     begin = clock();
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
-    for(int i = 0; i < 900000; i++) {
+    for(int i = 0; i < 1000000; i++) {
         offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST]);
 
@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
         Service_Read(server, &adminSession, &rq, &rr);
 
         offset = 0;
-        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg, &offset);
+        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL, &response_msg, &offset);
 
         UA_ReadRequest_deleteMembers(&rq);
         UA_ReadResponse_deleteMembers(&rr);

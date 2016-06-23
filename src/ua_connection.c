@@ -52,34 +52,34 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         *realloced = true;
     }
 
-    /* the while loop sets pos to the first element after the last complete message. if a message
+    /* the while loop sets offset to the first element after the last complete message. if a message
        contains garbage, the buffer length is set to contain only the "good" messages before. */
-    size_t pos = 0;
+    size_t offset = 0;
     size_t delete_at = current->length-1; // garbled message after this point
-    while(current->length - pos >= 16) {
-        UA_UInt32 msgtype = (UA_UInt32)current->data[pos] +
-            ((UA_UInt32)current->data[pos+1] << 8) +
-            ((UA_UInt32)current->data[pos+2] << 16);
+    while(current->length - offset >= 16) {
+        UA_UInt32 msgtype = (UA_UInt32)current->data[offset] +
+            ((UA_UInt32)current->data[offset+1] << 8) +
+            ((UA_UInt32)current->data[offset+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
            msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
            msgtype != ('C' + ('L' << 8) + ('O' << 16))) {
             /* the message type is not recognized */
-            delete_at = pos; // throw the remaining message away
+            delete_at = offset; // throw the remaining message away
             break;
         }
         UA_UInt32 length = 0;
-        size_t length_pos = pos + 4;
+        size_t length_pos = offset + 4;
         UA_StatusCode retval = UA_UInt32_decodeBinary(current, &length_pos, &length);
         if(retval != UA_STATUSCODE_GOOD || length < 16 || length > connection->localConf.recvBufferSize) {
             /* the message size is not allowed. throw the remaining bytestring away */
-            delete_at = pos;
+            delete_at = offset;
             break;
         }
-        if(length + pos > current->length)
+        if(length + offset > current->length)
             break; /* the message is incomplete. keep the beginning */
-        pos += length;
+        offset += length;
     }
 
     /* throw the message away */
@@ -93,19 +93,19 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     }
 
     /* no complete message at all */
-    if(pos == 0) {
+    if(offset == 0) {
         if(!*realloced) {
             /* store the buffer in the connection */
             UA_ByteString_copy(current, &connection->incompleteMessage);
             connection->releaseRecvBuffer(connection, message);
             *realloced = true;
-        } 
+        }
         return UA_STATUSCODE_GOOD;
     }
 
     /* there remains an incomplete message at the end */
-    if(current->length != pos) {
-        UA_Byte *data = UA_malloc(current->length - pos);
+    if(current->length != offset) {
+        UA_Byte *data = UA_malloc(current->length - offset);
         if(!data) {
             UA_ByteString_deleteMembers(&connection->incompleteMessage);
             if(!*realloced) {
@@ -114,9 +114,9 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             }
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        size_t newlength = current->length - pos;
-        memcpy(data, &current->data[pos], newlength);
-        current->length = pos;
+        size_t newlength = current->length - offset;
+        memcpy(data, &current->data[offset], newlength);
+        current->length = offset;
         if(*realloced)
             *message = *current;
         connection->incompleteMessage.data = data;

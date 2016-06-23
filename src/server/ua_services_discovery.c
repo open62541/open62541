@@ -72,7 +72,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
             continue;
         }
         for(size_t i = 0; i < request->profileUrisSize; i++) {
-            if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions->transportProfileUri)) {
+            if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions[j].transportProfileUri)) {
                 relevant_endpoints[j] = true;
                 relevant_count++;
                 break;
