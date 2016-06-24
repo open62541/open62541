@@ -14,7 +14,7 @@ UA_UsernamePasswordLogin usernamePasswords[2] = {
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 
 const UA_ServerConfig UA_ServerConfig_standard = {
-    .nThreads = 1,
+    .nThreads = 2,
     .logger = Logger_Stdout,
 
     /* Server Description */

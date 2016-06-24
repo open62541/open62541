@@ -47,7 +47,7 @@
 /* Thread Local Storage */
 /************************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#if defined(UA_ENABLE_MULTITHREADING) || defined(UA_ENABLE_THREAD_LOCAL)
 # ifdef __GNUC__
 #  define UA_THREAD_LOCAL __thread
 # elif defined(_MSC_VER)
