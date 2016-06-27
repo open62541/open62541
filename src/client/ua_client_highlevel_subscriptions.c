@@ -291,11 +291,11 @@ UA_StatusCode UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *clie
                 return UA_STATUSCODE_GOOD;
         }
         
-        int index = 0;
+        int i = 0;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-            request.subscriptionAcknowledgements[index].sequenceNumber = ack->subAck.sequenceNumber;
-            request.subscriptionAcknowledgements[index].subscriptionId = ack->subAck.subscriptionId;
-            index++;
+            request.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
+            request.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
+            i++;
         }
         
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
