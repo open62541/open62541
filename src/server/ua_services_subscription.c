@@ -140,8 +140,12 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     UA_DataValue_init(&v);
     Service_Read_single(server, session, timestampsToReturn, &request->itemToMonitor, &v);
 
-    /* Allow return codes "good" and "uncertain" */
-    if(v.hasStatus && (v.status >> 30) > 1) {
+    /* Allow return codes "good" and "uncertain", as well as a list of
+       statuscodes that might be repaired by the data source. */
+    if(v.hasStatus && (v.status >> 30) > 1 &&
+       v.status != UA_STATUSCODE_BADRESOURCEUNAVAILABLE &&
+       v.status != UA_STATUSCODE_BADCOMMUNICATIONERROR &&
+       v.status != UA_STATUSCODE_BADWAITINGFORINITIALDATA) {
         result->statusCode = v.status;
         UA_DataValue_deleteMembers(&v);
         return;
