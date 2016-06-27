@@ -1,14 +1,12 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_client.h"
 # include "ua_client_highlevel.h"
 # include "ua_nodeids.h"
-# include "networklayer_tcp.h"
+# include "ua_network_tcp.h"
 # include "ua_config_standard.h"
 # include "ua_types_encoding_binary.h"
 #else

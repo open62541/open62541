@@ -299,7 +299,7 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
 
 /**
  * Node Addition and Deletion
- * ^^^^^^^^^^^^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences);
 

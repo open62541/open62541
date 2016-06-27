@@ -1,10 +1,8 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifndef NETWORKLAYERTCP_H_
-#define NETWORKLAYERTCP_H_
+#ifndef UA_NETWORK_TCP_H_
+#define UA_NETWORK_TCP_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,4 +21,4 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl, UA_Log
 } // extern "C"
 #endif
 
-#endif /* NETWORKLAYERTCP_H_ */
+#endif /* UA_NETWORK_TCP_H_ */

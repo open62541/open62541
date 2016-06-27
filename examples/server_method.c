@@ -1,7 +1,5 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
 #include <stdlib.h>
@@ -10,13 +8,14 @@
 # include "ua_types.h"
 # include "ua_server.h"
 # include "ua_config_standard.h"
-# include "networklayer_tcp.h"
+# include "ua_network_tcp.h"
+# include "ua_log_stdout.h"
 #else
 # include "open62541.h"
 #endif
 
 UA_Boolean running = true;
-UA_Logger logger = Logger_Stdout;
+UA_Logger logger = UA_Log_Stdout;
 
 static UA_StatusCode
 helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
@@ -32,12 +31,12 @@ helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const
         UA_String_deleteMembers(&tmp);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
         return UA_STATUSCODE_GOOD;
-} 
+}
 
 static UA_StatusCode
 fooBarMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
                  size_t outputSize, UA_Variant *output) {
-	// Exactly the same as helloWorld, but returns foobar
+    // Exactly the same as helloWorld, but returns foobar
         UA_String *inputStr = (UA_String*)input->data;
         UA_String tmp = UA_STRING_ALLOC("FooBar! ");
         if(inputStr->length > 0) {
@@ -49,15 +48,15 @@ fooBarMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_
         UA_String_deleteMembers(&tmp);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
         return UA_STATUSCODE_GOOD;
-} 
+}
 
 static UA_StatusCode
 IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
                           const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-	UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
-	for(size_t i = 0; i< input->arrayLength; i++)
-		((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
-	return UA_STATUSCODE_GOOD;
+    UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
+    for(size_t i = 0; i< input->arrayLength; i++)
+        ((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void stopHandler(int sign) {
@@ -94,7 +93,7 @@ int main(int argc, char** argv) {
     outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
     outputArguments.name = UA_STRING("MyOutput");
     outputArguments.valueRank = -1;
-        
+
     UA_MethodAttributes helloAttr;
     UA_MethodAttributes_init(&helloAttr);
     helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
@@ -135,7 +134,6 @@ int main(int argc, char** argv) {
     outputArguments.name = UA_STRING("output is the array, each index is incremented by one");
     outputArguments.valueRank = 1;
 
-    
     UA_MethodAttributes incAttr;
     UA_MethodAttributes_init(&incAttr);
     incAttr.description = UA_LOCALIZEDTEXT("en_US","1dArrayExample");
@@ -154,7 +152,7 @@ int main(int argc, char** argv) {
        the opportunity to define the callback... we could do that now
     */
     UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(1,62541), &fooBarMethod, NULL);
-    
+
     //END OF EXAMPLE 3
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, &running);
@@ -167,5 +165,3 @@ int main(int argc, char** argv) {
 
     return (int)retval;
 }
-
-

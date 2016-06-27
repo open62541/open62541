@@ -1,9 +1,7 @@
- /*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "networklayer_tcp.h"
+#include "ua_network_tcp.h"
 
 #include <stdlib.h> // malloc, free
 #include <stdio.h> // snprintf
@@ -423,7 +421,9 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
         int newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
         int i = 1;
         if(newsockfd >= 0) {
+            /* Send messages directly and do wait to merge packets (disable Nagle's algorithm) */
             setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
+
             socket_set_nonblocking(newsockfd);
             ServerNetworkLayerTCP_add(layer, newsockfd);
         }

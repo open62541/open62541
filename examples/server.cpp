@@ -1,7 +1,5 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
 #include <iostream>
@@ -9,22 +7,20 @@
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_server.h"
-# include "logger_stdout.h"
-# include "networklayer_tcp.h"
+# include "ua_log_stdout.h"
+# include "ua_network_tcp.h"
 #else
 # include "open62541.h"
 #endif
 
-/**
- * Build Instructions (Linux)
+/* Build Instructions (Linux)
  * - gcc -std=c99 -c open62541.c
- * - g++ server.cpp open62541.o -o server
- */
+ * - g++ server.cpp open62541.o -o server */
 
 using namespace std;
 
 UA_Boolean running = true;
-UA_Logger logger = Logger_Stdout;
+UA_Logger logger = UA_Log_Stdout;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -61,8 +57,8 @@ int main() {
     UA_QualifiedName_deleteMembers(&myIntegerName);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
-	UA_Server_delete(server);
+    UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-	return retval;
+    return retval;
 }
