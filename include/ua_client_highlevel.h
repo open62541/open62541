@@ -23,10 +23,23 @@ extern "C" {
 #include "ua_client.h"
 
 /**
+ * .. _client-highlevel:
+ *
  * Highlevel Client Functionality
  * ------------------------------
  * The following definitions are convenience functions making use of the
  * standard OPC UA services in the background.
+ *
+ * The high level abstractions concetrate on getting the job done in a simple
+ * manner for the user. This is a less flexible way of handling the stack,
+ * because at many places sensible defaults are presumed; at the same time using
+ * these functions is the easiest way of implementing an OPC UA application, as
+ * you will not have to consider all the details that go into the OPC UA
+ * services. A concept of how nodes and datatypes are used are completely
+ * sufficient to use OPC UA with this layer.
+ *
+ * If more flexibility is needed, you can always achieve the same functionality
+ * using the raw :ref:`OPC UA services <client-services>`.
  *
  * Read Attributes
  * ===============
@@ -147,7 +160,7 @@ UA_Client_writeNodeClassAttribute(UA_Client *client, const UA_NodeId nodeId, con
 static UA_INLINE UA_StatusCode
 UA_Client_writeBrowseNameAttribute(UA_Client *client, const UA_NodeId nodeId, const UA_QualifiedName *newBrowseName) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME, newBrowseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]); }
-    
+
 static UA_INLINE UA_StatusCode
 UA_Client_writeDisplayNameAttribute(UA_Client *client, const UA_NodeId nodeId, const UA_LocalizedText *newDisplayName) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME, newDisplayName, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]); }
@@ -183,11 +196,11 @@ UA_Client_writeContainsNoLoopsAttribute(UA_Client *client, const UA_NodeId nodeI
 static UA_INLINE UA_StatusCode
 UA_Client_writeEventNotifierAttribute(UA_Client *client, const UA_NodeId nodeId, const UA_Byte *newEventNotifier) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, newEventNotifier, &UA_TYPES[UA_TYPES_BYTE]); }
-    
+
 static UA_INLINE UA_StatusCode
 UA_Client_writeValueAttribute(UA_Client *client, const UA_NodeId nodeId, const UA_Variant *newValue) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE, newValue, &UA_TYPES[UA_TYPES_VARIANT]); }
-                                     
+
 static UA_INLINE UA_StatusCode
 UA_Client_writeDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId, const UA_NodeId *newDataType) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPE, newDataType, &UA_TYPES[UA_TYPES_NODEID]); }
@@ -233,7 +246,10 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
 
 /**
  * Node Management
- * =============== */
+ * ===============
+ *
+ * See the section on :ref:`server-side node management <addnodes>`.
+ */
 UA_StatusCode UA_EXPORT
 UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
                        UA_Boolean isForward, const UA_String targetServerUri,
@@ -246,7 +262,7 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId, const
 
 UA_StatusCode UA_EXPORT
 UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId, UA_Boolean deleteTargetReferences);
-    
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
 __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
@@ -336,8 +352,16 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
                                outNewNodeId); }
 
 /**
+ * .. _client-subscriptions:
+ *
  * Subscriptions Handling
- * ====================== */
+ * ======================
+ *
+ * At this point, the client does not yet contain its own thread or event-driven
+ * main-loop. So the client will not perform any actions automatically in the
+ * background. This is especially relevant for subscriptions. The user will have
+ * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.
+ * See also :ref:`here <client-subscriptions>`. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 typedef struct {
@@ -350,11 +374,11 @@ typedef struct {
 } UA_SubscriptionSettings;
 
 extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_standard;
-    
+
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
                             UA_UInt32 *newSubscriptionId);
-    
+
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
@@ -390,11 +414,11 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt1
 #ifndef HAVE_NODEITER_CALLBACK
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
-   function for each child node */                                                        
+   function for each child node */
 typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
                                                   UA_NodeId referenceTypeId, void *handle);
 #endif
- 
+
 UA_StatusCode UA_EXPORT
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) ;

@@ -1,3 +1,5 @@
+.. _building:
+
 Building the Library
 ====================
 
@@ -10,20 +12,18 @@ Using the GCC compiler, the following calls build the library on Linux.
 
    gcc -std=c99 -fPIC -c open62541.c
    gcc -shared open62541.o -o libopen62541.so
-   
 
 Building with CMake on Ubuntu or Debian
 ---------------------------------------
 
 .. code-block:: bash
-   
+
    sudo apt-get install git build-essential gcc pkg-config cmake python
 
    # enable additional features
-   sudo apt-get install libexpat1-dev # for XML-encodingi
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
-   sudo apt-get install graphviz doxygen # for documentation generation
+   sudo apt-get install sphinx # for documentation generation
 
    cd open62541
    mkdir build
@@ -46,7 +46,7 @@ replace the compiler selection in the call to CMake.
   - Python 2.7.x (Python 3.x should work, too): https://python.org/downloads
   - CMake: http://www.cmake.org/cmake/resources/software.html
   - Microsoft Visual Studio 2015 Community Edition: https://www.visualstudio.com/products/visual-studio-community-vs
-    
+
 - Download the open62541 sources (using git or as a zipfile from github)
 - Open a command shell (cmd) and run
 
@@ -81,7 +81,7 @@ Building on OS X
    pip install sphinx # for documentation generation
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
-   
+
 Build Options
 -------------
 
@@ -104,7 +104,7 @@ Further options that are not inherited from the CMake configuration are defined
 in ua_config.h. Usually there is no need to adjust them.
 
 UA_BUILD_* group
-~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 
 By default only the shared object libopen62541.so or the library open62541.dll
 and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
@@ -124,7 +124,7 @@ specified by the following options:
    Generate a self-signed certificate for the server (openSSL required)
 
 UA_ENABLE_* group
-~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 This group contains build options related to the supported OPC UA features.
 

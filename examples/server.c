@@ -1,8 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
-//to compile with single file releases:
-// * single-threaded: gcc -std=c99 server.c open62541.c -o server
-// * multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread
+
+/* Compile with single file release:
+ * - single-threaded: gcc -std=c99 server.c open62541.c -o server
+ * - multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread */
 
 #ifdef UA_NO_AMALGAMATION
 # include <time.h>

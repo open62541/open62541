@@ -1,5 +1,4 @@
-/*
- * Copyright (C) 2014 the contributors as stated in the AUTHORS file
+/* Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
  * redistribute it and/or modify it under the terms of the GNU Lesser General
@@ -10,8 +9,7 @@
  * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
  * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+ * details. */
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -27,8 +25,21 @@ extern "C" {
 #include "ua_types_generated.h"
 
 /**
+ * .. _client:
+ *
  * Client
  * ======
+ *
+ * The client implementation allows remote access to all OPC UA services. For
+ * convenience, some functionality has been wrapped in :ref:`high-level
+ * abstractions <client-highlevel>`.
+ *
+ * **However**: At this point, the client does not yet contain its own thread or
+ * event-driven main-loop. So the client will not perform any actions
+ * automatically in the background. This is especially relevant for
+ * subscriptions. The user will have to periodically call
+ * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
+ * <client-subscriptions>`.
  *
  * Client Configuration
  * -------------------- */
@@ -122,11 +133,12 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
 /**
+ * .. _client-services:
+ *
  * Raw Services
  * ------------
  * The raw OPC UA services are exposed to the client. But most of them time, it is better to use the
- * convenience functions from `ua_client_highlevel.h` that wrap the raw services. See the Section
- * :ref:`services` for a detailed description of each service. */
+ * convenience functions from ``ua_client_highlevel.h`` that wrap the raw services. */
 /* Don't use this function. Use the type versions below instead. */
 void UA_EXPORT
 __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *requestType,

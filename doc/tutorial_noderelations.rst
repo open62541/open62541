@@ -1,5 +1,5 @@
-Examining and interacting with node relations
-=============================================
+Generating an OPC UA Information Model from XML Descriptions
+============================================================
 
 In the past tutorials you have learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA is its data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and type hierarchies and how to create your own.
 
