@@ -103,6 +103,36 @@ Finally, one needs to tell the server where to add the new variable in the
 information model. For that, we state the NodeId of the parent node and the
 (hierarchical) reference to the parent node.
 
+NodeIds
+-------
+
+A node ID is a unique identifier in server's context. It is composed of two members:
+
++-------------+-----------------+---------------------------+
+| Type        | Name            | Notes                     |
++=============+=================+===========================+
+| UInt16      | namespaceIndex  |  Number of the namespace  |
++-------------+-----------------+---------------------------+
+| Union       | identifier      |  One idenifier of the     |
+|             |  * String       |  listed types             |
+|             |  * Integer      |                           |
+|             |  * GUID         |                           |
+|             |  * ByteString   |                           |
++-------------+-----------------+---------------------------+
+
+The first parameter is the number of node's namespace, the second one may be a
+numeric, a string or a GUID (Globally Unique ID) identifier. The following are
+some examples for their usage.
+
+.. code-block:: c
+
+   UA_NodeId id1 = UA_NODEID_NUMERIC(1, 1234);
+
+   UA_NodeId id2 = UA_NODEID_STRING(1, "testid"); /* points to the static string */
+
+   UA_NodeId id3 = UA_NODEID_STRING_ALLOC(1, "testid");
+   UA_NodeId_deleteMembers(&id3); /* free the allocated string */
+
 Adding a variable node to the server that contains a user-defined callback
 --------------------------------------------------------------------------
 
