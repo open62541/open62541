@@ -264,7 +264,7 @@ def parseTypeDefinitions(outname, xmlDescription):
         snippets[name] = typeXml
 
     while(len(snippets) > 0):
-        for name, typeXml in snippets.items():
+        for name, typeXml in list(snippets.items()):
             if name in types or skipType(name):
                 del snippets[name]
                 continue
@@ -329,7 +329,7 @@ parser.add_argument('outfile', help='output file w/o extension')
 args = parser.parse_args()
 
 outname = args.outfile.split("/")[-1] 
-inname = ', '.join([args.typexml_ns0.split("/")[-1]] + map(lambda x:x.split("/")[-1], args.typexml_additional))
+inname = ', '.join([args.typexml_ns0.split("/")[-1]] + list(map(lambda x:x.split("/")[-1], args.typexml_additional)))
 
 ################
 # Create Types #
@@ -351,7 +351,7 @@ if args.typedescriptions:
 selected_types = types.keys()
 if args.selected_types:
     with open(args.selected_types) as f:
-        selected_types = filter(len, [line.strip() for line in f])
+        selected_types = list(filter(len, [line.strip() for line in f]))
 
 #############################
 # Write out the Definitions #
