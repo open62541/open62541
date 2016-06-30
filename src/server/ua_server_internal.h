@@ -53,10 +53,10 @@ struct UA_Server {
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 #endif
-     
+
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
-    
+
 #ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
     struct cds_wfcq_head dispatchQueue_head;

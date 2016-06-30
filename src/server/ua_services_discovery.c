@@ -42,21 +42,16 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest");
-    /* Test if one of the networklayers exposes the discoveryUrl of the requested endpoint */
-    /* Disabled, servers in a virtualbox don't know their external hostname */
-    /* UA_Boolean foundUri = false; */
-    /* for(size_t i = 0; i < server->config.networkLayersSize; i++) { */
-    /*     if(UA_String_equal(&request->endpointUrl, &server->config.networkLayers[i].discoveryUrl)) { */
-    /*         foundUri = true; */
-    /*         break; */
-    /*     } */
-    /* } */
-    /* if(!foundUri) { */
-    /*     response->endpointsSize = 0; */
-    /*     return; */
-    /* } */
-    
+    /* If the client expects to see a specific endpointurl, mirror it back. If
+       not, clone the endpoints with the discovery url of all networklayers. */
+    const UA_String *endpointUrl = &request->endpointUrl;
+    if(endpointUrl->length > 0) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest with endpointUrl \"%.*s\"",
+                             endpointUrl->length, endpointUrl->data);
+    } else {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest with an empty endpointUrl");
+    }
+
     /* test if the supported binary profile shall be returned */
 #ifdef NO_ALLOCA
     UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
@@ -64,15 +59,15 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Byte) * server->endpointDescriptionsSize);
 #endif
     size_t relevant_count = 0;
-    for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
-        relevant_endpoints[j] = false;
-        if(request->profileUrisSize == 0) {
+    if(request->profileUrisSize == 0) {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++)
             relevant_endpoints[j] = true;
-            relevant_count++;
-            continue;
-        }
-        for(size_t i = 0; i < request->profileUrisSize; i++) {
-            if(UA_String_equal(&request->profileUris[i], &server->endpointDescriptions[j].transportProfileUri)) {
+        relevant_count = server->endpointDescriptionsSize;
+    } else {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            for(size_t i = 0; i < request->profileUrisSize; i++) {
+                if(!UA_String_equal(&request->profileUris[i], &server->endpointDescriptions[j].transportProfileUri))
+                    continue;
                 relevant_endpoints[j] = true;
                 relevant_count++;
                 break;
@@ -85,32 +80,40 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
         return;
     }
 
-    response->endpoints = UA_malloc(sizeof(UA_EndpointDescription) * relevant_count);
+    /* Clone the endpoint for each networklayer? */
+    size_t clone_times = 1;
+    UA_Boolean nl_endpointurl = false;
+    if(endpointUrl->length == 0) {
+        clone_times = server->config.networkLayersSize;
+        nl_endpointurl = true;
+    }
+
+    response->endpoints = UA_Array_new(relevant_count * clone_times, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
+    response->endpointsSize = relevant_count * clone_times;
 
     size_t k = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t j = 0; j < server->endpointDescriptionsSize && retval == UA_STATUSCODE_GOOD; j++) {
-        if(!relevant_endpoints[j])
-            continue;
-        retval = UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
-        if(retval != UA_STATUSCODE_GOOD)
-            break;
-        /* replace endpoint's URL to the requested one if provided */
-        if(request->endpointUrl.length > 0){
-            UA_String_deleteMembers(&response->endpoints[k].endpointUrl);
-            retval = UA_String_copy(&request->endpointUrl, &response->endpoints[k].endpointUrl);
+    for(size_t i = 0; i < clone_times; i++) {
+        if(nl_endpointurl)
+            endpointUrl = &server->config.networkLayers[i].discoveryUrl;
+        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+            if(!relevant_endpoints[j])
+                continue;
+            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
+            retval = UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
+            k++;
         }
-        k++;
     }
 
     if(retval != UA_STATUSCODE_GOOD) {
         response->responseHeader.serviceResult = retval;
-        UA_Array_delete(response->endpoints, --k, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        UA_Array_delete(response->endpoints, response->endpointsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        response->endpoints = NULL;
+        response->endpointsSize = 0;
         return;
     }
-    response->endpointsSize = relevant_count;
 }

@@ -460,7 +460,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
             return;
         }
         UA_Session_init(&anonymousSession);
-        anonymousSession.sessionId = UA_NODEID_NUMERIC(0,0);
+        anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
         anonymousSession.channel = channel;
         session = &anonymousSession;
     }
