@@ -8,6 +8,7 @@
 /* static variables */
 UA_EXPORT const UA_String UA_STRING_NULL = {.length = 0, .data = NULL };
 UA_EXPORT const UA_ByteString UA_BYTESTRING_NULL = {.length = 0, .data = NULL };
+UA_EXPORT const UA_Guid UA_GUID_NULL = {.data1 = 0, .data2 = 0, .data3 = 0, .data4 = {0,0,0,0,0,0,0,0}};
 UA_EXPORT const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
     .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0 },

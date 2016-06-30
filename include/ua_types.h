@@ -274,6 +274,8 @@ typedef struct {
 
 UA_Boolean UA_EXPORT UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
 
+UA_EXPORT extern const UA_Guid UA_GUID_NULL;
+
 /**
  * ByteString
  * ^^^^^^^^^^
