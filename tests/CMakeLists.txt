@@ -37,10 +37,6 @@ add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object
 target_link_libraries(check_chunking ${LIBS})
 add_test(chunking ${CMAKE_CURRENT_BINARY_DIR}/check_chunking)
 
-# add_executable(check_stack check_stack.c)
-# target_link_libraries(check_stack ${LIBS})
-# add_test(stack ${CMAKE_CURRENT_BINARY_DIR}/check_stack)
-
 add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_view ${LIBS})
 add_test(services_view ${CMAKE_CURRENT_BINARY_DIR}/check_services_view)
@@ -64,10 +60,6 @@ add_test(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
 add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_userspace ${LIBS})
 add_test(check_server_userspace ${CMAKE_CURRENT_BINARY_DIR}/check_server_userspace)
-
-# add_executable(check_startup check_startup.c)
-# target_link_libraries(check_startup ${LIBS})
-# add_test(startup ${CMAKE_CURRENT_BINARY_DIR}/check_startup)
 
 # test with canned interactions from files
 
