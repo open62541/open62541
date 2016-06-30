@@ -56,8 +56,9 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 #ifdef NO_ALLOCA
     UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
 #else
-    UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Byte) * server->endpointDescriptionsSize);
+    UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean) * server->endpointDescriptionsSize);
 #endif
+    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
         for(size_t j = 0; j < server->endpointDescriptionsSize; j++)
@@ -104,7 +105,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
             if(!relevant_endpoints[j])
                 continue;
             retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
-            retval = UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
+            retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
             k++;
         }
     }
