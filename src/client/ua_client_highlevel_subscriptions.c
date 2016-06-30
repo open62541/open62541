@@ -188,6 +188,9 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
             retval = response.results[0];
         else
             retval = response.responseHeader.serviceResult;
+
+        UA_DeleteMonitoredItemsRequest_deleteMembers(&request);
+        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
     }
     
     if(retval == UA_STATUSCODE_GOOD) {
@@ -196,8 +199,6 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
         UA_free(mon);
     }
     
-    UA_DeleteMonitoredItemsRequest_deleteMembers(&request);
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
     return retval;
 }
 
