@@ -20,8 +20,10 @@ from __future__ import print_function
 from sys import argv, exit
 from os import path
 from ua_namespace import *
-from logger import *
+import logging
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
+
+logger = logging.getLogger(__name__)
 
 def usage():
   print("Script usage:")
@@ -49,6 +51,8 @@ def usage():
                        last description of a node encountered will be used and all prior definitions
                        are discarded.""")
 
+
+
 if __name__ == '__main__':
   # Check if the parameters given correspond to actual files
   infiles = []
@@ -57,11 +61,16 @@ if __name__ == '__main__':
   blacklistFiles = []
   supressGenerationOfAttribute=[]
 
-  GLOBAL_LOG_LEVEL = LOG_LEVEL_DEBUG
-  
   arg_isIgnore    = False
   arg_isBlacklist = False
   arg_isSupress   = False
+
+  logging.basicConfig(level=logging.ERROR)
+
+  logger.setLevel(logging.INFO)
+
+
+
   if len(argv) < 2:
     usage()
     exit(1)
@@ -71,7 +80,7 @@ if __name__ == '__main__':
       if path.exists(filename):
         ignoreFiles.append(filename)
       else:
-        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        logger.error("File " + str(filename) + " does not exist.")
         usage()
         exit(1)
     elif arg_isBlacklist:
@@ -79,7 +88,7 @@ if __name__ == '__main__':
       if path.exists(filename):
         blacklistFiles.append(filename)
       else:
-        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        logger.error("File " + str(filename) + " does not exist.")
         usage()
         exit(1)
     elif arg_isSupress:
@@ -95,7 +104,7 @@ if __name__ == '__main__':
       elif filename.lower() == "-s" or filename.lower() == "--suppress" :
         arg_isSupress = True
       else:
-        log(None, "File " + str(filename) + " does not exist.", LOG_LEVEL_ERROR)
+        logger.error("File " + str(filename) + " does not exist.")
         usage()
         exit(1)
 
@@ -120,23 +129,23 @@ if __name__ == '__main__':
   # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
   preProc = open62541_XMLPreprocessor()
   for xmlfile in infiles:
-    log(None, "Preprocessing " + str(xmlfile), LOG_LEVEL_INFO)
+    logger.info("Preprocessing " + str(xmlfile))
     preProc.addDocument(xmlfile)
   preProc.preprocessAll()
-  
+
   for xmlfile in preProc.getPreProcessedFiles():
-    log(None, "Parsing " + str(xmlfile), LOG_LEVEL_INFO)
+    logger.info("Parsing " + str(xmlfile))
     ns.parseXML(xmlfile)
-  
+
   # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
   namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
   for key in namespaceArrayNames:
     ns.addNamespace(key, namespaceArrayNames[key])
-    
+
   # Remove any temp files - they are not needed after the AST is created
   # Removed for debugging
   preProc.removePreprocessedFiles()
-  
+
   # Remove blacklisted nodes from the namespace
   # Doing this now ensures that unlinkable pointers will be cleanly removed
   # during sanitation.
@@ -146,13 +155,13 @@ if __name__ == '__main__':
       line = line.replace(" ","")
       id = line.replace("\n","")
       if ns.getNodeByIDString(id) == None:
-        log(None, "Can't blacklist node, namespace does currently not contain a node with id " + str(id), LOG_LEVEL_WARN)
+        logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
       else:
         ns.removeNodeById(line)
     bl.close()
 
   # Link the references in the namespace
-  log(None, "Linking namespace nodes and references", LOG_LEVEL_INFO)
+  logger.info("Linking namespace nodes and references")
   ns.linkOpenPointers()
 
   # Remove nodes that are not printable or contain parsing errors, such as
@@ -164,12 +173,12 @@ if __name__ == '__main__':
   # Ex. <rpm>123</rpm> is not encodable
   #     only after parsing the datatypes, it is known that
   #     rpm is encoded as a double
-  log(None, "Building datatype encoding rules", LOG_LEVEL_INFO)
+  logger.info("Building datatype encoding rules")
   ns.buildEncodingRules()
 
   # Allocate/Parse the data values. In order to do this, we must have run
   # buidEncodingRules.
-  log(None, "Allocating variables", LOG_LEVEL_INFO)
+  logger.info("Allocating variables")
   ns.allocateVariables()
 
   # Users may have manually defined some nodes in their code already (such as serverStatus).
@@ -183,20 +192,20 @@ if __name__ == '__main__':
       line = line.replace(" ","")
       id = line.replace("\n","")
       if ns.getNodeByIDString(id) == None:
-        log(None, "Can't ignore node, Namespace does currently not contain a node with id " + str(id), LOG_LEVEL_WARN)
+        logger.warn("Can't ignore node, Namespace does currently not contain a node with id " + str(id))
       else:
         ignoreNodes.append(ns.getNodeByIDString(id))
     ig.close()
-  
+
   # Create the C Code
-  log(None, "Generating Header", LOG_LEVEL_INFO)
+  logger.info("Generating Header")
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
   generatedCode=ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute, outfilename=path.basename(argv[-1]))
   for line in generatedCode[0]:
     outfileh.write(line+"\n")
   for line in generatedCode[1]:
     outfilec.write(line+"\n")
- 
+
   outfilec.close()
   outfileh.close()
 

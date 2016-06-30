@@ -19,9 +19,11 @@
 import sys
 import xml.dom.minidom as dom
 from ua_constants import *
-from logger import *
+import logging
 from time import strftime, strptime
 from open62541_MacroHelper import open62541_MacroHelper
+
+logger = logging.getLogger(__name__)
 
 def getNextElementNode(xmlvalue):
   if xmlvalue == None:
@@ -60,7 +62,7 @@ class opcua_value_t():
                        'qualifiedname', 'expandednodeid', 'xmlelement']
     self.dataType = None
     self.encodingRule = []
-  
+
   def getValueFieldByAlias(self, fieldname):
     if not isinstance(self.value, list):
       return None
@@ -70,7 +72,7 @@ class opcua_value_t():
       if val.alias() == fieldname:
 	return val.value
     return None
-    
+
   def setEncodingRule(self, encoding):
     self.encodingRule = encoding
 
@@ -169,11 +171,11 @@ class opcua_value_t():
     log(self, "parsing xmlvalue for " + self.parent.browseName() + " (" + str(self.parent.id()) + ") according to " + str(self.parent.dataType().target().getEncoding()))
 
     if not "value" in xmlvalue.tagName.lower():
-      log(self, "Expected <Value> , but found " + xmlvalue.tagName + " instead. Value will not be parsed.", LOG_LEVEL_ERROR)
+      logger.error("Expected <Value> , but found " + xmlvalue.tagName + " instead. Value will not be parsed.")
       return
 
     if len(xmlvalue.childNodes) == 0:
-      log(self, "Expected childnodes for value, but none where found... Value will not be parsed.", LOG_LEVEL_ERROR)
+      logger.error("Expected childnodes for value, but none where found... Value will not be parsed.")
       return
 
     for n in xmlvalue.childNodes:
@@ -216,7 +218,7 @@ class opcua_value_t():
         # 0: 'BuiltinType'
         if alias != None:
           if not xmlvalue.tagName == alias:
-            log(self, "Expected XML element with tag " + alias + " but found " + xmlvalue.tagName + " instead", LOG_LEVEL_ERROR)
+            logger.error("Expected XML element with tag " + alias + " but found " + xmlvalue.tagName + " instead")
             return None
           else:
             t = self.getTypeByString(enc[0], enc)
@@ -225,7 +227,7 @@ class opcua_value_t():
             return t
         else:
           if not self.isBuiltinByString(xmlvalue.tagName):
-            log(self, "Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.tagName + " instead", LOG_LEVEL_ERROR)
+            logger.error("Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.tagName + " instead")
           else:
             t = self.getTypeByString(enc[0], enc)
             t.parseXML(xmlvalue)
@@ -253,29 +255,29 @@ class opcua_value_t():
       #        Consider moving this ExtensionObject specific parsing into the
       #        builtin type and only determining the multipart type at this stage.
       if not xmlvalue.tagName == "ExtensionObject":
-        log(self, "Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.tagName + " instead.", LOG_LEVEL_ERROR)
+        logger.error("Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.tagName + " instead.")
         return None
 
       extobj = opcua_BuiltinType_extensionObject_t(self.parent)
       extobj.setEncodingRule(enc)
       etype = xmlvalue.getElementsByTagName("TypeId")
       if len(etype) == 0:
-        log(self, "Did not find <TypeId> for ExtensionObject", LOG_LEVEL_ERROR)
+        logger.error("Did not find <TypeId> for ExtensionObject")
         return None
       etype = etype[0].getElementsByTagName("Identifier")
       if len(etype) == 0:
-        log(self, "Did not find <Identifier> for ExtensionObject", LOG_LEVEL_ERROR)
+        logger.error("Did not find <Identifier> for ExtensionObject")
         return None
       etype = self.parent.getNamespace().getNodeByIDString(etype[0].firstChild.data)
       if etype == None:
-        log(self, "Identifier Node not found in namespace" , LOG_LEVEL_ERROR)
+        logger.error("Identifier Node not found in namespace" )
         return None
 
       extobj.typeId(etype)
 
       ebody = xmlvalue.getElementsByTagName("Body")
       if len(ebody) == 0:
-        log(self, "Did not find <Body> for ExtensionObject", LOG_LEVEL_ERROR)
+        logger.error("Did not find <Body> for ExtensionObject")
         return None
       ebody = ebody[0]
 
@@ -284,11 +286,11 @@ class opcua_value_t():
       if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
         ebodypart = getNextElementNode(ebodypart)
       if ebodypart == None:
-        log(self, "Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found nothing.", LOG_LEVEL_ERROR)
+        logger.error("Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found nothing.")
         return None
 
       if not ebodypart.tagName == self.parent.dataType().target().browseName():
-        log(self, "Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found " + str(ebodypart.tagName) + " instead.", LOG_LEVEL_ERROR)
+        logger.error("Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found " + str(ebodypart.tagName) + " instead.")
         return None
       extobj.alias(ebodypart.tagName)
 
@@ -296,7 +298,7 @@ class opcua_value_t():
       if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
         ebodypart = getNextElementNode(ebodypart)
       if ebodypart == None:
-        log(self, "Description of dataType " + str(self.parent.dataType().target().browseName()) + " in ExtensionObject is empty/invalid.", LOG_LEVEL_ERROR)
+        logger.error("Description of dataType " + str(self.parent.dataType().target().browseName()) + " in ExtensionObject is empty/invalid.")
         return None
 
       extobj.value = []
@@ -304,7 +306,7 @@ class opcua_value_t():
         if not ebodypart == None:
           extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, alias=None, encodingPart=e))
         else:
-          log(self, "Expected encoding " + str(e) + " but found none in body.", LOG_LEVEL_ERROR)
+          logger.error("Expected encoding " + str(e) + " but found none in body.")
         ebodypart = getNextElementNode(ebodypart)
       return extobj
 
@@ -348,17 +350,17 @@ class opcua_value_t():
       return code
     if not isinstance(self.value[0], opcua_value_t):
       return code
-  
+
     if self.parent.valueRank() != -1 and (self.parent.valueRank() >=0 or (len(self.value) > 1 and (self.parent.valueRank() != -2 or self.parent.valueRank() != -3))):
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
       if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_GUID:
-        log(self, "Don't know how to print array of GUID in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print array of GUID in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DATETIME:
-        log(self, "Don't know how to print array of DateTime in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print array of DateTime in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
-        log(self, "Don't know how to print array of DiagnosticInfo in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print array of DiagnosticInfo in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_STATUSCODE:
-        log(self, "Don't know how to print array of StatusCode in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print array of StatusCode in node " + str(self.parent.id()))
       else:
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
@@ -379,13 +381,13 @@ class opcua_value_t():
     else:
       # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
       if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_GUID:
-        log(self, "Don't know how to print scalar GUID in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print scalar GUID in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DATETIME:
-        log(self, "Don't know how to print scalar DateTime in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print scalar DateTime in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
-        log(self, "Don't know how to print scalar DiagnosticInfo in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print scalar DiagnosticInfo in node " + str(self.parent.id()))
       elif self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_STATUSCODE:
-        log(self, "Don't know how to print scalar StatusCode in node " + str(self.parent.id()), LOG_LEVEL_WARN)
+        logger.warn("Don't know how to print scalar StatusCode in node " + str(self.parent.id()))
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
@@ -537,15 +539,15 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
     #        <LocalizedText> or </AliasName>
     #
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     if xmlvalue.firstChild == None:
       if self.alias() != None:
@@ -558,11 +560,11 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
     self.value = []
     tmp = xmlvalue.getElementsByTagName("Locale")
     if len(tmp) == 0:
-      log(self, "Did not find a locale. Setting to en_US per default.", LOG_LEVEL_WARN)
+      logger.warn("Did not find a locale. Setting to en_US per default.")
       self.value.append('en_US')
     else:
       if tmp[0].firstChild == None:
-        log(self, "Locale tag without contents. Setting to en_US per default.", LOG_LEVEL_WARN)
+        logger.warn("Locale tag without contents. Setting to en_US per default.")
         self.value.append('en_US')
       else:
         self.value.append(tmp[0].firstChild.data)
@@ -574,11 +576,11 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
 
     tmp = xmlvalue.getElementsByTagName("Text")
     if len(tmp) == 0:
-      log(self, "Did not find a Text. Setting to empty string per default.", LOG_LEVEL_WARN)
+      logger.warn("Did not find a Text. Setting to empty string per default.")
       self.value.append('')
     else:
       if tmp[0].firstChild == None:
-        log(self, "Text tag without content. Setting to empty string per default.", LOG_LEVEL_WARN)
+        logger.warn("Text tag without content. Setting to empty string per default.")
         self.value.append('')
       else:
         self.value.append(tmp[0].firstChild.data)
@@ -599,7 +601,7 @@ class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
 
   def parseXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     log(self, "Not implemented", LOG_LEVEL_ERR)
@@ -623,19 +625,19 @@ class opcua_BuiltinType_nodeid_t(opcua_value_t):
     #           </Identifier>
     #        </NodeId> or </Alias>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <NodeId />
     if xmlvalue.firstChild == None :
-      log(self, "No value is given, which is illegal for Node Types...", LOG_LEVEL_ERROR)
+      logger.error("No value is given, which is illegal for Node Types...")
       self.value = None
     else:
       # Check if there is an <Identifier> tag
@@ -643,7 +645,7 @@ class opcua_BuiltinType_nodeid_t(opcua_value_t):
         xmlvalue = xmlvalue.getElementsByTagName("Identifier")[0]
       self.value = self.parent.getNamespace().getNodeByIDString(unicode(xmlvalue.firstChild.data))
       if self.value == None:
-        log(self, "Node with id " + str(unicode(xmlvalue.firstChild.data)) + " was not found in namespace.", LOG_LEVEL_ERROR)
+        logger.error("Node with id " + str(unicode(xmlvalue.firstChild.data)) + " was not found in namespace.")
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     if self.value == None:
@@ -673,15 +675,15 @@ class opcua_BuiltinType_datetime_t(opcua_value_t):
     #        2013-08-13T21:00:05.0000L
     #        </DateTime> or </AliasName>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <DateTime /> by setting the value to a default
     if xmlvalue.firstChild == None :
@@ -699,7 +701,7 @@ class opcua_BuiltinType_datetime_t(opcua_value_t):
       try:
         self.value = strptime(timestr, "%Y-%m-%dT%H:%M:%S")
       except:
-        log(self, "Timestring format is illegible. Expected 2001-01-30T21:22:23, but got " + timestr + " instead. Time will be defaultet to now()", LOG_LEVEL_ERROR)
+        logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23, but got " + timestr + " instead. Time will be defaultet to now()")
         self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
 
 class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
@@ -715,15 +717,15 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
     #           <Name>SomeString<Name>                # Speculation: Manditory if NamespaceIndex is given, omitted otherwise?
     #        </QualifiedName> or </AliasName>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Qalified /> by setting the value to a default
     if xmlvalue.firstChild == None :
@@ -757,9 +759,9 @@ class opcua_BuiltinType_statuscode_t(opcua_value_t):
 
   def parseXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
-    log(self, "Not implemented", LOG_LEVEL_WARN)
+    logger.warn("Not implemented")
 
 class opcua_BuiltinType_diagnosticinfo_t(opcua_value_t):
   def setStringReprentation(self):
@@ -770,9 +772,9 @@ class opcua_BuiltinType_diagnosticinfo_t(opcua_value_t):
 
   def parseXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
-    log(self, "Not implemented", LOG_LEVEL_WARN)
+    logger.warn("Not implemented")
 
 class opcua_BuiltinType_guid_t(opcua_value_t):
   def setStringReprentation(self):
@@ -783,15 +785,15 @@ class opcua_BuiltinType_guid_t(opcua_value_t):
 
   def parseXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Guid /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -808,11 +810,11 @@ class opcua_BuiltinType_guid_t(opcua_value_t):
         try:
           tmp.append(int("0x"+g, 16))
         except:
-          log(self, "Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+          logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data))
           self.value = [0,0,0,0,0]
           ok = False
       if len(tmp) != 5:
-        log(self, "Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data))
         self.value = [0,0,0,0]
         ok = False
       self.value = tmp
@@ -828,15 +830,15 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
     # Expect <Boolean>value</Boolean> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Boolean /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -862,15 +864,15 @@ class opcua_BuiltinType_byte_t(opcua_value_t):
     # Expect <Byte>value</Byte> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Byte /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -880,7 +882,7 @@ class opcua_BuiltinType_byte_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -896,15 +898,15 @@ class opcua_BuiltinType_sbyte_t(opcua_value_t):
     # Expect <SByte>value</SByte> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <SByte /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -914,7 +916,7 @@ class opcua_BuiltinType_sbyte_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -930,15 +932,15 @@ class opcua_BuiltinType_int16_t(opcua_value_t):
     # Expect <Int16>value</Int16> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Int16 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -948,7 +950,7 @@ class opcua_BuiltinType_int16_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -964,15 +966,15 @@ class opcua_BuiltinType_uint16_t(opcua_value_t):
     # Expect <UInt16>value</UInt16> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <UInt16 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -982,7 +984,7 @@ class opcua_BuiltinType_uint16_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -998,15 +1000,15 @@ class opcua_BuiltinType_int32_t(opcua_value_t):
     # Expect <Int32>value</Int32> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Int32 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1016,7 +1018,7 @@ class opcua_BuiltinType_int32_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1032,15 +1034,15 @@ class opcua_BuiltinType_uint32_t(opcua_value_t):
     # Expect <UInt32>value</UInt32> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <UInt32 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1050,7 +1052,7 @@ class opcua_BuiltinType_uint32_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1067,10 +1069,10 @@ class opcua_BuiltinType_int64_t(opcua_value_t):
     #        <Aliasname>value</Aliasname>
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Int64 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1080,7 +1082,7 @@ class opcua_BuiltinType_int64_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1096,15 +1098,15 @@ class opcua_BuiltinType_uint64_t(opcua_value_t):
     # Expect <UInt16>value</UInt16> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <UInt64 /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1114,7 +1116,7 @@ class opcua_BuiltinType_uint64_t(opcua_value_t):
       try:
         self.value = int(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1130,15 +1132,15 @@ class opcua_BuiltinType_float_t(opcua_value_t):
     # Expect <Float>value</Float> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Float /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1148,7 +1150,7 @@ class opcua_BuiltinType_float_t(opcua_value_t):
       try:
         self.value = float(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1164,15 +1166,15 @@ class opcua_BuiltinType_double_t(opcua_value_t):
     # Expect <Double>value</Double> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <Double /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1182,7 +1184,7 @@ class opcua_BuiltinType_double_t(opcua_value_t):
       try:
         self.value = float(unicode(xmlvalue.firstChild.data))
       except:
-        log(self, "Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data), LOG_LEVEL_ERROR)
+        logger.error("Error parsing integer. Expected " + self.stringRepresentation + " but got " + unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
@@ -1203,15 +1205,15 @@ class opcua_BuiltinType_string_t(opcua_value_t):
     # Expect <String>value</String> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <String /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1246,15 +1248,15 @@ class opcua_BuiltinType_bytestring_t(opcua_value_t):
     # Expect <ByteString>value</ByteString> or
     #        <Aliasname>value</Aliasname>
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
-      log(self, "Expected XML Element, but got junk...", LOG_LEVEL_ERROR)
+      logger.error("Expected XML Element, but got junk...")
       return
 
     if self.alias() != None:
       if not self.alias() == xmlvalue.tagName:
-        log(self, "Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
     else:
       if not self.stringRepresentation == xmlvalue.tagName:
-        log(self, "Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.", LOG_LEVEL_WARN)
+        logger.warn("Expected XML field " + self.stringRepresentation + " but got " + xmlvalue.tagName + " instead. This is a parsing error of opcua_value_t.__parseXMLSingleValue(), will try to continue anyway.")
 
     # Catch XML <ByteString /> by setting the value to a default
     if xmlvalue.firstChild == None:
@@ -1268,7 +1270,7 @@ class opcua_BuiltinType_bytestring_t(opcua_value_t):
       for line in self.value:
         bs = bs + str(line).replace("\n","");
       outs = bs
-      log(self, "Encoded Bytestring: " + outs, LOG_LEVEL_DEBUG)
+      logger.debug("Encoded Bytestring: " + outs)
 #      bs = bs.decode('base64')
 #      outs = ""
 #      for s in bs:
