@@ -171,21 +171,24 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     }
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
-    
-    UA_DeleteMonitoredItemsRequest request;
-    UA_DeleteMonitoredItemsRequest_init(&request);
-    request.subscriptionId = sub->SubscriptionID;
-    request.monitoredItemIdsSize = 1;
-    request.monitoredItemIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-    request.monitoredItemIds[0] = mon->MonitoredItemId;
-    
-    UA_DeleteMonitoredItemsResponse response = UA_Client_Service_deleteMonitoredItems(client, request);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(response.resultsSize > 1)
-        retval = response.results[0];
-    else
-        retval = response.responseHeader.serviceResult;
+
+    if(client->state == UA_CLIENTSTATE_CONNECTED) {
+        UA_DeleteMonitoredItemsRequest request;
+        UA_DeleteMonitoredItemsRequest_init(&request);
+        request.subscriptionId = sub->SubscriptionID;
+        request.monitoredItemIdsSize = 1;
+        request.monitoredItemIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
+        request.monitoredItemIds[0] = mon->MonitoredItemId;
+
+        UA_DeleteMonitoredItemsResponse response = UA_Client_Service_deleteMonitoredItems(client, request);
+
+        if(response.resultsSize > 1)
+            retval = response.results[0];
+        else
+            retval = response.responseHeader.serviceResult;
+    }
     
     if(retval == UA_STATUSCODE_GOOD) {
         LIST_REMOVE(mon, listEntry);

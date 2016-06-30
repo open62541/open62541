@@ -67,12 +67,12 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     }
     UA_Client_Subscription *sub, *tmps;
     LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps) {
-        LIST_REMOVE(sub, listEntry);
         UA_Client_MonitoredItem *mon, *tmpmon;
         LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmpmon) {
             UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
                                                         mon->MonitoredItemId);
         }
+        LIST_REMOVE(sub, listEntry);
         free(sub);
     }
 #endif
@@ -737,8 +737,8 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         } else
             retval = UA_decodeBinary(&reply, &offset, respHeader, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
         goto finish;
-    } 
-    
+    }
+
     retval = UA_decodeBinary(&reply, &offset, response, responseType);
     if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
         retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
