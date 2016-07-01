@@ -109,3 +109,7 @@ add_test(check_server_binary_messages_write ${CMAKE_CURRENT_BINARY_DIR}/check_se
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
                                            ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
+
+add_executable(check_client check_client.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_client ${LIBS})
+add_test(check_client ${CMAKE_CURRENT_BINARY_DIR}/check_client)
