@@ -113,3 +113,7 @@ add_test(check_server_binary_messages_write ${CMAKE_CURRENT_BINARY_DIR}/check_se
 add_executable(check_client check_client.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_client ${LIBS})
 add_test(check_client ${CMAKE_CURRENT_BINARY_DIR}/check_client)
+
+add_executable(check_client_subscriptions check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_client_subscriptions ${LIBS})
+add_test(check_client_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_client_subscriptions)

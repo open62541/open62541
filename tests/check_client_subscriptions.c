@@ -5,6 +5,7 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
+#include "ua_client_highlevel.h"
 #include "ua_config_standard.h"
 #include "ua_network_tcp.h"
 #include "check.h"
@@ -41,11 +42,31 @@ static void teardown(void) {
     nl.deleteMembers(&nl);
 }
 
-START_TEST(Client_connect) {
+UA_Boolean notificationReceived;
+
+static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
+    notificationReceived = true;
+}
+
+START_TEST(Client_subscription) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subId;
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_UInt32 monId;
+    retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
+                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler, NULL, &monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    notificationReceived = false;
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -53,10 +74,10 @@ START_TEST(Client_connect) {
 END_TEST
 
 static Suite* testSuite_Client(void) {
-    Suite *s = suite_create("Client");
-    TCase *tc_client = tcase_create("Client Basic");
+    Suite *s = suite_create("Client Subscription");
+    TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
-    tcase_add_test(tc_client, Client_connect);
+    tcase_add_test(tc_client, Client_subscription);
     suite_add_tcase(s,tc_client);
     return s;
 }
