@@ -43,7 +43,7 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem);
 }
 
-static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "MonitoredItem %i | "
@@ -125,7 +125,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = (UA_ServerCallback)SampleCallback, .data = mon} };
+                  .job.methodCall = {.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
                                                     &mon->sampleJobGuid);
     if(retval == UA_STATUSCODE_GOOD)

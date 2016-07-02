@@ -189,6 +189,9 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
                              request->requestedParameters.discardOldest);
     LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
 
+    /* Create the first sample */
+    UA_MoniteredItem_SampleCallback(server, newMon);
+
     /* Prepare the response */
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
     result->revisedSamplingInterval = newMon->samplingInterval;

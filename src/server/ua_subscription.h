@@ -53,6 +53,7 @@ typedef struct UA_MonitoredItem {
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon);
 UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredItem *mon);
 
