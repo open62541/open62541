@@ -332,28 +332,47 @@ Service_Publish(UA_Server *server, UA_Session *session,
         UA_PublishResponse response;
         UA_PublishResponse_init(&response);
         response.responseHeader.requestHandle = request->requestHeader.requestHandle;
+        response.responseHeader.timestamp = UA_DateTime_now();
         response.responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &response,
                                            &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         return;
     }
 
-    // todo error handling for malloc
     UA_PublishResponseEntry *entry = UA_malloc(sizeof(UA_PublishResponseEntry));
+    if(!entry) {
+        UA_PublishResponse response;
+        UA_PublishResponse_init(&response);
+        response.responseHeader.requestHandle = request->requestHeader.requestHandle;
+        response.responseHeader.timestamp = UA_DateTime_now();
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &response,
+                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        return;
+    }
     entry->requestId = requestId;
+
+    /* Build the response */
     UA_PublishResponse *response = &entry->response;
     UA_PublishResponse_init(response);
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
-
-    /* Delete Acknowledged Subscription Messages */
     response->results = UA_malloc(request->subscriptionAcknowledgementsSize * sizeof(UA_StatusCode));
     if(!response->results) {
+        /* Respond immediately with the error code */
+        response->responseHeader.timestamp = UA_DateTime_now();
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
+                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_deleteMembers(response);
+        UA_free(entry);
         return;
     }
     response->resultsSize = request->subscriptionAcknowledgementsSize;
+
+    /* Delete Acknowledged Subscription Messages */
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
         UA_SubscriptionAcknowledgement *ack = &request->subscriptionAcknowledgements[i];
+        /* Get the subscription */
         UA_Subscription *sub = UA_Session_getSubscriptionByID(session, ack->subscriptionId);
         if(!sub) {
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -361,7 +380,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          "Cannot process acknowledgements subscription %u", ack->subscriptionId);
             continue;
         }
-
+        /* Remove the acked transmission for the retransmission queue */
         response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
         UA_NotificationMessageEntry *pre, *pre_tmp;
         LIST_FOREACH_SAFE(pre, &sub->retransmissionQueue, listEntry, pre_tmp) {
@@ -378,7 +397,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Queue the publish response */
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message",
-                 session->authenticationToken.identifier.numeric);
+                         session->authenticationToken.identifier.numeric);
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
