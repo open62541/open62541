@@ -16,27 +16,27 @@ typedef struct UA_Client_NotificationsAckNumber_s {
 } UA_Client_NotificationsAckNumber;
 
 typedef struct UA_Client_MonitoredItem_s {
-    UA_UInt32  MonitoredItemId;
-    UA_UInt32  MonitoringMode;
-    UA_NodeId  monitoredNodeId;
-    UA_UInt32  AttributeID;
-    UA_UInt32  ClientHandle;
-    UA_Double  SamplingInterval;
-    UA_UInt32  QueueSize;
-    UA_Boolean DiscardOldest;
-    void       (*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
-    void       *handlerContext;
     LIST_ENTRY(UA_Client_MonitoredItem_s)  listEntry;
+    UA_UInt32 MonitoredItemId;
+    UA_UInt32 MonitoringMode;
+    UA_NodeId monitoredNodeId;
+    UA_UInt32 AttributeID;
+    UA_UInt32 ClientHandle;
+    UA_Double SamplingInterval;
+    UA_UInt32 QueueSize;
+    UA_Boolean DiscardOldest;
+    void (*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
+    void *handlerContext;
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription_s {
+    LIST_ENTRY(UA_Client_Subscription_s) listEntry;
     UA_UInt32 LifeTime;
     UA_UInt32 KeepAliveCount;
     UA_Double PublishingInterval;
     UA_UInt32 SubscriptionID;
     UA_UInt32 NotificationsPerPublish;
     UA_UInt32 Priority;
-    LIST_ENTRY(UA_Client_Subscription_s) listEntry;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
 
@@ -81,5 +81,7 @@ struct UA_Client {
     UA_ClientConfig config;
     UA_DateTime scRenewAt;
 };
+
+void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub);
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

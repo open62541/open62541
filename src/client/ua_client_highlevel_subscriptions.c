@@ -24,70 +24,85 @@ UA_StatusCode UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSett
     request.maxNotificationsPerPublish = settings.maxNotificationsPerPublish;
     request.publishingEnabled = settings.publishingEnabled;
     request.priority = settings.priority;
-    
+
     UA_CreateSubscriptionResponse response = UA_Client_Service_createSubscription(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
-        LIST_INIT(&newSub->MonitoredItems);
-        newSub->LifeTime = response.revisedLifetimeCount;
-        newSub->KeepAliveCount = response.revisedMaxKeepAliveCount;
-        newSub->PublishingInterval = response.revisedPublishingInterval;
-        newSub->SubscriptionID = response.subscriptionId;
-        newSub->NotificationsPerPublish = request.maxNotificationsPerPublish;
-        newSub->Priority = request.priority;
-        if(newSubscriptionId)
-            *newSubscriptionId = newSub->SubscriptionID;
-        LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
+    if(!newSub) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
     }
-    
+
+    LIST_INIT(&newSub->MonitoredItems);
+    newSub->LifeTime = response.revisedLifetimeCount;
+    newSub->KeepAliveCount = response.revisedMaxKeepAliveCount;
+    newSub->PublishingInterval = response.revisedPublishingInterval;
+    newSub->SubscriptionID = response.subscriptionId;
+    newSub->NotificationsPerPublish = request.maxNotificationsPerPublish;
+    newSub->Priority = request.priority;
+    LIST_INSERT_HEAD(&client->subscriptions, newSub, listEntry);
+
+    if(newSubscriptionId)
+        *newSubscriptionId = newSub->SubscriptionID;
+
+ cleanup:
     UA_CreateSubscriptionResponse_deleteMembers(&response);
     return retval;
 }
 
+/* remove the subscription remotely */
 UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
     UA_Client_Subscription *sub;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->SubscriptionID == subscriptionId)
             break;
     }
-    
-    // Problem? We do not have this subscription registeres. Maybe the server should
-    // be consulted at this point?
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Client_MonitoredItem *mon, *tmpmon;
+    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmpmon) {
+        retval = UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
+                                                             mon->MonitoredItemId);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* remove the subscription remotely */
     UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIdsSize = 1;
-    request.subscriptionIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-    *request.subscriptionIds = sub->SubscriptionID;
-    
-    UA_Client_MonitoredItem *mon, *tmpmon;
-    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmpmon) {
-        retval |= UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
-                                                              mon->MonitoredItemId);
-    }
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_DeleteSubscriptionsRequest_deleteMembers(&request);
+    request.subscriptionIds = &sub->SubscriptionID;
+    UA_DeleteSubscriptionsResponse response = UA_Client_Service_deleteSubscriptions(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 0)
+        retval = response.results[0];
+    UA_DeleteSubscriptionsResponse_deleteMembers(&response);
+
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Could not remove subscription %u with statuscode 0x%08x",
+                    sub->SubscriptionID, retval);
         return retval;
     }
-    
-    UA_DeleteSubscriptionsResponse response = UA_Client_Service_deleteSubscriptions(client, request);
-    if(response.resultsSize > 0)
-        retval = response.results[0];
-    else
-        retval = response.responseHeader.serviceResult;
-    
-    if(retval == UA_STATUSCODE_GOOD) {
-        LIST_REMOVE(sub, listEntry);
-        UA_free(sub);
+
+    UA_Client_Subscriptions_forceDelete(client, sub);
+    return UA_STATUSCODE_GOOD;
+}
+
+void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub) {
+    UA_Client_MonitoredItem *mon, *mon_tmp;
+    LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, mon_tmp) {
+        UA_NodeId_deleteMembers(&mon->monitoredNodeId);
+        LIST_REMOVE(mon, listEntry);
+        UA_free(mon);
     }
-    UA_DeleteSubscriptionsRequest_deleteMembers(&request);
-    UA_DeleteSubscriptionsResponse_deleteMembers(&response);
-    return retval;
+    LIST_REMOVE(sub, listEntry);
+    UA_free(sub);
 }
 
 UA_StatusCode
@@ -134,7 +149,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     /* Create the handler */
     UA_Client_MonitoredItem *newMon = UA_malloc(sizeof(UA_Client_MonitoredItem));
     newMon->MonitoringMode = UA_MONITORINGMODE_REPORTING;
-    UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId); 
+    UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
     newMon->AttributeID = attributeID;
     newMon->ClientHandle = client->monitoredItemHandles;
     newMon->SamplingInterval = sub->PublishingInterval;
@@ -148,7 +163,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Created a monitored item with client handle %u", client->monitoredItemHandles);
-    
+
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
 }
@@ -172,34 +187,29 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     if(!mon)
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* remove the monitoreditem remotely */
+    UA_DeleteMonitoredItemsRequest request;
+    UA_DeleteMonitoredItemsRequest_init(&request);
+    request.subscriptionId = sub->SubscriptionID;
+    request.monitoredItemIdsSize = 1;
+    request.monitoredItemIds = &mon->MonitoredItemId;
+    UA_DeleteMonitoredItemsResponse response = UA_Client_Service_deleteMonitoredItems(client, request);
 
-    if(client->state == UA_CLIENTSTATE_CONNECTED) {
-        UA_DeleteMonitoredItemsRequest request;
-        UA_DeleteMonitoredItemsRequest_init(&request);
-        request.subscriptionId = sub->SubscriptionID;
-        request.monitoredItemIdsSize = 1;
-        request.monitoredItemIds = (UA_UInt32 *) UA_malloc(sizeof(UA_UInt32));
-        request.monitoredItemIds[0] = mon->MonitoredItemId;
-
-        UA_DeleteMonitoredItemsResponse response = UA_Client_Service_deleteMonitoredItems(client, request);
-
-        if(response.resultsSize > 1)
-            retval = response.results[0];
-        else
-            retval = response.responseHeader.serviceResult;
-
-        UA_DeleteMonitoredItemsRequest_deleteMembers(&request);
-        UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 1)
+        retval = response.results[0];
+    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Could not remove monitoreditem %u with statuscode 0x%08x",
+                    monitoredItemId, retval);
+        return retval;
     }
-    
-    if(retval == UA_STATUSCODE_GOOD) {
-        LIST_REMOVE(mon, listEntry);
-        UA_NodeId_deleteMembers(&mon->monitoredNodeId);
-        UA_free(mon);
-    }
-    
-    return retval;
+
+    LIST_REMOVE(mon, listEntry);
+    UA_NodeId_deleteMembers(&mon->monitoredNodeId);
+    UA_free(mon);
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
