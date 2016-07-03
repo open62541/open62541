@@ -46,8 +46,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
        not, clone the endpoints with the discovery url of all networklayers. */
     const UA_String *endpointUrl = &request->endpointUrl;
     if(endpointUrl->length > 0) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest with endpointUrl \"%.*s\"",
-                             endpointUrl->length, endpointUrl->data);
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest with endpointUrl " \
+                             UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
     } else {
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing GetEndpointsRequest with an empty endpointUrl");
     }

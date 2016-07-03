@@ -106,12 +106,15 @@ typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char
  * Convenience macros for complex types
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #define UA_PRINTF_GUID_FORMAT "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
-#define UA_PRINTF_GUID_DATA(PREFIX) PREFIX.identifier.guid.data1, PREFIX.identifier.guid.data2, \
-        PREFIX.identifier.guid.data3, PREFIX.identifier.guid.data4[0],  \
-        PREFIX.identifier.guid.data4[1], PREFIX.identifier.guid.data4[2], \
-        PREFIX.identifier.guid.data4[3], PREFIX.identifier.guid.data4[4], \
-        PREFIX.identifier.guid.data4[5], PREFIX.identifier.guid.data4[6], \
-        PREFIX.identifier.guid.data4[7]
+#define UA_PRINTF_GUID_DATA(GUID) (GUID).identifier.guid.data1, (GUID).identifier.guid.data2, \
+        (GUID).identifier.guid.data3, (GUID).identifier.guid.data4[0],  \
+        (GUID).identifier.guid.data4[1], (GUID).identifier.guid.data4[2], \
+        (GUID).identifier.guid.data4[3], (GUID).identifier.guid.data4[4], \
+        (GUID).identifier.guid.data4[5], (GUID).identifier.guid.data4[6], \
+        (GUID).identifier.guid.data4[7]
+
+#define UA_PRINTF_STRING_FORMAT "\"%.*s\""
+#define UA_PRINTF_STRING_DATA(STRING) (STRING).length, (STRING).data
 
 #ifdef __cplusplus
 } // extern "C"
