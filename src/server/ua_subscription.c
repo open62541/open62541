@@ -95,28 +95,34 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         return;
     }
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | Sampling the value",
-                         sub->subscriptionID, monitoredItem->itemId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+                         "Sampling the value", sub->subscriptionID, monitoredItem->itemId);
 
-    /* do we have space in the queue? */
+    /* Do we have space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
-        if(!monitoredItem->discardOldest) {
-            // We cannot remove the oldest value and theres no queue space left. We're done here.
+        MonitoredItem_queuedValue *queueItem;
+        if(monitoredItem->discardOldest)
+            queueItem = TAILQ_FIRST(&monitoredItem->queue);
+        else
+            queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
+
+        if(!queueItem) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+                                   "Cannot remove an element from the full queue. Internal error!",
+                                   sub->subscriptionID, monitoredItem->itemId);
             UA_ByteString_deleteMembers(&newValueAsByteString);
             UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             return;
         }
-        MonitoredItem_queuedValue *queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
-        if (queueItem != NULL) {
-          TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
-          UA_DataValue_deleteMembers(&queueItem->value);
-          UA_free(queueItem);
-          monitoredItem->currentQueueSize--;
-        }
+
+        TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
+        UA_DataValue_deleteMembers(&queueItem->value);
+        UA_free(queueItem);
+        monitoredItem->currentQueueSize--;
     }
 
-    /* if the read request returned a datavalue pointing into the nodestore, we
+    /* If the read request returned a datavalue pointing into the nodestore, we
        must make a copy to keep the datavalue across mainloop iterations */
     if(newvalue->value.hasValue && newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
         UA_Variant tempv = newvalue->value.value;
