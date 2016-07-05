@@ -310,11 +310,8 @@ static const char* inet_ntop(int af, const void* src, char* dst, int cnt) {
     memset(&srcaddr, 0, sizeof(struct sockaddr_in));
     memcpy(&srcaddr.sin_addr, src, sizeof(srcaddr.sin_addr));
     srcaddr.sin_family = af;
-    if(WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
-        DWORD rv = WSAGetLastError();
-        printf("WSAAddressToString() : %d\n", rv);
+    if(WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0)
         return NULL;
-    }
     return dst;
 }
 #endif
@@ -331,9 +328,11 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     if(res == 0) {
         char addr_str[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr.sin_addr, addr_str, INET_ADDRSTRLEN);
-        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
-                    newsockfd, addr_str, ntohs(addr.sin_port));
+        if(inet_ntop(AF_INET, &addr.sin_addr, addr_str, INET_ADDRSTRLEN))
+            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
+                newsockfd, addr_str, ntohs(addr.sin_port));
+        else
+            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Could not look up the peer name", newsockfd);
     } else {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP, getpeername failed with errno %i",
                        newsockfd, errno);
