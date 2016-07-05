@@ -314,8 +314,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     socklen_t addrlen = sizeof(struct sockaddr_in);
     int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     if(res == 0) {
+        char addr_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &addr.sin_addr, addr_str, INET_ADDRSTRLEN);
         UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
-                    newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    newsockfd, addr_str, ntohs(addr.sin_port));
     } else {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP, getpeername failed with errno %i",
                        newsockfd, errno);
@@ -569,11 +571,17 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
 UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, UA_Logger logger) {
+#ifdef _WIN32
+    WORD wVersionRequested;
+    WSADATA wsaData;
+    wVersionRequested = MAKEWORD(2, 2);
+    WSAStartup(wVersionRequested, &wsaData);
+#endif
+
     UA_Connection connection;
     UA_Connection_init(&connection);
     connection.localConf = localConf;
 
-    //socket_set_nonblocking(connection.sockfd);
     connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;
@@ -591,50 +599,48 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         return connection;
     }
 
+    /* where does the port begin? */
     UA_UInt16 portpos = 9;
-    UA_UInt16 port;
-    for(port = 0; portpos < urlLength-1; portpos++) {
-        if(endpointUrl[portpos] == ':') {
-            char *endPtr = NULL;
-            unsigned long int tempulong = strtoul(&endpointUrl[portpos+1], &endPtr, 10);
-            if (ERANGE != errno && tempulong < UINT16_MAX && endPtr != &endpointUrl[portpos+1])
-                port = (UA_UInt16)tempulong;
+    for(; portpos < urlLength-1; portpos++) {
+        if(endpointUrl[portpos] == ':')
             break;
-        }
-    }
-    if(port == 0) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Port invalid");
-        return connection;
     }
 
     char hostname[512];
-    for(int i=10; i < portpos; i++)
-        hostname[i-10] = endpointUrl[i];
+    memcpy(hostname, &endpointUrl[10], portpos - 10);
     hostname[portpos-10] = 0;
+
+    const char *port = "4842";
+    if(portpos < urlLength - 1)
+        port = &endpointUrl[portpos + 1];
+    else
+        UA_LOG_INFO((*logger), UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);     
+
+    struct addrinfo hints, *server;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET;
+    int error = getaddrinfo(hostname, port, &hints, &server);
+    if(error != 0 || !server) {
+        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
+        return connection;
+    }
+
+    connection.sockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
 #ifdef _WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(2, 2);
-    WSAStartup(wVersionRequested, &wsaData);
-    if((connection.sockfd = socket(PF_INET, SOCK_STREAM,0)) == (UA_Int32)INVALID_SOCKET) {
+    if(connection.sockfd == (UA_Int32)INVALID_SOCKET) {
 #else
-    if((connection.sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    if(connection.sockfd == -1) {
 #endif
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Could not create socket");
+        freeaddrinfo(server);
         return connection;
     }
-    struct hostent *server = gethostbyname(hostname);
-    if(!server) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed", hostname);
-        return connection;
-    }
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    memcpy((char *)&server_addr.sin_addr.s_addr, (char *)server->h_addr_list[0], (size_t)server->h_length);
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
+
     connection.state = UA_CONNECTION_OPENING;
-    if(connect(connection.sockfd, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+    error = connect(connection.sockfd, server->ai_addr, server->ai_addrlen);
+    freeaddrinfo(server);
+    if(error < 0) {
         ClientNetworkLayerClose(&connection);
         UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Connection failed");
         return connection;
