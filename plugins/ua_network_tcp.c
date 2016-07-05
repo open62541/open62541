@@ -600,7 +600,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     }
 
     /* where does the port begin? */
-    UA_UInt16 portpos = 9;
+    size_t portpos = 9;
     for(; portpos < urlLength-1; portpos++) {
         if(endpointUrl[portpos] == ':')
             break;
