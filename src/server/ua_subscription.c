@@ -46,16 +46,16 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "MonitoredItem %i | "
-                     "Cannot process a monitoreditem that is not a data change notification",
-                     monitoredItem->itemId);
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
+                             "Cannot process a monitoreditem that is not a data change notification",
+                             sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "MonitoredItem %i | "
-                            "Skipped a sample due to lack of memory", monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
+                               "Skipped a sample due to lack of memory", sub->subscriptionID, monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -114,6 +114,13 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
           UA_free(queueItem);
           monitoredItem->currentQueueSize--;
         }
+    }
+
+    /* if the read request returned a datavalue pointing into the nodestore, we
+       must make a copy to keep the datavalue across mainloop iterations */
+    if(newvalue->value.hasValue && newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
+        UA_Variant tempv = newvalue->value.value;
+        UA_Variant_copy(&tempv, &newvalue->value.value);
     }
 
     /* add the sample */
@@ -289,6 +296,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         UA_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
             MonitoredItem_queuedValue *qv, *qv_tmp;
+            size_t mon_l = 0;
             TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
                 if(notifications <= l)
                     break;
@@ -298,8 +306,12 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                 TAILQ_REMOVE(&mon->queue, qv, listEntry);
                 UA_free(qv);
                 mon->currentQueueSize--;
-                l++;
+                mon_l++;
             }
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | " \
+                                 "Adding %u notifications to the publish response. %u notifications remain in the queue",
+                                 sub->subscriptionID, mon->itemId, mon_l, mon->currentQueueSize);
+            l += mon_l;
         }
         data->encoding = UA_EXTENSIONOBJECT_DECODED;
         data->content.decoded.data = dcn;

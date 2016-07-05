@@ -32,7 +32,7 @@ typedef struct UA_MonitoredItem {
     UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
-    UA_NodeId monitoredNodeId; 
+    UA_NodeId monitoredNodeId;
     UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
     UA_Double samplingInterval; // [ms]
