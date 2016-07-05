@@ -303,6 +303,22 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
     shutdown(connection->sockfd, 2);
 }
 
+#ifdef __MINGW32__
+/* MinGW comes without inet_ntop*/
+static const char* inet_ntop(int af, const void* src, char* dst, int cnt) {
+    struct sockaddr_in srcaddr;
+    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
+    memcpy(&srcaddr.sin_addr, src, sizeof(srcaddr.sin_addr));
+    srcaddr.sin_family = af;
+    if(WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0) {
+        DWORD rv = WSAGetLastError();
+        printf("WSAAddressToString() : %d\n", rv);
+        return NULL;
+    }
+    return dst;
+}
+#endif
+
 /* call only from the single networking thread */
 static UA_StatusCode
 ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
