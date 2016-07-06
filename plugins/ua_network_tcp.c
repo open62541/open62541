@@ -361,7 +361,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     UA_String_copy(&du, &nl->discoveryUrl);
 
     /* Create the server socket */
-    SOCKET newsock = socket(PF_INET, SOCK_STREAM,0);
+    SOCKET newsock = socket(PF_INET, SOCK_STREAM, 0);
 #ifdef _WIN32
     if(newsock == INVALID_SOCKET)
 #else
@@ -419,15 +419,18 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     /* accept new connections (can only be a single one) */
     if(UA_fd_isset(layer->serversockfd, &fdset)) {
         resultsize--;
-        struct sockaddr_in cli_addr;
-        socklen_t cli_len = sizeof(cli_addr);
-        SOCKET newsockfd = accept(layer->serversockfd, (struct sockaddr *) &cli_addr, &cli_len);
-        if(newsockfd >= 0) {
+        SOCKET newsockfd = accept(layer->serversockfd, NULL, NULL);
+#ifdef _WIN32
+        if(newsockfd != INVALID_SOCKET)
+#else
+        if(newsockfd >= 0)
+#endif
+        {
+            socket_set_nonblocking(newsockfd);
             /* Send messages directly and do wait to merge packets (disable Nagle's algorithm) */
             int i = 1;
             setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
-            socket_set_nonblocking(newsockfd);
-            ServerNetworkLayerTCP_add(layer, newsockfd);
+            ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd);
         }
     }
 
@@ -626,17 +629,20 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         return connection;
     }
 
-    connection.sockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
+    /* Get a socket */
+    SOCKET clientsockfd = socket(server->ai_family, server->ai_socktype, server->ai_protocol);
 #ifdef _WIN32
-    if(connection.sockfd == (UA_Int32)INVALID_SOCKET) {
+    if(clientsockfd == INVALID_SOCKET) {
 #else
-    if(connection.sockfd == -1) {
+    if(clientsockfd < 0) {
 #endif
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Could not create socket");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Could not create client socket");
         freeaddrinfo(server);
         return connection;
     }
+    connection.sockfd = (UA_Int32)clientsockfd;
 
+    /* Connect to the server */
     connection.state = UA_CONNECTION_OPENING;
     error = connect(connection.sockfd, server->ai_addr, server->ai_addrlen);
     freeaddrinfo(server);
