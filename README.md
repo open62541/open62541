@@ -36,8 +36,6 @@ With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server
 #include <signal.h>
 #include "open62541.h"
 
-#define PORT 16664
-
 UA_Boolean running = true;
 void signalHandler(int sig) {
     running = false;
@@ -45,12 +43,11 @@ void signalHandler(int sig) {
 
 int main(int argc, char** argv)
 {
-    /* catch ctrl-c */
-    signal(SIGINT, signalHandler);
+    signal(SIGINT, signalHandler); /* catch ctrl-c */
 
-    /* init the server */
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT);
+    /* create a server with one networklayer listening on port 4840 */
     UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
@@ -91,7 +88,7 @@ int main(int argc, char *argv[])
 {
     /* create a client and connect */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
