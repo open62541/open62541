@@ -3,17 +3,18 @@
 
 # ifdef __MINGW32__
 /* Assume the target is at least Windows Vista */
-#define WINVER 0x0600
-#define _WIN32_WINDOWS 0x0600
-#define _WIN32_WINNT 0x0600
+# define WINVER 0x0600
+# define _WIN32_WINDOWS 0x0600
+# define _WIN32_WINNT 0x0600
 #endif
+
+#include "ua_network_tcp.h"
 
 #include <stdlib.h> // malloc, free
 #include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
-#if defined(_WIN32)
-# define  _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated but used for compatibility */
+#ifdef _WIN32
 # include <malloc.h>
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket(S)
@@ -25,6 +26,7 @@
 # include <sys/ioctl.h>
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
+# include <netdb.h>
 # define CLOSESOCKET(S) close(S)
 # ifdef __QNX__
 #  include <sys/socket.h>
@@ -34,10 +36,8 @@
 # endif
 #endif
 
-#include "ua_network_tcp.h"
-
 /* workaround a glibc bug where an integer conversion is required */
-#if !defined(_WIN32)
+#ifdef _WIN32
 # if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
 #  define UA_fd_set(fd, fds) FD_SET(fd, fds)
 #  define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
@@ -617,7 +617,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     if(portpos < urlLength - 1)
         port = &endpointUrl[portpos + 1];
     else
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);     
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
