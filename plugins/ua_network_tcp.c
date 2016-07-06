@@ -1,35 +1,40 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "ua_network_tcp.h"
+# ifdef __MINGW32__
+/* Assume the target is at least Windows Vista */
+#define WINVER 0x0600
+#define _WIN32_WINDOWS 0x0600
+#define _WIN32_WINNT 0x0600
+#endif
 
 #include <stdlib.h> // malloc, free
 #include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
-
-#ifdef _WIN32
+#if defined(_WIN32)
+# define  _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated but used for compatibility */
 # include <malloc.h>
-# include <winsock2.h>
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket(S)
 # define ssize_t long
 #else
-# include <fcntl.h>
-# include <sys/select.h>
-# include <netinet/in.h>
-# ifndef __CYGWIN__
-#  include <netinet/tcp.h>
-# endif
-# include <sys/ioctl.h>
-# include <netdb.h> //gethostbyname for the client
-# include <unistd.h> // read, write, close
 # include <arpa/inet.h>
+# include <netinet/in.h>
+# include <sys/select.h>
+# include <sys/ioctl.h>
+# include <fcntl.h>
+# include <unistd.h> // read, write, close
+# define CLOSESOCKET(S) close(S)
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
-# define CLOSESOCKET(S) close(S)
+# ifndef __CYGWIN__
+#  include <netinet/tcp.h>
+# endif
 #endif
+
+#include "ua_network_tcp.h"
 
 /* workaround a glibc bug where an integer conversion is required */
 #if !defined(_WIN32)
@@ -303,19 +308,6 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
     shutdown(connection->sockfd, 2);
 }
 
-#ifdef __MINGW32__
-/* MinGW comes without inet_ntop*/
-static const char* inet_ntop(int af, const void* src, char* dst, int cnt) {
-    struct sockaddr_in srcaddr;
-    memset(&srcaddr, 0, sizeof(struct sockaddr_in));
-    memcpy(&srcaddr.sin_addr, src, sizeof(srcaddr.sin_addr));
-    srcaddr.sin_family = af;
-    if(WSAAddressToString((struct sockaddr*) &srcaddr, sizeof(struct sockaddr_in), 0, dst, (LPDWORD)&cnt) != 0)
-        return NULL;
-    return dst;
-}
-#endif
-
 /* call only from the single networking thread */
 static UA_StatusCode
 ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
@@ -327,12 +319,8 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     socklen_t addrlen = sizeof(struct sockaddr_in);
     int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     if(res == 0) {
-        char addr_str[INET_ADDRSTRLEN];
-        if(inet_ntop(AF_INET, &addr.sin_addr, addr_str, INET_ADDRSTRLEN))
-            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
-                newsockfd, addr_str, ntohs(addr.sin_port));
-        else
-            UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Could not look up the peer name", newsockfd);
+        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP from %s:%d",
+            newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     } else {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | New connection over TCP, getpeername failed with errno %i",
                        newsockfd, errno);
