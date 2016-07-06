@@ -22,9 +22,11 @@
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket((SOCKET)S)
 # define ssize_t int
+# define WIN32_INT (int)
 #else
 # define CLOSESOCKET(S) close(S)
 # define SOCKET int
+# define WIN32_INT
 # include <arpa/inet.h>
 # include <netinet/in.h>
 # include <sys/select.h>
@@ -77,13 +79,11 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
         do {
         /* If the OS throws EMSGSIZE, force a smaller packet size:
          * size_t bytes_to_send = buf->length - nWritten >  1024 ? 1024 : buf->length - nWritten; */
+            size_t bytes_to_send = buf->length - nWritten;
+            n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten, WIN32_INT bytes_to_send, 0);
 #ifdef _WIN32
-            int bytes_to_send = (int)(buf->length - nWritten);
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten, bytes_to_send, 0);
             if(n < 0 && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK)
 #else
-            size_t bytes_to_send = buf->length - nWritten;
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten, bytes_to_send, 0);
             if(n == -1L && errno != EINTR && errno != EAGAIN)
 #endif
             {
@@ -646,7 +646,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     /* Connect to the server */
     connection.state = UA_CONNECTION_OPENING;
     connection.sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
-    error = connect(clientsockfd, server->ai_addr, server->ai_addrlen);
+    error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
     freeaddrinfo(server);
     if(error < 0) {
         ClientNetworkLayerClose(&connection);
