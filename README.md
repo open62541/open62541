@@ -72,10 +72,10 @@ int main(int argc, char** argv)
                               browseName, variableType, attr, NULL, NULL);
 
     /* run the server loop */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode status = UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return retval;
+    return status;
 }
 ```
 
@@ -88,36 +88,22 @@ int main(int argc, char *argv[])
 {
     /* create a client and connect */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return status;
     }
 
-    /* create a readrequest with one entry */
-    UA_ReadRequest req;
-    UA_ReadRequest_init(&req);
-    req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-    req.nodesToReadSize = 1;
+    /* read the value attribute of the node into the val variable */
+    UA_Variant *val = UA_Variant_new();
+    status = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), val);
+    if(status == UA_STATUSCODE_GOOD && UA_Variant_isScalar(val) &&
+       val->type == &UA_TYPES[UA_TYPES_INT32]) {
+            printf("the value is: %i\n", *(UA_Int32*)val->data);
+    }
 
-    /* define the node and attribute to be read */
-    req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
-    req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-    /* call the service and print the result */
-    UA_ReadResponse resp = UA_Client_Service_read(client, req);
-    if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-       resp.resultsSize > 0 && resp.results[0].hasValue &&
-       UA_Variant_isScalar(&resp.results[0].value) &&
-       resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
-           UA_Int32 *value = (UA_Int32*)resp.results[0].value.data;
-           printf("the value is: %i\n", *value);
-   }
-
-    UA_ReadRequest_deleteMembers(&req);
-    UA_ReadResponse_deleteMembers(&resp);
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    UA_Variant_delete(val);
+    UA_Client_delete(client); /* disconnects the client first */
+    return status;
 }
 ```
