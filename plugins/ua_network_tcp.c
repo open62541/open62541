@@ -42,18 +42,13 @@
 # endif
 #endif
 
-/* workaround a glibc bug where an integer conversion is required */
-#ifdef _WIN32
-# if defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ >= 6) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 16)
-#  define UA_fd_set(fd, fds) FD_SET(fd, fds)
-#  define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
-# else
-#  define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-#  define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-# endif
-#else
+/* unsigned int for windows and workaround to a glibc bug */
+#if defined(_WIN32) || (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16))
 # define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 # define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
+#else
+# define UA_fd_set(fd, fds) FD_SET(fd, fds)
+# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
