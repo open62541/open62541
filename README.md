@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     status = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), val);
     if(status == UA_STATUSCODE_GOOD && UA_Variant_isScalar(val) &&
        val->type == &UA_TYPES[UA_TYPES_INT32]) {
-            printf("the value is: %i\n", *(UA_Int32*)val->data);
+        printf("the value is: %i\n", *(UA_Int32*)val->data);
     }
 
     UA_Variant_delete(val);

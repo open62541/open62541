@@ -38,8 +38,8 @@ Building with CMake on Ubuntu or Debian
 Building with CMake on Windows
 ------------------------------
 
-Here we explain the build process for Visual Studio. To build with MinGW, just
-replace the compiler selection in the call to CMake.
+Here we explain the build process for Visual Studio (2013 or newer). To build
+with MinGW, just replace the compiler selection in the call to CMake.
 
 - Download and install
 
