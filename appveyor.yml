@@ -12,13 +12,14 @@ before_build:
 - ps: $exePath = "C:\cygwin\setup-x86.exe"; (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
 build_script: 
 - cd c:\projects\open62541
-- md build
-- cd build
-- echo "Testing cygwin"
-- C:\cygwin\setup-x86.exe -q -P cmake,gcc-core,make,python
-- cmd: '%CYG_ROOT%/bin/bash --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" ..; make"'
-- cd ..
-- rd /s /q build
+# cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
+#- md build
+#- cd build
+#- echo "Testing cygwin"
+#- C:\cygwin\setup-x86.exe -q -P cmake,gcc-core,make,python
+#- cmd: '%CYG_ROOT%/bin/bash --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" ..; make"'
+#- cd ..
+#- rd /s /q build
 - md build
 - cd build
 - echo "Testing MinGW32"
