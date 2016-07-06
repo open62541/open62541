@@ -594,11 +594,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
 
     size_t urlLength = strlen(endpointUrl);
     if(urlLength < 11 || urlLength >= 512) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Server url size invalid");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
         return connection;
     }
     if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
         return connection;
     }
 
@@ -617,7 +617,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     if(portpos < urlLength - 1)
         port = &endpointUrl[portpos + 1];
     else
-        UA_LOG_INFO((*logger), UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);     
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);     
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
@@ -625,7 +625,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     hints.ai_family = AF_INET;
     int error = getaddrinfo(hostname, port, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
         return connection;
     }
 
@@ -635,7 +635,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
 #else
     if(connection.sockfd == -1) {
 #endif
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Could not create socket");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Could not create socket");
         freeaddrinfo(server);
         return connection;
     }
@@ -645,14 +645,14 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     freeaddrinfo(server);
     if(error < 0) {
         ClientNetworkLayerClose(&connection);
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Connection failed");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Connection failed");
         return connection;
     }
 
 #ifdef SO_NOSIGPIPE
     int val = 1;
     if(setsockopt(connection.sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void*)&val, sizeof(val)) < 0) {
-        UA_LOG_WARNING((*logger), UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Couldn't set SO_NOSIGPIPE");
         return connection;
     }
 #endif
