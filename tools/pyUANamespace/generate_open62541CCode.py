@@ -3,7 +3,7 @@
 
 ###
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
+### Version: rev 14
 ###
 ### This program was created for educational purposes and has been
 ### contributed to the open62541 project by the author. All licensing
@@ -17,96 +17,67 @@
 ###
 
 from __future__ import print_function
-from sys import argv, exit
-from os import path
 from ua_namespace import *
 import logging
+import argparse
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
 
 logger = logging.getLogger(__name__)
 
-def usage():
-  print("Script usage:")
-  print("generate_open62541CCode [-i <ignorefile> | -b <blacklistfile>] <namespace XML> [namespace.xml[ namespace.xml[...]]] <output file>\n")
-  print("generate_open62541CCode will first read all XML files passed on the command line, then ")
-  print("link and check the namespace. All nodes that fullfill the basic requirements will then be")
-  print("printed as C-Code intended to be included in the open62541 OPC-UA Server that will")
-  print("initialize the corresponding name space.\n")
-  print("Manditory Arguments:")
-  print("<namespace XML>    At least one Namespace XML file must be passed.")
-  print("<output file>      The basename for the <output file>.c and <output file>.h files to be generated.")
-  print("                   This will also be the function name used in the header and c-file.\n\n")
-  print("Additional Arguments:")
-  print("""   -i <ignoreFile>     Loads a list of NodeIDs stored in ignoreFile (one NodeID per line)
-                       The compiler will assume that these Nodes have been created externally
-                       and not generate any code for them. They will however be linked to
-                       from other nodes.""")
-  print("""   -b <blacklistFile>  Loads a list of NodeIDs stored in blacklistFile (one NodeID per line)
-                       Any of the nodeIds encountered in this file will be removed from the namespace
-                       prior to compilation. Any references to these nodes will also be removed""")
-  print("""   -s <attribute>  Suppresses the generation of some node attributes. Currently supported
-                       options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask'
-                       and 'nodeid'.""")
-  print("""   namespaceXML Any number of namespace descriptions in XML format. Note that the
-                       last description of a node encountered will be used and all prior definitions
-                       are discarded.""")
+parser = argparse.ArgumentParser(
+    description="""Parse OPC UA NamespaceXML file(s) and create C code for generating nodes in open62541
+
+generate_open62541CCode.py will first read all XML files passed on the command line, then link and check the namespace. All nodes that fulfill the basic requirements will then be printed as C-Code intended to be included in the open62541 OPC UA Server that will initialize the corresponding namespace.""",
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('infiles',
+                    metavar="<namespaceXML>",
+                    nargs='+',
+                    type=argparse.FileType('r'),
+                    help='Namespace XML file(s). Note that the last definition of a node encountered will be used and all prior definitions are discarded.')
+parser.add_argument('outputFile',
+                    metavar='<outputFile>',
+                    #type=argparse.FileType('w', 0),
+                    help='The basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
+parser.add_argument('-i','--ignore',
+                    metavar="<ignoreFile>",
+                    type=argparse.FileType('r'),
+                    action='append',
+                    dest="ignoreFiles",
+                    default=[],
+                    help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). The compiler will assume that these Nodes have been creathed externally and not generate any code for them. They will however be linked to from other nodes.')
+parser.add_argument('-b','--blacklist',
+                    metavar="<blacklistFile>",
+                    type=argparse.FileType('r'),
+                    action='append',
+                    dest="blacklistFiles",
+                    default=[],
+                    help='Loads a list of NodeIDs stored in blacklistFile (one NodeID per line). Any of the nodeIds encountered in this file will be removed from the namespace prior to compilation. Any references to these nodes will also be removed')
+parser.add_argument('-s','--suppress',
+                    metavar="<attribute>",
+                    action='append',
+                    dest="suppressedAttributes",
+                    choices=['description', 'browseName', 'displayName', 'writeMask', 'userWriteMask','nodeid'],
+                    default=[],
+                    help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
+
+parser.add_argument('-v','--verbose', action='count', help='Make the script more verbose. Can be applied up to 4 times')
 
 
 
 if __name__ == '__main__':
-  # Check if the parameters given correspond to actual files
-  infiles = []
-  ouffile = ""
-  ignoreFiles = []
-  blacklistFiles = []
-  supressGenerationOfAttribute=[]
+  args = parser.parse_args()
 
-  arg_isIgnore    = False
-  arg_isBlacklist = False
-  arg_isSupress   = False
-
-  logging.basicConfig(level=logging.ERROR)
-
+  level= logging.CRITICAL
+  if (args.verbose==1):
+    level = logging.ERROR
+  elif (args.verbose==2):
+    level = logging.WARNING
+  elif (args.verbose==3):
+    level = logging.INFO
+  elif (args.verbose>=4):
+    level = logging.DEBUG
+  logging.basicConfig(level=level)
   logger.setLevel(logging.INFO)
-
-
-
-  if len(argv) < 2:
-    usage()
-    exit(1)
-  for filename in argv[1:-1]:
-    if arg_isIgnore:
-      arg_isIgnore = False
-      if path.exists(filename):
-        ignoreFiles.append(filename)
-      else:
-        logger.error("File " + str(filename) + " does not exist.")
-        usage()
-        exit(1)
-    elif arg_isBlacklist:
-      arg_isBlacklist = False
-      if path.exists(filename):
-        blacklistFiles.append(filename)
-      else:
-        logger.error("File " + str(filename) + " does not exist.")
-        usage()
-        exit(1)
-    elif arg_isSupress:
-      arg_isSupress = False
-      supressGenerationOfAttribute.append(filename.lower())
-    else:
-      if path.exists(filename):
-        infiles.append(filename)
-      elif filename.lower() == "-i" or filename.lower() == "--ignore" :
-        arg_isIgnore = True
-      elif filename.lower() == "-b" or filename.lower() == "--blacklist" :
-        arg_isBlacklist = True
-      elif filename.lower() == "-s" or filename.lower() == "--suppress" :
-        arg_isSupress = True
-      else:
-        logger.error("File " + str(filename) + " does not exist.")
-        usage()
-        exit(1)
 
   # Creating the header is tendious. We can skip the entire process if
   # the header exists.
@@ -116,8 +87,8 @@ if __name__ == '__main__':
   #  exit(0)
 
   # Open the output file
-  outfileh = open(argv[-1]+".h", r"w+")
-  outfilec = open(argv[-1]+".c", r"w+")
+  outfileh = open(args.outputFile+".h", r"w+")
+  outfilec = open(args.outputFile+".c", r"w+")
 
   # Create a new namespace
   # Note that the name is actually completely symbolic, it has no other
@@ -128,9 +99,9 @@ if __name__ == '__main__':
 
   # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
   preProc = open62541_XMLPreprocessor()
-  for xmlfile in infiles:
-    logger.info("Preprocessing " + str(xmlfile))
-    preProc.addDocument(xmlfile)
+  for xmlfile in args.infiles:
+    logger.info("Preprocessing " + str(xmlfile.name))
+    preProc.addDocument(xmlfile.name)
   preProc.preprocessAll()
 
   for xmlfile in preProc.getPreProcessedFiles():
@@ -149,7 +120,7 @@ if __name__ == '__main__':
   # Remove blacklisted nodes from the namespace
   # Doing this now ensures that unlinkable pointers will be cleanly removed
   # during sanitation.
-  for blacklist in blacklistFiles:
+  for blacklist in args.blacklistFiles:
     bl = open(blacklist, "r")
     for line in bl.readlines():
       line = line.replace(" ","")
@@ -186,7 +157,7 @@ if __name__ == '__main__':
   # converted to C-Code. That way, they will still be reffered to by other nodes, but
   # they will not be created themselves.
   ignoreNodes = []
-  for ignore in ignoreFiles:
+  for ignore in args.ignoreFiles:
     ig = open(ignore, "r")
     for line in ig.readlines():
       line = line.replace(" ","")
@@ -200,7 +171,7 @@ if __name__ == '__main__':
   # Create the C Code
   logger.info("Generating Header")
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-  generatedCode=ns.printOpen62541Header(ignoreNodes, supressGenerationOfAttribute, outfilename=path.basename(argv[-1]))
+  generatedCode=ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=args.outputFile)
   for line in generatedCode[0]:
     outfileh.write(line+"\n")
   for line in generatedCode[1]:
