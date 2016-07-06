@@ -14,7 +14,7 @@ open62541 is licensed under the LGPL with static linking exception. That means *
 ### Using open62541
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
-To use the latest improvements, download a recent build of the *single-file distributions* (the entire library merged into a single source and header file) from http://open62541.org/releases.
+To use the latest improvements, download a recent build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases.
 Recent MSVC binaries of the library are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
 
 
@@ -30,8 +30,8 @@ As an open source project, we invite new contributors to help improving open6254
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
-Compile the examples with the single file distribution `open62541.*` header and source files.
-With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
+Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
+Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
 #include "open62541.h"
