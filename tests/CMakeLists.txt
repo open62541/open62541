@@ -20,7 +20,9 @@ if(UA_ENABLE_MULTITHREADING)
     list(APPEND LIBS urcu-cds urcu urcu-common)
 endif()
 
-add_definitions(-Wno-sign-conversion)
+if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+    add_definitions(-Wno-sign-conversion)
+endif()
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library

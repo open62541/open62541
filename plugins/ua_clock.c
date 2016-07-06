@@ -38,7 +38,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     LARGE_INTEGER freq, ticks;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME / freq.QuadPart;
+    UA_Double ticks2dt = UA_SEC_TO_DATETIME / (UA_Double)freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 #elif defined(__APPLE__) || defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
