@@ -5,7 +5,7 @@
 /* Assume the target is newer than Windows XP */
 # undef WINVER
 # undef _WIN32_WINDOWS
-# unddef _WIN32_WINNT
+# undef _WIN32_WINNT
 # define WINVER 0x0501
 # define _WIN32_WINDOWS 0x0501
 # define _WIN32_WINNT 0x0501
