@@ -1,11 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-# ifdef __MINGW32__
-/* Assume the target is at least Windows Vista */
-# define WINVER 0x0600
-# define _WIN32_WINDOWS 0x0600
-# define _WIN32_WINNT 0x0600
+#if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
+/* Assume the target is newer than Windows XP */
+# undef WINVER
+# undef _WIN32_WINDOWS
+# unddef _WIN32_WINNT
+# define WINVER 0x0501
+# define _WIN32_WINDOWS 0x0501
+# define _WIN32_WINNT 0x0501
 #endif
 
 #include "ua_network_tcp.h"
