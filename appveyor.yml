@@ -8,6 +8,9 @@ before_build:
 # Workaround for CMake not wanting sh.exe on PATH for MinGW
 - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 - set PATH=C:\MinGW\bin;%PATH%
+# Update Cygwin
+- $exePath = "C:\cygwin\setup-x86.exe"
+- (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
 build_script:
 - cd c:\projects\open62541
 - md build
