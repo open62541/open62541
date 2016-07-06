@@ -9,9 +9,8 @@ before_build:
 - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 - set PATH=C:\MinGW\bin;%PATH%
 # Update Cygwin
-- $exePath = "C:\cygwin\setup-x86.exe"
-- (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
-build_script:
+- ps: $exePath = "C:\cygwin\setup-x86.exe"; (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
+build_script: 
 - cd c:\projects\open62541
 - md build
 - cd build
