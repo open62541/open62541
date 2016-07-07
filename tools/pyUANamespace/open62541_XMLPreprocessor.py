@@ -360,7 +360,7 @@ class open62541_XMLPreprocessor:
         logger.warn("Best match (" + str(best[1]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
         doc.reassignReferencedNamespaceId(d, best[1].getNamespaceId())
       else:
-        log(self, "Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d) ,LOG_LEVEL_ERROR )
+        logger.error("Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d))
 
   def preprocessAll(self):
     ##

@@ -163,12 +163,12 @@ class opcua_value_t():
       t = opcua_BuiltinType_xmlelement_t(self.parent)
       t.setEncodingRule(encodingRule)
     else:
-      log(self, "No class representing stringName " + stringName + " was found. Cannot create builtinType.")
+      logger.debug("No class representing stringName " + stringName + " was found. Cannot create builtinType.")
       return None
     return t
 
   def parseXML(self, xmlvalue):
-    log(self, "parsing xmlvalue for " + self.parent.browseName() + " (" + str(self.parent.id()) + ") according to " + str(self.parent.dataType().target().getEncoding()))
+    logger.debug("parsing xmlvalue for " + self.parent.browseName() + " (" + str(self.parent.id()) + ") according to " + str(self.parent.dataType().target().getEncoding()))
 
     if not "value" in xmlvalue.tagName.lower():
       logger.error("Expected <Value> , but found " + xmlvalue.tagName + " instead. Value will not be parsed.")
@@ -192,7 +192,7 @@ class opcua_value_t():
     else:
       self.value = [self.__parseXMLSingleValue(xmlvalue)]
 
-    log(self, "Parsed Value: " + str(self.value))
+    logger.debug( "Parsed Value: " + str(self.value))
 
   def __parseXMLSingleValue(self, xmlvalue, alias=None, encodingPart=None):
     # Parse an encoding list such as enc = [[Int32], ['Duration', ['DateTime']]],
@@ -364,13 +364,13 @@ class opcua_value_t():
       else:
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
-            log(self, "Building extObj array index " + str(self.value.index(v)))
+            logger.debug("Building extObj array index " + str(self.value.index(v)))
             code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
-            log(self, "Printing extObj array index " + str(self.value.index(v)))
+            logger.debug("Printing extObj array index " + str(self.value.index(v)))
             code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType(asIndirect=False) + ";")
             code.append("UA_free(" + v.printOpen62541CCode_SubType() + ");")
         else:
@@ -435,16 +435,16 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     code = [""]
     codegen = open62541_MacroHelper();
 
-    log(self, "Building extensionObject for " + str(self.parent.id()))
-    log(self, "Value    " + str(self.value))
-    log(self, "Encoding " + str(self.getEncodingRule()))
+    logger.debug("Building extensionObject for " + str(self.parent.id()))
+    logger.debug("Value    " + str(self.value))
+    logger.debug("Encoding " + str(self.getEncodingRule()))
 
     self.setCodeInstanceName(recursionDepth, arrayIndex)
     # If there are any ExtensionObjects instide this ExtensionObject, we need to
     # generate one-time-structs for them too before we can proceed;
     for subv in self.value:
       if isinstance(subv, list):
-        log(self, "ExtensionObject contains an ExtensionObject, which is currently not encodable!", LOG_LEVEL_ERR)
+        logger.debug("ExtensionObject contains an ExtensionObject, which is currently not encodable!", LOG_LEVEL_ERR)
 
     code.append("struct {")
     for field in self.getEncodingRule():
@@ -465,7 +465,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     for subv in self.value:
       encField = self.getEncodingRule()[encFieldIdx]
       encFieldIdx = encFieldIdx + 1;
-      log(self, "Encoding of field " + subv.alias() + " is " + str(subv.getEncodingRule()) + "defined by " + str(encField))
+      logger.debug("Encoding of field " + subv.alias() + " is " + str(subv.getEncodingRule()) + "defined by " + str(encField))
       # Check if this is an array
       if encField[2] == 0:
         code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + " = " + subv.printOpen62541CCode_SubType(asIndirect=False) + ";")
@@ -474,10 +474,10 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
           # this is an array
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "Size = " + str(len(subv)) + ";")
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias()+" = (UA_" + subv.stringRepresentation + " *) UA_malloc(sizeof(UA_" + subv.stringRepresentation + ")*"+ str(len(subv))+");")
-          log(self, "Encoding included array of " + str(len(subv)) + " values.")
+          logger.debug("Encoding included array of " + str(len(subv)) + " values.")
           for subvidx in range(0,len(subv)):
             subvv = subv[subvidx]
-            log(self, "  " + str(subvix) + " " + str(subvv))
+            logger.debug("  " + str(subvix) + " " + str(subvv))
             code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "] = " + subvv.printOpen62541CCode_SubType(asIndirect=True) + ";")
           code.append("}")
         else:
@@ -551,9 +551,9 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
 
     if xmlvalue.firstChild == None:
       if self.alias() != None:
-        log(self, "Neither locale nor text in XML description field " + self.alias() + ". Setting to default ['en_US','']")
+        logger.debug("Neither locale nor text in XML description field " + self.alias() + ". Setting to default ['en_US','']")
       else:
-        log(self, "Neither locale nor text in XML description. Setting to default ['en_US','']")
+        logger.debug("Neither locale nor text in XML description. Setting to default ['en_US','']")
       self.value = ['en_US','']
       return
 
@@ -604,7 +604,7 @@ class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
       logger.error("Expected XML Element, but got junk...")
       return
 
-    log(self, "Not implemented", LOG_LEVEL_ERR)
+    logger.debug("Not implemented", LOG_LEVEL_ERR)
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
     #FIXME! This one is definetely broken!
@@ -656,10 +656,10 @@ class opcua_BuiltinType_nodeid_t(opcua_value_t):
     elif nodeId.s != None:
       return "UA_NODEID_STRING("  + str(nodeId.ns) + ", " + str(nodeId.s) + ")"
     elif nodeId.b != None:
-      log(self, "NodeID Generation macro for bytestrings has not been implemented.")
+      logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return "UA_NODEID_NUMERIC(0,0)"
     elif nodeId.g != None:
-      log(self, "NodeID Generation macro for guids has not been implemented.")
+      logger.debug("NodeID Generation macro for guids has not been implemented.")
       return "UA_NODEID_NUMERIC(0,0)"
     return "UA_NODEID_NUMERIC(0,0)"
 
@@ -687,7 +687,7 @@ class opcua_BuiltinType_datetime_t(opcua_value_t):
 
     # Catch XML <DateTime /> by setting the value to a default
     if xmlvalue.firstChild == None :
-      log(self, "No value is given. Setting to default now()")
+      logger.debug("No value is given. Setting to default now()")
       self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
     else:
       timestr = unicode(xmlvalue.firstChild.data)
@@ -729,7 +729,7 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
 
     # Catch XML <Qalified /> by setting the value to a default
     if xmlvalue.firstChild == None :
-      log(self, "No value is given. Setting to default empty string in ns=0: [0, '']")
+      logger.debug("No value is given. Setting to default empty string in ns=0: [0, '']")
       self.value = [0, '']
     else:
       # Is a namespace index passed?
@@ -739,10 +739,10 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
         if len(xmlvalue.getElementsByTagName("Name")) != 0:
           self.value.append(xmlvalue.getElementsByTagName("Name")[0].firstChild.data)
         else:
-          log(self, "No name is specified, will default to empty string")
+          logger.debug("No name is specified, will default to empty string")
           self.value.append('')
       else:
-        log(self, "No namespace is specified, will default to 0")
+        logger.debug("No namespace is specified, will default to 0")
         self.value = [0]
         self.value.append(unicode(xmlvalue.firstChild.data))
 
@@ -797,7 +797,7 @@ class opcua_BuiltinType_guid_t(opcua_value_t):
 
     # Catch XML <Guid /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = [0,0,0,0]
     else:
       self.value = unicode(xmlvalue.firstChild.data)
@@ -842,7 +842,7 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
 
     # Catch XML <Boolean /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = "false"
     else:
       if "false" in unicode(xmlvalue.firstChild.data).lower():
@@ -876,7 +876,7 @@ class opcua_BuiltinType_byte_t(opcua_value_t):
 
     # Catch XML <Byte /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -910,7 +910,7 @@ class opcua_BuiltinType_sbyte_t(opcua_value_t):
 
     # Catch XML <SByte /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -944,7 +944,7 @@ class opcua_BuiltinType_int16_t(opcua_value_t):
 
     # Catch XML <Int16 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -978,7 +978,7 @@ class opcua_BuiltinType_uint16_t(opcua_value_t):
 
     # Catch XML <UInt16 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -1012,7 +1012,7 @@ class opcua_BuiltinType_int32_t(opcua_value_t):
 
     # Catch XML <Int32 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -1046,7 +1046,7 @@ class opcua_BuiltinType_uint32_t(opcua_value_t):
 
     # Catch XML <UInt32 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -1076,7 +1076,7 @@ class opcua_BuiltinType_int64_t(opcua_value_t):
 
     # Catch XML <Int64 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -1110,7 +1110,7 @@ class opcua_BuiltinType_uint64_t(opcua_value_t):
 
     # Catch XML <UInt64 /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0
     else:
       try:
@@ -1144,7 +1144,7 @@ class opcua_BuiltinType_float_t(opcua_value_t):
 
     # Catch XML <Float /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0.0
     else:
       try:
@@ -1178,7 +1178,7 @@ class opcua_BuiltinType_double_t(opcua_value_t):
 
     # Catch XML <Double /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = 0.0
     else:
       try:
@@ -1217,7 +1217,7 @@ class opcua_BuiltinType_string_t(opcua_value_t):
 
     # Catch XML <String /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = ""
     else:
       self.value = str(unicode(xmlvalue.firstChild.data))
@@ -1260,7 +1260,7 @@ class opcua_BuiltinType_bytestring_t(opcua_value_t):
 
     # Catch XML <ByteString /> by setting the value to a default
     if xmlvalue.firstChild == None:
-      log(self, "No value is given. Setting to default 0")
+      logger.debug("No value is given. Setting to default 0")
       self.value = ""
     else:
       self.value = str(unicode(xmlvalue.firstChild.data))
