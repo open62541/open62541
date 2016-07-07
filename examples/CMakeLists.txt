@@ -1,7 +1,9 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
-if(NOT UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_AMALGAMATION)
+    include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
+else()
     add_definitions(-DUA_NO_AMALGAMATION)
 endif()
 

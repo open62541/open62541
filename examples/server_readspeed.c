@@ -1,6 +1,12 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/* This example is just to see how fast we can process messages. The server does
+   not open a TCP port. */
+
+#include <time.h>
+#include <stdio.h>
+
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_types_generated.h"
@@ -8,10 +14,13 @@
 # include "ua_config_standard.h"
 #else
 # include "open62541.h"
+/* include guards to prevent double definitions with open62541.h */
+# define UA_TYPES_H_
+# define UA_SERVER_H_
+# define UA_CONNECTION_H_
+# define UA_TYPES_GENERATED_H_
 #endif
 
-#include <time.h>
-#include <stdio.h>
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 

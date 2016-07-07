@@ -1,21 +1,17 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(open62541 C)
-set(CMAKE_VERBOSE_MAKEFILE ON)
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 ######################
 # Check Dependencies #
 ######################
 
-# Find Python
 find_package(PythonInterp REQUIRED)
-
-# Check for git
 find_package(Git)
 if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags
-                  RESULT_VARIABLE res_var
-                  OUTPUT_VARIABLE GIT_COM_ID
-                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+                  RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     if(NOT ${res_var} EQUAL 0)
         set(GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
@@ -26,10 +22,7 @@ else()
     set(GIT_COMMIT_ID "unknown--no-git-found")
     message(STATUS "Git not found. Build will not contain git revision info." )
 endif()
-
 message(STATUS "Git version: "  ${GIT_COMMIT_ID})
-
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 ############
 # Settings #
