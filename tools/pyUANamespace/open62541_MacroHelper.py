@@ -16,9 +16,12 @@
 ### this program.
 ###
 
-from logger import *
+import logging
 from ua_constants import *
 import string
+
+
+logger = logging.getLogger(__name__)
 
 __unique_item_id = 0
 
@@ -34,20 +37,20 @@ class open62541_MacroHelper():
     elif node.id().s != None:
       return "UA_EXPANDEDNODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
     elif node.id().b != None:
-      log(self, "NodeID Generation macro for bytestrings has not been implemented.")
+      logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
     elif node.id().g != None:
-      log(self, "NodeID Generation macro for guids has not been implemented.")
+      logger.debug("NodeID Generation macro for guids has not been implemented.")
       return ""
     else:
       return ""
 
   def substitutePunctuationCharacters(self, input):
     ''' substitutePunctuationCharacters
-    
+
         Replace punctuation characters in input. Part of this class because it is used by
         ua_namespace on occasion.
-        
+
         returns: C-printable string representation of input
     '''
     # No punctuation characters <>!$
@@ -62,7 +65,7 @@ class open62541_MacroHelper():
         substitution = substitution + '_'
 
     return input.translate(string.maketrans(illegal, substitution), illegal)
-  
+
   def getNodeIdDefineString(self, node):
     code = []
     extrNs = node.browseName().split(":")
@@ -75,18 +78,18 @@ class open62541_MacroHelper():
 
     symbolic_name = self.substitutePunctuationCharacters(nodename)
     if symbolic_name != nodename :
-        log(self, "Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ", LOG_LEVEL_WARN)
-    
+        logger.warn("Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ")
+
     if symbolic_name in defined_typealiases:
-      log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+      logger.warn(self, "Typealias definition of " + str(node.id().i) + " is non unique!")
       extendedN = 1
       while (symbolic_name+"_"+str(extendedN) in defined_typealiases):
-        log(self, "Typealias definition of " + str(node.id().i) + " is non unique!", LOG_LEVEL_WARN)
+        logger.warn("Typealias definition of " + str(node.id().i) + " is non unique!")
         extendedN+=1
-      symbolic_name = symbolic_name+"_"+str(extendedN) 
-      
+      symbolic_name = symbolic_name+"_"+str(extendedN)
+
     defined_typealiases.append(symbolic_name)
-      
+
     code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + symbolic_name.upper() + " " + str(node.id().i))
     return code
 
@@ -96,10 +99,10 @@ class open62541_MacroHelper():
     elif node.id().s != None:
       return "UA_NODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
     elif node.id().b != None:
-      log(self, "NodeID Generation macro for bytestrings has not been implemented.")
+      logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
     elif node.id().g != None:
-      log(self, "NodeID Generation macro for guids has not been implemented.")
+      logger.debug("NodeID Generation macro for guids has not been implemented.")
       return ""
     else:
       return ""
@@ -284,20 +287,20 @@ class open62541_MacroHelper():
         code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
       elif node.id().b != None:
         code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;")
-        log(self, "ByteString IDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
+        logger.error("ByteString IDs for nodes has not been implemented yet.")
         return []
       elif node.id().g != None:
         #<jpfr> the string is sth like { .length = 111, .data = <ptr> }
         #<jpfr> there you _may_ alloc the <ptr> on the heap
         #<jpfr> for the guid, just set it to {.data1 = 111, .data2 = 2222, ....
         code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_GUID;")
-        log(self, "GUIDs for nodes has not been implemented yet.", LOG_LEVEL_ERROR)
+        logger.error(self, "GUIDs for nodes has not been implemented yet.")
         return []
       elif node.id().s != None:
         code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_STRING;")
         code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = UA_STRING_ALLOC(\"" + str(node.id().i) + "\");")
       else:
-        log(self, "Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...", LOG_LEVEL_ERROR)
+        logger.error("Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...")
         return []
 
     return code

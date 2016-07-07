@@ -296,7 +296,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_g
                                                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
@@ -470,7 +469,6 @@ if(UA_BUILD_EXAMPLES)
                                                     ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
                                                     ${PROJECT_BINARY_DIR}/src_generated/nodeset
                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
