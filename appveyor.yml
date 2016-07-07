@@ -9,8 +9,8 @@ before_build:
 - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 - set PATH=C:\MinGW\bin;%PATH%
 # Update Cygwin
-- ps: $exePath = "C:\cygwin\setup-x86.exe"; (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
-build_script: 
+#- ps: $exePath = "C:\cygwin\setup-x86.exe"; (New-Object Net.WebClient).DownloadFile('https://cygwin.com/setup-x86.exe', $exePath)
+build_script:
 - cd c:\projects\open62541
 # cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
 #- md build
@@ -37,7 +37,7 @@ build_script:
 - md build
 - cd build
 - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
-- msbuild open62541.sln 
+- msbuild open62541.sln
 - copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
 - copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
 - cd ..
@@ -45,7 +45,7 @@ build_script:
 - md build64
 - cd build64
 - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
-- msbuild open62541.sln 
+- msbuild open62541.sln
 - copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
 - copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
 - cd ..
