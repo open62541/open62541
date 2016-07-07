@@ -121,15 +121,14 @@ if __name__ == '__main__':
   # Doing this now ensures that unlinkable pointers will be cleanly removed
   # during sanitation.
   for blacklist in args.blacklistFiles:
-    bl = open(blacklist, "r")
-    for line in bl.readlines():
+    for line in blacklist.readlines():
       line = line.replace(" ","")
       id = line.replace("\n","")
       if ns.getNodeByIDString(id) == None:
         logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
       else:
         ns.removeNodeById(line)
-    bl.close()
+    blacklist.close()
 
   # Link the references in the namespace
   logger.info("Linking namespace nodes and references")
@@ -158,15 +157,14 @@ if __name__ == '__main__':
   # they will not be created themselves.
   ignoreNodes = []
   for ignore in args.ignoreFiles:
-    ig = open(ignore, "r")
-    for line in ig.readlines():
+    for line in ignore.readlines():
       line = line.replace(" ","")
       id = line.replace("\n","")
       if ns.getNodeByIDString(id) == None:
         logger.warn("Can't ignore node, Namespace does currently not contain a node with id " + str(id))
       else:
         ignoreNodes.append(ns.getNodeByIDString(id))
-    ig.close()
+    ignore.close()
 
   # Create the C Code
   logger.info("Generating Header")
