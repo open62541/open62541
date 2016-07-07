@@ -7,17 +7,17 @@
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex) {
-	UA_ReadRequest request;
-	UA_ReadRequest_init(&request);
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
     UA_ReadValueId id;
-	id.attributeId = UA_ATTRIBUTEID_VALUE;
-	id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
-	request.nodesToRead = &id;
-	request.nodesToReadSize = 1;
+    id.attributeId = UA_ATTRIBUTEID_VALUE;
+    id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    request.nodesToRead = &id;
+    request.nodesToReadSize = 1;
 
-	UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
 
-	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         retval = response.responseHeader.serviceResult;
     else if(response.resultsSize != 1 || !response.results[0].hasValue)
@@ -41,7 +41,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt1
     }
 
     UA_ReadResponse_deleteMembers(&response);
-	return retval;
+    return retval;
 }
 
 UA_StatusCode

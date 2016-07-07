@@ -600,7 +600,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     }
 
     /* where does the port begin? */
-    size_t portpos = 9;
+    size_t portpos = 10;
     for(; portpos < urlLength-1; portpos++) {
         if(endpointUrl[portpos] == ':')
             break;
@@ -610,7 +610,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     memcpy(hostname, &endpointUrl[10], portpos - 10);
     hostname[portpos-10] = 0;
 
-    const char *port = "4842";
+    const char *port = "4840";
     if(portpos < urlLength - 1)
         port = &endpointUrl[portpos + 1];
     else

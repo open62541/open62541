@@ -14,7 +14,7 @@ open62541 is licensed under the LGPL with static linking exception. That means *
 ### Using open62541
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
-To use the latest improvements, download a recent build of the *single-file distributions* (the entire library merged into a single source and header file) from http://open62541.org/releases.
+To use the latest improvements, download a recent build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases.
 Recent MSVC binaries of the library are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
 
 
@@ -30,13 +30,11 @@ As an open source project, we invite new contributors to help improving open6254
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
 
 ### Example Server Implementation
-Compile the examples with the single file distribution `open62541.*` header and source files.
-With the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
+Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
+Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
 ```c
 #include <signal.h>
 #include "open62541.h"
-
-#define PORT 16664
 
 UA_Boolean running = true;
 void signalHandler(int sig) {
@@ -45,12 +43,11 @@ void signalHandler(int sig) {
 
 int main(int argc, char** argv)
 {
-    /* catch ctrl-c */
-    signal(SIGINT, signalHandler);
+    signal(SIGINT, signalHandler); /* catch ctrl-c */
 
-    /* init the server */
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, PORT);
+    /* create a server with one networklayer listening on port 4840 */
     UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
@@ -75,10 +72,10 @@ int main(int argc, char** argv)
                               browseName, variableType, attr, NULL, NULL);
 
     /* run the server loop */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode status = UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return retval;
+    return status;
 }
 ```
 
@@ -91,36 +88,22 @@ int main(int argc, char *argv[])
 {
     /* create a client and connect */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return retval;
+        return status;
     }
 
-    /* create a readrequest with one entry */
-    UA_ReadRequest req;
-    UA_ReadRequest_init(&req);
-    req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-    req.nodesToReadSize = 1;
+    /* read the value attribute of the node into the val variable */
+    UA_Variant *val = UA_Variant_new();
+    status = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), val);
+    if(status == UA_STATUSCODE_GOOD && UA_Variant_isScalar(val) &&
+       val->type == &UA_TYPES[UA_TYPES_INT32]) {
+        printf("the value is: %i\n", *(UA_Int32*)val->data);
+    }
 
-    /* define the node and attribute to be read */
-    req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
-    req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-    /* call the service and print the result */
-    UA_ReadResponse resp = UA_Client_Service_read(client, req);
-    if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-       resp.resultsSize > 0 && resp.results[0].hasValue &&
-       UA_Variant_isScalar(&resp.results[0].value) &&
-       resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
-           UA_Int32 *value = (UA_Int32*)resp.results[0].value.data;
-           printf("the value is: %i\n", *value);
-   }
-
-    UA_ReadRequest_deleteMembers(&req);
-    UA_ReadResponse_deleteMembers(&resp);
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return UA_STATUSCODE_GOOD;
+    UA_Variant_delete(val);
+    UA_Client_delete(client); /* disconnects the client first */
+    return status;
 }
 ```
