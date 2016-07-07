@@ -198,7 +198,7 @@ int main(int argc, char** argv) {
         UA_VariableAttributes attr;
         UA_VariableAttributes_init(&attr);
         char name[15];
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
         sprintf_s(name, 15, "%02d", type);
 #else
         sprintf(name, "%02d", type);
@@ -251,7 +251,7 @@ int main(int argc, char** argv) {
     id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
     for(UA_UInt32 i = 1; i <= 20; i++) {
         char name[15];
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(__MINGW32__)
         sprintf_s(name, 15, "depth%i", i);
 #else
         sprintf(name, "depth%i", i);
