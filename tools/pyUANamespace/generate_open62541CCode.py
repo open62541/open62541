@@ -169,7 +169,8 @@ if __name__ == '__main__':
   # Create the C Code
   logger.info("Generating Header")
   # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-  generatedCode=ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=args.outputFile)
+  from os.path import basename
+  generatedCode=ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
   for line in generatedCode[0]:
     outfileh.write(line+"\n")
   for line in generatedCode[1]:
