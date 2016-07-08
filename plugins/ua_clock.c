@@ -4,7 +4,10 @@
 #include "ua_types.h"
 
 #include <time.h>
-#if defined(_WIN32)
+#ifdef _WIN32
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+# endif
 # include <windows.h>
 #else
 # include <sys/time.h>
