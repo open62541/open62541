@@ -92,9 +92,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
   endif()
 elseif(MSVC)
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX") # Compiler warnings, error on warning
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D_CRT_SECURE_NO_WARNINGS") # don't give warnings for scanf and printf
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D_WINSOCK_DEPRECATED_NO_WARNINGS") # inet_ntoa is deprecated but used for compatibility
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX") # Compiler warnings, error on warning
   set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
   set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
 endif()
@@ -223,8 +221,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
-                ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+                ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c

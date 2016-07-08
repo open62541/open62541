@@ -75,7 +75,7 @@ struct UA_Connection {
     UA_Int32 sockfd;                 /* Most connectivity solutions run on
                                         sockets. Having the socket id here
                                         simplifies the design. */
-    void *handle;                    /* A pointer to the networklayer */
+    void *handle;                    /* A pointer to internal data */
     UA_ByteString incompleteMessage; /* A half-received message (TCP is a
                                         streaming protocol) is stored here */
 

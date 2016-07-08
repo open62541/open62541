@@ -1,16 +1,16 @@
-Generating an OPC UA Information Model from XML Descriptions
-============================================================
+4. Generating an OPC UA Information Model from XML Descriptions
+===============================================================
 
 In the past tutorials you have learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA is its data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and type hierarchies and how to create your own.
 
 Compile XML Namespaces
 ----------------------
 
-So far we have made due with the hardcoded mini-namespace in the server stack. When writing an application, it is more then likely that you will want to create your own data models using some comfortable GUI based tools like UA Modeller. Most tools can export data to the OPC UA XML specification. open62541 contains a python based namespace compiler that can embed datamodels contained in XML files into the server stack.
+So far we have made due with the hardcoded mini-namespace in the server stack. When writing an application, it is more then likely that you will want to create your own data models using some comfortable GUI based tools like UA Modeler. Most tools can export data to the OPC UA XML specification. open62541 contains a python based namespace compiler that can embed datamodels contained in XML files into the server stack.
 
 Note beforehand that the pyUANamespace compiler you can find in the *tools* subfolder is *not* a XML transformation tool but a compiler. That means that it will create an internal representation (dAST) when parsing the XML files and attempt to understand this representation in order to generate C Code. In consequence, the compiler will refuse to print any inconsistencies or invalid nodes.
 
-As an example, we will create a simple object model using UA Modeller and embed this into the servers nodeset, which is exported to the following XML file:
+As an example, we will create a simple object model using UA Modeler and embed this into the servers nodeset, which is exported to the following XML file:
 
 .. code-block:: xml
 
@@ -234,7 +234,7 @@ Always make sure that your XML file comes *after* namespace 0. Also, take into c
   * Adding the relative path to the file into CMakeLists.txt
   * Compiling the stack
 
-After adding you XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded::
+After adding your XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded::
   
   ichrispa@Cassandra:open62541/build> cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_METHODCALLS=On -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On -DENABLE_GENERATE_NAMESPACE0=On ../
   -- Git version: v0.1.0-RC4-403-g198597c-dirty

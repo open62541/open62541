@@ -19,6 +19,11 @@
 #include <errno.h>
 #ifdef _WIN32
 # include <malloc.h>
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+# endif
+# define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
+# include <winsock2.h>
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket((SOCKET)S)
 # define ssize_t int

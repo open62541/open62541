@@ -40,6 +40,7 @@ typedef struct UA_Client_Subscription_s {
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem_s) MonitoredItems;
 } UA_Client_Subscription;
 
+void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub);
 #endif
 
 /**********/
@@ -56,8 +57,8 @@ struct UA_Client {
     UA_ClientState state;
 
     /* Connection */
-    UA_Connection connection;
-    UA_SecureChannel channel;
+    UA_Connection *connection;
+    UA_SecureChannel *channel;
     UA_String endpointUrl;
     UA_UInt32 requestId;
 
@@ -82,6 +83,6 @@ struct UA_Client {
     UA_DateTime scRenewAt;
 };
 
-void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub);
+
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

@@ -65,12 +65,12 @@ class opcua_value_t():
 
   def getValueFieldByAlias(self, fieldname):
     if not isinstance(self.value, list):
-      return None
+        return None
     if not isinstance(self.value[0], opcua_value_t):
-      return None
+        return None
     for val in self.value:
-      if val.alias() == fieldname:
-	return val.value
+        if val.alias() == fieldname:
+            return val.value
     return None
 
   def setEncodingRule(self, encoding):

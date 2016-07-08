@@ -61,14 +61,6 @@
 /*************************/
 /* External Dependencies */
 /*************************/
-
-/* Fix redefinition of SLIST_ENTRY on windows */
-#ifdef _WIN32
-# include <winsock2.h>
-# include <windows.h>
-# undef SLIST_ENTRY
-#endif
-
 #include "queue.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
