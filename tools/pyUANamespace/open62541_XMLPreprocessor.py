@@ -146,7 +146,7 @@ class preProcessDocument:
     idDict = {}
 
     for ndid in self.containedNodes:
-      if not idDict.has_key(ndid[0].ns):
+      if not ndid[0].ns in idDict.keys():
         idDict[ndid[0].ns] = 1
       else:
         idDict[ndid[0].ns] = idDict[ndid[0].ns] + 1
@@ -191,7 +191,7 @@ class preProcessDocument:
     outline = self.nodeset.toxml()
     for qualifier in self.namespaceQualifiers:
       rq = qualifier+":"
-      outline = outline.replace(rq.decode('UTF-8'), "")
+      outline = outline.replace(rq, "")
     os.write(outfile, outline.encode('UTF-8'))
     os.close(outfile)
 
@@ -264,7 +264,7 @@ class open62541_XMLPreprocessor:
     for ref in refs:
       for n in doc.containedNodes:
         if str(ref) == str(n[0]):
-          print ref, n[0]
+          print(ref, n[0])
           found = found + 1
           break
     return float(found)/float(sspace)
@@ -348,12 +348,12 @@ class open62541_XMLPreprocessor:
           r.toString()
         # ... how many of them would be found!?
         c = self.testModelCongruencyAgainstReferences(tDoc, refs)
-        print c
+        print(c)
         if c>0:
           matches.append(c, tDoc)
       best = (0, None)
       for m in matches:
-        print m[0]
+        print(m[0])
         if m[0] > best[0]:
           best = m
       if best[1] != None:

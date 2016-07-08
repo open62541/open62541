@@ -67,14 +67,17 @@ parser.add_argument('-v','--verbose', action='count', help='Make the script more
 if __name__ == '__main__':
   args = parser.parse_args()
 
-  level= logging.CRITICAL
-  if (args.verbose==1):
+  level = logging.CRITICAL
+  verbosity = 0
+  if args.verbose:
+    verbosity = int(args.verbose)
+  if (verbosity==1):
     level = logging.ERROR
-  elif (args.verbose==2):
+  elif (verbosity==2):
     level = logging.WARNING
-  elif (args.verbose==3):
+  elif (verbosity==3):
     level = logging.INFO
-  elif (args.verbose>=4):
+  elif (verbosity>=4):
     level = logging.DEBUG
   logging.basicConfig(level=level)
   logger.setLevel(logging.INFO)

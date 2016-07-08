@@ -54,17 +54,11 @@ class open62541_MacroHelper():
         returns: C-printable string representation of input
     '''
     # No punctuation characters <>!$
-    illegal_chars = list(string.punctuation)
-    # underscore is allowed
-    illegal_chars.remove('_')
-
-    illegal = "".join(illegal_chars)
-    substitution = ""
-    # Map all punctuation characters to underscore
-    for illegal_char in illegal_chars:
-        substitution = substitution + '_'
-
-    return input.translate(string.maketrans(illegal, substitution), illegal)
+    for illegal_char in list(string.punctuation):
+        if illegal_char == '_': # underscore is allowed
+            continue
+        input = input.replace(illegal_char, "_") # map to underscore
+    return input
 
   def getNodeIdDefineString(self, node):
     code = []
@@ -147,57 +141,57 @@ class open62541_MacroHelper():
 
     # Node ordering should have made sure that arguments, if they exist, have not been printed yet
     if node.nodeClass() == NODE_CLASS_METHOD:
-      inArgVal = []
-      outArgVal = []
-      code.append("UA_Argument *inputArguments = NULL;")
-      code.append("UA_Argument *outputArguments = NULL;")
-      for r in node.getReferences():
-	if r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'InputArguments':
-          while r.target() in unprintedNodes:
-            unprintedNodes.remove(r.target())
-	  if r.target().value() != None:
-	    inArgVal = r.target().value().value
-	elif r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'OutputArguments':
-	  while r.target() in unprintedNodes:
-            unprintedNodes.remove(r.target())
-	  if r.target().value() != None:
-	    outArgVal = r.target().value().value
-      if len(inArgVal)>0:
-	code.append("")
-	code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")
-	code.append("int inputArgumentCnt;")
-	code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; inputArgumentCnt++) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
-	argumentCnt = 0
-	for inArg in inArgVal:
-	  if inArg.getValueFieldByAlias("Description") != None:
-	    code.append("inputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(inArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(inArg.getValueFieldByAlias("Description")[1]) + "\");")
-	  if inArg.getValueFieldByAlias("Name") != None:
-	    code.append("inputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(inArg.getValueFieldByAlias("Name")) + "\");")
-	  if inArg.getValueFieldByAlias("ValueRank") != None:
-	    code.append("inputArguments[" + str(argumentCnt) + "].valueRank = " + str(inArg.getValueFieldByAlias("ValueRank")) + ";")
-	  if inArg.getValueFieldByAlias("DataType") != None:
-	    code.append("inputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(inArg.getValueFieldByAlias("DataType"))) + ";")
-	  #if inArg.getValueFieldByAlias("ArrayDimensions") != None:
-	  #  code.append("inputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(inArg.getValueFieldByAlias("ArrayDimensions")) + ";")
-	  argumentCnt += 1
-      if len(outArgVal)>0:
-	code.append("")
-	code.append("outputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(outArgVal)) + ");")
-	code.append("int outputArgumentCnt;")
-	code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; outputArgumentCnt++) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
-	argumentCnt = 0
-	for outArg in outArgVal:
-	  if outArg.getValueFieldByAlias("Description") != None:
-	    code.append("outputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(outArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(outArg.getValueFieldByAlias("Description")[1]) + "\");")
-	  if outArg.getValueFieldByAlias("Name") != None:
-	    code.append("outputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(outArg.getValueFieldByAlias("Name")) + "\");")
-	  if outArg.getValueFieldByAlias("ValueRank") != None:
-	    code.append("outputArguments[" + str(argumentCnt) + "].valueRank = " + str(outArg.getValueFieldByAlias("ValueRank")) + ";")
-	  if outArg.getValueFieldByAlias("DataType") != None:
-	    code.append("outputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(outArg.getValueFieldByAlias("DataType"))) + ";")
-	  #if outArg.getValueFieldByAlias("ArrayDimensions") != None:
-	  #  code.append("outputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(outArg.getValueFieldByAlias("ArrayDimensions")) + ";")
-	  argumentCnt += 1
+        inArgVal = []
+        outArgVal = []
+        code.append("UA_Argument *inputArguments = NULL;")
+        code.append("UA_Argument *outputArguments = NULL;")
+        for r in node.getReferences():
+            if r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'InputArguments':
+                while r.target() in unprintedNodes:
+                    unprintedNodes.remove(r.target())
+            if r.target().value() != None:
+                inArgVal = r.target().value().value
+            elif r.target() != None and r.target().nodeClass() == NODE_CLASS_VARIABLE and r.target().browseName() == 'OutputArguments':
+                while r.target() in unprintedNodes:
+                    unprintedNodes.remove(r.target())
+                if r.target().value() != None:
+                    outArgVal = r.target().value().value
+        if len(inArgVal)>0:
+            code.append("")
+            code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")
+            code.append("int inputArgumentCnt;")
+            code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; inputArgumentCnt++) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
+            argumentCnt = 0
+            for inArg in inArgVal:
+                if inArg.getValueFieldByAlias("Description") != None:
+                    code.append("inputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(inArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(inArg.getValueFieldByAlias("Description")[1]) + "\");")
+                if inArg.getValueFieldByAlias("Name") != None:
+                    code.append("inputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(inArg.getValueFieldByAlias("Name")) + "\");")
+                if inArg.getValueFieldByAlias("ValueRank") != None:
+                    code.append("inputArguments[" + str(argumentCnt) + "].valueRank = " + str(inArg.getValueFieldByAlias("ValueRank")) + ";")
+                if inArg.getValueFieldByAlias("DataType") != None:
+                    code.append("inputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(inArg.getValueFieldByAlias("DataType"))) + ";")
+                #if inArg.getValueFieldByAlias("ArrayDimensions") != None:
+                #  code.append("inputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(inArg.getValueFieldByAlias("ArrayDimensions")) + ";")
+                argumentCnt += 1
+        if len(outArgVal)>0:
+            code.append("")
+            code.append("outputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(outArgVal)) + ");")
+            code.append("int outputArgumentCnt;")
+            code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; outputArgumentCnt++) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
+            argumentCnt = 0
+            for outArg in outArgVal:
+                if outArg.getValueFieldByAlias("Description") != None:
+                    code.append("outputArguments[" + str(argumentCnt) + "].description = UA_LOCALIZEDTEXT(\"" + str(outArg.getValueFieldByAlias("Description")[0]) + "\",\"" + str(outArg.getValueFieldByAlias("Description")[1]) + "\");")
+                if outArg.getValueFieldByAlias("Name") != None:
+                    code.append("outputArguments[" + str(argumentCnt) + "].name = UA_STRING(\"" + str(outArg.getValueFieldByAlias("Name")) + "\");")
+                if outArg.getValueFieldByAlias("ValueRank") != None:
+                    code.append("outputArguments[" + str(argumentCnt) + "].valueRank = " + str(outArg.getValueFieldByAlias("ValueRank")) + ";")
+                if outArg.getValueFieldByAlias("DataType") != None:
+                    code.append("outputArguments[" + str(argumentCnt) + "].dataType = " + str(self.getCreateNodeIDMacro(outArg.getValueFieldByAlias("DataType"))) + ";")
+                #if outArg.getValueFieldByAlias("ArrayDimensions") != None:
+                #  code.append("outputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(outArg.getValueFieldByAlias("ArrayDimensions")) + ";")
+                argumentCnt += 1
 
     # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
@@ -209,9 +203,9 @@ class open62541_MacroHelper():
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
     elif nodetype == "Method":
       if node.executable():
-	code.append("attr.executable = true;")
+        code.append("attr.executable = true;")
       if node.userExecutable():
-	code.append("attr.userExecutable = true;")
+        code.append("attr.userExecutable = true;")
 
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable"]:

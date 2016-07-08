@@ -664,7 +664,7 @@ class opcua_namespace():
       else:
         name =  self.namespaceIdentifiers[nsid]
         name = name.replace("\"","\\\"")
-        code.append("UA_Server_addNamespace(server, \"" + name.encode('UTF-8') + "\");")
+        code.append("UA_Server_addNamespace(server, \"" + name + "\");")
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever

@@ -219,6 +219,8 @@ class opcua_node_id_t():
     return self.__mystrname__
 
   def __eq__(self, nodeId2):
+    if not nodeId2:
+        return False
     return (self.toString() == nodeId2.toString())
 
   def __repr__(self):
