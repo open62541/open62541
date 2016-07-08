@@ -19,6 +19,7 @@
 #include <errno.h>
 #ifdef _WIN32
 # include <malloc.h>
+# define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket((SOCKET)S)
 # define ssize_t int
