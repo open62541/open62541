@@ -296,17 +296,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
     	/* Does the sequence number match? */
-		if(seqHeader.sequenceNumber != client->channel->receiveSequenceNumber + 1) {
-			if(client->channel->receiveSequenceNumber + 1 > 4294966271 && seqHeader.sequenceNumber < 1024) {
-				client->channel->receiveSequenceNumber = seqHeader.sequenceNumber - 1; /* Roll over */
-			} else {
-				UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-									"The sequence number was not increased by one. Got %i, expected %i",
-									seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-				return UA_STATUSCODE_BADINTERNALERROR;
-			}
-		}
-		client->channel->receiveSequenceNumber++;
+    	retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+    	    if (retval != UA_STATUSCODE_GOOD){
+    	    	UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
+    	    									"The sequence number was not increased by one. Got %i, expected %i",
+												seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
+    	    	return UA_STATUSCODE_BADINTERNALERROR;
+    	    }
+
+
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
            to DateTime=Int64 we take 75% of lifetime to start renewing as
            described in standard */
@@ -735,17 +733,13 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         goto finish;
 
     /* Does the sequence number match? */
-	if(seqHeader.sequenceNumber != client->channel->receiveSequenceNumber + 1) {
-		if(client->channel->receiveSequenceNumber + 1 > 4294966271 && seqHeader.sequenceNumber < 1024) {
-			client->channel->receiveSequenceNumber = seqHeader.sequenceNumber - 1; /* Roll over */
-		} else {
-			UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-								"The sequence number was not increased by one. Got %i, expected %i",
-								seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-			return;
-		}
+	retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+	if (retval != UA_STATUSCODE_GOOD){
+		UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
+										"The sequence number was not increased by one. Got %i, expected %i",
+										seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
+		goto finish;
 	}
-	client->channel->receiveSequenceNumber++;
 
     /* Todo: we need to demux responses since a publish responses may come at any time */
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {

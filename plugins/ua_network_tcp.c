@@ -291,12 +291,6 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
         return;
     connection->state = UA_CONNECTION_CLOSED;
 #endif
-//#if UA_LOGLEVEL <= 300
-//   //cppcheck-suppress unreadVariable
-//    ServerNetworkLayerTCP *layer = connection->handle;
-//    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Force closing the connection",
-//                connection->sockfd);
-//#endif
     /* only "shutdown" here. this triggers the select, where the socket is
        "closed" in the mainloop */
     shutdown(connection->sockfd, 2);

@@ -77,6 +77,7 @@ UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt3
 
 void UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId);
 
+UA_StatusCode UA_SecureChannel_checkSequenceNumber (UA_UInt32 SequenceNumber, UA_SecureChannel *channel);
 /**
  * Log Helper
  * ---------- */

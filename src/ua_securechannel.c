@@ -332,3 +332,16 @@ void UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId
         }
     }
 }
+
+UA_StatusCode UA_SecureChannel_checkSequenceNumber (UA_UInt32 SequenceNumber, UA_SecureChannel *channel){
+/* Does the sequence number match? */
+	if(SequenceNumber != channel->receiveSequenceNumber + 1) {
+		if(channel->receiveSequenceNumber + 1 > 4294966271 && SequenceNumber < 1024) {
+			channel->receiveSequenceNumber = SequenceNumber - 1; /* Roll over */
+		} else {
+			return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+		}
+	}
+	channel->receiveSequenceNumber++;
+	return UA_STATUSCODE_GOOD;
+}
