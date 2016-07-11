@@ -552,6 +552,9 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHead
                             sequenceHeader.sequenceNumber, channel->receiveSequenceNumber + 1);
         sendError(channel, msg, *offset, &UA_TYPES[UA_TYPES_SERVICEFAULT],
                   sequenceHeader.requestId, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+        Service_CloseSecureChannel(server, channel);
+		connection->close(connection);
+		return;
     }
 
     /* Does the token match? */
