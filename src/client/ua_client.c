@@ -20,7 +20,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     UA_Connection_init(client->connection);
     client->channel = UA_malloc(sizeof(UA_SecureChannel));
     UA_SecureChannel_init(client->channel);
-    client->channel->connection = client->connection;
+    client->connection = client->connection;
     UA_String_init(&client->endpointUrl);
     client->requestId = 0;
 
@@ -56,8 +56,8 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     UA_free(client->connection);
     UA_SecureChannel_deleteMembersCleanup(client->channel);
     UA_free(client->channel);
-	if(client->endpointUrl.data)
-		UA_String_deleteMembers(&client->endpointUrl);
+    if(client->endpointUrl.data)
+        UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
     if(client->username.data)
         UA_String_deleteMembers(&client->username);
@@ -284,6 +284,14 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     else
         UA_ByteString_deleteMembers(&reply);
 
+    /* Does the sequence number match? */
+    retval |= UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+    if (retval != UA_STATUSCODE_GOOD){
+        UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
+                            "The sequence number was not increased by one. Got %i, expected %i",
+                            seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
+    }
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Decoding OpenSecureChannelResponse failed");
@@ -295,15 +303,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
-        /* Does the sequence number match? */
-        retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
-        if (retval != UA_STATUSCODE_GOOD){
-            UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-                                "The sequence number was not increased by one. Got %i, expected %i",
-                                seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-            return UA_STATUSCODE_BADINTERNALERROR;
-            }
-
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
            to DateTime=Int64 we take 75% of lifetime to start renewing as
            described in standard */
@@ -646,11 +645,11 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
         return UA_STATUSCODE_BADNOTCONNECTED;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Is a session established? */
-    if(client->channel->connection->state == UA_CONNECTION_ESTABLISHED &&
+    if(client->connection->state == UA_CONNECTION_ESTABLISHED &&
        !UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL))
         retval = CloseSession(client);
     /* Is a secure channel established? */
-    if(client->channel->connection->state == UA_CONNECTION_ESTABLISHED)
+    if(client->connection->state == UA_CONNECTION_ESTABLISHED)
         retval |= CloseSecureChannel(client);
     return retval;
 }
