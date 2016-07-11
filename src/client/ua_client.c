@@ -52,10 +52,10 @@ UA_Client * UA_Client_new(UA_ClientConfig config) {
 
 static void UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_disconnect(client);
-    UA_Connection_deleteMembers(client->connection);
-    UA_free(client->connection);
     UA_SecureChannel_deleteMembersCleanup(client->channel);
     UA_free(client->channel);
+    UA_Connection_deleteMembers(client->connection);
+    UA_free(client->connection);
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
