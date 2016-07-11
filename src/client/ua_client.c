@@ -16,11 +16,11 @@
 
 static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->state = UA_CLIENTSTATE_READY;
-    client->connection = UA_calloc(1, sizeof(UA_Connection));
-	UA_Connection_init(client->connection);
-	client->channel = UA_calloc(1, sizeof(UA_SecureChannel));
-	UA_SecureChannel_init(client->channel);
-	client->channel->connection = client->connection;
+    client->connection = UA_malloc(sizeof(UA_Connection));
+    UA_Connection_init(client->connection);
+    client->channel = UA_malloc(sizeof(UA_SecureChannel));
+    UA_SecureChannel_init(client->channel);
+    client->channel->connection = client->connection;
     UA_String_init(&client->endpointUrl);
     client->requestId = 0;
 
@@ -53,9 +53,9 @@ UA_Client * UA_Client_new(UA_ClientConfig config) {
 static void UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_disconnect(client);
     UA_Connection_deleteMembers(client->connection);
-	UA_free(client->connection);
-	UA_SecureChannel_deleteMembersCleanup(client->channel);
-	UA_free(client->channel);
+    UA_free(client->connection);
+    UA_SecureChannel_deleteMembersCleanup(client->channel);
+    UA_free(client->channel);
 	if(client->endpointUrl.data)
 		UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
@@ -295,15 +295,14 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
-    	/* Does the sequence number match? */
-    	retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
-    	    if (retval != UA_STATUSCODE_GOOD){
-    	    	UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-    	    									"The sequence number was not increased by one. Got %i, expected %i",
-												seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-    	    	return UA_STATUSCODE_BADINTERNALERROR;
-    	    }
-
+        /* Does the sequence number match? */
+        retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+        if (retval != UA_STATUSCODE_GOOD){
+            UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
+                                "The sequence number was not increased by one. Got %i, expected %i",
+                                seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
+            return UA_STATUSCODE_BADINTERNALERROR;
+            }
 
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
            to DateTime=Int64 we take 75% of lifetime to start renewing as
@@ -733,13 +732,13 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         goto finish;
 
     /* Does the sequence number match? */
-	retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
-	if (retval != UA_STATUSCODE_GOOD){
-		UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-										"The sequence number was not increased by one. Got %i, expected %i",
-										seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-		goto finish;
-	}
+    retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+    if (retval != UA_STATUSCODE_GOOD){
+        UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
+                            "The sequence number was not increased by one. Got %i, expected %i",
+                            seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
+        goto finish;
+    }
 
     /* Todo: we need to demux responses since a publish responses may come at any time */
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {

@@ -547,11 +547,11 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHead
     /* Does the sequence number match? */
     retval = UA_SecureChannel_checkSequenceNumber(sequenceHeader.sequenceNumber, channel);
     if (retval != UA_STATUSCODE_GOOD){
-    	UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-    											"The sequence number was not increased by one. Got %i, expected %i",
-												sequenceHeader.sequenceNumber, channel->receiveSequenceNumber + 1);
-    	sendError(channel, msg, *offset, &UA_TYPES[UA_TYPES_SERVICEFAULT],
-    	                      sequenceHeader.requestId, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "The sequence number was not increased by one. Got %i, expected %i",
+                            sequenceHeader.sequenceNumber, channel->receiveSequenceNumber + 1);
+        sendError(channel, msg, *offset, &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                  sequenceHeader.requestId, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
     }
 
     /* Does the token match? */

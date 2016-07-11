@@ -20,7 +20,6 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->send = NULL;
     connection->recv = NULL;
     connection->close = NULL;
-    connection->recv = NULL;
     connection->getSendBuffer = NULL;
     connection->releaseSendBuffer = NULL;
     connection->releaseRecvBuffer = NULL;
