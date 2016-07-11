@@ -56,8 +56,8 @@ struct UA_Client {
     UA_ClientState state;
 
     /* Connection */
-    UA_Connection connection;
-    UA_SecureChannel channel;
+    UA_Connection *connection;
+    UA_SecureChannel *channel;
     UA_String endpointUrl;
     UA_UInt32 requestId;
 

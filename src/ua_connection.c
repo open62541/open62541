@@ -18,8 +18,8 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->handle = NULL;
     UA_ByteString_init(&connection->incompleteMessage);
     connection->send = NULL;
-    connection->close = NULL;
     connection->recv = NULL;
+    connection->close = NULL;
     connection->getSendBuffer = NULL;
     connection->releaseSendBuffer = NULL;
     connection->releaseRecvBuffer = NULL;
