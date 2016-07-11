@@ -285,7 +285,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_ByteString_deleteMembers(&reply);
 
     /* Does the sequence number match? */
-    retval |= UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+    retval |= UA_SecureChannel_processSequenceNumber(seqHeader.sequenceNumber, client->channel);
     if (retval != UA_STATUSCODE_GOOD){
         UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
                             "The sequence number was not increased by one. Got %i, expected %i",
@@ -731,7 +731,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         goto finish;
 
     /* Does the sequence number match? */
-    retval = UA_SecureChannel_checkSequenceNumber(seqHeader.sequenceNumber, client->channel);
+    retval = UA_SecureChannel_processSequenceNumber(seqHeader.sequenceNumber, client->channel);
     if (retval != UA_STATUSCODE_GOOD){
         UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
                             "The sequence number was not increased by one. Got %i, expected %i",
