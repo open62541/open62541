@@ -20,7 +20,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     UA_Connection_init(client->connection);
     client->channel = UA_malloc(sizeof(UA_SecureChannel));
     UA_SecureChannel_init(client->channel);
-    client->connection = client->connection;
+    client->channel->connection = client->connection;
     UA_String_init(&client->endpointUrl);
     client->requestId = 0;
 
