@@ -1303,7 +1303,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(0, "GetMonitoredItems"), addmethodattributes,
         GetMonitoredItems, /* callback of the method node */
-        server, /* handle passed with the callback */
+        NULL, /* handle passed with the callback */
         1, &inputArguments,
         2, outputArguments,
         NULL);
