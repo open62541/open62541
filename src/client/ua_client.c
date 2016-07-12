@@ -284,13 +284,9 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     else
         UA_ByteString_deleteMembers(&reply);
 
-    /* Does the sequence number match? */
-    retval |= UA_SecureChannel_processSequenceNumber(seqHeader.sequenceNumber, client->channel);
-    if (retval != UA_STATUSCODE_GOOD){
-        UA_LOG_INFO_CHANNEL(client->config.logger, client->channel,
-                            "The sequence number was not increased by one. Got %i, expected %i",
-                            seqHeader.sequenceNumber, client->channel->receiveSequenceNumber + 1);
-    }
+    //save the sequence number from server
+    client->channel->receiveSequenceNumber = seqHeader.sequenceNumber;
+
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
