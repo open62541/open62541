@@ -350,7 +350,7 @@ class open62541_XMLPreprocessor:
         c = self.testModelCongruencyAgainstReferences(tDoc, refs)
         print(c)
         if c>0:
-          matches.append(c, tDoc)
+          matches.append((c, tDoc))
       best = (0, None)
       for m in matches:
         print(m[0])
