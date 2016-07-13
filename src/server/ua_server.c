@@ -474,10 +474,8 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
         serverHandles[i] = monitoredItem->itemId;
         i++;
     }
-    UA_Variant_setArrayCopy(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setArrayCopy(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_free(clientHandles);
-    UA_free(serverHandles);
+    UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     return UA_STATUSCODE_GOOD;
 }
 #endif
