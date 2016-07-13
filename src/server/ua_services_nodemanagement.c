@@ -879,6 +879,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
     inputArgumentsVariableNode->valueRank = 1;
+    //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
+    //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
+    //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
+    if(result.addedNodeId.namespaceIndex == 0 &&
+       result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
+        inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
+    }
     UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
                             inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult inputAddRes;
@@ -896,6 +904,12 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
     outputArgumentsVariableNode->valueRank = 1;
+    //FIXME: comment in line 882
+    if(result.addedNodeId.namespaceIndex == 0 &&
+       result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+       result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
+        outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
+    }
     UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
                             outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
     UA_AddNodesResult outputAddRes;

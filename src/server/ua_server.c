@@ -10,8 +10,16 @@
 #include "ua_namespaceinit_generated.h"
 #endif
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "ua_subscription.h"
+#endif
+
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
+#endif
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 #endif
 
 static const UA_NodeId nodeIdHasSubType = {
@@ -439,6 +447,38 @@ addVariableTypeNode_subtype(UA_Server *server, char* name, UA_UInt32 variabletyp
         createVariableTypeNode(server, name, variabletypeid, parent, abstract);
     addNodeInternal(server, (UA_Node*)variabletype, UA_NODEID_NUMERIC(0, parent), nodeIdHasSubType);
 }
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+static UA_StatusCode
+GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+    UA_Session* session = methodCallSession;
+    UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
+    if(!subscription)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+
+    UA_UInt32 sizeOfOutput = 0;
+    UA_MonitoredItem* monitoredItem;
+    LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
+        sizeOfOutput++;
+    }
+    if(sizeOfOutput==0)
+        return UA_STATUSCODE_GOOD;
+
+    UA_UInt32* clientHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32* serverHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32 i = 0;
+    LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
+        clientHandles[i] = monitoredItem->clientHandle;
+        serverHandles[i] = monitoredItem->itemId;
+        i++;
+    }
+    UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Server *server = UA_calloc(1, sizeof(UA_Server));
@@ -1234,6 +1274,41 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             nodeIdHasComponent);
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT), nodeIdHasTypeDefinition,
                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    UA_Argument inputArguments;
+    UA_Argument_init(&inputArguments);
+    inputArguments.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    inputArguments.name = UA_STRING("SubscriptionId");
+    inputArguments.valueRank = -1; /* scalar argument */
+
+    UA_Argument outputArguments[2];
+    UA_Argument_init(&outputArguments[0]);
+    outputArguments[0].dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outputArguments[0].name = UA_STRING("ServerHandles");
+    outputArguments[0].valueRank = 1;
+
+    UA_Argument_init(&outputArguments[1]);
+    outputArguments[1].dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    outputArguments[1].name = UA_STRING("ClientHandles");
+    outputArguments[1].valueRank = 1;
+
+    UA_MethodAttributes addmethodattributes;
+    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("", "GetMonitoredItems");
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
+
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(0, "GetMonitoredItems"), addmethodattributes,
+        GetMonitoredItems, /* callback of the method node */
+        NULL, /* handle passed with the callback */
+        1, &inputArguments,
+        2, outputArguments,
+        NULL);
+#endif
 
     return server;
 }

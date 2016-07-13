@@ -194,14 +194,23 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     }
     result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
 
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    methodCallSession = session;
+#endif
+
     /* Call the method */
     result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, withObject->nodeId,
                                                       request->inputArgumentsSize, request->inputArguments,
                                                       result->outputArgumentsSize, result->outputArguments);
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    methodCallSession = NULL;
+#endif
     /* TODO: Verify Output Argument count, types and sizes */
 }
 void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *request,
                   UA_CallResponse *response) {
+
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CallRequest");
     if(request->methodsToCallSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

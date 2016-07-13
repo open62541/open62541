@@ -33,6 +33,11 @@ typedef struct {
 } UA_Worker;
 #endif
 
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+/* Internally used context to a session 'context' of the current mehtod call */
+extern UA_THREAD_LOCAL UA_Session* methodCallSession;
+#endif
+
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
