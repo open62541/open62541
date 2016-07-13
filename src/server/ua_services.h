@@ -38,7 +38,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response);
 
-/* Not Implemented: Service_RegisterServer */
+/* Registers a remote server in the local discovery service. */
+void Service_RegisterServer(UA_Server *server, UA_Session *session,
+							const UA_RegisterServerRequest *request,
+							UA_RegisterServerResponse *response);
 
 /**
  * SecureChannel Service Set

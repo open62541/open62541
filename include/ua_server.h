@@ -430,6 +430,25 @@ UA_StatusCode UA_EXPORT
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle);
 
+ /**
+ * Discovery
+ * --------- */
+
+ /*
+  * Register the given server instance at the discovery server.
+  * This should be called periodically.
+  * When the server shuts down you need to call unregister.
+  */
+ UA_StatusCode UA_EXPORT
+ UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl);
+
+ /**
+  * Unregister the given server instance from the discovery server.
+  * This should only be called when the server is shutting down.
+  */
+ UA_StatusCode UA_EXPORT
+ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+
 /**
  * Method Call
  * ----------- */

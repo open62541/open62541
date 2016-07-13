@@ -38,6 +38,11 @@ typedef struct {
 extern UA_THREAD_LOCAL UA_Session* methodCallSession;
 #endif
 
+typedef struct registeredServer_list_entry {
+    LIST_ENTRY(registeredServer_list_entry) pointers;
+    UA_RegisteredServer registeredServer;
+} registeredServer_list_entry;
+
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
@@ -50,6 +55,10 @@ struct UA_Server {
 
     /* Address Space */
     UA_NodeStore *nodestore;
+
+    /* Discovery */
+    LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
+    size_t registeredServersSize;
 
     size_t namespacesSize;
     UA_String *namespaces;
