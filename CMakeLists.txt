@@ -459,6 +459,18 @@ if(UA_BUILD_EXAMPLES)
     add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
     target_link_libraries(server_repeated_job ${LIBS})
 
+    add_executable(discovery_server_discovery ${PROJECT_SOURCE_DIR}/examples/discovery/server_discovery.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(discovery_server_discovery ${LIBS})
+
+    if(NOT WIN32)
+        # can currently only be build on linux, because windows is missing pthread support
+        add_executable(discovery_server_register ${PROJECT_SOURCE_DIR}/examples/discovery/server_register.c $<TARGET_OBJECTS:open62541-object>)
+        target_link_libraries(discovery_server_register ${LIBS})
+    endif()
+
+    add_executable(discovery_client_find_servers ${PROJECT_SOURCE_DIR}/examples/discovery/client_find_servers.c $<TARGET_OBJECTS:open62541-object>)
+    target_link_libraries(discovery_client_find_servers ${LIBS})
+
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
                       PRE_BUILD
                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
