@@ -463,6 +463,9 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
     LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
         sizeOfOutput++;
     }
+    if(sizeOfOutput==0)
+        return UA_STATUSCODE_GOOD;
+
     UA_UInt32* clientHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32* serverHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 i = 0;
