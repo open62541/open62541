@@ -6,6 +6,11 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+#ifdef UA_ENABLE_DISCOVERY
+#include "ua_client.h"
+#include "ua_config_standard.h"
+#endif
+
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
 #endif
@@ -264,6 +269,15 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
+#ifdef UA_ENABLE_DISCOVERY
+    registeredServer_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+        LIST_REMOVE(current, pointers);
+        UA_RegisteredServer_deleteMembers(&current->registeredServer);
+        UA_free(current);
+    }
+#endif
+
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
 #endif
@@ -275,6 +289,9 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime now = UA_DateTime_now();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_Discovery_cleanupTimedOut(server, now);
+#endif
 }
 
 static UA_StatusCode
@@ -553,6 +570,12 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+
+#ifdef UA_ENABLE_DISCOVERY
+    // Discovery service
+    LIST_INIT(&server->registeredServers);
+    server->registeredServersSize = 0;
+#endif
 
     server->startTime = UA_DateTime_now();
 
@@ -1488,5 +1511,103 @@ UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest
     Service_Call_single(server, &adminSession, request, &result);
     UA_RCU_UNLOCK();
     return result;
+}
+#endif
+
+#ifdef UA_ENABLE_DISCOVERY
+static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+    }
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    request.server.isOnline = !isUnregister;
+
+    // copy all the required data from applicationDescription to request
+    retval |= UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
+    retval |= UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
+
+    request.server.serverNamesSize = 1;
+    request.server.serverNames = UA_malloc(sizeof(UA_LocalizedText));
+    if (!request.server.serverNames) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    retval |= UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
+    
+    request.server.serverType = server->config.applicationDescription.applicationType;
+    retval |= UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
+    // TODO where do we get the discoveryProfileUri for application data?
+
+    request.server.discoveryUrls = UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
+    if (!request.server.serverNames) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
+        retval |= UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
+    }
+
+    /* add the discoveryUrls from the networklayers */
+    UA_String *disc = UA_realloc(request.server.discoveryUrls, sizeof(UA_String) *
+                                                                           (request.server.discoveryUrlsSize + server->config.networkLayersSize));
+    if(!disc) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    size_t existing = request.server.discoveryUrlsSize;
+    request.server.discoveryUrls = disc;
+    request.server.discoveryUrlsSize += server->config.networkLayersSize;
+
+    // TODO: Add nl only if discoveryUrl not already present
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &request.server.discoveryUrls[existing + i]);
+    }
+
+    if (semaphoreFilePath) {
+        request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
+    }
+
+    // now send the request
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+        UA_RegisterServerResponse_deleteMembers(&response);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return response.responseHeader.serviceResult;
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
+}
+
+UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
 }
 #endif

@@ -51,7 +51,7 @@ else
         echo "Cross compile release build for MinGW 32 bit"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
-        make -j8
+        make -j
         zip -r open62541-win32.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
@@ -59,7 +59,7 @@ else
         echo "Cross compile release build for MinGW 64 bit"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON -DUA_BUILD_EXAMPLES=ON ..
-        make -j8
+        make -j
         zip -r open62541-win64.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static.exe server.exe client.exe client_static.exe libopen62541.dll libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
@@ -67,7 +67,7 @@ else
         echo "Cross compile release build for 32-bit linux"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
-        make -j8
+        make -j
         tar -pczf open62541-linux32.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
@@ -76,7 +76,7 @@ else
     echo "Compile release build for 64-bit linux"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLECLIENT=ON ..
-    make -j8
+    make -j
     tar -pczf open62541-linux64.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h .. # copy single file-release
@@ -98,16 +98,23 @@ else
     echo "Compile multithreaded version"
     mkdir -p build && cd build
     cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLESERVER=ON ..
-    make -j8
+    make -j
+    cd .. && rm build -rf
+
+    echo "Compile without discovery version"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_BUILD_EXAMPLES=ON ..
+    make -j
     cd .. && rm build -rf
 
     #this run inclides full examples and methodcalls
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_METHODCALLS=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_BUILD_EXAMPLESERVER=ON -DUA_ENABLE_COVERAGE=ON ..
-    make -j8 && make test ARGS="-V"
+    make -j && make test ARGS="-V"
     echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
     (valgrind --leak-check=yes --error-exitcode=3 ./server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+    
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
     if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
