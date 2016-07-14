@@ -43,6 +43,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
 							const UA_RegisterServerRequest *request,
 							UA_RegisterServerResponse *response);
+
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
 #endif
 
 /**

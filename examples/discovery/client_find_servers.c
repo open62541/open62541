@@ -13,7 +13,6 @@
 # include "ua_client.h"
 # include "ua_config_standard.h"
 # include "ua_log_stdout.h"
-# include "ua_util.h"
 #else
 # include "open62541.h"
 #endif
@@ -195,6 +194,8 @@ int main(void) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
     }
+
+    printf("\n");
 
     UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 

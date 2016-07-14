@@ -289,6 +289,9 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime now = UA_DateTime_now();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_Discovery_cleanupTimedOut(server, now);
+#endif
 }
 
 static UA_StatusCode
@@ -1512,7 +1515,7 @@ UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister) {
+static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1575,6 +1578,10 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         UA_String_copy(&nl->discoveryUrl, &request.server.discoveryUrls[existing + i]);
     }
 
+    if (semaphoreFilePath) {
+        request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
+    }
+
     // now send the request
     UA_RegisterServerResponse response;
     UA_RegisterServerResponse_init(&response);
@@ -1596,11 +1603,11 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE);
+UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE);
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
 }
 #endif

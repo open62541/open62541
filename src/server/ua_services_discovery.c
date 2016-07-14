@@ -1,6 +1,15 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+
+#ifdef UA_ENABLE_DISCOVERY
+    #ifdef _MSC_VER
+    # include <io.h> //access
+    #else
+    # include <unistd.h> //access
+	#endif
+#endif
+
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *request, UA_ApplicationDescription *target, const UA_RegisteredServer* registeredServer) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -299,8 +308,13 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
-        server->registeredServersSize--;
+#ifndef UA_ENABLE_MULTITHREADING
         UA_free(registeredServer_entry);
+        server->registeredServersSize--;
+#else
+        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
+        UA_Server_delayedFree(server, registeredServer_entry);
+#endif
         response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
@@ -320,7 +334,11 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
         }
 
         LIST_INSERT_HEAD(&server->registeredServers, registeredServer_entry, pointers);
+#ifndef UA_ENABLE_MULTITHREADING
         server->registeredServersSize++;
+#else
+        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
+#endif
 
     } else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
@@ -332,4 +350,61 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult = retval;
 }
+
+/**
+ * Cleanup server registration:
+ * If the semaphore file path is set, then it just checks the existence of the file.
+ * When it is deleted, the registration is removed.
+ * If there is no semaphore file, then the registration will be removed if it is older than 60 minutes.
+ */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now) {
+
+    UA_DateTime timedOut = now;
+    // registration is timed out if lastSeen is older than 60 minutes.
+    timedOut -= 60*60*UA_SEC_TO_DATETIME;
+
+    registeredServer_list_entry* current, *temp;
+    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+
+        UA_Boolean semaphoreDeleted = UA_FALSE;
+
+        if (current->registeredServer.semaphoreFilePath.length) {
+            char* filePath = malloc(sizeof(char)*current->registeredServer.semaphoreFilePath.length+1);
+            memcpy( filePath, current->registeredServer.semaphoreFilePath.data, current->registeredServer.semaphoreFilePath.length );
+            filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+
+#ifdef _MSC_VER
+            semaphoreDeleted = _access( filePath, 0 ) == -1;
+#else
+            semaphoreDeleted = access( filePath, 0 ) == -1;
+#endif
+            free(filePath);
+        }
+
+
+        if (semaphoreDeleted || current->lastSeen < timedOut) {
+            if (semaphoreDeleted) {
+                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "Registration of server with URI %.*s is removed because the semaphore file '%.*s' was deleted.",
+                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
+                            (int)current->registeredServer.semaphoreFilePath.length, current->registeredServer.semaphoreFilePath.data);
+            } else {
+                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Registration of server with URI %.*s has timed out and is removed",
+                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data);
+            }
+            LIST_REMOVE(current, pointers);
+            UA_RegisteredServer_deleteMembers(&current->registeredServer);
+#ifndef UA_ENABLE_MULTITHREADING
+            UA_free(current);
+            server->registeredServersSize--;
+#else
+            server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
+            UA_Server_delayedFree(server, current);
+#endif
+
+        }
+    }
+}
+
 #endif

@@ -438,10 +438,14 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  /*
   * Register the given server instance at the discovery server.
   * This should be called periodically.
+  * The semaphoreFilePath is optional. If the given file is deleted,
+  * the server will automatically be unregistered. This could be
+  * for example a pid file which is deleted if the server crashes.
+  *
   * When the server shuts down you need to call unregister.
   */
  UA_StatusCode UA_EXPORT
- UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl);
+ UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath);
 
  /**
   * Unregister the given server instance from the discovery server.
