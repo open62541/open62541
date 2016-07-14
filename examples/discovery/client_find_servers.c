@@ -107,7 +107,7 @@ int main(void) {
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
 
-    UA_StatusCode retval = FindServers("opc.tcp://localhost:4048", &applicationDescriptionArraySize, &applicationDescriptionArray);
+    UA_StatusCode retval = FindServers("opc.tcp://localhost:4840", &applicationDescriptionArraySize, &applicationDescriptionArray);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. Is the discovery server started? StatusCode 0x%08x", retval);
         return (int)retval;

@@ -98,10 +98,10 @@ static void periodicServerRegister(UA_Server *server, void *data) {
     }
 
 
-    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4048", NULL);
+    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", NULL);
     // You can also use a semaphore file. That file must exist. When the file is deleted, the server is automatically unregistered.
     // The semaphore file has to be accessible by the discovery server
-    // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4048", "/path/to/some/file");
+    // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", "/path/to/some/file");
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
 
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     // UNregister the server from the discovery server.
-    retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4048" );
+    retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not unregister server from discovery server. StatusCode 0x%08x", retval);
         UA_Server_delete(server);
