@@ -18,10 +18,10 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
     }
 }
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime now) {
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMonotonic) {
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
-        if(sentry->session.validTill < now) {
+        if(sentry->session.validTill < nowMonotonic) {
             UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                          "Session with token %i has timed out and is removed",
                          sentry->session.sessionId.identifier.numeric);
@@ -43,7 +43,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
-            if(UA_DateTime_now() > current->session.validTill) {
+            if(UA_DateTime_nowMonotonic() > current->session.validTill) {
                 UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                              "Try to use Session with token " UA_PRINTF_GUID_FORMAT ", but has timed out",
                              UA_PRINTF_GUID_DATA((*token)));

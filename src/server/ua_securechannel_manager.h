@@ -24,7 +24,7 @@ UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server);
 
 void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm);
 
-void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime now);
+void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime nowMonotonic);
 
 UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
