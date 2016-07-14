@@ -301,7 +301,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
         // server is shutting down. Remove it from the registered servers list
         if (!registeredServer_entry) {
             // server not found, show warning
-            UA_LOG_WARNING_SESSION(server->config.logger, session, "Could not unregister server %s. Not registered.", request->server.serverUri.data);
+            UA_LOG_WARNING_SESSION(server->config.logger, session, "Could not unregister server %.*s. Not registered.", (int)request->server.serverUri.length, request->server.serverUri.data);
             response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTFOUND;
             return;
         }
@@ -325,7 +325,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
         // server not yet registered, register it by adding it to the list
 
 
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %s", request->server.serverUri.data);
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s", (int)request->server.serverUri.length, request->server.serverUri.data);
 
         registeredServer_entry = UA_malloc(sizeof(registeredServer_list_entry));
         if(!registeredServer_entry) {
