@@ -624,7 +624,7 @@ class opcua_node_t:
           elif x.tagName == "UserWriteMask":
             self.userWriteMask(int(unicode(x.firstChild.data)))
             xmlelement.removeChild(x)
-        elif x.tagName == "References":
+        if x.tagName == "References":
           self.initiateDummyXMLReferences(x)
           xmlelement.removeChild(x)
     self.parseXMLSubType(xmlelement)
