@@ -107,6 +107,7 @@ option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 if(UA_ENABLE_COVERAGE)
@@ -458,6 +459,18 @@ if(UA_BUILD_EXAMPLES)
 
     add_executable(server_repeated_job ${PROJECT_SOURCE_DIR}/examples/server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
     target_link_libraries(server_repeated_job ${LIBS})
+
+    if(UA_ENABLE_DISCOVERY)
+        add_executable(discovery_server_discovery ${PROJECT_SOURCE_DIR}/examples/discovery/server_discovery.c $<TARGET_OBJECTS:open62541-object>)
+        target_link_libraries(discovery_server_discovery ${LIBS})
+
+        # can currently only be build on linux, because windows is missing pthread support
+        add_executable(discovery_server_register ${PROJECT_SOURCE_DIR}/examples/discovery/server_register.c $<TARGET_OBJECTS:open62541-object>)
+        target_link_libraries(discovery_server_register ${LIBS})
+
+        add_executable(discovery_client_find_servers ${PROJECT_SOURCE_DIR}/examples/discovery/client_find_servers.c $<TARGET_OBJECTS:open62541-object>)
+        target_link_libraries(discovery_client_find_servers ${LIBS})
+    endif()
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
                       PRE_BUILD
