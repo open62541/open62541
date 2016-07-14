@@ -27,7 +27,13 @@ else
     echo "Compile multithreaded version"
     mkdir -p build && cd build
     cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j8
+    make -j
+    cd .. && rm -rf build
+
+    echo "Compile without discovery version"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_BUILD_EXAMPLES=ON ..
+    make -j
     cd .. && rm -rf build
 
     echo "Debug build and unit tests (64 bit)"
