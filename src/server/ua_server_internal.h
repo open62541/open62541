@@ -38,10 +38,12 @@ typedef struct {
 extern UA_THREAD_LOCAL UA_Session* methodCallSession;
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY
 typedef struct registeredServer_list_entry {
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
 } registeredServer_list_entry;
+#endif
 
 struct UA_Server {
     /* Meta */
@@ -56,9 +58,11 @@ struct UA_Server {
     /* Address Space */
     UA_NodeStore *nodestore;
 
+#ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
+#endif
 
     size_t namespacesSize;
     UA_String *namespaces;

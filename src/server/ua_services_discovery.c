@@ -1,6 +1,7 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *request, UA_ApplicationDescription *target, const UA_RegisteredServer* registeredServer) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
@@ -43,6 +44,7 @@ static UA_StatusCode copyRegisteredServerToApplicationDescription(const UA_FindS
 
     return retval;
 }
+#endif
 
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request, UA_FindServersResponse *response) {
@@ -56,6 +58,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     // temporarily store all the pointers which we found to avoid reiterating through the list
     UA_RegisteredServer **foundServerFilteredPointer = NULL;
 
+#ifdef UA_ENABLE_DISCOVERY
     // check if client only requested a specific set of servers
     if (request->serverUrisSize) {
 
@@ -88,6 +91,20 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         // self + registered servers
         foundServersSize = 1 + server->registeredServersSize;
     }
+#else
+    if (request->serverUrisSize) {
+        for (size_t i=0; i<request->serverUrisSize; i++) {
+            if (UA_String_equal(&request->serverUris[i], &server->config.applicationDescription.applicationUri)) {
+                addSelf = UA_TRUE;
+                foundServersSize = 1;
+                break;
+            }
+        }
+    } else {
+        addSelf = UA_TRUE;
+        foundServersSize = 1;
+    }
+#endif
 
     if (foundServersSize) {
         foundServers = UA_malloc(sizeof(UA_ApplicationDescription) * foundServersSize);
@@ -132,7 +149,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             }
             currentIndex++;
         }
-
+#ifdef UA_ENABLE_DISCOVERY
         // add all the registered servers to the list
 
         if (foundServerFilteredPointer) {
@@ -161,6 +178,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                 }
             }
         }
+#endif
     }
 
     if (foundServerFilteredPointer)
@@ -249,7 +267,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     }
 }
 
-
+#ifdef UA_ENABLE_DISCOVERY
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                          const UA_RegisterServerRequest *request, UA_RegisterServerResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
@@ -310,3 +328,4 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
     response->responseHeader.serviceResult = retval;
 }
+#endif

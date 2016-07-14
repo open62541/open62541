@@ -76,11 +76,13 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *responseType = &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE];
         *requiresSession = false;
         break;
+#ifdef UA_ENABLE_DISCOVERY
     case UA_NS0ID_REGISTERSERVERREQUEST:
         *service = (UA_Service)Service_RegisterServer;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE];
         break;
+#endif
     case UA_NS0ID_CREATESESSIONREQUEST:
         *service = (UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];

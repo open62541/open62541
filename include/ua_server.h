@@ -430,6 +430,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle);
 
+#ifdef UA_ENABLE_DISCOVERY
  /**
  * Discovery
  * --------- */
@@ -448,6 +449,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   */
  UA_StatusCode UA_EXPORT
  UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+#endif
 
 /**
  * Method Call

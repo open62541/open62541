@@ -5,8 +5,11 @@
 #include "ua_util.h"
 #include "ua_services.h"
 #include "ua_nodeids.h"
+
+#ifdef UA_ENABLE_DISCOVERY
 #include "ua_client.h"
 #include "ua_config_standard.h"
+#endif
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
@@ -266,12 +269,14 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
+#ifdef UA_ENABLE_DISCOVERY
     registeredServer_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
         LIST_REMOVE(current, pointers);
         UA_RegisteredServer_deleteMembers(&current->registeredServer);
         UA_free(current);
     }
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
@@ -563,10 +568,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
 
+#ifdef UA_ENABLE_DISCOVERY
     // Discovery service
-
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
+#endif
 
     server->startTime = UA_DateTime_now();
 
@@ -1505,6 +1511,7 @@ UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest
 }
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
@@ -1596,3 +1603,4 @@ UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discov
 UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
     return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE);
 }
+#endif
