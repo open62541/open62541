@@ -22,7 +22,7 @@ UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server);
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager);
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime now);
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime nowMonotonic);
 
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,

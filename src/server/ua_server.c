@@ -272,9 +272,9 @@ void UA_Server_delete(UA_Server *server) {
 
 /* Recurring cleanup. Removing unused and timed-out channels and sessions */
 static void UA_Server_cleanup(UA_Server *server, void *_) {
-    UA_DateTime now = UA_DateTime_now();
-    UA_SessionManager_cleanupTimedOut(&server->sessionManager, now);
-    UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, now);
+    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
+    UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
+    UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
 }
 
 static UA_StatusCode
