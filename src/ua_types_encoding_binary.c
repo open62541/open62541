@@ -966,7 +966,7 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     return retval;
 }
 
-#define MAX_PICO_SECONDS 999
+#define MAX_PICO_SECONDS 9999
 static UA_StatusCode
 DataValue_decodeBinary(UA_DataValue *dst, const UA_DataType *_) {
     UA_Byte encodingMask;
