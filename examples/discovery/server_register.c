@@ -22,10 +22,11 @@
 # include "ua_config_standard.h"
 # include "ua_network_tcp.h"
 # include "ua_log_stdout.h"
-# include "ua_util.h"
 #else
 # include "open62541.h"
 #endif
+
+# include "ua_util.h"
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;

@@ -42,6 +42,7 @@ extern UA_THREAD_LOCAL UA_Session* methodCallSession;
 typedef struct registeredServer_list_entry {
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
+    UA_DateTime lastSeen;
 } registeredServer_list_entry;
 #endif
 

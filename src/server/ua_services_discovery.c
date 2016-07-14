@@ -115,11 +115,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             return;
         }
 
-        size_t currentIndex = 0;
         if (addSelf) {
             /* copy ApplicationDescription from the config */
 
-            response->responseHeader.serviceResult |= UA_ApplicationDescription_copy(&server->config.applicationDescription, &foundServers[currentIndex]);
+            response->responseHeader.serviceResult |= UA_ApplicationDescription_copy(&server->config.applicationDescription, &foundServers[0]);
             if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                 UA_free(foundServers);
                 if (foundServerFilteredPointer)
@@ -128,8 +127,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             }
 
             /* add the discoveryUrls from the networklayers */
-            UA_String* disc = UA_realloc(foundServers[currentIndex].discoveryUrls, sizeof(UA_String) *
-                                                                                   (foundServers[currentIndex].discoveryUrlsSize +
+            UA_String* disc = UA_realloc(foundServers[0].discoveryUrls, sizeof(UA_String) *
+                                                                                   (foundServers[0].discoveryUrlsSize +
                                                                                     server->config.networkLayersSize));
             if (!disc) {
                 response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -138,18 +137,22 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                     UA_free(foundServerFilteredPointer);
                 return;
             }
-            size_t existing = foundServers[currentIndex].discoveryUrlsSize;
-            foundServers[currentIndex].discoveryUrls = disc;
-            foundServers[currentIndex].discoveryUrlsSize += server->config.networkLayersSize;
+            size_t existing = foundServers[0].discoveryUrlsSize;
+            foundServers[0].discoveryUrls = disc;
+            foundServers[0].discoveryUrlsSize += server->config.networkLayersSize;
 
             // TODO: Add nl only if discoveryUrl not already present
             for (size_t i = 0; i < server->config.networkLayersSize; i++) {
                 UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-                UA_String_copy(&nl->discoveryUrl, &foundServers[currentIndex].discoveryUrls[existing + i]);
+                UA_String_copy(&nl->discoveryUrl, &foundServers[0].discoveryUrls[existing + i]);
             }
-            currentIndex++;
         }
 #ifdef UA_ENABLE_DISCOVERY
+
+        size_t currentIndex = 0;
+        if (addSelf)
+            currentIndex++;
+
         // add all the registered servers to the list
 
         if (foundServerFilteredPointer) {
@@ -325,6 +328,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(&request->server, &registeredServer_entry->registeredServer);
+    registeredServer_entry->lastSeen = UA_DateTime_now();
 
     response->responseHeader.serviceResult = retval;
 }
