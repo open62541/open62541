@@ -8,9 +8,6 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <pthread.h>
-#include <errno.h>
 
 #ifdef _MSC_VER
 # include <io.h> //access
@@ -25,6 +22,7 @@
 # include "ua_config_standard.h"
 # include "ua_network_tcp.h"
 # include "ua_log_stdout.h"
+# include "ua_util.h"
 #else
 # include "open62541.h"
 #endif
@@ -32,12 +30,9 @@
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
-pthread_cond_t registerThreadStopCondition = PTHREAD_COND_INITIALIZER;
-
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
-    pthread_cond_broadcast(&registerThreadStopCondition);
 }
 
 static UA_StatusCode
@@ -65,44 +60,68 @@ writeInteger(void *handle, const UA_NodeId nodeid,
     return UA_STATUSCODE_GOOD;
 }
 
+struct PeriodicServerRegisterJob {
+    UA_Guid job_id;
+    UA_Job *job;
+    UA_UInt32 this_interval;
+};
 
-static void *periodicServerRegister(void *arg)
-{
-    // periodically register the server with the LDS/GDS.
-    // should be done every 10 minutes
+/**
+ * Called by the UA_Server job.
+ * The OPC UA specification says:
+ *
+ * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
+ * > must periodically re-attempt registration. The frequency of these attempts should start at 1 second
+ * > but gradually increase until the registration frequency is the same as what it would be if not
+ * > errors occurred. The recommended approach would double the period each attempt until reaching the maximum.
+ *
+ * We will do so by using the additional data parameter. If it is NULL, it is the first attempt
+ * (or the default periodic register of 10 Minutes).
+ * Otherwise it indicates the wait time in seconds for the next try.
+ */
+static void periodicServerRegister(UA_Server *server, void *data) {
 
-    // wait until the server is started and initialized
-    sleep(1);
+    struct PeriodicServerRegisterJob *retryJob = NULL;
 
-    UA_Server *server = (UA_Server*)arg;
+    // retry registration by doubling the interval. If it is again 10 Minutes, don't retry.
+    UA_UInt32 nextInterval = 0;
 
-    pthread_mutex_t waitMutex = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&waitMutex);
+    if (data) {
+        // if data!=NULL this method call was a retry not within the default 10 minutes.
+        retryJob = (struct PeriodicServerRegisterJob *)data;
+        // remove the retry job because we don't want to fire it again. If it still fails,
+        // we double the interval and create a new job
+        UA_Server_removeRepeatedJob(server, retryJob->job_id);
+        nextInterval = retryJob->this_interval * 2;
+        UA_free(retryJob->job);
+        UA_free(retryJob);
+    }
 
 
-    do {
-        UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4048" );
-        if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
-        } else {
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Server successfully registered. Next periodical register will be in 10 Minutes");
+    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4048" );
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
+
+        // first retry in 1 second
+        if (nextInterval == 0)
+            nextInterval = 1;
+
+        // as long as next retry is smaller than 10 minutes, retry
+        if (nextInterval < 10*60) {
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
+            struct PeriodicServerRegisterJob *newRetryJob = UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+            newRetryJob->job = UA_malloc(sizeof(UA_Job));
+            newRetryJob->this_interval = nextInterval;
+
+            newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
+            newRetryJob->job->job.methodCall.method = periodicServerRegister;
+            newRetryJob->job->job.methodCall.data = newRetryJob;
+
+            UA_Server_addRepeatedJob(server, *newRetryJob->job, nextInterval*1000, &newRetryJob->job_id);
         }
-
-        // wait for 10 minutes, but allow to abort wait
-        struct timespec timeToWait;
-        timeToWait.tv_sec = time(NULL) + 10*60;
-        timeToWait.tv_nsec = 0;
-
-        int waitRet = pthread_cond_timedwait(&registerThreadStopCondition, &waitMutex, &timeToWait);
-        if (waitRet != ETIMEDOUT) {
-            // condition fired, thus stop thread
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received stop signal. Stopping register thread.");
-            break;
-        }
-    } while(running);
-    pthread_mutex_unlock(&waitMutex);
-
-    return NULL;
+    } else {
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Server successfully registered. Next periodical register will be in 10 Minutes");
+    }
 }
 
 
@@ -132,24 +151,16 @@ int main(int argc, char** argv) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
 
-    // registering the server should be done periodically. Thus create a separate thread
-    pthread_t registerServerThread;    // this is our thread identifier
 
-    pthread_create(&registerServerThread,NULL,periodicServerRegister,server);
+    // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
+    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
+            .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
+    UA_Server_addRepeatedJob(server, job, 10*60*1000, NULL);
 
     // Register the server with the discovery server.
-    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4048" );
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
-        UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-        return (int)retval;
-    }
+    periodicServerRegister(server, NULL);
 
-    retval = UA_Server_run(server, &running);
-
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Waiting for register thread to finish...");
-    pthread_join(registerServerThread, NULL);
+    UA_StatusCode retval = UA_Server_run(server, &running);
 
     // UNregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4048" );
