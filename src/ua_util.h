@@ -47,7 +47,7 @@
 /* Thread Local Storage */
 /************************/
 
-#if __STDC_VERSION__ >= 201112L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
 #elif defined(__GNUC__)
 # define UA_THREAD_LOCAL __thread /* GNU extension */
