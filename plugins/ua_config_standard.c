@@ -69,6 +69,10 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     /* Limits for MonitoredItems */
     .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
     .queueSizeLimits = { .max = 100, .min = 1 }
+
+#ifdef UA_ENABLE_DISCOVERY
+	,.discoveryCleanupTimeout = 60*60
+#endif
 };
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
