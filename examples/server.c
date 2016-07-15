@@ -81,6 +81,22 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
     UA_String_deleteMembers(&greet);
     return UA_STATUSCODE_GOOD;
 }
+
+static UA_StatusCode
+noargMethod (void *methodHandle, const UA_NodeId objectId,
+           size_t inputSize, const UA_Variant *input,
+           size_t outputSize, UA_Variant *output) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+outargMethod (void *methodHandle, const UA_NodeId objectId,
+           size_t inputSize, const UA_Variant *input,
+           size_t outputSize, UA_Variant *output) {
+    UA_Int32 out = 42;
+    UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_INT32]);
+    return UA_STATUSCODE_GOOD;
+}
 #endif
 
 int main(int argc, char** argv) {
@@ -123,6 +139,7 @@ int main(int argc, char** argv) {
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
+    /* Method with IO Arguments */
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
@@ -274,6 +291,80 @@ int main(int argc, char** argv) {
     /* Example for manually setting an attribute within the server */
     UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en_US", "Objects");
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
+
+#define NOARGID     60000
+#define INARGID     60001
+#define OUTARGID    60002
+#define INOUTARGID  60003
+#ifdef UA_ENABLE_METHODCALLS
+    /* adding some more method nodes to pass CTT */
+    /* Method without arguments */
+    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "noarg");
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, NOARGID),
+        UA_NODEID_NUMERIC(1, DEMOID),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
+        &noargMethod, /* callback of the method node */
+        NULL, /* handle passed with the callback */
+        0, NULL, 0, NULL, NULL);
+
+    /* Method with in arguments */
+    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "inarg");
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
+
+    UA_Argument_init(&inputArguments);
+    inputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    inputArguments.description = UA_LOCALIZEDTEXT("en_US", "Input");
+    inputArguments.name = UA_STRING("Input");
+    inputArguments.valueRank = -1; //uaexpert will crash if set to 0 ;)
+
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, INARGID),
+        UA_NODEID_NUMERIC(1, DEMOID),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
+        &noargMethod, /* callback of the method node */
+        NULL, /* handle passed with the callback */
+        1, &inputArguments, 0, NULL, NULL);
+
+    /* Method with out arguments */
+    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "outarg");
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
+
+    UA_Argument_init(&outputArguments);
+    outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "Output");
+    outputArguments.name = UA_STRING("Output");
+    outputArguments.valueRank = -1;
+
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, OUTARGID),
+        UA_NODEID_NUMERIC(1, DEMOID),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "outarg"), addmethodattributes,
+        &outargMethod, /* callback of the method node */
+        NULL, /* handle passed with the callback */
+        0, NULL, 1, &outputArguments, NULL);
+
+    /* Method with inout arguments */
+    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "inoutarg");
+    addmethodattributes.executable = true;
+    addmethodattributes.userExecutable = true;
+
+    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, INOUTARGID),
+        UA_NODEID_NUMERIC(1, DEMOID),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        UA_QUALIFIEDNAME(1, "inoutarg"), addmethodattributes,
+        &outargMethod, /* callback of the method node */
+        NULL, /* handle passed with the callback */
+        1, &inputArguments, 1, &outputArguments, NULL);
+#endif
 
     /* run server */
     UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */

@@ -171,28 +171,32 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
         return;
 
     /* Verify Input Argument count, types and sizes */
-    const UA_VariableNode *inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
-    if(!inputArguments) {
-        result->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
-        return;
+    //check inputAgruments only if there are any
+    if(request->inputArgumentsSize > 0){
+        const UA_VariableNode *inputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
+
+        if(!inputArguments) {
+            result->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
+            return;
+        }
+            result->statusCode = argConformsToDefinition(server, inputArguments, request->inputArgumentsSize,
+                                                     request->inputArguments);
+        if(result->statusCode != UA_STATUSCODE_GOOD)
+            return;
     }
-    result->statusCode = argConformsToDefinition(server, inputArguments, request->inputArgumentsSize,
-                                                 request->inputArguments);
-    if(result->statusCode != UA_STATUSCODE_GOOD)
-        return;
 
     /* Allocate the output arguments */
     const UA_VariableNode *outputArguments = getArgumentsVariableNode(server, methodCalled, UA_STRING("OutputArguments"));
     if(!outputArguments) {
-        result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        result->outputArgumentsSize=0;
+    }else{
+        result->outputArguments = UA_Array_new(outputArguments->value.variant.value.arrayLength, &UA_TYPES[UA_TYPES_VARIANT]);
+        if(!result->outputArguments) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
     }
-    result->outputArguments = UA_Array_new(outputArguments->value.variant.value.arrayLength, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(!result->outputArguments) {
-        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = session;

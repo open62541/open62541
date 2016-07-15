@@ -873,52 +873,57 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     parent.nodeId = result.addedNodeId;
 
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
-    inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0, "InputArguments");
-    inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
-    inputArgumentsVariableNode->valueRank = 1;
-    //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
-    //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
-    //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
-    if(result.addedNodeId.namespaceIndex == 0 &&
-       result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
-        inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
-    }
-    UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
-                            inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult inputAddRes;
-    UA_RCU_LOCK();
-    Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &UA_NODEID_NULL, NULL, &inputAddRes);
-    UA_RCU_UNLOCK();
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&inputAddRes);
 
-    /* create OutputArguments */
-    UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
-    outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
-    outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0, "OutputArguments");
-    outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
-    outputArgumentsVariableNode->valueRank = 1;
-    //FIXME: comment in line 882
-    if(result.addedNodeId.namespaceIndex == 0 &&
-       result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
-        outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
+    if(inputArgumentsSize > 0){
+        UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
+        inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0, "InputArguments");
+        inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+        inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
+        inputArgumentsVariableNode->valueRank = 1;
+        //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
+        //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
+        //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
+        if(result.addedNodeId.namespaceIndex == 0 &&
+           result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
+            inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
+        }
+        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
+                                inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_AddNodesResult inputAddRes;
+        UA_RCU_LOCK();
+        Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
+                                  &parent.nodeId, &hasproperty, &UA_NODEID_NULL, NULL, &inputAddRes);
+        UA_RCU_UNLOCK();
+        // todo: check if adding succeeded
+        UA_AddNodesResult_deleteMembers(&inputAddRes);
     }
-    UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
-                            outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
-    UA_AddNodesResult outputAddRes;
-    UA_RCU_LOCK();
-    Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                              &parent.nodeId, &hasproperty, &UA_NODEID_NULL, NULL, &outputAddRes);
-    UA_RCU_UNLOCK();
-    // todo: check if adding succeeded
-    UA_AddNodesResult_deleteMembers(&outputAddRes);
+
+    if(outputArgumentsSize > 0){
+        /* create OutputArguments */
+        UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
+        outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0, "OutputArguments");
+        outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+        outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
+        outputArgumentsVariableNode->valueRank = 1;
+        //FIXME: comment in line 882
+        if(result.addedNodeId.namespaceIndex == 0 &&
+           result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
+            outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
+        }
+        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
+                                outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_AddNodesResult outputAddRes;
+        UA_RCU_LOCK();
+        Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
+                                  &parent.nodeId, &hasproperty, &UA_NODEID_NULL, NULL, &outputAddRes);
+        UA_RCU_UNLOCK();
+        // todo: check if adding succeeded
+        UA_AddNodesResult_deleteMembers(&outputAddRes);
+    }
 
     if(outNewNodeId)
         *outNewNodeId = result.addedNodeId; // don't deleteMember the result
