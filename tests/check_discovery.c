@@ -4,7 +4,6 @@
 #include <ua_util.h>
 #include <ua_types_generated.h>
 
-#include "ua_server.h"
 #include "ua_client.h"
 #include "ua_config_standard.h"
 #include "ua_network_tcp.h"
@@ -43,6 +42,7 @@ static void teardown_lds(void) {
 	pthread_join(server_thread_lds, NULL);
 	UA_Server_run_shutdown(server_lds);
 	UA_Boolean_delete(running_lds);
+	UA_String_deleteMembers(&server_lds->config.applicationDescription.applicationUri);
 	UA_Server_delete(server_lds);
 	nl_lds.deleteMembers(&nl_lds);
 }
@@ -78,6 +78,7 @@ static void teardown_register(void) {
 	pthread_join(server_thread_register, NULL);
 	UA_Server_run_shutdown(server_register);
 	UA_Boolean_delete(running_register);
+	UA_String_deleteMembers(&server_register->config.applicationDescription.applicationUri);
 	UA_Server_delete(server_register);
 	nl_register.deleteMembers(&nl_register);
 }
@@ -120,7 +121,7 @@ static UA_StatusCode FindServers(const char* discoveryServerUrl, size_t* registe
 						&response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
 	if (filterUri) {
-		UA_free(request.serverUris);
+		UA_Array_delete(request.serverUris, request.serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
 	}
 
 	if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -243,6 +244,8 @@ static Suite* testSuite_Client(void) {
 	TCase *tc_register = tcase_create("RegisterServer");
 	tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
 	tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
+	tcase_add_test(tc_register, Server_register);
+	// register two times
 	tcase_add_test(tc_register, Server_register);
 	tcase_add_test(tc_register, Server_unregister);
 	suite_add_tcase(s,tc_register);
