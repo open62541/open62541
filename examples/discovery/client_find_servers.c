@@ -49,8 +49,8 @@ static UA_StatusCode FindServers(const char* discoveryServerUrl, size_t* registe
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
-    //UA_free(request.serverUris);
-    //UA_free(request.localeIds);
+    //UA_Array_delete(request.serverUris, request.serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
+    //UA_Array_delete(request.localeIds, request.localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,

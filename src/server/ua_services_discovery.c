@@ -308,6 +308,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
+        UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
 #ifndef UA_ENABLE_MULTITHREADING
         UA_free(registeredServer_entry);
         server->registeredServersSize--;

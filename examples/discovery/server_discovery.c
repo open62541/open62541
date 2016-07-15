@@ -36,6 +36,7 @@ int main(void) {
     UA_Server *server = UA_Server_new(config);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_String_deleteMembers(&config.applicationDescription.applicationUri);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
     return (int)retval;

@@ -183,6 +183,7 @@ int main(int argc, char** argv) {
         return (int)retval;
     }
 
+    UA_String_deleteMembers(&config.applicationDescription.applicationUri);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
