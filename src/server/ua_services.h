@@ -189,6 +189,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response);
+
 /**
  * Query Service Set
  * -----------------
