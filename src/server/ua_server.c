@@ -77,7 +77,9 @@ static UA_UInt16 addNamespaceInternal(UA_Server *server, const UA_String *name) 
 
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString = UA_STRING_ALLOC(name);
-    return addNamespaceInternal(server, &nameString);
+    UA_UInt16 retVal = addNamespaceInternal(server, &nameString);
+    UA_String_deleteMembers(&nameString);
+    return retVal;
 }
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
@@ -1588,6 +1590,8 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
+    UA_RegisterServerRequest_deleteMembers(&request);
+
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
@@ -1596,6 +1600,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         UA_Client_delete(client);
         return response.responseHeader.serviceResult;
     }
+
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
