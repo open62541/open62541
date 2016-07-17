@@ -1,5 +1,8 @@
 find_package(Sphinx REQUIRED)
+find_package(LATEX)
 
+
+set(DOC_LATEX_DIR ${PROJECT_BINARY_DIR}/doc_latex)
 make_directory(${PROJECT_BINARY_DIR}/doc_src)
 file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
 file(COPY ${DOC_SRC} DESTINATION ${PROJECT_BINARY_DIR}/doc_src)
@@ -36,6 +39,15 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
+
+
+add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -q "open62541.tex"
+  WORKING_DIRECTORY ${DOC_LATEX_DIR}
+  # compile it twice so that the contents pages are correct
+  COMMAND ${PDFLATEX_COMPILER} -q "open62541.tex"
+  DEPENDS ${PDFLATEX_COMPILER}
+  COMMENT "Generating PDF documentation from LaTeX sources")
+add_dependencies(doc_pdf doc_latex)
 
 add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc"

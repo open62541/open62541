@@ -117,4 +117,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
              size_t maxDepth, UA_Boolean *found);
 
+/* Periodic task to clean up the discovery registry */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+
 #endif /* UA_SERVER_INTERNAL_H_ */

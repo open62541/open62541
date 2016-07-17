@@ -5,9 +5,10 @@
 #ifdef UA_ENABLE_DISCOVERY
     #ifdef _MSC_VER
     # include <io.h> //access
+    # define access _access
     #else
     # include <unistd.h> //access
-	#endif
+    #endif
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -347,7 +348,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(&request->server, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_now();
+    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
 
     response->responseHeader.serviceResult = retval;
 }
@@ -358,9 +359,9 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
  * When it is deleted, the registration is removed.
  * If there is no semaphore file, then the registration will be removed if it is older than 60 minutes.
  */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now) {
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 
-    UA_DateTime timedOut = now;
+    UA_DateTime timedOut = nowMonotonic;
     // registration is timed out if lastSeen is older than 60 minutes.
     timedOut -= 60*60*UA_SEC_TO_DATETIME;
 
@@ -373,12 +374,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now) {
             char* filePath = malloc(sizeof(char)*current->registeredServer.semaphoreFilePath.length+1);
             memcpy( filePath, current->registeredServer.semaphoreFilePath.data, current->registeredServer.semaphoreFilePath.length );
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-
-#ifdef _MSC_VER
-            semaphoreDeleted = _access( filePath, 0 ) == -1;
-#else
             semaphoreDeleted = access( filePath, 0 ) == -1;
-#endif
             free(filePath);
         }
 

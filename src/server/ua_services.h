@@ -41,10 +41,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DISCOVERY
 /* Registers a remote server in the local discovery service. */
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
-							const UA_RegisterServerRequest *request,
-							UA_RegisterServerResponse *response);
-
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+                            const UA_RegisterServerRequest *request,
+                            UA_RegisterServerResponse *response);
 #endif
 
 /**

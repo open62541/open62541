@@ -672,7 +672,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             return;
 
         default:
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Unknown request type", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Unknown chunk type", connection->sockfd);
         }
 
         /* Loop to process the next message in the stream */
