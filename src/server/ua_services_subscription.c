@@ -190,7 +190,8 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session, UA_S
     LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
 
     /* Create the first sample */
-    UA_MoniteredItem_SampleCallback(server, newMon);
+    if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
+        UA_MoniteredItem_SampleCallback(server, newMon);
 
     /* Prepare the response */
     UA_String_copy(&request->itemToMonitor.indexRange, &newMon->indexRange);
