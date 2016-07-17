@@ -27,7 +27,6 @@ echo "=== The build environment is outdated ==="
 
 # Clean up
 rm -rf $LOCAL_PKG/*
-rm -rf $LOCAL_PKG/.*
 
 # Install newer valgrind
 echo "=== Installing valgrind ==="
