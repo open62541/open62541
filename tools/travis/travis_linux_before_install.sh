@@ -1,15 +1,15 @@
 #!/bin/bash
 set -ev
 
-echo "=== Updating the build environment ==="
+echo "=== Updating the build environment in $LOCAL_PKG ==="
 
 # Increase the environment version to force a rebuild of the packages
 # The version is writen to the cache file after every build of the dependencies
 ENV_VERSION="1"
-ENV_INSTALLED="none"
-if [ -e "$LOCAL_PKG/.cached" ]; then
+ENV_INSTALLED=""
+if [ -e $LOCAL_PKG/.build_env ]; then
     echo "=== No cached build environment ==="
-   read -r ENV_INSTALLED < "$LOCAL_PKG/.cached"
+    read -r ENV_INSTALLED < $LOCAL_PKG/.build_env
 fi
 
 # travis caches the $LOCAL_PKG dir. If it is loaded, we don't need to reinstall the packages
@@ -26,8 +26,8 @@ fi
 echo "=== The build environment is outdated ==="
 
 # Clean up
-rm -rf "$LOCAL_PKG"/*
-rm -rf "$LOCAL_PKG"/.*
+rm -rf $LOCAL_PKG/*
+rm -rf $LOCAL_PKG/.*
 
 # Install newer valgrind
 echo "=== Installing valgrind ==="
@@ -78,7 +78,8 @@ pip install --user sphinx
 pip install --user sphinx_rtd_theme
 
 # create cached flag
-echo $ENV_VERSION > $LOCAL_PKG/.cached
+echo "=== Store cache flag ==="
+echo $ENV_VERSION > $LOCAL_PKG/.build_env
 
 # Print version numbers
 echo "=== Installed versions are ==="
