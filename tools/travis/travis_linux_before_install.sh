@@ -3,6 +3,11 @@ set -ev
 
 echo "=== Updating the build environment in $LOCAL_PKG ==="
 
+echo "=== Installing python packages ==="
+pip install --user cpp-coveralls
+pip install --user sphinx
+pip install --user sphinx_rtd_theme
+
 # Increase the environment version to force a rebuild of the packages
 # The version is writen to the cache file after every build of the dependencies
 ENV_VERSION="1"
@@ -69,12 +74,6 @@ cd cppcheck-1.73
 make PREFIX="$LOCAL_PKG" SRCDIR=build CFGDIR="$LOCAL_PKG/cppcheck-cfg" HAVE_RULES=yes CXXFLAGS="-O2 -DNDEBUG -Wall -Wno-sign-compare -Wno-unused-function" -j8
 make PREFIX="$LOCAL_PKG" SRCDIR=build CFGDIR="$LOCAL_PKG/cppcheck-cfg" HAVE_RULES=yes install
 cd ..
-
-# Install python packages
-echo "=== Installing python packages ==="
-pip install --user cpp-coveralls
-pip install --user sphinx
-pip install --user sphinx_rtd_theme
 
 # create cached flag
 echo "=== Store cache flag ==="
