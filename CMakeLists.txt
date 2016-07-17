@@ -353,7 +353,7 @@ if(UA_BUILD_EXAMPLES)
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
-    target_add_definitions(open62541-object UA_BUILD_UNIT_TESTS) # Export some internal functions
+    target_compile_definitions(open62541-object PRIVATE UA_BUILD_UNIT_TESTS) # Export some internal functions
     enable_testing()
     add_subdirectory(tests)
 endif()
