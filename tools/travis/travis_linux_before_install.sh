@@ -6,6 +6,7 @@ set -ev
 ENV_VERSION="1"
 ENV_INSTALLED="none"
 if [ -e "$LOCAL_PKG/.cached" ]
+then
    read -r ENV_INSTALLED < $LOCAL_PKG/.cached
 fi
 
