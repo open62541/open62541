@@ -3,8 +3,8 @@ set -ev
 
 # Increase the environment version to force a rebuild of the packages
 # The version is writen to the cache file after every build of the dependencies
-ENV_VERSION = "1"
-ENV_INSTALLED = "none"
+ENV_VERSION="1"
+ENV_INSTALLED="none"
 if [ -e "$LOCAL_PKG/.cached" ]
    read -r ENV_INSTALLED < $LOCAL_PKG/.cached
 fi
