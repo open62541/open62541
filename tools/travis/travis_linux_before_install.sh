@@ -47,8 +47,8 @@ sed -i "s|prefix=/usr|prefix=${LOCAL_PKG}|g" ./tmp_check/usr/lib/x86_64-linux-gn
 sed -i 's|libdir=.*|libdir=${prefix}/lib|g' ./tmp_check/usr/lib/x86_64-linux-gnu/pkgconfig/check.pc
 # move files to globally included dirs
 cp -R ./tmp_check/usr/lib/x86_64-linux-gnu/* $LOCAL_PKG/lib/
-cp -R ./tmp_check/package/usr/include/* $LOCAL_PKG/include/
-cp -R ./tmp_check/package/usr/bin/* $LOCAL_PKG/
+cp -R ./tmp_check/usr/include/* $LOCAL_PKG/include/
+cp -R ./tmp_check/usr/bin/* $LOCAL_PKG/
 
 # Install specific liburcu version which is not yet in the apt package
 echo "=== Installing liburcu ==="
