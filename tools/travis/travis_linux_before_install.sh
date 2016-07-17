@@ -7,7 +7,7 @@ ENV_VERSION="1"
 ENV_INSTALLED="none"
 if [ -e "$LOCAL_PKG/.cached" ]
 then
-   read -r ENV_INSTALLED < $LOCAL_PKG/.cached
+   read -r ENV_INSTALLED < "$LOCAL_PKG/.cached"
 fi
 
 # travis caches the $LOCAL_PKG dir. If it is loaded, we don't need to reinstall the packages
