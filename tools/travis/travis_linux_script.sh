@@ -2,7 +2,7 @@
 set -ev
 
 if [ $ANALYZE = "true" ]; then
-    echo "\n=== Running static code analysis ==="
+    echo "=== Running static code analysis ==="
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
@@ -28,13 +28,13 @@ if [ $ANALYZE = "true" ]; then
             --suppress=invalidscanf --inline-suppr \
             -I include src plugins 2> cppcheck.txt
         if [ -s cppcheck.txt ]; then
-            echo "\n\n====== CPPCHECK Static Analysis Errors ======"
+            echo "====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt
             exit 1
         fi
     fi
 else
-    echo "\n=== Building ==="
+    echo "=== Building ==="
 
     echo "Documentation and certificate build"
     mkdir -p build
