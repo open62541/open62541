@@ -76,8 +76,8 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
   find_package(OpenSSL REQUIRED)
   add_custom_command(OUTPUT server_cert.der ca.crt
                      COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_SOURCE_DIR}
-                     DEPENDS ${PROJECT_BINARY_DIR}/tools/certs/create_self-signed.py
-                             ${PROJECT_BINARY_DIR}/tools/certs/localhost.cnf)
+                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                             ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
                              
   add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
 
