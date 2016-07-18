@@ -8,7 +8,7 @@
     # define access _access
     #else
     # include <unistd.h> //access
-    #endif
+#endif
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -407,6 +407,125 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 
         }
     }
+}
+
+struct PeriodicServerRegisterJob {
+    UA_Boolean is_main_job;
+    UA_UInt32 default_interval;
+    UA_Guid job_id;
+    UA_Job *job;
+    UA_UInt32 this_interval;
+};
+
+/**
+ * Called by the UA_Server job.
+ * The OPC UA specification says:
+ *
+ * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
+ * > must periodically re-attempt registration. The frequency of these attempts should start at 1 second
+ * > but gradually increase until the registration frequency is the same as what it would be if not
+ * > errors occurred. The recommended approach would double the period each attempt until reaching the maximum.
+ *
+ * We will do so by using the additional data parameter which holds information if the next interval
+ * is default or if it is a repeaded call.
+ */
+static void periodicServerRegister(UA_Server *server, void *data) {
+
+    if (data == NULL) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Data parameter must be not NULL for periodic server register");
+        return;
+    }
+
+    struct PeriodicServerRegisterJob *retryJob = (struct PeriodicServerRegisterJob *)data;
+
+    if (!retryJob->is_main_job) {
+        // remove the retry job because we don't want to fire it again.
+        UA_Server_removeRepeatedJob(server, retryJob->job_id);
+    }
+
+
+    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", NULL);
+    // You can also use a semaphore file. That file must exist. When the file is deleted, the server is automatically unregistered.
+    // The semaphore file has to be accessible by the discovery server
+    // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", "/path/to/some/file");
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
+
+        // first retry in 1 second
+        UA_UInt32 nextInterval = 1;
+
+        if (!retryJob->is_main_job) {
+            nextInterval = retryJob->this_interval*2;
+        }
+
+        // as long as next retry is smaller than 10 minutes, retry
+        if (nextInterval < retryJob->default_interval) {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
+            struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
+            newRetryJob->job = malloc(sizeof(UA_Job));
+            newRetryJob->default_interval = retryJob->default_interval;
+            newRetryJob->is_main_job = UA_FALSE;
+            newRetryJob->this_interval = nextInterval;
+
+            newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
+            newRetryJob->job->job.methodCall.method = periodicServerRegister;
+            newRetryJob->job->job.methodCall.data = newRetryJob;
+
+            UA_Server_addRepeatedJob(server, *newRetryJob->job, nextInterval*1000, &newRetryJob->job_id);
+        }
+    } else {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Server successfully registered. Next periodical register will be in 10 Minutes");
+    }
+    if (!retryJob->is_main_job) {
+        free(retryJob->job);
+        free(retryJob);
+    }
+
+}
+
+UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
+
+    // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
+
+    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
+            .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
+
+    struct PeriodicServerRegisterJob defaultJob = {
+            .job = &job,
+            .this_interval = 0,
+            .is_main_job = UA_TRUE,
+            .default_interval = intervalMs
+    };
+    job.job.methodCall.data = &defaultJob;
+
+
+    if (periodicJobId)
+        *periodicJobId = defaultJob.job_id;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *defaultJob.job, intervalMs, &defaultJob.job_id);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode 0x%08x", retval);
+        return retval;
+    }
+
+    if (delayFirstRegisterMs>0) {
+        // Register the server with the discovery server.
+        // Delay this first registration until the server is fully initialized
+        // will be freed in the callback
+        struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
+        newRetryJob->job = malloc(sizeof(UA_Job));
+        newRetryJob->this_interval = 1;
+        newRetryJob->is_main_job = UA_FALSE;
+        newRetryJob->default_interval = intervalMs;
+        newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
+        newRetryJob->job->job.methodCall.method = periodicServerRegister;
+        newRetryJob->job->job.methodCall.data = newRetryJob;
+        retval = UA_Server_addRepeatedJob(server, *newRetryJob->job, delayFirstRegisterMs, &newRetryJob->job_id);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not create first job for server register. StatusCode 0x%08x", retval);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif

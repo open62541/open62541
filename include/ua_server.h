@@ -464,6 +464,21 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   */
  UA_StatusCode UA_EXPORT
  UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+
+ /**
+  * Adds a periodic job to register the server with the LDS (local discovery server)
+  * periodically. The interval between each register call is given as second parameter.
+  * It should be 10 minutes by default (= 10*60*1000).
+  *
+  * The delayFirstRegisterMs parameter indicates the delay for the first register call.
+  * If it is 0, the first register call will be after intervalMs milliseconds,
+  * otherwise the server's first register will be after delayFirstRegisterMs.
+  *
+  * When you manually unregister the server, you also need to cancel the periodic job,
+  * otherwise it will be automatically be registered again.
+  */
+ UA_StatusCode UA_EXPORT
+         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
 #endif
 
 /**

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <ua_util.h>
 #include <ua_types_generated.h>
@@ -60,6 +61,8 @@ UA_Boolean *running_register;
 UA_ServerNetworkLayer nl_register;
 pthread_t server_thread_register;
 
+UA_Guid periodicRegisterJobId;
+
 static void * serverloop_register(void *_) {
 	while(*running_register)
 		UA_Server_run_iterate(server_register, true);
@@ -97,6 +100,22 @@ START_TEST(Server_register) {
 END_TEST
 
 START_TEST(Server_unregister) {
+		UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+	}
+END_TEST
+
+START_TEST(Server_register_periodic) {
+		// periodic register every minute, first register immediately
+		UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server_register, 60*1000, 100, &periodicRegisterJobId);
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+	}
+END_TEST
+
+START_TEST(Server_unregister_periodic) {
+		// wait for first register delay
+		sleep(1);
+		UA_Server_removeRepeatedJob(server_register, periodicRegisterJobId);
 		UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
 		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 	}
@@ -232,6 +251,8 @@ static Suite* testSuite_Client(void) {
 	// register two times
 	tcase_add_test(tc_register, Server_register);
 	tcase_add_test(tc_register, Server_unregister);
+	tcase_add_test(tc_register, Server_register_periodic);
+	tcase_add_test(tc_register, Server_unregister_periodic);
 	suite_add_tcase(s,tc_register);
 
 	TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
