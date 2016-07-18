@@ -84,7 +84,7 @@ build_script:
   - cd ..
 
 after_build:
-  - 7z a open62541-win32.zip -r %APPVEYOR_BUILD_FOLDER%\build\Debug\
-  - 7z a open62541-win64.zip -r %APPVEYOR_BUILD_FOLDER%\build64\Debug\
+  - 7z a open62541-win32.zip %APPVEYOR_BUILD_FOLDER%\build\Debug\* %APPVEYOR_BUILD_FOLDER%\build\examples\Debug\*
+  - 7z a open62541-win64.zip %APPVEYOR_BUILD_FOLDER%\build64\Debug\* %APPVEYOR_BUILD_FOLDER%\build64\examples\Debug\*
   - appveyor PushArtifact open62541-win32.zip
   - appveyor PushArtifact open62541-win64.zip
