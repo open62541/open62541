@@ -43,7 +43,7 @@ else
     make doc
     make selfsigned
     cp -r doc ../../
-    cp server_cert.der ../../
+    cp ./examples/server_cert.der ../../
     cd .. && rm build -rf
 
     # cross compilation only with gcc

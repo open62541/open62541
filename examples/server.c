@@ -39,6 +39,32 @@
 
 UA_Boolean running = 1;
 UA_Logger logger = UA_Log_Stdout;
+
+static UA_ByteString loadCertificate(void) {
+    UA_ByteString certificate = UA_STRING_NULL;
+    FILE *fp = NULL;
+    //FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
+    fp=fopen("server_cert.der", "rb");
+
+    if(!fp) {
+        errno = 0; // we read errno also from the tcp layer...
+        return certificate;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    certificate.length = (size_t)ftell(fp);
+    certificate.data = malloc(certificate.length*sizeof(UA_Byte));
+    if(!certificate.data)
+        return certificate;
+
+    fseek(fp, 0, SEEK_SET);
+    if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
+        UA_ByteString_deleteMembers(&certificate); // error reading the cert
+    fclose(fp);
+
+    return certificate;
+}
+
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
     running = 0;
@@ -106,6 +132,10 @@ int main(int argc, char** argv) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+
+    /* load certificate */
+    config.serverCertificate = loadCertificate();
+
     UA_Server *server = UA_Server_new(config);
 
     /* add a static variable node to the server */
@@ -368,6 +398,10 @@ int main(int argc, char** argv) {
 
     /* run server */
     UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
+
+    /* deallocate certificate's memory */
+    UA_ByteString_deleteMembers(&config.serverCertificate);
+
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
     return (int)retval;
