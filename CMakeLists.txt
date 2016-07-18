@@ -53,10 +53,11 @@ endif()
 option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" OFF)
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
-
 option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
+
+option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
@@ -72,15 +73,15 @@ endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
-option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
+option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
 mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 
-# Building shared libs (dll, so)
+# Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
