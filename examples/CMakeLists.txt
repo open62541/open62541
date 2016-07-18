@@ -7,7 +7,7 @@ else()
     add_definitions(-DUA_NO_AMALGAMATION)
 endif()
 
-list(APPEND LIBS ${open62541_LIBRARIES})
+list(APPEND LIBS ${open62541_LIBRARIES} open62541)
 if(NOT WIN32)
   list(APPEND LIBS pthread)
   if (NOT APPLE)
@@ -68,6 +68,7 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
+
     add_executable(discovery_server_discovery discovery/server_discovery.c)
     target_link_libraries(discovery_server_discovery ${LIBS})
 

@@ -130,6 +130,17 @@ typedef struct {
     /* Limits for MonitoredItems */
     UA_DoubleRange samplingIntervalLimits;
     UA_UInt32Range queueSizeLimits;
+
+#ifdef UA_ENABLE_DISCOVERY
+    /* Discovery */
+    // timeout in seconds when to automatically remove a registered server from the list,
+    // if it doesn't re-register within the given time frame. A value of 0 disables automatic removal.
+    // Default is 60 Minutes (60*60). Must be bigger than 10 seconds, because cleanup is only triggered approximately
+    // ervery 10 seconds.
+    // The server will still be removed depending on the state of the semaphore file.
+    UA_UInt32 discoveryCleanupTimeout;
+#endif
+
 } UA_ServerConfig;
 
 /**

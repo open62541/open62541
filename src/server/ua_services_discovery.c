@@ -359,10 +359,11 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
  * If there is no semaphore file, then the registration will be removed if it is older than 60 minutes.
  */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now) {
-
-    UA_DateTime timedOut = now;
-    // registration is timed out if lastSeen is older than 60 minutes.
-    timedOut -= 60*60*UA_SEC_TO_DATETIME;
+    UA_DateTime timedOut = nowMonotonic;
+    // registration is timed out if lastSeen is older than 60 minutes (default value, can be modified by user).
+    if (server->config.discoveryCleanupTimeout) {
+        timedOut -= server->config.discoveryCleanupTimeout*UA_SEC_TO_DATETIME;
+    }
 
     registeredServer_list_entry* current, *temp;
     LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
@@ -382,17 +383,20 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now) {
             free(filePath);
         }
 
-
-        if (semaphoreDeleted || current->lastSeen < timedOut) {
+        if (semaphoreDeleted || (server->config.discoveryCleanupTimeout && current->lastSeen < timedOut)) {
             if (semaphoreDeleted) {
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                             "Registration of server with URI %.*s is removed because the semaphore file '%.*s' was deleted.",
                             (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
                             (int)current->registeredServer.semaphoreFilePath.length, current->registeredServer.semaphoreFilePath.data);
             } else {
+                // cppcheck-suppress unreadVariable
+                UA_String lastStr = UA_DateTime_toString(current->lastSeen);
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Registration of server with URI %.*s has timed out and is removed",
-                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data);
+                             "Registration of server with URI %.*s has timed out and is removed. Last seen: %.*s",
+                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
+                            (int)lastStr.length, lastStr.data);
+                UA_free(lastStr.data);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_deleteMembers(&current->registeredServer);
