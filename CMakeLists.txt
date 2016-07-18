@@ -80,6 +80,12 @@ option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
 mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 
+# Building shared libs (dll, so)
+set(UA_DYNAMIC_LINKING OFF)
+if(BUILD_SHARED_LIBS)
+  set(UA_DYNAMIC_LINKING ON)
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -336,9 +342,8 @@ endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
-target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
-target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING)
-# target_compile_definitions(open62541-static PRIVATE -DUA_DYNAMIC_LINKING)
+target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
