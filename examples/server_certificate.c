@@ -2,6 +2,9 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <errno.h> // errno, EINTR
+#ifdef _WIN32
+#define _CRT_SECURE_NO_DEPRECATE //disable fopen deprication warning in msvs
+#endif
 #include <stdio.h>
 #include <signal.h>
 #include <stdlib.h>
