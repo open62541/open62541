@@ -73,6 +73,7 @@ build_script:
   - msbuild open62541.sln /m
   - copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
   - copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
+  - copy C:\projects\open62541\build\examples\server_cert.der C:\projects\open62541\build\Debug\server_cert.der
   - cd ..
   - echo "Win 64 build"
   - md build64
@@ -81,6 +82,7 @@ build_script:
   - msbuild open62541.sln /m
   - copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
   - copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
+  - copy C:\projects\open62541\build64\examples\server_cert.der C:\projects\open62541\build64\Debug\server_cert.der
   - cd ..
 
 after_build:
