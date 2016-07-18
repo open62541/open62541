@@ -33,31 +33,32 @@ UA_StatusCode
 UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
                               UA_Boolean * UA_RESTRICT realloced) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_ByteString *current = message; /* points to either the network message or the copied message */
 
-    /* We have a stored half-chunk. Concat the received message to the end */
+    /* We have a stored an incomplete chunk. Concat the received message to the end.
+     * After this block, connection->incompleteMessage is always empty. */
     if(connection->incompleteMessage.length > 0) {
-        UA_Byte *data = UA_realloc(connection->incompleteMessage.data,
-                                   connection->incompleteMessage.length + message->length);
+        size_t length = connection->incompleteMessage.length + message->length;
+        UA_Byte *data = UA_realloc(connection->incompleteMessage.data, length);
         if(!data) {
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
-        memcpy(&data[connection->incompleteMessage.length], message->data, message->length);
-        connection->incompleteMessage.data = data;
-        connection->incompleteMessage.length += message->length;
+        memcpy(&data[connection->incompleteMessage.length], message->data, length);
         connection->releaseRecvBuffer(connection, message);
-        current = &connection->incompleteMessage;
+        message->data = data;
+        message->length += length;
+        *realloced = true;
+        connection->incompleteMessage = UA_BYTESTRING_NULL;
     }
 
     /* Loop over the chunks in the received buffer */
     size_t complete_until = 0; /* the received complete chunks end at this point */
     UA_Boolean garbage_end = false; /* garbage after the last complete message */
-    while(current->length - complete_until >= 8) {
+    while(message->length - complete_until >= 8) {
         /* Check the message type */
-        UA_UInt32 msgtype = (UA_UInt32)current->data[complete_until] +
-            ((UA_UInt32)current->data[complete_until+1] << 8) +
-            ((UA_UInt32)current->data[complete_until+2] << 16);
+        UA_UInt32 msgtype = (UA_UInt32)message->data[complete_until] +
+            ((UA_UInt32)message->data[complete_until+1] << 8) +
+            ((UA_UInt32)message->data[complete_until+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
@@ -70,7 +71,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         /* Decode the length of the chunk */
         UA_UInt32 chunk_length = 0;
         size_t length_pos = complete_until + 4;
-        UA_StatusCode decode_retval = UA_UInt32_decodeBinary(current, &length_pos, &chunk_length);
+        UA_StatusCode decode_retval = UA_UInt32_decodeBinary(message, &length_pos, &chunk_length);
 
         /* The message size is not allowed. Throw the remaining bytestring away */
         if(decode_retval != UA_STATUSCODE_GOOD || chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize) {
@@ -79,72 +80,54 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         }
 
         /* The chunk is okay but incomplete. Store the end. */
-        if(chunk_length + complete_until > current->length)
+        if(chunk_length + complete_until > message->length)
             break;
 
-        /* Go to the next chunk */
-        complete_until += chunk_length;
+        complete_until += chunk_length; /* Go to the next chunk */
     }
 
-    /* Separate complete from incomplete chunks */
-    if(complete_until != current->length) {
-        size_t incomplete_length = current->length - complete_until;
+    /* Separate incomplete chunks */
+    if(complete_until != message->length) {
+        /* Garbage after the last good chunk. No need to keep a buffer */
+        if(garbage_end) {
+            if(complete_until == 0)
+                goto cleanup; /* All garbage, only happens on messages from the network layer */
+            message->length = complete_until;
+            return UA_STATUSCODE_GOOD;
+        }
 
-        /* No complete chunk to return */
+        /* No good chunk, only an incomplete one */
         if(complete_until == 0) {
-            if(garbage_end) { /* All garbage, reset all */
-                retval = UA_STATUSCODE_BADDECODINGERROR;
-                goto cleanup;
-            }
-
-            /* Store the incomplete message and return UA_BYTESTRING_NULL */
-            if(current == message) { /* Incomplete message lives in network layer */
-                retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
+            if(!*realloced) {
+                retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, message->length);
                 if(retval != UA_STATUSCODE_GOOD)
                     goto cleanup;
-                memcpy(connection->incompleteMessage.data, message->data, incomplete_length);
+                memcpy(connection->incompleteMessage.data, message->data, message->length);
                 connection->releaseRecvBuffer(connection, message);
-            } else { /* Incomplete message already copied to the buffer */
-                current = message; // message is already set to UA_BYTESTRING_NULL
+                *realloced = true;
+            } else {
+                connection->incompleteMessage = *message;
+                *message = UA_BYTESTRING_NULL;
             }
-            goto cleanup;
+            return UA_STATUSCODE_GOOD;
         }
 
-        /* Just ignore garbage after a complete message */
-        if(garbage_end) {
-            current->length = complete_until;
-            goto cleanup;
-        }
-
-        /* We have an incomplete chunk at the end that needs to be stored */
-        current->length = complete_until;
-        UA_ByteString oldIncompleteMessage = connection->incompleteMessage;
+        /* At least one good chunk and an incomplete one */
+        size_t incomplete_length = message->length - complete_until;
         retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        memcpy(&connection->incompleteMessage.data, &current->data[complete_until], incomplete_length);
-        if(current != message) { /* Message was already on the incompleteMessage buffer */
-            *message = oldIncompleteMessage;
-            current = message;
-        }
+        memcpy(&connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
+        message->length = complete_until;
     }
+
+    return UA_STATUSCODE_GOOD;
 
  cleanup:
-    /* Error, reset the connection */
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(!*realloced)
         connection->releaseRecvBuffer(connection, message);
-        UA_ByteString_deleteMembers(&connection->incompleteMessage);
-        connection->incompleteMessage = UA_BYTESTRING_NULL;
-        return retval;
-    }
-
-    /* If the original message was moved, delete on the network layer */
-    *realloced = (current != message);
-    if(*realloced) {
-        connection->releaseRecvBuffer(connection, message);
-        *message = *current;
-    }
-    return UA_STATUSCODE_GOOD;
+    UA_ByteString_deleteMembers(&connection->incompleteMessage);
+    return retval;
 }
 
 #if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
