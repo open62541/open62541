@@ -42,34 +42,34 @@ before_build:
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   - set PATH=C:\MinGW\bin;%PATH%
 
-build_script: 
+build_script:
   - cd c:\projects\open62541
   - md build
   - cd build
   # cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
   #- echo "Testing cygwin"
   #- '%CYG_BASH% --login -lc "/usr/bin/cmake.exe --version"'
-  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" .."'
+  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" .."'
   #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; make -j"'
   - cd ..
   - rd /s /q build
   - md build
   - cd build
   - echo "Testing MinGW32"
-  - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G"MinGW Makefiles" ..
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"MinGW Makefiles" ..
   - mingw32-make
   - cd ..
   - rd /s /q build
   - md build
   - cd build
-  - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
   - msbuild open62541.sln /m
   - echo "Testing amalgamation"
   - cd ..
   - rd /s /q build
   - md build
   - cd build
-  - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
   - msbuild open62541.sln /m
   - copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
   - copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
@@ -77,7 +77,7 @@ build_script:
   - echo "Win 64 build"
   - md build64
   - cd build64
-  - cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
   - msbuild open62541.sln /m
   - copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
   - copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h

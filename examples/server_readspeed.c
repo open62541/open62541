@@ -1,40 +1,31 @@
-/*
- * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
- */
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <signal.h>
+/* This example is just to see how fast we can process messages. The server does
+   not open a TCP port. */
+
+#include <time.h>
+#include <stdio.h>
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_types_generated.h"
 # include "ua_server.h"
 # include "ua_config_standard.h"
-# include "networklayer_tcp.h"
 #else
 # include "open62541.h"
+/* include guards to prevent double definitions with open62541.h */
+# define UA_TYPES_H_
+# define UA_SERVER_H_
+# define UA_CONNECTION_H_
+# define UA_TYPES_GENERATED_H_
 #endif
 
-#include <time.h>
-#include <stdio.h>
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
-UA_Boolean running = true;
-UA_Logger logger = Logger_Stdout;
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
 int main(int argc, char** argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
@@ -70,7 +61,7 @@ int main(int argc, char** argv) {
     retval |= UA_ByteString_allocBuffer(&response_msg, 1000);
     size_t offset = 0;
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], NULL, NULL, &request_msg, &offset);
-    
+
     clock_t begin, end;
     begin = clock();
 
@@ -98,10 +89,6 @@ int main(int argc, char** argv) {
 
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
-
-    retval |= UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-
     return (int)retval;
 }
