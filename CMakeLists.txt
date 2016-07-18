@@ -362,15 +362,6 @@ if(UA_BUILD_DOCUMENTATION)
     add_subdirectory(doc)
 endif()
 
-if(UA_BUILD_SELFSIGNED_CERTIFICATE)
-    find_package(OpenSSL REQUIRED)
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/server_cert.der ${PROJECT_BINARY_DIR}/ca.crt
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
-                       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
-                               ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
-    add_custom_target(selfsigned ALL DEPENDS ${PROJECT_BINARY_DIR}/server_cert.der ${PROJECT_BINARY_DIR}/ca.crt)
-endif()
-
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_custom_target(generate_informationmodel ALL
                     DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
