@@ -608,22 +608,23 @@ class opcua_node_t:
 
     for x in thisxml.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        if   x.tagName == "BrowseName":
-          self.browseName(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "DisplayName":
-          self.displayName(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "Description":
-          self.description(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "WriteMask":
-          self.writeMask(int(unicode(x.firstChild.data)))
-          xmlelement.removeChild(x)
-        elif x.tagName == "UserWriteMask":
-          self.userWriteMask(int(unicode(x.firstChild.data)))
-          xmlelement.removeChild(x)
-        elif x.tagName == "References":
+        if x.firstChild:
+          if   x.tagName == "BrowseName":
+            self.browseName(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "DisplayName":
+            self.displayName(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "Description":
+            self.description(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "WriteMask":
+            self.writeMask(int(unicode(x.firstChild.data)))
+            xmlelement.removeChild(x)
+          elif x.tagName == "UserWriteMask":
+            self.userWriteMask(int(unicode(x.firstChild.data)))
+            xmlelement.removeChild(x)
+        if x.tagName == "References":
           self.initiateDummyXMLReferences(x)
           xmlelement.removeChild(x)
     self.parseXMLSubType(xmlelement)
@@ -801,7 +802,7 @@ class opcua_node_referenceType_t(opcua_node_t):
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        if x.tagName == "InverseName":
+        if x.tagName == "InverseName" and x.firstChild:
           self.inverseName(str(unicode(x.firstChild.data)))
         else:
           logger.warn( "Unprocessable XML Element: " + x.tagName)
