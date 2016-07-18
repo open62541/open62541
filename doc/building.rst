@@ -1,17 +1,21 @@
 .. _building:
 
-Building the Library
-====================
+Building open62541
+^^^^^^^^^^^^^^^^^^
 
-Building the Single-File Release
---------------------------------
+Building the Examples
+=====================
 
-Using the GCC compiler, the following calls build the library on Linux.
+Using the GCC compiler, the following calls build the examples on Linux.
 
 .. code-block:: bash
 
-   gcc -std=c99 -fPIC -c open62541.c
-   gcc -shared open62541.o -o libopen62541.so
+   cp /path-to/open62541.* . # copy single-file distribution to the local directory
+   cp /path-to/examples/server_variable.c . # copy the example server to the local directory
+   gcc -std=c99 open62541.c server_variable.c -o server
+
+Building the Library
+====================
 
 Building with CMake on Ubuntu or Debian
 ---------------------------------------
@@ -24,6 +28,7 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
    sudo apt-get install sphinx # for documentation generation
+   sudo apt-get install python-sphinx-rtd-theme # documentation style
 
    cd open62541
    mkdir build
@@ -74,20 +79,18 @@ Building on OS X
 .. code-block:: bash
 
    brew install cmake
-   brew install libxml2
+   pip install sphinx # for documentation generation
+   pip install sphinx_rtd_theme # documentation style
    brew install check # for unit tests
    brew install userspace-rcu # for multi-threading support
-   brew install graphviz doxygen # for documentation generation
-   pip install sphinx # for documentation generation
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
 Build Options
--------------
-
+=============
 
 Build Type and Logging
-~~~~~~~~~~~~~~~~
+----------------------
 
 **CMAKE_BUILD_TYPE**
   - ``RelWithDebInfo`` -O2 optimization with debug symbols
@@ -109,7 +112,7 @@ Further options that are not inherited from the CMake configuration are defined
 in :file:`ua_config.h`. Usually there is no need to adjust them.
 
 UA_BUILD_* group
-~~~~~~~~~~~~~~~~
+----------------
 
 By default only the shared object libopen62541.so or the library open62541.dll
 and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
@@ -135,7 +138,7 @@ specified by the following options:
    Generate a self-signed certificate for the server (openSSL required)
 
 UA_ENABLE_* group
-~~~~~~~~~~~~~~~~~
+-----------------
 
 This group contains build options related to the supported OPC UA features.
 
@@ -170,7 +173,7 @@ be visible in the cmake GUIs.
    Enable udp extension
 
 Building a shared library
-~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------
 
 open62541 is small enough that most users will want to statically link the library into their programs. If a shared library (.dll, .so) is required, this can be enabled in CMake with the `BUILD_SHARED_LIBS` option.
-Note that this option modifies the `ua_config.h` file that is also included in `open62541.h` for the single-file distribution.
+Note that this option modifies the :file:`ua_config.h` file that is also included in :file:`open62541.h` for the single-file distribution.
