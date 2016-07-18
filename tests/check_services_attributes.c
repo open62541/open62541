@@ -111,11 +111,13 @@ static UA_Server* makeTestSequence(void) {
     UA_MethodAttributes_init(&ma);
     ma.description = UA_LOCALIZEDTEXT("en_US", "Methodtest");
     ma.displayName = UA_LOCALIZEDTEXT("en_US", "Methodtest");
+    UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME_ALLOC(0, "Methodtest");
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
                             UA_NODEID_NUMERIC(0, 3),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                            UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
+                            qualifiedName, ma,
                             NULL, NULL, 0, NULL, 0, NULL, NULL);
+    UA_QualifiedName_deleteMembers(&qualifiedName);
 #endif
 
 	return server;

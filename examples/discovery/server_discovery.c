@@ -30,7 +30,13 @@ int main(void) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     config.applicationDescription.applicationUri = UA_String_fromChars("open62541.example.local_discovery_server");
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4048);
+    // timeout in seconds when to automatically remove a registered server from the list,
+    // if it doesn't re-register within the given time frame. A value of 0 disables automatic removal.
+    // Default is 60 Minutes (60*60). Must be bigger than 10 seconds, because cleanup is only triggered approximately
+    // ervery 10 seconds.
+    // The server will still be removed depending on the state of the semaphore file.
+    // config.discoveryCleanupTimeout = 60*60;
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
