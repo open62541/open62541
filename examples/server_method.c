@@ -5,18 +5,20 @@
 #include <stdlib.h>
 
 #ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
+#include "ua_types.h"
+#include "ua_server.h"
+#include "ua_config_standard.h"
+#include "ua_network_tcp.h"
+#include "ua_log_stdout.h"
 #else
-# include "open62541.h"
+#include "open62541.h"
 #endif
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
+
+// EXAMPLE 1 method
 static UA_StatusCode
 helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
                  size_t outputSize, UA_Variant *output) {
@@ -33,6 +35,18 @@ helloWorldMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const
         return UA_STATUSCODE_GOOD;
 }
 
+// EXAMPLE 2 method
+static UA_StatusCode
+IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
+                          const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+    UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
+    for(size_t i = 0; i< input->arrayLength; i++)
+        ((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
+    return UA_STATUSCODE_GOOD;
+}
+
+
+// EXAMPLE 3 method
 static UA_StatusCode
 fooBarMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_Variant *input,
                  size_t outputSize, UA_Variant *output) {
@@ -46,17 +60,8 @@ fooBarMethod(void *handle, const UA_NodeId objectId, size_t inputSize, const UA_
         }
         UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
         UA_String_deleteMembers(&tmp);
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "FooBar was called");
         return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-IncInt32ArrayValuesMethod(void *handle, const UA_NodeId objectId, size_t inputSize,
-                          const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-    UA_Variant_setArrayCopy(output, input->data, 5, &UA_TYPES[UA_TYPES_INT32]);
-    for(size_t i = 0; i< input->arrayLength; i++)
-        ((UA_Int32*)output->data)[i] = ((UA_Int32*)input->data)[i] + 1;
-    return UA_STATUSCODE_GOOD;
 }
 
 static void stopHandler(int sign) {
@@ -76,23 +81,23 @@ int main(int argc, char** argv) {
 
     //EXAMPLE 1
     /* add the method node with the callback */
-    UA_Argument inputArguments;
-    UA_Argument_init(&inputArguments);
-    inputArguments.arrayDimensionsSize = 0;
-    inputArguments.arrayDimensions = NULL;
-    inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
-    inputArguments.name = UA_STRING("MyInput");
-    inputArguments.valueRank = -1;
+    UA_Argument inputArguments1;
+    UA_Argument_init(&inputArguments1);
+    inputArguments1.arrayDimensionsSize = 0;
+    inputArguments1.arrayDimensions = NULL;
+    inputArguments1.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    inputArguments1.description = UA_LOCALIZEDTEXT("en_US", "A String");
+    inputArguments1.name = UA_STRING("MyInput");
+    inputArguments1.valueRank = -1;
 
-    UA_Argument outputArguments;
-    UA_Argument_init(&outputArguments);
-    outputArguments.arrayDimensionsSize = 0;
-    outputArguments.arrayDimensions = NULL;
-    outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
-    outputArguments.name = UA_STRING("MyOutput");
-    outputArguments.valueRank = -1;
+    UA_Argument outputArguments1;
+    UA_Argument_init(&outputArguments1);
+    outputArguments1.arrayDimensionsSize = 0;
+    outputArguments1.arrayDimensions = NULL;
+    outputArguments1.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+    outputArguments1.description = UA_LOCALIZEDTEXT("en_US", "A String");
+    outputArguments1.name = UA_STRING("MyOutput");
+    outputArguments1.valueRank = -1;
 
     UA_MethodAttributes helloAttr;
     UA_MethodAttributes_init(&helloAttr);
@@ -103,36 +108,37 @@ int main(int argc, char** argv) {
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
-                            UA_QUALIFIEDNAME(1, "hello world"), 
+                            UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethod, NULL,
-                            1, &inputArguments, 1, &outputArguments, NULL);
-
+                            1, &inputArguments1, 1, &outputArguments1, NULL);
     //END OF EXAMPLE 1
 
     //EXAMPLE 2
     /* add another method node: output argument as 1d Int32 array*/
     // define input arguments
-    UA_Argument_init(&inputArguments);
-    inputArguments.arrayDimensionsSize = 1;
+    UA_Argument inputArguments2;
+    UA_Argument_init(&inputArguments2);
+    inputArguments2.arrayDimensionsSize = 1;
     UA_UInt32 * pInputDimensions = UA_UInt32_new();
     pInputDimensions[0] = 5;
-    inputArguments.arrayDimensions = pInputDimensions;
-    inputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    inputArguments.description = UA_LOCALIZEDTEXT("en_US",
+    inputArguments2.arrayDimensions = pInputDimensions;
+    inputArguments2.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    inputArguments2.description = UA_LOCALIZEDTEXT("en_US",
                     "input an array with 5 elements, type int32");
-    inputArguments.name = UA_STRING("int32 value");
-    inputArguments.valueRank = 1;
+    inputArguments2.name = UA_STRING("int32 value");
+    inputArguments2.valueRank = 1;
 
     // define output arguments
-    UA_Argument_init(&outputArguments);
-    outputArguments.arrayDimensionsSize = 1;
+    UA_Argument outputArguments2;
+    UA_Argument_init(&outputArguments2);
+    outputArguments2.arrayDimensionsSize = 1;
     UA_UInt32 * pOutputDimensions = UA_UInt32_new();
     pOutputDimensions[0] = 5;
-    outputArguments.arrayDimensions = pOutputDimensions;
-    outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "increment each array index");
-    outputArguments.name = UA_STRING("output is the array, each index is incremented by one");
-    outputArguments.valueRank = 1;
+    outputArguments2.arrayDimensions = pOutputDimensions;
+    outputArguments2.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    outputArguments2.description = UA_LOCALIZEDTEXT("en_US", "increment each array index");
+    outputArguments2.name = UA_STRING("output is the array, each index is incremented by one");
+    outputArguments2.valueRank = 1;
 
     UA_MethodAttributes incAttr;
     UA_MethodAttributes_init(&incAttr);
@@ -142,18 +148,30 @@ int main(int argc, char** argv) {
     incAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
                             incAttr, &IncInt32ArrayValuesMethod, NULL,
-                            1, &inputArguments, 1, &outputArguments, NULL);
+                            1, &inputArguments2, 1, &outputArguments2, NULL);
     //END OF EXAMPLE 2
 
-    /* If out methodnode is part of an instantiated object, we never had
-       the opportunity to define the callback... we could do that now
-    */
-    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(1,62541), &fooBarMethod, NULL);
-
+    //EXAMPLE 3
+    UA_MethodAttributes method3Attr;
+    UA_MethodAttributes_init(&method3Attr);
+    method3Attr.description = UA_LOCALIZEDTEXT("en_US","FooBar");
+    method3Attr.displayName = UA_LOCALIZEDTEXT("en_US","FooBar");
+    method3Attr.executable = true;
+    method3Attr.userExecutable = true;
+    UA_Server_addMethodNode(server, UA_NODEID_STRING(1,"FooBar"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "FooBar"),
+                            method3Attr, NULL, NULL,
+                            1, &inputArguments1, 1, &outputArguments1, NULL);
+    /*  If the method node has no callback (because it was instantiated without one) or
+        if we just want to change it, this can be done with UA_Server_setMethodNode_callback() */
+    UA_Server_setMethodNode_callback(server,  UA_NODEID_NUMERIC(1,62542), &fooBarMethod, NULL);
     //END OF EXAMPLE 3
+
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, &running);
 

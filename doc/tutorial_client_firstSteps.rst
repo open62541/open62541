@@ -34,47 +34,11 @@ Reading a node attibute
 In this example we are going to connect to the server from the second tutorial
 and read the value-attribute of the added variable node.
 
-.. code-block:: c
+.. literalinclude:: ../../examples/client_firstSteps.c
+   :language: c
+   :linenos:
+   :lines: 4,5,12,14-
 
-    #include <stdio.h>
-    #include "open62541.h"
-
-    int main(int argc, char *argv[])
-    {
-        /* create a client and connect */
-        UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Client_delete(client);
-            return retval;
-        }
-
-        /* create a readrequest with one entry */
-        UA_ReadRequest req;
-        UA_ReadRequest_init(&req);
-        req.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-        req.nodesToReadSize = 1;
-
-        /* define the node and attribute to be read */
-        req.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
-        req.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
-
-        /* call the service and print the result */
-        UA_ReadResponse resp = UA_Client_Service_read(client, req);
-        if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-           resp.resultsSize > 0 && resp.results[0].hasValue &&
-           UA_Variant_isScalar(&resp.results[0].value) &&
-            resp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
-            UA_Int32 *value = (UA_Int32*)resp.results[0].value.data;
-            printf("the value is: %i\n", *value);
-        }
-
-        UA_ReadRequest_deleteMembers(&req);
-        UA_ReadResponse_deleteMembers(&resp);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_GOOD;
-    }
 
 Further tasks
 -------------
