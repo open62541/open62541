@@ -4,13 +4,13 @@
 #include <signal.h>
 
 #ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
+#include "ua_types.h"
+#include "ua_server.h"
+#include "ua_config_standard.h"
+#include "ua_network_tcp.h"
+#include "ua_log_stdout.h"
 #else
-# include "open62541.h"
+#include "open62541.h"
 #endif
 
 UA_Boolean running = true;
@@ -38,13 +38,15 @@ int main(int argc, char** argv) {
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
-    /* add a variable node to the address space */
+    /* 1) Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
-    /* UA_Int32 myInteger = 42; */
-    /* UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]); */
-    /* attr.description = UA_LOCALIZEDTEXT("en_US","the answer"); */
-    /* attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer"); */
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+
+    /* 2) Add the variable node to the information model */
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);

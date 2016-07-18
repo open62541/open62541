@@ -5,11 +5,11 @@
 #include <inttypes.h>
 
 #ifdef UA_NO_AMALGAMATION
-# include "ua_client.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
+#include "ua_client.h"
+#include "ua_config_standard.h"
+#include "ua_network_tcp.h"
 #else
-# include "open62541.h"
+#include "open62541.h"
 #endif
 
 int main(void) {
@@ -24,13 +24,18 @@ int main(void) {
     UA_DateTime raw_date = 0;
     UA_String string_date;
 
+    /* create a readrequest with one entry */
     UA_ReadRequest rReq;
     UA_ReadRequest_init(&rReq);
     rReq.nodesToRead = UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
     rReq.nodesToReadSize = 1;
-    rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, 2258);
+
+    /* define the node and attribute to be read */
+    #define NS0_CURRENT_TIME 2258
+    rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(0, NS0_CURRENT_TIME);
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
+    /* call the service and print the result */
     UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
     if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD && rResp.resultsSize > 0 &&
        rResp.results[0].hasValue && UA_Variant_isScalar(&rResp.results[0].value) &&
