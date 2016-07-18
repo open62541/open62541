@@ -82,16 +82,6 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         offset += length;
     }
 
-    /* throw the message away */
-    if(delete_at == 0) {
-        if(!*realloced) {
-            connection->releaseRecvBuffer(connection, message);
-            *realloced = true;
-        } else
-            UA_ByteString_deleteMembers(current);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* no complete message at all */
     if(offset == 0) {
         if(!*realloced) {
@@ -100,6 +90,16 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             connection->releaseRecvBuffer(connection, message);
             *realloced = true;
         }
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    /* throw the message away */
+    if(delete_at == 0) {
+        if(!*realloced) {
+            connection->releaseRecvBuffer(connection, message);
+            *realloced = true;
+        } else
+            UA_ByteString_deleteMembers(current);
         return UA_STATUSCODE_GOOD;
     }
 
