@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <ua_util.h>
 #include <ua_types_generated.h>
+#include <server/ua_server_internal.h>
 
 #include "ua_client.h"
 #include "ua_config_standard.h"

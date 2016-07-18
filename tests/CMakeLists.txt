@@ -7,7 +7,7 @@ include_directories(${PROJECT_BINARY_DIR}/src_generated)
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)
 
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES} open62541)
 if(NOT WIN32)
   list(APPEND LIBS pthread m)
   if (NOT APPLE)
