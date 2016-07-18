@@ -16,11 +16,12 @@
 # include "open62541.h"
 #endif
 
-#include <signal.h>
-#include <errno.h> // errno, EINTR
-#ifdef _WIN32
+#ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
+
+#include <signal.h>
+#include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

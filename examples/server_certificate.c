@@ -1,14 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
-
-#include <errno.h> // errno, EINTR
-#ifdef _WIN32
-#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
-#endif
-#include <stdio.h>
-#include <signal.h>
-#include <stdlib.h>
-
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
 #include "ua_server.h"
@@ -18,6 +9,14 @@
 #else
 #include "open62541.h"
 #endif
+
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
+#endif
+#include <errno.h> // errno, EINTR
+#include <stdio.h>
+#include <signal.h>
+#include <stdlib.h>
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
