@@ -63,6 +63,7 @@ target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${
 target_link_libraries(server_readspeed ${LIBS})
 
 if(UA_ENABLE_DISCOVERY)
+
     add_executable(discovery_server_discovery discovery/server_discovery.c)
     target_link_libraries(discovery_server_discovery ${LIBS})
 
