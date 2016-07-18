@@ -116,7 +116,7 @@ else
     (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
-    if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+    if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && ([ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] || [ "${TRAVIS_REPO_SLUG}" = "Pro/open62541" ]); then
         echo "  Building coveralls for ${TRAVIS_REPO_SLUG}"
         coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
     else
