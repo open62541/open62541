@@ -5,6 +5,10 @@
  * - single-threaded: gcc -std=c99 server.c open62541.c -o server
  * - multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread */
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
+#endif
+
 #ifdef UA_NO_AMALGAMATION
 # include <time.h>
 # include "ua_types.h"
@@ -14,10 +18,6 @@
 # include "ua_log_stdout.h"
 #else
 # include "open62541.h"
-#endif
-
-#ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
 
 #include <signal.h>
