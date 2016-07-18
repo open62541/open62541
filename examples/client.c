@@ -8,7 +8,6 @@
 # include "ua_nodeids.h"
 # include "ua_network_tcp.h"
 # include "ua_config_standard.h"
-# include "ua_types_encoding_binary.h"
 #else
 # include "open62541.h"
 # include <string.h>

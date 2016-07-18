@@ -83,32 +83,32 @@ UA_StatusCode UA_SecureChannel_processSequenceNumber (UA_UInt32 SequenceNumber, 
  * ---------- */
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                 (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                 CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                 ((CHANNEL)->connection ? CHANNEL->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                 (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                 CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, MSG, ...)                   \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                   (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                   CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                   ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                   (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                 (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                 CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                 (CHANNEL->connection ? CHANNEL->connection->sockfd : 0), \
-                 CHANNEL->securityToken.channelId, ##__VA_ARGS__);
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
 
 #endif /* UA_SECURECHANNEL_H_ */

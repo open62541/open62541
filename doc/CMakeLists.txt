@@ -1,42 +1,35 @@
 find_package(Sphinx REQUIRED)
 find_package(LATEX)
 
-
 set(DOC_LATEX_DIR ${PROJECT_BINARY_DIR}/doc_latex)
-make_directory(${PROJECT_BINARY_DIR}/doc_src)
+set(DOC_HTML_DIR  ${PROJECT_BINARY_DIR}/doc)
+set(DOC_SRC_DIR   ${PROJECT_BINARY_DIR}/doc_src)
+
+make_directory(${DOC_SRC_DIR})
 file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
-file(COPY ${DOC_SRC} DESTINATION ${PROJECT_BINARY_DIR}/doc_src)
+file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 
 function(generate_rst in out)
-  add_custom_command(OUTPUT ${out}
-                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
-                     PRE_BUILD
-                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
+  add_custom_command(OUTPUT ${out} DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
+                     PRE_BUILD COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
 endfunction()
 
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${PROJECT_BINARY_DIR}/doc_src/types.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${PROJECT_BINARY_DIR}/doc_src/constants.rst)
-generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${PROJECT_BINARY_DIR}/doc_src/server.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${PROJECT_BINARY_DIR}/doc_src/client.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${PROJECT_BINARY_DIR}/doc_src/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${PROJECT_BINARY_DIR}/doc_src/log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${PROJECT_BINARY_DIR}/doc_src/connection.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${PROJECT_BINARY_DIR}/doc_src/services.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_types.h ${DOC_SRC_DIR}/types.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_constants.h ${DOC_SRC_DIR}/constants.rst)
+generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${DOC_SRC_DIR}/log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${DOC_SRC_DIR}/connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
-  -b latex -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_latex"
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/constants.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client_highlevel.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/log.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/connection.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
+  -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
+  DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
+          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/nodestore.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -50,17 +43,9 @@ add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -q "open62541.tex"
 add_dependencies(doc_pdf doc_latex)
 
 add_custom_target(doc ${SPHINX_EXECUTABLE}
-  -b html -c "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc_src" "${PROJECT_BINARY_DIR}/doc"
-  COMMAND ${CMAKE_COMMAND} -E copy "${PROJECT_BINARY_DIR}/doc_src/open62541_html.png" "${PROJECT_BINARY_DIR}/doc/_static/"
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/constants.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/types_generated.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/server.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/client_highlevel.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/log.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/connection.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/services.rst
-  DEPENDS ${PROJECT_BINARY_DIR}/doc_src/nodestore.rst
+  -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
+  DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
+          ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
+          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/nodestore.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
