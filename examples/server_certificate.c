@@ -3,7 +3,7 @@
 
 #include <errno.h> // errno, EINTR
 #ifdef _WIN32
-#define _CRT_SECURE_NO_DEPRECATE //disable fopen deprication warning in msvs
+#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
 #include <stdio.h>
 #include <signal.h>
