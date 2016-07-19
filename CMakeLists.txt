@@ -37,7 +37,7 @@ endif()
 # Options
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
-option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes" ON)
+option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
@@ -54,10 +54,11 @@ endif()
 option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" OFF)
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition" OFF)
-
-option(UA_ENABLE_EMBEDDED_LIBC "Target has no libc, use internal definitions" OFF)
+option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
+
+option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
@@ -73,13 +74,19 @@ endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
-option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
+option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
 mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
+
+# Building shared libs (dll, so). This option is written into ua_config.h.
+set(UA_DYNAMIC_LINKING OFF)
+if(BUILD_SHARED_LIBS)
+  set(UA_DYNAMIC_LINKING ON)
+endif()
 
 #####################
 # Compiler Settings #
@@ -337,9 +344,8 @@ endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
-target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING)
-target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING)
-# target_compile_definitions(open62541-static PRIVATE -DUA_DYNAMIC_LINKING)
+target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
@@ -361,15 +367,6 @@ endif()
 
 if(UA_BUILD_DOCUMENTATION)
     add_subdirectory(doc)
-endif()
-
-if(UA_BUILD_SELFSIGNED_CERTIFICATE)
-    find_package(OpenSSL REQUIRED)
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/server_cert.der ${PROJECT_BINARY_DIR}/ca.crt
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${PROJECT_BINARY_DIR}
-                       DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/create_self-signed.py
-                               ${CMAKE_CURRENT_SOURCE_DIR}/tools/certs/localhost.cnf)
-    add_custom_target(selfsigned ALL DEPENDS ${PROJECT_BINARY_DIR}/server_cert.der ${PROJECT_BINARY_DIR}/ca.crt)
 endif()
 
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)

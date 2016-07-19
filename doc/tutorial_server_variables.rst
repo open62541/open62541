@@ -11,57 +11,18 @@ connected to a physical process in the background. Make sure to read the
 This is the code for a server with a single variable node holding an integer. We
 will take this example to explain some of the fundamental concepts of open62541.
 
-.. code-block:: c
+.. literalinclude:: ../../examples/server_variable.c
+   :language: c
+   :linenos:
+   :lines: 4,13,15-
 
-    #include <signal.h>
-    #include "open62541.h"
-
-    UA_Boolean running = true;
-    static void stopHandler(int sign) {
-        running = false;
-    }
-
-    int main(int argc, char** argv) {
-        signal(SIGINT, stopHandler); /* catch ctrl-c */
-
-        UA_ServerConfig config = UA_ServerConfig_standard;
-        UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-        config.networkLayers = &nl;
-        config.networkLayersSize = 1;
-        UA_Server *server = UA_Server_new(config);
-
-        /* 1) Define the attribute of the myInteger variable node */
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
-        UA_Int32 myInteger = 42;
-        UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-        attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
-
-        /* 2) Add the variable node to the information model */
-        UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-        UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-        UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_StatusCode retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                                                         parentReferenceNodeId, myIntegerName,
-                                                         UA_NODEID_NULL, attr, NULL, NULL);
-
-        if(retval == UA_STATUSCODE_GOOD)
-            UA_Server_run(server, &running);
-
-        UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-
-        return retval;
-    }
 
 Variants and Datatypes
 ----------------------
 
 The datatype *variant* belongs to the built-in datatypes of OPC UA and is used
 as a container type. A variant can hold any other datatype as a scalar (except
-Variant) or as an array. Array variants can additionally denote the
+variant) or as an array. Array variants can additionally denote the
 dimensionality of the data (e.g. a 2x3 matrix) in an additional integer array.
 You can find the code that defines the variant datatype :ref:`here <variant>`.
 
@@ -133,6 +94,10 @@ some examples for their usage.
    UA_NodeId id3 = UA_NODEID_STRING_ALLOC(1, "testid");
    UA_NodeId_deleteMembers(&id3); /* free the allocated string */
 
+
+What is UA_NODEID_STRING_ALLOC for?
+
+
 Adding a variable node to the server that contains a user-defined callback
 --------------------------------------------------------------------------
 
@@ -142,6 +107,12 @@ callback pointer is intserted into the node.
 
 Consider ``examples/server_datasource.c`` in the repository. The examples are
 compiled if the Cmake option UA_BUILD_EXAMPLE is turned on.
+
+
+UA_Server_addVariableNode vs. UA_Server_addDataSourceVariableNode
+UA_ValueCallback
+UA_DataSource
+
 
 Asserting success/failure
 -------------------------

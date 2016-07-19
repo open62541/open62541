@@ -229,7 +229,7 @@ DNS.1 = localhost
 DNS.2 = ${hostname}
 IP.1 = 127.0.0.1
 IP.2 = 0.0.0.0
-URI.1 = urn:unconfigured:open62541:open62541Server
+URI.1 = urn:unconfigured:application
 
 [ v3_ca ]
 

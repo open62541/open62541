@@ -67,6 +67,19 @@ if(UA_ENABLE_METHODCALLS)
   target_link_libraries(server_method ${LIBS})
 endif()
 
+if(UA_BUILD_SELFSIGNED_CERTIFICATE)
+  find_package(OpenSSL REQUIRED)
+  add_custom_command(OUTPUT server_cert.der ca.crt
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
+                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                             ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
+
+  add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
+
+  add_executable(server_certificate server_certificate.c $<TARGET_OBJECTS:open62541-object> server_cert.der ca.crt)
+  target_link_libraries(server_certificate ${LIBS})
+endif()
+
 if(UA_ENABLE_DISCOVERY)
 
     add_executable(discovery_server_discovery discovery/server_discovery.c)

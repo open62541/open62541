@@ -130,6 +130,10 @@ deploy:
     condition: $CC = gcc && $ANALYZE = false
 
 notifications:
-  irc: "chat.freenode.net#open62541"
-  on_success: ${IRC_NOTIFY_SUCCESS} # default: change, variable defined in ./tools/travis/travis_notification.sh
-  on_failure: ${IRC_NOTIFY_FAILURE} # default: always, variable defined in ./tools/travis/travis_notification.sh
+  irc:
+    channels:
+        - "chat.freenode.net#open62541"
+    on_success: ${IRC_NOTIFY_SUCCESS} # default: change, variable defined in ./tools/travis/travis_notification.sh
+    on_failure: ${IRC_NOTIFY_FAILURE} # default: always, variable defined in ./tools/travis/travis_notification.sh
+    use_notice: true
+    skip_join: true

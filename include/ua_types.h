@@ -439,8 +439,7 @@ typedef struct {
 
 static UA_INLINE UA_Boolean
 UA_QualifiedName_isNull(const UA_QualifiedName *q) {
-    return (q->namespaceIndex == 0 &&
-            q->name.length == 0);
+    return (q->namespaceIndex == 0 && q->name.length == 0);
 }
 
 static UA_INLINE UA_QualifiedName
@@ -615,9 +614,9 @@ typedef struct {
 UA_StatusCode UA_EXPORT
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst, const UA_NumericRange range);
 
-/* Insert a range of data into an existing variant. The data array can't be reused afterwards if it
- * contains types without a fixed size (e.g. strings) since the members are moved into the variant
- * and take on its lifecycle.
+/* Insert a range of data into an existing variant. The data array can't be
+ * reused afterwards if it contains types without a fixed size (e.g. strings)
+ * since the members are moved into the variant and take on its lifecycle.
  *
  * @param v The variant
  * @param dataArray The data array. The type must match the variant

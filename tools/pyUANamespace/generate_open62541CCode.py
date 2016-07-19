@@ -62,124 +62,115 @@ parser.add_argument('-s','--suppress',
 
 parser.add_argument('-v','--verbose', action='count', help='Make the script more verbose. Can be applied up to 4 times')
 
+args = parser.parse_args()
 
+level = logging.CRITICAL
+verbosity = 0
+if args.verbose:
+  verbosity = int(args.verbose)
+if (verbosity==1):
+  level = logging.ERROR
+elif (verbosity==2):
+  level = logging.WARNING
+elif (verbosity==3):
+  level = logging.INFO
+elif (verbosity>=4):
+  level = logging.DEBUG
+logging.basicConfig(level=level)
+logger.setLevel(logging.INFO)
 
-if __name__ == '__main__':
-  args = parser.parse_args()
+# Creating the header is tendious. We can skip the entire process if
+# the header exists.
+#if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
+#  log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
+#  log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
+#  exit(0)
 
-  level = logging.CRITICAL
-  verbosity = 0
-  if args.verbose:
-    verbosity = int(args.verbose)
-  if (verbosity==1):
-    level = logging.ERROR
-  elif (verbosity==2):
-    level = logging.WARNING
-  elif (verbosity==3):
-    level = logging.INFO
-  elif (verbosity>=4):
-    level = logging.DEBUG
-  logging.basicConfig(level=level)
-  logger.setLevel(logging.INFO)
+# Open the output file
+outfileh = open(args.outputFile+".h", r"w+")
+outfilec = open(args.outputFile+".c", r"w+")
 
-  # Creating the header is tendious. We can skip the entire process if
-  # the header exists.
-  #if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
-  #  log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
-  #  log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
-  #  exit(0)
+# Create a new namespace. Note that the namespace name is not significant.
+ns = opcua_namespace("open62541")
 
-  # Open the output file
-  outfileh = open(args.outputFile+".h", r"w+")
-  outfilec = open(args.outputFile+".c", r"w+")
+# Clean up the XML files by removing duplicate namespaces and unwanted prefixes
+preProc = open62541_XMLPreprocessor()
+for xmlfile in args.infiles:
+  logger.info("Preprocessing " + str(xmlfile.name))
+  preProc.addDocument(xmlfile.name)
+preProc.preprocessAll()
 
-  # Create a new namespace
-  # Note that the name is actually completely symbolic, it has no other
-  # function but to distinguish this specific class.
-  # A namespace class acts as a container for nodes. The nodes may belong
-  # to any number of different OPC-UA namespaces.
-  ns = opcua_namespace("open62541")
+# Parse the XML files
+for xmlfile in preProc.getPreProcessedFiles():
+  logger.info("Parsing " + str(xmlfile))
+  ns.parseXML(xmlfile)
 
-  # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
-  preProc = open62541_XMLPreprocessor()
-  for xmlfile in args.infiles:
-    logger.info("Preprocessing " + str(xmlfile.name))
-    preProc.addDocument(xmlfile.name)
-  preProc.preprocessAll()
+# We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
+namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
+for key in namespaceArrayNames:
+  ns.addNamespace(key, namespaceArrayNames[key])
 
-  for xmlfile in preProc.getPreProcessedFiles():
-    logger.info("Parsing " + str(xmlfile))
-    ns.parseXML(xmlfile)
+# Remove any temp files - they are not needed after the AST is created
+preProc.removePreprocessedFiles()
 
-  # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
-  namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
-  for key in namespaceArrayNames:
-    ns.addNamespace(key, namespaceArrayNames[key])
+# Remove blacklisted nodes from the namespace
+# Doing this now ensures that unlinkable pointers will be cleanly removed
+# during sanitation.
+for blacklist in args.blacklistFiles:
+  for line in blacklist.readlines():
+    line = line.replace(" ","")
+    id = line.replace("\n","")
+    if ns.getNodeByIDString(id) == None:
+      logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
+    else:
+      ns.removeNodeById(line)
+  blacklist.close()
 
-  # Remove any temp files - they are not needed after the AST is created
-  # Removed for debugging
-  preProc.removePreprocessedFiles()
+# Link the references in the namespace
+logger.info("Linking namespace nodes and references")
+ns.linkOpenPointers()
 
-  # Remove blacklisted nodes from the namespace
-  # Doing this now ensures that unlinkable pointers will be cleanly removed
-  # during sanitation.
-  for blacklist in args.blacklistFiles:
-    for line in blacklist.readlines():
-      line = line.replace(" ","")
-      id = line.replace("\n","")
-      if ns.getNodeByIDString(id) == None:
-        logger.info("Can't blacklist node, namespace does currently not contain a node with id " + str(id))
-      else:
-        ns.removeNodeById(line)
-    blacklist.close()
+# Remove nodes that are not printable or contain parsing errors, such as
+# unresolvable or no references or invalid NodeIDs
+ns.sanitize()
 
-  # Link the references in the namespace
-  logger.info("Linking namespace nodes and references")
-  ns.linkOpenPointers()
+# Parse Datatypes in order to find out what the XML keyed values actually
+# represent.
+# Ex. <rpm>123</rpm> is not encodable
+#     only after parsing the datatypes, it is known that
+#     rpm is encoded as a double
+logger.info("Building datatype encoding rules")
+ns.buildEncodingRules()
 
-  # Remove nodes that are not printable or contain parsing errors, such as
-  # unresolvable or no references or invalid NodeIDs
-  ns.sanitize()
+# Allocate/Parse the data values. In order to do this, we must have run
+# buidEncodingRules.
+logger.info("Allocating variables")
+ns.allocateVariables()
 
-  # Parse Datatypes in order to find out what the XML keyed values actually
-  # represent.
-  # Ex. <rpm>123</rpm> is not encodable
-  #     only after parsing the datatypes, it is known that
-  #     rpm is encoded as a double
-  logger.info("Building datatype encoding rules")
-  ns.buildEncodingRules()
+# Users may have manually defined some nodes in their code already (such as serverStatus).
+# To prevent those nodes from being reprinted, we will simply mark them as already
+# converted to C-Code. That way, they will still be reffered to by other nodes, but
+# they will not be created themselves.
+ignoreNodes = []
+for ignore in args.ignoreFiles:
+  for line in ignore.readlines():
+    line = line.replace(" ","")
+    id = line.replace("\n","")
+    if ns.getNodeByIDString(id) == None:
+      logger.warn("Can't ignore node, Namespace does currently not contain a node with id " + str(id))
+    else:
+      ignoreNodes.append(ns.getNodeByIDString(id))
+  ignore.close()
 
-  # Allocate/Parse the data values. In order to do this, we must have run
-  # buidEncodingRules.
-  logger.info("Allocating variables")
-  ns.allocateVariables()
+# Create the C Code
+logger.info("Generating Header")
+# Returns a tuple of (["Header","lines"],["Code","lines","generated"])
+from os.path import basename
+generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
+for line in generatedCode[0]:
+  outfileh.write(line+"\n")
+for line in generatedCode[1]:
+  outfilec.write(line+"\n")
 
-  # Users may have manually defined some nodes in their code already (such as serverStatus).
-  # To prevent those nodes from being reprinted, we will simply mark them as already
-  # converted to C-Code. That way, they will still be reffered to by other nodes, but
-  # they will not be created themselves.
-  ignoreNodes = []
-  for ignore in args.ignoreFiles:
-    for line in ignore.readlines():
-      line = line.replace(" ","")
-      id = line.replace("\n","")
-      if ns.getNodeByIDString(id) == None:
-        logger.warn("Can't ignore node, Namespace does currently not contain a node with id " + str(id))
-      else:
-        ignoreNodes.append(ns.getNodeByIDString(id))
-    ignore.close()
-
-  # Create the C Code
-  logger.info("Generating Header")
-  # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-  from os.path import basename
-  generatedCode=ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
-  for line in generatedCode[0]:
-    outfileh.write(line+"\n")
-  for line in generatedCode[1]:
-    outfilec.write(line+"\n")
-
-  outfilec.close()
-  outfileh.close()
-
-  exit(0)
+outfilec.close()
+outfileh.close()
