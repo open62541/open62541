@@ -886,13 +886,13 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     node->userExecutable = attrCopy.executable;
     node->attachedMethod = method;
     node->methodHandle = handle;
-    UA_AddNodesItem_deleteMembers(&item);
     UA_MethodAttributes_deleteMembers(&attrCopy);
 
     UA_RCU_LOCK();
     Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &item.parentNodeId.nodeId,
                               &item.referenceTypeId, &item.typeDefinition.nodeId, NULL, &result);
     UA_RCU_UNLOCK();
+    UA_AddNodesItem_deleteMembers(&item);
     if(result.statusCode != UA_STATUSCODE_GOOD)
         return result.statusCode;
 
