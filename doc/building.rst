@@ -152,8 +152,6 @@ This group contains build options related to the supported OPC UA features.
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
 
-
-
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
@@ -170,3 +168,9 @@ be visible in the cmake GUIs.
    Enable stateless extension
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
+
+Building a shared library
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+open62541 is small enough that most users will want to statically link the library into their programs. If a shared library (.dll, .so) is required, this can be enabled in CMake with the `BUILD_SHARED_LIBS` option.
+Note that this option modifies the `ua_config.h` file that is also included in `open62541.h` for the single-file distribution.

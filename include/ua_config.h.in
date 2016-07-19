@@ -45,26 +45,31 @@ extern "C" {
 /**
  * Function Export
  * --------------- */
-#ifdef _WIN32
-# ifdef UA_DYNAMIC_LINKING
+/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
+   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
+   from a DLL.*/
+#cmakedefine UA_DYNAMIC_LINKING
+#if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
+# ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
 #   define UA_EXPORT __attribute__ ((dllexport))
 #  else
 #   define UA_EXPORT __declspec(dllexport)
 #  endif
-# else
+# else /* import dll */
 #  ifdef __GNUC__
-#   define UA_EXPORT __attribute__ ((dllexport))
+#   define UA_EXPORT __attribute__ ((dllimport))
 #  else
 #   define UA_EXPORT __declspec(dllimport)
 #  endif
 # endif
-#else
+#else /* non win32 */
 # if __GNUC__ || __clang__
 #  define UA_EXPORT __attribute__ ((visibility ("default")))
-# else
-#  define UA_EXPORT
 # endif
+#endif
+#ifndef UA_EXPORT
+# define UA_EXPORT /* fallback to default */
 #endif
 
 /**
