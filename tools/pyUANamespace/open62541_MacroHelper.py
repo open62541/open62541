@@ -200,6 +200,10 @@ class open62541_MacroHelper():
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
 
+    if nodetype == "Variable":
+      code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
+      code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
+
     if nodetype in ["Variable", "VariableType"]:
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
     elif nodetype == "Method":
