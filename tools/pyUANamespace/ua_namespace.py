@@ -547,12 +547,11 @@ class opcua_namespace():
         minweightnd = row[0]
     return (rind, minweightnd, minweight)
 
-  def reorderNodesMinDependencies(self):
-    # create a matrix represtantion of all node
-    #
+  def reorderNodesMinDependencies(self, nodes):
+    # create a matrix representation of given nodes
     nmatrix = []
-    for n in range(0,len(self.nodes)):
-      nmatrix.append([None] + [0]*len(self.nodes))
+    for n in range(0,len(nodes)):
+      nmatrix.append([None] + [0]*len(nodes))
 
     typeRefs = []
     tn = self.getNodeByBrowseName("HasTypeDefinition")
@@ -567,17 +566,16 @@ class opcua_namespace():
 
     logger.debug("Building connectivity matrix for node order optimization.")
     # Set column 0 to contain the node
-    for node in self.nodes:
-      nind = self.nodes.index(node)
+    for node in nodes:
+      nind = nodes.index(node)
       nmatrix[nind][0] = node
 
     # Determine the dependencies of all nodes
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      #print "Examining node " + str(nind) + " " + str(node)
+    for node in nodes:
+      nind = nodes.index(node)
       for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
+        if ref.target() in nodes:
+          tind = nodes.index(ref.target())
           # Typedefinition of this node has precedence over this node
           if ref.referenceType() in typeRefs and ref.isForward():
             nmatrix[nind][tind+1] += 1
@@ -590,13 +588,13 @@ class opcua_namespace():
 
     logger.debug("Using Djikstra topological sorting to determine printing order.")
     reorder = []
-    while len(reorder) < len(self.nodes):
+    while len(reorder) < len(nodes):
       (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
-      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
+      #print  str(100*float(len(reorder))/len(nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
       reorder.append(node)
       for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
+        if ref.target() in nodes:
+          tind = nodes.index(ref.target())
           if ref.referenceType() in typeRefs and ref.isForward():
             nmatrix[nind][tind+1] -= 1
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
@@ -604,23 +602,14 @@ class opcua_namespace():
           elif ref.isForward():
             nmatrix[tind][nind+1] -= 1
       nmatrix[nind][0] = None
-    self.nodes = reorder
-    logger.debug("Nodes reordered.")
-    return
+    logger.debug("Nodes reordered")
+    return reorder
 
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
-
-    # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
-    # bulky. This class will help to offload some code.
-    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
 
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
@@ -634,8 +623,16 @@ class opcua_namespace():
       for r in n.getReferences():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)
+    logger.info("%d nodes and %d references are going to be printed.", len(unPrintedNodes), len(unPrintedRefs))
 
-    logger.debug(str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.")
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    logger.debug("Reordering nodes for minimal dependencies during printing.")
+    unPrintedNodes = self.reorderNodesMinDependencies(unPrintedNodes)
+
+    # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
+    # bulky. This class will help to offload some code.
+    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
+
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
