@@ -680,7 +680,7 @@ class opcua_namespace():
 
       # Now for the actual references...
       for r in n.getReferences():
-        # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
+        # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
     logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")

@@ -681,7 +681,7 @@ class opcua_node_t:
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
-      # the UA_Server_addNode function will use addReference which creates a biderectional reference; remove any inverse
+      # the UA_Server_addNode function will use addReference which creates a bidirectional reference; remove any inverse
       # references to our parent to avoid duplicate refs
       for ref in self.getReferences():
         if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and ref.isForward() == False:
