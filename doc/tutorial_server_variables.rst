@@ -95,9 +95,6 @@ some examples for their usage.
    UA_NodeId_deleteMembers(&id3); /* free the allocated string */
 
 
-What is UA_NODEID_STRING_ALLOC for?
-
-
 Adding a variable node to the server that contains a user-defined callback
 --------------------------------------------------------------------------
 
