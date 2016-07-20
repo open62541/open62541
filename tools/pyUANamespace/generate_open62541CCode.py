@@ -132,7 +132,8 @@ ns.linkOpenPointers()
 
 # Remove nodes that are not printable or contain parsing errors, such as
 # unresolvable or no references or invalid NodeIDs
-ns.sanitize()
+logger.warn("Sanitizing is not performed until it's clear if sanity of ns0 nodes is clear")
+#ns.sanitize()
 
 # Parse Datatypes in order to find out what the XML keyed values actually
 # represent.
