@@ -320,7 +320,7 @@ class opcua_namespace():
         No return value
 
         References that have registered themselves with linkLater() to have
-        their symbolic NodeId targets ("ns=2; i=32") substited for an actual
+        their symbolic NodeId targets ("ns=2;i=32") substituted for an actual
         node will be iterated by this function. For each reference encountered
         in the list of unlinked/open references, the target string will be
         evaluated and searched for in the node list of this namespace. If found,
@@ -680,7 +680,7 @@ class opcua_namespace():
 
       # Now for the actual references...
       for r in n.getReferences():
-        # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
+        # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
     logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")

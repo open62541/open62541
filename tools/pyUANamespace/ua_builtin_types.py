@@ -397,11 +397,12 @@ class opcua_value_t():
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
           code.append("UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           #FIXME: There is no membership definition for extensionObjects generated in this function.
-          code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
+          #code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
         else:
-          code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
-          code.append("UA_Variant_setScalar( &attr.value, &" + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
-          code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(&" + valueName + ");")
+          code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " =  UA_" + self.value[0].stringRepresentation + "_new();")
+          code.append("*" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
+          code.append("UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
+          #code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
     return code
 
 
