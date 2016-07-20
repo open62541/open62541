@@ -3,8 +3,6 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
-else()
-    add_definitions(-DUA_NO_AMALGAMATION)
 endif()
 
 list(APPEND LIBS ${open62541_LIBRARIES})
@@ -63,6 +61,7 @@ target_link_libraries(server_repeated_job ${LIBS})
 
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+  set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/nodeset.c PROPERTIES GENERATED TRUE)
   target_link_libraries(server_nodeset ${LIBS})
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 endif()
