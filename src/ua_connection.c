@@ -43,7 +43,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
         }
-        memcpy(&data[connection->incompleteMessage.length], message->data, length);
+        memcpy(&data[connection->incompleteMessage.length], message->data, message->length);
         connection->releaseRecvBuffer(connection, message);
         message->data = data;
         message->length += length;

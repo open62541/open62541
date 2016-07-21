@@ -79,7 +79,6 @@ option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model 
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
-mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 
 # Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
