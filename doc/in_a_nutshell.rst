@@ -13,7 +13,7 @@ methods on the server.
 
 For completeness, the following tables contain all services defined in the standard. Do not bother
 with their details yet. We will introduce the different services later in the text. In open62541,
-each service is implemented in a single function. See the \ref services section for details.
+each service is implemented in a single function. See the :ref:`services` section for details.
 
 **Establishing communication**
 
