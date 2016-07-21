@@ -320,7 +320,7 @@ class opcua_namespace():
         No return value
 
         References that have registered themselves with linkLater() to have
-        their symbolic NodeId targets ("ns=2; i=32") substited for an actual
+        their symbolic NodeId targets ("ns=2;i=32") substituted for an actual
         node will be iterated by this function. For each reference encountered
         in the list of unlinked/open references, the target string will be
         evaluated and searched for in the node list of this namespace. If found,
