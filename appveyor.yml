@@ -13,6 +13,8 @@ environment:
     Arch: x64
   - Compiler: mingw
     Arch: x86
+  - Compiler: mingw
+    Arch: x64
 #    cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
 #  - Compiler: cygwin
 #    Arch: x86
@@ -41,8 +43,13 @@ build_script:
         md build
         cd build
         if ($env:Compiler -eq "mingw") {
-          echo "Testing MinGW32"
-          $env:Path = "C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;" + $env:Path
+          if ($env:Arch -eq "x64") {
+            echo "Testing MinGW64"
+            $env:Path = "C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;" + $env:Path
+          } else {
+            echo "Testing MinGW32"
+            $env:Path = "C:\MinGW\bin;" + $env:Path
+          }
           cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"MinGW Makefiles" ..
           mingw32-make -j4
         } elseif ($env:Compiler -eq "cygwin") {
