@@ -46,6 +46,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
 if is_c:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING
 # define UA_DYNAMIC_LINKING
+# define MDNSD_DYNAMIC_LINKING
 #endif
 
 #include "%s.h"
