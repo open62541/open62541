@@ -44,7 +44,7 @@ parser.add_argument('-i','--ignore',
                     action='append',
                     dest="ignoreFiles",
                     default=[],
-                    help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). The compiler will assume that these Nodes have been creathed externally and not generate any code for them. They will however be linked to from other nodes.')
+                    help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). The compiler will assume that these nodes have been created externally and not generate any code for them. They will however be linked to from other nodes.')
 parser.add_argument('-b','--blacklist',
                     metavar="<blacklistFile>",
                     type=argparse.FileType('r'),
@@ -149,7 +149,7 @@ ns.allocateVariables()
 
 # Users may have manually defined some nodes in their code already (such as serverStatus).
 # To prevent those nodes from being reprinted, we will simply mark them as already
-# converted to C-Code. That way, they will still be reffered to by other nodes, but
+# converted to C-Code. That way, they will still be referred to by other nodes, but
 # they will not be created themselves.
 ignoreNodes = []
 for ignore in args.ignoreFiles:
@@ -174,3 +174,5 @@ for line in generatedCode[1]:
 
 outfilec.close()
 outfileh.close()
+
+logger.info("Namespace generation code successfully printed")
