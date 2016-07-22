@@ -84,7 +84,7 @@ class open62541_MacroHelper():
 
     defined_typealiases.append(symbolic_name)
 
-    code.append("#define UA_NS%sID_%s %s") % (str(node.id().ns), symbolic_name.upper(),str(node.id().i))
+    code.append("#define UA_NS%sID_%s %s" % (str(node.id().ns), symbolic_name.upper(),str(node.id().i)))
     return code
 
   def getCreateNodeIDMacro(self, node):
