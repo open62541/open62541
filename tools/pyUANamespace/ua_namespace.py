@@ -527,32 +527,31 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def reorderNodesMinDependencies(self):
+  def getSubTypesOf2(self, node):
+    re = [node]
+    for ref in node.getReferences(): 
+      if isinstance(ref.target(), opcua_node_t):
+        if ref.referenceType().displayName() == "HasSubtype" and ref.isForward():
+          re = re + self.getSubTypesOf2(ref.target())
+    return re
+
+  def reorderNodesMinDependencies(self, nodes):
     #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-    typeRefs = []
-    tn = self.getNodeByBrowseName("HasTypeDefinition")
-    if tn != None:
-      typeRefs.append(tn)
-      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
-    subTypeRefs = []
-    tn = self.getNodeByBrowseName("HasSubtype")
-    if tn  != None:
-      subTypeRefs.append(tn)
-      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
     
-    def is_relevant(ref):
-      return (( ref.referenceType() in typeRefs and ref.isForward() )
-           or ( ref.referenceType() in subTypeRefs and not ref.isForward() ))
+    relevant_types = ["HierarchicalReferences", "HasTypeDefinition"]
     
-    in_degree = { u : 0 for u in self.nodes }     # determine in-degree
-    for u in self.nodes:                          # of each node
+    temp = []
+    for t in relevant_types:
+        temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
+    relevant_types = temp
+
+    in_degree = { u : 0 for u in nodes }     # determine in-degree
+    for u in nodes:                          # of each node
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(is_relevant(ref)):
+         if(ref in relevant_types and ref.isForward()):
            in_degree[ref.target()] += 1
-         if( ref.isForward() ):
-           in_degree[u] += 1
     
     Q = deque()                 # collect nodes with zero in-degree
     for u in in_degree:
@@ -567,26 +566,26 @@ class opcua_namespace():
       L.insert(0, u)
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(is_relevant(ref)):
+         if(ref in relevant_types and ref.isForward()):
            in_degree[ref.target()] -= 1
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
-    if len(L) == len(self.nodes):
-        self.nodes = L
+    if len(L) == len(nodes):
+        return L
     else:                    # if there is a cycle,  
         logger.error("Node graph is circular on the specified references")
-        self.nodes = L + [x for x in self.nodes if x not in L]
-    return 
+        return L + [x for x in self.nodes if x not in L]
 
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", reorder=False):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
 
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
+    if reorder:
+      logger.info("Reordering nodes for minimal dependencies during printing.")
+      unPrintedNodes = self.reorderNodesMinDependencies(unPrintedNodes)
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
