@@ -541,12 +541,15 @@ class opcua_namespace():
       subTypeRefs.append(tn)
       subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
     
+    def is_relevant(ref):
+      return (( ref.referenceType() in typeRefs and ref.isForward() )
+           or ( ref.referenceType() in subTypeRefs and not ref.isForward() ))
+    
     in_degree = { u : 0 for u in self.nodes }     # determine in-degree
     for u in self.nodes:                          # of each node
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(( ref.referenceType() in typeRefs and ref.isForward() )
-         or ( ref.referenceType() in subTypeRefs and not ref.isForward() )):
+         if(is_relevant(ref)):
            in_degree[ref.target()] += 1
          if( ref.isForward() ):
            in_degree[u] += 1
@@ -564,8 +567,7 @@ class opcua_namespace():
       L.insert(0, u)
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(( ref.referenceType() in typeRefs and ref.isForward() )
-         or ( ref.referenceType() in subTypeRefs and not ref.isForward() )):
+         if(is_relevant(ref)):
            in_degree[ref.target()] -= 1
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
