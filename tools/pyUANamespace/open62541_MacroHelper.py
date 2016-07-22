@@ -37,9 +37,9 @@ class open62541_MacroHelper():
 
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
+      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (str(node.id().ns),str(node.id().i))
     elif node.id().s != None:
-      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
+      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (str(node.id().ns), node.id().s)
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -86,13 +86,15 @@ class open62541_MacroHelper():
       symbolic_name = symbolic_name+"_"+str(extendedN)
 
     defined_typealiases.append(symbolic_name)
-    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
+
+    code.append("#define UA_NS%sID_%s %s" % (str(node.id().ns), symbolic_name.upper(),str(node.id().i)))
+    return code
 
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_NODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
+      return "UA_NODEID_NUMERIC(%s, %s)" % (str(node.id().ns),str(node.id().i))
     elif node.id().s != None:
-      return "UA_NODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
+      return "UA_NODEID_STRING(%s, %s)" % (str(node.id().ns), node.id().s)
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -107,6 +109,8 @@ class open62541_MacroHelper():
 
     if reference.isForward():
       code.append("UA_Server_addReference(server, %s, %s, %s, true);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
+    else:
+      code.append("UA_Server_addReference(server, %s, %s, %s, false);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
     return code
 
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes=[]):
@@ -196,8 +200,8 @@ class open62541_MacroHelper():
     # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
     code.append("UA_%sAttributes_init(&attr);" %  nodetype);
-    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.displayName().replace("\"", "\\\""))
-    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.description().replace("\"", "\\\""))
+    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % str(node.displayName()))
+    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % str(node.description()))
 
     if nodetype == "Variable":
       code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
