@@ -575,21 +575,21 @@ class opcua_namespace():
         logger.error("Node graph is circular on the specified references")
         self.nodes = L + [x for x in self.nodes if x not in L]
     return
-    
+
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
 
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    logger.info("Reordering nodes for minimal dependencies during printing.")
+    self.reorderNodesMinDependencies()
+    
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
 
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.info("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
-      
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.
