@@ -135,31 +135,29 @@ class opcua_namespace():
   def getNodeByBrowseName(self, idstring):
     """ Returns the first node in the nodelist whose browseName matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.browseName()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.browseName())), None)
+    #
+    #matches = filter(lambda n: idstring==str(n.browseName()), self.nodes)
+    #if len(matches) > 1:
+    #  logger.error("Found multiple nodes with same ID!?")
+    #if len(matches) == 0:
+    #  return None
+    #else:
+    #  return matches[0]
 
   def getNodeByIDString(self, idstring):
     """ Returns the first node in the nodelist whose id string representation
         matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.id()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.id())), None)
+    #
+    #matches = filter(lambda n: idstring==str(n.id()), self.nodes)
+    #if len(matches) > 1:
+    #  logger.error("Found multiple nodes with same ID!?")
+    #if len(matches) == 0:
+    #  return None
+    #else:
+    #  return matches[0]
 
   def createNode(self, ndtype, xmlelement):
     """ createNode is instantiates a node described by xmlelement, its type being
