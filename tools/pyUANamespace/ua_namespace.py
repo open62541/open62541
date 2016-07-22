@@ -532,7 +532,16 @@ class opcua_namespace():
   def reorderNodesMinDependencies(self):
     #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-    relevant_references = ["HasSubtype", "HasTypeDefinition", "HasComponent", "Organizes"]
+    relevant_references = ["HasSubtype", "HasTypeDefinition", "Organizes", "HasComponent"]
+    
+    #expand relevant references by subtypes
+    subtype_refrences = []
+    for reference_name in relevant_references:
+        tn = self.getNodeByBrowseName(reference_name)
+        if tn is not None and reference_name is not "HasComponent": #self.getSubTypesOf(currentNode=tn) crashes for "HasComponent"
+          subtype_refrences = subtype_refrences + self.getSubTypesOf(currentNode=tn)
+    relevant_references = relevant_references + subtype_refrences
+    
     in_degree = { u : 0 for u in self.nodes }     # determine in-degree
     for u in self.nodes:                          # of each node
       for ref in u.getReferences():
