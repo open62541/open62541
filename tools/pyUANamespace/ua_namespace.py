@@ -568,6 +568,7 @@ class opcua_namespace():
         self.nodes = L
     else:                    # if there is a cycle,  
         logger.error("Node graph is circular on the specified references")
+        self.nodes = L + [x for x in self.nodes if x not in L]
     return 
 
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
