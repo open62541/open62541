@@ -530,22 +530,26 @@ class opcua_namespace():
   def reorderNodesMinDependencies(self):
     #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-    relevant_references = ["HasSubtype", "HasTypeDefinition", "Organizes", "HasComponent"]
-    
-    #expand relevant references by subtypes
-    subtype_refrences = []
-    for reference_name in relevant_references:
-        tn = self.getNodeByBrowseName(reference_name)
-        if tn is not None and reference_name is not "HasComponent": #self.getSubTypesOf(currentNode=tn) crashes for "HasComponent"
-          subtype_refrences = subtype_refrences + self.getSubTypesOf(currentNode=tn)
-    relevant_references = relevant_references + subtype_refrences
+    typeRefs = []
+    tn = self.getNodeByBrowseName("HasTypeDefinition")
+    if tn != None:
+      typeRefs.append(tn)
+      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
+    subTypeRefs = []
+    tn = self.getNodeByBrowseName("HasSubtype")
+    if tn  != None:
+      subTypeRefs.append(tn)
+      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
     
     in_degree = { u : 0 for u in self.nodes }     # determine in-degree
     for u in self.nodes:                          # of each node
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if ref.referenceType().browseName() in relevant_references and ref.isForward():
+         if(( ref.referenceType() in typeRefs and ref.isForward() )
+         or ( ref.referenceType() in subTypeRefs and not ref.isForward() )):
            in_degree[ref.target()] += 1
+         if( ref.isForward() ):
+           in_degree[u] += 1
     
     Q = deque()                 # collect nodes with zero in-degree
     for u in in_degree:
@@ -560,7 +564,8 @@ class opcua_namespace():
       L.insert(0, u)
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if ref.referenceType().browseName() in relevant_references and ref.isForward():
+         if(( ref.referenceType() in typeRefs and ref.isForward() )
+         or ( ref.referenceType() in subTypeRefs and not ref.isForward() )):
            in_degree[ref.target()] -= 1
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
