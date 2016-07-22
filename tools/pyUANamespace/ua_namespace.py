@@ -535,22 +535,22 @@ class opcua_namespace():
           re = re + self.getSubTypesOf2(ref.target())
     return re
 
-  def reorderNodesMinDependencies(self, nodes):
+  def reorderNodesMinDependencies(self):
     #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
     
-    relevant_types = ["HierarchicalReferences", "HasTypeDefinition"]
+    relevant_types = ["HierarchicalReferences", "HasComponent"]
     
     temp = []
     for t in relevant_types:
         temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
     relevant_types = temp
 
-    in_degree = { u : 0 for u in nodes }     # determine in-degree
-    for u in nodes:                          # of each node
+    in_degree = { u : 0 for u in self.nodes }     # determine in-degree
+    for u in self.nodes:                          # of each node
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(ref in relevant_types and ref.isForward()):
+         if(ref.referenceType() in relevant_types and ref.isForward()):
            in_degree[ref.target()] += 1
     
     Q = deque()                 # collect nodes with zero in-degree
@@ -562,35 +562,34 @@ class opcua_namespace():
     
     while Q:
       u = Q.pop()          # choose node of zero in-degree
-      #L.append(u)          # and 'remove' it from graph
-      L.insert(0, u)
+      L.append(u)          # and 'remove' it from graph
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(ref in relevant_types and ref.isForward()):
+         if(ref.referenceType() in relevant_types and ref.isForward()):
            in_degree[ref.target()] -= 1
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
-    if len(L) == len(nodes):
-        return L
+    if len(L) == len(self.nodes):
+        self.nodes = L
     else:                    # if there is a cycle,  
         logger.error("Node graph is circular on the specified references")
-        return L + [x for x in self.nodes if x not in L]
-
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", reorder=False):
+        self.nodes = L + [x for x in self.nodes if x not in L]
+    return
+    
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
 
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    if reorder:
-      logger.info("Reordering nodes for minimal dependencies during printing.")
-      unPrintedNodes = self.reorderNodesMinDependencies(unPrintedNodes)
-
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
 
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    logger.info("Reordering nodes for minimal dependencies during printing.")
+    self.reorderNodesMinDependencies()
+      
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.

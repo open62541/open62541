@@ -62,8 +62,6 @@ parser.add_argument('-s','--suppress',
 
 parser.add_argument('-v','--verbose', action='count', help='Make the script more verbose. Can be applied up to 4 times')
 
-parser.add_argument('-r', '--reorder', dest="reorder", action='store_true', default=False, help='Sorts nodes topologically')
-                    
 args = parser.parse_args()
 
 level = logging.CRITICAL
@@ -168,7 +166,7 @@ for ignore in args.ignoreFiles:
 logger.info("Generating Header")
 # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
 from os.path import basename
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile), reorder=args.reorder)
+generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
 for line in generatedCode[0]:
   outfileh.write(line+"\n")
 for line in generatedCode[1]:
