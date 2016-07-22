@@ -530,9 +530,9 @@ class opcua_namespace():
     file.close()
 
   def reorderNodesMinDependencies(self):
-    #Kahn'S algorithm
+    #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-    relevant_references = ["HasSubtype", "HasTypeDefinition"]
+    relevant_references = ["HasSubtype", "HasTypeDefinition", "HasComponent", "Organizes"]
     in_degree = { u : 0 for u in self.nodes }     # determine in-degree
     for u in self.nodes:                          # of each node
       for ref in u.getReferences():
@@ -549,7 +549,8 @@ class opcua_namespace():
     
     while Q:
       u = Q.pop()          # choose node of zero in-degree
-      L.append(u)          # and 'remove' it from graph
+      #L.append(u)          # and 'remove' it from graph
+      L.insert(0, u)
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
          if ref.referenceType().browseName() in relevant_references and ref.isForward():
@@ -557,9 +558,9 @@ class opcua_namespace():
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
     if len(L) == len(self.nodes):
-        self.node = L
+        self.nodes = L
     else:                    # if there is a cycle,  
-        logger.error("Node graph is circular on HasSubtype+HasTypeDefinition definition")
+        logger.error("Node graph is circular on the specified references")
     return 
 
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
