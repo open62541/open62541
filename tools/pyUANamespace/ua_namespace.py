@@ -138,28 +138,12 @@ class opcua_namespace():
     """ Returns the first node in the nodelist whose browseName matches idstring.
     """
     return next((n for n in self.nodes if idstring==str(n.browseName())), None)
-    #
-    #matches = filter(lambda n: idstring==str(n.browseName()), self.nodes)
-    #if len(matches) > 1:
-    #  logger.error("Found multiple nodes with same ID!?")
-    #if len(matches) == 0:
-    #  return None
-    #else:
-    #  return matches[0]
 
   def getNodeByIDString(self, idstring):
     """ Returns the first node in the nodelist whose id string representation
         matches idstring.
     """
     return next((n for n in self.nodes if idstring==str(n.id())), None)
-    #
-    #matches = filter(lambda n: idstring==str(n.id()), self.nodes)
-    #if len(matches) > 1:
-    #  logger.error("Found multiple nodes with same ID!?")
-    #if len(matches) == 0:
-    #  return None
-    #else:
-    #  return matches[0]
 
   def createNode(self, ndtype, xmlelement):
     """ createNode is instantiates a node described by xmlelement, its type being
@@ -583,9 +567,9 @@ class opcua_namespace():
     header = []
 
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.info("Reordering nodes for minimal dependencies during printing.")
+    logger.debug("Reordering nodes for minimal dependencies during printing.")
     self.reorderNodesMinDependencies()
-    
+
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
