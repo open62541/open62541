@@ -228,16 +228,16 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         return;
     }
 
-    connection->state = UA_CONNECTION_ESTABLISHED;
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount;
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize;
+    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* may be zero -> unlimited */
+    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* may be zero -> unlimited */
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
     connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
     if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
         connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
+    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
     if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
         connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
+    connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 
     /* Build acknowledge response */
