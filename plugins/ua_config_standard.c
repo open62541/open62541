@@ -5,6 +5,22 @@
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 
+/*******************************/
+/* Default Connection Settings */
+/*******************************/
+
+const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
+    .protocolVersion = 0,
+    .sendBufferSize = 65535, /* 64k per chunk */
+    .recvBufferSize = 65535, /* 64k per chunk */
+    .maxMessageSize = 0, /* 0 -> unlimited */
+    .maxChunkCount = 0 /* 0 -> unlimited */
+};
+
+/***************************/
+/* Default Server Settings */
+/***************************/
+
 #define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define PRODUCT_URI "http://open62541.org"
@@ -18,7 +34,7 @@ UA_UsernamePasswordLogin usernamePasswords[2] = {
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 
-const UA_ServerConfig UA_ServerConfig_standard = {
+const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .nThreads = 1,
     .logger = UA_Log_Stdout,
 
@@ -71,15 +87,20 @@ const UA_ServerConfig UA_ServerConfig_standard = {
     .queueSizeLimits = { .max = 100, .min = 1 }
 };
 
+/***************************/
+/* Default Client Settings */
+/***************************/
+
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
-    .timeout = 5000,
-    .secureChannelLifeTime = 600000,
+    .timeout = 5000, /* 5 seconds */
+    .secureChannelLifeTime = 10 * 60 * 1000, /* 10 minutes */
     .logger = UA_Log_Stdout,
     .localConnectionConfig = {
         .protocolVersion = 0,
-        .sendBufferSize = 65535,
-        .recvBufferSize  = 65535,
-        .maxMessageSize = 65535,
-        .maxChunkCount = 1 },
+        .sendBufferSize = 65535, /* 64k per chunk */
+        .recvBufferSize  = 65535, /* 64k per chunk */
+        .maxMessageSize = 0, /* 0 -> unlimited */
+        .maxChunkCount = 0 /* 0 -> unlimited */
+    },
     .connectionFunc = UA_ClientConnectionTCP
 };
