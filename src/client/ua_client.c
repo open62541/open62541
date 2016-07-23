@@ -95,37 +95,42 @@ UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client) {
 /* Manage the Connection */
 /*************************/
 
-static UA_StatusCode HelAckHandshake(UA_Client *client) {
-    UA_TcpMessageHeader messageHeader;
-    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
+#define UA_MINMESSAGESIZE 8192
 
+static UA_StatusCode HelAckHandshake(UA_Client *client) {
+    UA_Connection *conn = client->connection;
+
+    /* Get a buffer */
+    UA_ByteString message;
+    UA_StatusCode retval = client->connection->getSendBuffer(client->connection, UA_MINMESSAGESIZE, &message);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
     UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-
-    UA_Connection *conn = client->connection;
     hello.maxChunkCount = conn->localConf.maxChunkCount;
     hello.maxMessageSize = conn->localConf.maxMessageSize;
     hello.protocolVersion = conn->localConf.protocolVersion;
     hello.receiveBufferSize = conn->localConf.recvBufferSize;
     hello.sendBufferSize = conn->localConf.sendBufferSize;
 
-    UA_ByteString message;
-    UA_StatusCode retval;
-    retval = client->connection->getSendBuffer(client->connection, client->connection->remoteConf.recvBufferSize, &message);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
     size_t offset = 8;
-    retval |= UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    retval = UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
+    UA_TcpHelloMessage_deleteMembers(&hello);
+
+    /* Encode the message header at offset 0 */
+    UA_TcpMessageHeader messageHeader;
+    messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
     retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
-    UA_TcpHelloMessage_deleteMembers(&hello);
     if(retval != UA_STATUSCODE_GOOD) {
         client->connection->releaseSendBuffer(client->connection, &message);
         return retval;
     }
 
+    /* Send the HEL message */
     message.length = messageHeader.messageSize;
     retval = client->connection->send(client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -134,8 +139,9 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     }
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
 
-    UA_ByteString reply;
-    UA_ByteString_init(&reply);
+    /* Loop until we have a complete chunk */
+    /* TODO: quit after a total wait time of client->config.timeout */
+    UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
     do {
         retval = client->connection->recv(client->connection, &reply, client->config.timeout);
@@ -146,33 +152,37 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
         }
     } while(reply.length == 0);
 
+    /* Decode the message */
     offset = 0;
-    UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_TcpAcknowledgeMessage ackMessage;
-    retval = UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
+    retval = UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
+    retval |= UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
+
+    /* Free the message buffer */
     if(!realloced)
         client->connection->releaseRecvBuffer(client->connection, &reply);
     else
         UA_ByteString_deleteMembers(&reply);
 
-    if(retval != UA_STATUSCODE_GOOD) {
+    /* Store remote connection settings and adjust local configuration to not exceed the limits */
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+        conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
+        conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
+        conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
+        conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
+        if(conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
+            conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
+        conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
+        if(conn->remoteConf.sendBufferSize < conn->localConf.recvBufferSize)
+            conn->localConf.recvBufferSize = conn->remoteConf.sendBufferSize;
+        conn->state = UA_CONNECTION_ESTABLISHED;
+    } else {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
-        return retval;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 
-    /* TODO: verify that remote and local configurations match, adjust local configuration in the other case */
-    conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount;
-    conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize;
-    conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
-    conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
-    conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
-    conn->state = UA_CONNECTION_ESTABLISHED;
-    
-    if (conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
-      conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
-    
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
@@ -284,7 +294,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     else
         UA_ByteString_deleteMembers(&reply);
 
-    //save the sequence number from server
+    /* save the sequence number from server */
     client->channel->receiveSequenceNumber = seqHeader.sequenceNumber;
 
 

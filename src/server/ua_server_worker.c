@@ -22,19 +22,17 @@
  * - Remove the entry from the list
  * - mark it as "dead" with an atomic operation
  * - add a delayed job that frees the memory when all concurrent operations have completed
- * 
+ *
  * This approach to concurrently accessible memory is known as epoch based reclamation [1]. According to
  * [2], it performs competitively well on many-core systems. Our version of EBR does however not require
  * a global epoch. Instead, every worker thread has its own epoch counter that we observe for changes.
- * 
+ *
  * [1] Fraser, K. 2003. Practical lock freedom. Ph.D. thesis. Computer Laboratory, University of Cambridge.
  * [2] Hart, T. E., McKenney, P. E., Brown, A. D., & Walpole, J. (2007). Performance of memory reclamation
  *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
- * 
- * 
  */
 
-#define MAXTIMEOUT 500 // max timeout in millisec until the next main loop iteration
+#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
@@ -94,10 +92,10 @@ static void * workerLoop(UA_Worker *worker) {
     UA_Server *server = worker->server;
     UA_UInt32 *counter = &worker->counter;
     volatile UA_Boolean *running = &worker->running;
-    
+
     /* Initialize the (thread local) random seed with the ram address of worker */
     UA_random_seed((uintptr_t)worker);
-   	rcu_register_thread();
+    rcu_register_thread();
 
     pthread_mutex_t mutex; // required for the condition variable
     pthread_mutex_init(&mutex,0);
@@ -122,7 +120,7 @@ static void * workerLoop(UA_Worker *worker) {
     pthread_mutex_destroy(&mutex);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
-   	rcu_unregister_thread();
+    rcu_unregister_thread();
     return NULL;
 }
 
