@@ -139,7 +139,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
 
-    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize)
+    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize && connection->remoteConf.maxChunkCount > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
     if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount && connection->remoteConf.maxChunkCount > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
