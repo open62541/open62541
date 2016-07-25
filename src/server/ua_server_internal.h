@@ -9,6 +9,10 @@
 #include "ua_securechannel_manager.h"
 #include "ua_nodestore.h"
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+#include "mdnsd/libmdnsd/mdnsd.h"
+#endif
+
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
@@ -63,6 +67,15 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    mdns_daemon_t *mdnsDaemon;
+    int mdnsSocket;
+	unsigned short mdnsMainSrvAdded;
+#  ifdef UA_ENABLE_MULTITHREADING
+	pthread_t mdnsThread;
+	UA_Boolean mdnsRunning;
+#  endif
+# endif
 #endif
 
     size_t namespacesSize;
@@ -119,5 +132,26 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
 
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+UA_StatusCode UA_Discovery_multicastInit(UA_Server* server);
+void UA_Discovery_multicastDestroy(UA_Server* server);
+
+typedef enum {
+    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
+    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
+} UA_DiscoveryProtocol;
+
+UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* hostname, unsigned short port, const UA_DiscoveryProtocol protocol);
+UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* hostname, unsigned short port);
+
+#  ifdef UA_ENABLE_MULTITHREADING
+UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);
+UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server);
+#  endif
+UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn);
+
+# endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */

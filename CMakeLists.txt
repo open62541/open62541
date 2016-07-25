@@ -52,8 +52,8 @@ if(UA_ENABLE_COVERAGE)
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
-    MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. This will be enabled automatically")
-    SET(UA_ENABLE_DISCOVERY ON CACHE BOOL "Enable Discovery Service (LDS)")
+    MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
+    SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
 endif()
 
 # Advanced options

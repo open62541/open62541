@@ -594,32 +594,24 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
     connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
 
-    size_t urlLength = strlen(endpointUrl);
-    if(urlLength < 11 || urlLength >= 512) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
-        return connection;
-    }
-    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
-        return connection;
-    }
-
-    /* where does the port begin? */
-    size_t portpos = 10;
-    for(; portpos < urlLength-1; portpos++) {
-        if(endpointUrl[portpos] == ':')
-            break;
-    }
-
     char hostname[512];
-    memcpy(hostname, &endpointUrl[10], portpos - 10);
-    hostname[portpos-10] = 0;
+    const char *port = NULL;
 
-    const char *port = "4840";
-    if(portpos < urlLength - 1)
-        port = &endpointUrl[portpos + 1];
-    else
+    {
+        UA_StatusCode retval;
+        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port)) != UA_STATUSCODE_GOOD) {
+            if (retval == UA_STATUSCODE_BADOUTOFRANGE)
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
+            else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
+            return connection;
+        }
+    }
+
+    if (port == NULL) {
+        port = "4840";
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
+    }
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));

@@ -193,6 +193,19 @@ UA_StatusCode UA_EXPORT UA_Array_copy(const void *src, size_t size, void **dst, 
 void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
 /**
+ * EndpointURL helper
+ */
+
+/**
+ * Split the given endpoint url into hostname and port
+ * @param endpointUrl The endpoint URL to split up
+ * @param hostname the target array for hostname. Has to be at least 512 size.
+ * @param port if url contains port, it will point to the beginning of port. NULL otherwise
+ * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT UA_EndpointUrl_split(const char *endpointUrl, char *hostname, const char ** port);
+
+/**
  * Builtin Types, Part 2
  * ---------------------
  *

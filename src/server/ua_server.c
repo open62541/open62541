@@ -278,6 +278,12 @@ void UA_Server_delete(UA_Server *server) {
         UA_RegisteredServer_deleteMembers(&current->registeredServer);
         UA_free(current);
     }
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    	UA_Discovery_multicastDestroy(server);
+#endif
+
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -569,6 +575,14 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     // Discovery service
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    server->mdnsDaemon = NULL;
+    server->mdnsSocket = 0;
+	server->mdnsMainSrvAdded = 0;
+	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+		UA_Discovery_multicastInit(server);
+	}
+# endif
 #endif
 
     server->startTime = UA_DateTime_now();
