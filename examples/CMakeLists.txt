@@ -3,8 +3,6 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
-else()
-    add_definitions(-DUA_NO_AMALGAMATION)
 endif()
 
 list(APPEND LIBS ${open62541_LIBRARIES})
