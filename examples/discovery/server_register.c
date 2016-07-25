@@ -91,6 +91,7 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, 10*60*1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode 0x%08x", retval);
+        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
         return (int)retval;
@@ -99,6 +100,7 @@ int main(int argc, char** argv) {
     retval = UA_Server_run(server, &running);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not start the server. StatusCode 0x%08x", retval);
+        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
         return (int)retval;
@@ -108,6 +110,7 @@ int main(int argc, char** argv) {
     retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not unregister server from discovery server. StatusCode 0x%08x", retval);
+        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
         return (int)retval;
