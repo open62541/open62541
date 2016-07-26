@@ -10,6 +10,16 @@
         <Alias Alias="HasSubtype">i=45</Alias>
         <Alias Alias="HasComponent">i=47</Alias>
     </Aliases>
+        <UAVariable DataType="Double" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6002" BrowseName="1:Var1" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>Var1</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
+        </References>
+        <Value>
+            <uax:Double>42.0</uax:Double>
+        </Value>
+    </UAVariable>
     <UAObjectType NodeId="ns=1;i=1001" BrowseName="1:testType">
         <DisplayName>testType</DisplayName>
         <References>
@@ -33,14 +43,4 @@
             <Reference ReferenceType="HasComponent">ns=1;i=6002</Reference>
         </References>
     </UAObject>
-    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6002" BrowseName="1:Var1" UserAccessLevel="3" AccessLevel="3">
-        <DisplayName>Var1</DisplayName>
-        <References>
-            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
-            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
-        </References>
-        <Value>
-            <uax:Double>42.0</uax:Double>
-        </Value>
-    </UAVariable>
 </UANodeSet>
