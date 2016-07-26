@@ -192,8 +192,8 @@ class open62541_MacroHelper():
     # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
     code.append("UA_%sAttributes_init(&attr);" %  nodetype);
-    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % str(node.displayName()))
-    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % str(node.description()))
+    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.displayName().replace("\"", "\\\""))
+    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.description().replace("\"", "\\\""))
 
     if nodetype in ["Variable", "VariableType"]:
       code.extend(node.printOpen62541CCode_SubtypeEarly(bootstrapping = False))

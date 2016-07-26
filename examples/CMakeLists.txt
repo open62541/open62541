@@ -72,6 +72,7 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
                                                     #${PROJECT_SOURCE_DIR}/examples/Opc.Ua.AMLBaseTypes.NodeSet2.xml
                                                     #${PROJECT_SOURCE_DIR}/examples/Opc.Ua.AMLLibraries.NodeSet2.xml
                                                     #${PROJECT_SOURCE_DIR}/examples/Opc.Ua.Di.NodeSet2.xml
+                                                    #${PROJECT_SOURCE_DIR}/examples/Opc.Ua.Adi.NodeSet2.xml
                                                     ${PROJECT_BINARY_DIR}/src_generated/nodeset
                       DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
