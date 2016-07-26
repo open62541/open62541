@@ -365,7 +365,7 @@ class opcua_value_t():
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
             logger.debug("Building extObj array index " + str(self.value.index(v)))
-            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
+            code.extend(v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v)))
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
@@ -391,7 +391,7 @@ class opcua_value_t():
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-          code = code + self.value[0].printOpen62541CCode_SubType_build()
+          code.extend(self.value[0].printOpen62541CCode_SubType_build())
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")

@@ -568,7 +568,7 @@ class opcua_namespace():
                 break
         code.append("// creating references")
         for r in unPrintedRefs:
-            code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+            code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
 
     # finalizing source and header
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
