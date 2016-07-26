@@ -576,7 +576,6 @@ class opcua_namespace():
                     if ref.referenceType() in already_printed and ref.target() in already_printed:
                         node_found = True
                         code = code + node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute)
-                        header = header + codegen.getNodeIdDefineString(node)
                         unPrintedRefs.remove(ref)
                         unPrintedNodes.remove(node)
                         already_printed.append(node)
