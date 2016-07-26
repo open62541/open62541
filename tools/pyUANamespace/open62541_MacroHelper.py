@@ -61,7 +61,6 @@ class open62541_MacroHelper():
     return input
 
   def getNodeIdDefineString(self, node):
-    code = []
     extrNs = node.browseName().split(":")
     symbolic_name = ""
     # strip all characters that would be illegal in C-Code
@@ -83,8 +82,7 @@ class open62541_MacroHelper():
       symbolic_name = symbolic_name+"_"+str(extendedN)
 
     defined_typealiases.append(symbolic_name)
-    code.append("#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i))
-    return code
+    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
 
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
@@ -198,7 +196,7 @@ class open62541_MacroHelper():
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % str(node.description()))
 
     if nodetype in ["Variable", "VariableType"]:
-      code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
+      code.extend(node.printOpen62541CCode_SubtypeEarly(bootstrapping = False))
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")

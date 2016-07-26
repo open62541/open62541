@@ -671,7 +671,7 @@ class opcua_node_t:
     code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRefType.id()) +
                   "/" + str(parentRefType.__node_browseName__))
-    code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, reference)
+    code.extend(codegen.getCreateNodeNoBootstrap(self, parentNode, reference))
     code.append("} while(0);")
     return code
 

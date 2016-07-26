@@ -477,7 +477,7 @@ class opcua_namespace():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)
 
-    logger.debug(str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.")
+    logger.debug("%d nodes and %d references need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
@@ -518,16 +518,16 @@ class opcua_namespace():
       if n.id().ns != 0:
         nc = n.nodeClass()
         if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
-          header = header + codegen.getNodeIdDefineString(n)
+          header.append(codegen.getNodeIdDefineString(n))
 
       # Now for the actual references...
       for r in n.getReferences():
         # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
-    logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
+    logger.debug("%d reference types are used in the namespace, which will now get bootstrapped.", len(refsUsed))
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
+      code.extend(r.printOpen62541CCode(unPrintedNodes, unPrintedRefs))
 
     logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
 
@@ -536,10 +536,10 @@ class opcua_namespace():
         #               Nodes remove themselves from this list when printed.
         logger.debug("Printing all other nodes.")
         for n in self.nodes:
-          code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
+          code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
 
         if len(unPrintedNodes) != 0:
-          logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
+          logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
         else:
           logger.debug("Printing suceeded for all nodes")
 
@@ -555,7 +555,7 @@ class opcua_namespace():
               else:
                 if (len(tmprefs) == 0):
                   code.append("//  Creating leftover references:")
-                code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+                code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
                 code.append("")
                 tmprefs.append(r)
           # Remove printed refs from list
@@ -573,7 +573,7 @@ class opcua_namespace():
                 for ref in node.getReferences():
                     if ref.referenceType() in already_printed and ref.target() in already_printed:
                         node_found = True
-                        code = code + node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute)
+                        code.extend(node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute))
                         unPrintedRefs.remove(ref)
                         unPrintedNodes.remove(node)
                         already_printed.append(node)
