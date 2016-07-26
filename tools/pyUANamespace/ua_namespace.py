@@ -579,8 +579,8 @@ class opcua_namespace():
                         already_printed.append(node)
                         break
             if not node_found:
-                logger.critical("no complete code generation with high level API possible")
-                code.append("CRITICAL: no complete code generation with high level API possible")
+                logger.critical("no complete code generation with high level API possible; not all nodes will be created")
+                code.append("CRITICAL: no complete code generation with high level API possible; not all nodes will be created")
                 break
         code.append("// creating references")
         for r in unPrintedRefs:
