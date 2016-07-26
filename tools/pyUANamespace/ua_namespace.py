@@ -582,7 +582,8 @@ class opcua_namespace():
                         already_printed.append(node)
                         break
             if not node_found:
-                logger.critical("no code generation without bootstrapping possible")
+                logger.critical("no complete code generation with high level API possible")
+                code.append("CRITICAL: no complete code generation with high level API possible")
                 break
         code.append("// creating references")
         for r in unPrintedRefs:
