@@ -433,22 +433,6 @@ class opcua_namespace():
       if isinstance(n, opcua_node_variable_t):
         n.allocateValue()
 
-  def printDot(self, filename="namespace.dot"):
-    """ Outputs a graphiz/dot description of all nodes in the namespace.
-
-        Output will written into filename to be parsed by dot/neato...
-
-        Note that for namespaces with more then 20 nodes the reference structure
-        will lead to a mostly illegible and huge graph. Use printDotGraphWalk()
-        for plotting specific portions of a large namespace.
-    """
-    file=open(filename, 'w+')
-
-    file.write("digraph ns {\n")
-    for n in self.nodes:
-      file.write(n.printDot())
-    file.write("}\n")
-    file.close()
 
   def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
     # If this is a toplevel call, collect the following information as defaults
@@ -471,61 +455,6 @@ class opcua_namespace():
         self.getTypeDefinitionNodes(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
 
     return tdNodes
-
-
-  def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
-    """ Outputs a graphiz/dot description the nodes centered around rootNode.
-
-        References beginning from rootNode will be followed for depth steps. If
-        "followInverse = True" is passed, then inverse (not Forward) references
-        will also be followed.
-
-        Nodes can be excluded from the graph by passing a list of NodeIds as
-        string representation using excludeNodeIds (ex ["i=53", "ns=2;i=453"]).
-
-        Output is written into filename to be parsed by dot/neato/srfp...
-    """
-    iter = depth
-    processed = []
-    if rootNode == None or \
-       not isinstance(rootNode, opcua_node_t) or \
-       not rootNode in self.nodes:
-      root = self.getRoot()
-    else:
-      root = rootNode
-
-    file=open(filename, 'w+')
-
-    if root == None:
-      return
-
-    file.write("digraph ns {\n")
-    file.write(root.printDot())
-    refs=[]
-    if followInverse == True:
-      refs = root.getReferences(); # + root.getInverseReferences()
-    else:
-      for ref in root.getReferences():
-        if ref.isForward():
-          refs.append(ref)
-    while iter > 0:
-      tmp = []
-      for ref in refs:
-        if isinstance(ref.target(), opcua_node_t):
-          tgt = ref.target()
-          if not str(tgt.id()) in excludeNodeIds:
-            if not tgt in processed:
-              file.write(tgt.printDot())
-              processed.append(tgt)
-              if ref.isForward() == False and followInverse == True:
-                tmp = tmp + tgt.getReferences(); # + tgt.getInverseReferences()
-              elif ref.isForward() == True :
-                tmp = tmp + tgt.getReferences();
-      refs = tmp
-      iter = iter - 1
-
-    file.write("}\n")
-    file.close()
 
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
     unPrintedNodes = []
@@ -714,9 +643,6 @@ class testing:
         ns.append(n)
       print("...done, " + str(len(ns)) + " nodes discovered")
 
-    logger.debug("Phase 5: Printing pretty graph")
-    self.namespace.printDotGraphWalk(depth=1, rootNode=self.namespace.getNodeByIDString("i=84"), followInverse=False, excludeNodeIds=["i=29", "i=22", "i=25"])
-    #self.namespace.printDot()
 
 class testing_open62541_header:
   def __init__(self):
