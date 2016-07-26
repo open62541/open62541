@@ -30,6 +30,11 @@ fi
 
 echo "=== The build environment is outdated ==="
 
+if [ -z ${LOCAL_PKG} ]; then
+	echo "ERROR: LOCAL_PKG variable is not defined. Aborting"
+	exit 1
+fi
+
 # Clean up
 rm -rf $LOCAL_PKG/*
 
