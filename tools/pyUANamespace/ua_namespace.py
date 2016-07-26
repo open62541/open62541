@@ -607,8 +607,7 @@ class opcua_namespace():
     self.nodes = reorder
     logger.debug("Nodes reordered.")
     return
-
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
@@ -687,44 +686,67 @@ class opcua_namespace():
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
 
+    logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
+
+    if not high_level_api:
+        # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
+        #               Nodes remove themselves from this list when printed.
+        logger.debug("Printing all other nodes.")
+        for n in self.nodes:
+          code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
+
+        if len(unPrintedNodes) != 0:
+          logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
+        else:
+          logger.debug("Printing suceeded for all nodes")
+
+        if len(unPrintedRefs) != 0:
+          logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
+          tmprefs = []
+          for r in unPrintedRefs:
+            if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
+              if not isinstance(r.parent(), opcua_node_t):
+                logger.debug("Reference has no parent!")
+              elif not isinstance(r.parent().id(), opcua_node_id_t):
+                logger.debug("Parents nodeid is not a nodeID!")
+              else:
+                if (len(tmprefs) == 0):
+                  code.append("//  Creating leftover references:")
+                code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+                code.append("")
+                tmprefs.append(r)
+          # Remove printed refs from list
+          for r in tmprefs:
+            unPrintedRefs.remove(r)
+          if len(unPrintedRefs) != 0:
+            logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
+        else:
+          logger.debug("Printing succeeded for all references")
+    else:  # Using only High Level API
+        already_printed = list(printedExternally)
+        while unPrintedNodes:
+            node_found = False
+            for node in unPrintedNodes:
+                for ref in node.getReferences():
+                    if ref.referenceType() in already_printed and ref.target() in already_printed:
+                        node_found = True
+                        code = code + node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute)
+                        header = header + codegen.getNodeIdDefineString(node)
+                        unPrintedRefs.remove(ref)
+                        unPrintedNodes.remove(node)
+                        already_printed.append(node)
+                        break
+            if not node_found:
+                logger.critical("no code generation without bootstrapping possible")
+                break
+        code.append("// creating references")
+        for r in unPrintedRefs:
+            code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+
+    # finalizing source and header
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")
-
-    # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
-    #               Nodes remove themselves from this list when printed.
-    logger.debug("Printing all other nodes.")
-    for n in self.nodes:
-      code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
-
-    if len(unPrintedNodes) != 0:
-      logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
-    else:
-      logger.debug("Printing suceeded for all nodes")
-
-    if len(unPrintedRefs) != 0:
-      logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
-      tmprefs = []
-      for r in unPrintedRefs:
-        if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
-          if not isinstance(r.parent(), opcua_node_t):
-            logger.debug("Reference has no parent!")
-          elif not isinstance(r.parent().id(), opcua_node_id_t):
-            logger.debug("Parents nodeid is not a nodeID!")
-          else:
-            if (len(tmprefs) == 0):
-              code.append("//  Creating leftover references:")
-            code = code + codegen.getCreateStandaloneReference(r.parent(), r)
-            code.append("")
-            tmprefs.append(r)
-      # Remove printed refs from list
-      for r in tmprefs:
-        unPrintedRefs.remove(r)
-      if len(unPrintedRefs) != 0:
-        logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
-    else:
-      logger.debug("Printing succeeded for all references")
-
-    code.append("}")
+    code.append("} // closing nodeset()")
     return (header,code)
 
 ###

@@ -110,7 +110,7 @@ class open62541_MacroHelper():
       code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
     return code
 
-  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes):
+  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes=[]):
     code = []
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
 
