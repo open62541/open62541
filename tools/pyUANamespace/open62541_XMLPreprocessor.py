@@ -155,7 +155,7 @@ class preProcessDocument:
       if idDict[entry] > max:
         max = idDict[entry]
         namespaceIdGuessed = entry
-    logger.debug("XML Contents are propably in namespace " + str(entry) + " (used by " + str(idDict[entry]) + " Nodes)")
+    #logger.debug("XML Contents are propably in namespace " + str(entry) + " (used by " + str(idDict[entry]) + " Nodes)")
     return namespaceIdGuessed
 
   def getReferencedNamespaceUri(self, nsId):
