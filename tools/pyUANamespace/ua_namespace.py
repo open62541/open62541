@@ -527,95 +527,11 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def __reorder_getMinWeightNode__(self, nmatrix):
-    rcind = -1
-    rind = -1
-    minweight = -1
-    minweightnd = None
-    for row in nmatrix:
-      rcind += 1
-      if row[0] == None:
-        continue
-      w = sum(row[1:])
-      if minweight < 0:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-      elif w < minweight:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-    return (rind, minweightnd, minweight)
-
-  def reorderNodesMinDependencies(self):
-    # create a matrix represtantion of all node
-    #
-    nmatrix = []
-    for n in range(0,len(self.nodes)):
-      nmatrix.append([None] + [0]*len(self.nodes))
-
-    typeRefs = []
-    tn = self.getNodeByBrowseName("HasTypeDefinition")
-    if tn != None:
-      typeRefs.append(tn)
-      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
-    subTypeRefs = []
-    tn = self.getNodeByBrowseName("HasSubtype")
-    if tn  != None:
-      subTypeRefs.append(tn)
-      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
-
-    logger.debug("Building connectivity matrix for node order optimization.")
-    # Set column 0 to contain the node
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      nmatrix[nind][0] = node
-
-    # Determine the dependencies of all nodes
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      #print "Examining node " + str(nind) + " " + str(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          # Typedefinition of this node has precedence over this node
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # isSubTypeOf/typeDefinition of this node has precedence over this node
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # Else the target depends on us
-          elif ref.isForward():
-            nmatrix[tind][nind+1] += 1
-
-    logger.debug("Using Djikstra topological sorting to determine printing order.")
-    reorder = []
-    while len(reorder) < len(self.nodes):
-      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
-      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
-      reorder.append(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.isForward():
-            nmatrix[tind][nind+1] -= 1
-      nmatrix[nind][0] = None
-    self.nodes = reorder
-    logger.debug("Nodes reordered.")
-    return
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
