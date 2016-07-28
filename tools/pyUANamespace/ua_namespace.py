@@ -530,13 +530,12 @@ class opcua_namespace():
         temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
     relevant_types = temp
 
-    #in_degree means "being target of some reference in relevant_types"
     in_degree = { u : 0 for u in self.nodes }     # determine in-degree
     for u in self.nodes: # of each node
       if u not in printedExternally:
         for ref in u.getReferences():
          if isinstance(ref.target(), opcua_node_t):
-           if(ref.referenceType() in relevant_types and not ref.isForward()):
+           if(ref.referenceType() in relevant_types and ref.isForward()):
              in_degree[ref.target()] += 1
     
     Q = deque()                 # collect nodes with zero in-degree
@@ -548,10 +547,10 @@ class opcua_namespace():
     
     while Q:
       u = Q.pop()          # choose node of zero in-degree
-      L = [u] + L          # and 'remove' it from graph
+      L.append(u)          # and 'remove' it from graph
       for ref in u.getReferences():
        if isinstance(ref.target(), opcua_node_t):
-         if(ref.referenceType() in relevant_types and not ref.isForward()):
+         if(ref.referenceType() in relevant_types and ref.isForward()):
            in_degree[ref.target()] -= 1
            if in_degree[ref.target()] == 0:
              Q.appendleft(ref.target())
