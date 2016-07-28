@@ -48,6 +48,27 @@ typedef struct registeredServer_list_entry {
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
+
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+typedef struct serverOnNetwork_list_entry {
+	LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+	UA_ServerOnNetwork serverOnNetwork;
+	UA_DateTime created;
+	UA_DateTime lastSeen;
+	UA_Boolean txtSet;
+	UA_Boolean srvSet;
+	char* pathTmp;
+} serverOnNetwork_list_entry;
+
+
+#define SERVER_ON_NETWORK_HASH_PRIME 1009
+typedef struct serverOnNetwork_hash_entry {
+	serverOnNetwork_list_entry* entry;
+	struct serverOnNetwork_hash_entry* next;
+} serverOnNetwork_hash_entry;
+#endif
+
 #endif
 
 struct UA_Server {
@@ -75,6 +96,14 @@ struct UA_Server {
 	pthread_t mdnsThread;
 	UA_Boolean mdnsRunning;
 #  endif
+
+	LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
+	size_t serverOnNetworkSize;
+	UA_UInt32 serverOnNetworkRecordIdCounter;
+	UA_DateTime serverOnNetworkRecordIdLastReset;
+	// hash mapping domain name to serverOnNetwork list entry
+	struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+
 # endif
 #endif
 
@@ -143,8 +172,9 @@ typedef enum {
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
 
-UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* hostname, unsigned short port, const UA_DiscoveryProtocol protocol);
-UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* hostname, unsigned short port);
+UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, const char* path,
+									 const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize);
+UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, UA_Boolean removeTxt);
 
 #  ifdef UA_ENABLE_MULTITHREADING
 UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);

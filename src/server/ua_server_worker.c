@@ -597,7 +597,11 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
 		char *hostname = malloc(sizeof(char)*256);
 		if(gethostname(hostname, 255) == 0) {
-			UA_Discovery_addRecord(server, hostname, 4840, UA_DISCOVERY_TCP);
+            char *appName = malloc(server->config.mdnsServerName.length +1);
+            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+            appName[server->config.mdnsServerName.length] = '\0';
+            UA_Discovery_addRecord(server, appName ,hostname, 4840, "/", UA_DISCOVERY_TCP, UA_TRUE, server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
+            free(appName);
 		} else {
 			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
 						"Could not get hostname for multicast discovery.");
@@ -741,7 +745,11 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
 	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
 		char* hostname = malloc(sizeof(char) * 256);
 		if (gethostname(hostname, 255) == 0) {
-			UA_Discovery_removeRecord(server, hostname, 4840);
+            char *appName = malloc(server->config.mdnsServerName.length +1);
+            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+            appName[server->config.mdnsServerName.length] = '\0';
+			UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
+			free(appName);
 		} else {
 			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
 						 "Could not get hostname for multicast discovery.");

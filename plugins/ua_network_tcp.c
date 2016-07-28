@@ -596,10 +596,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
 
     char hostname[512];
     const char *port = NULL;
+    const char *path = NULL;
 
     {
         UA_StatusCode retval;
-        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port)) != UA_STATUSCODE_GOOD) {
+        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
             if (retval == UA_STATUSCODE_BADOUTOFRANGE)
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
             else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
@@ -608,16 +609,25 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         }
     }
 
+    char portNum[6];
     if (port == NULL) {
-        port = "4840";
+        strncpy(portNum, "4840", 4);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
+    } else {
+		if (path) {
+			strncpy(portNum, port, (size_t)(path-port));
+			portNum[(size_t)(path-port)]='\0';
+		} else {
+			strncpy(portNum, port, strlen(port));
+			portNum[strlen(port)]='\0';
+		}
     }
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
-    int error = getaddrinfo(hostname, port, &hints, &server);
+    int error = getaddrinfo(hostname, portNum, &hints, &server);
     if(error != 0 || !server) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
         return connection;

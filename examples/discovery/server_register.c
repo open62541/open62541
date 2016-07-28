@@ -65,6 +65,11 @@ int main(int argc, char** argv) {
 
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.applicationDescription.applicationUri=UA_String_fromChars("open62541.example.server_register");
+    config.mdnsServerName = UA_String_fromChars("Sample Server");
+    // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
+    //config.serverCapabilitiesSize = 1;
+    //UA_String caps = UA_String_fromChars("LDS");
+    //config.serverCapabilities = &caps;
     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
@@ -117,6 +122,8 @@ int main(int argc, char** argv) {
     }
 
     UA_String_deleteMembers(&config.applicationDescription.applicationUri);
+    UA_String_deleteMembers(&config.mdnsServerName);
+    //UA_Array_delete(config.serverCapabilities, config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 

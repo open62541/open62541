@@ -77,10 +77,23 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requiresSession = false;
         break;
 #ifdef UA_ENABLE_DISCOVERY
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    case UA_NS0ID_FINDSERVERSONNETWORKREQUEST:
+        *service = (UA_Service)Service_FindServersOnNetwork;
+        *requestType = &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE];
+        *requiresSession = false;
+        break;
+# endif
     case UA_NS0ID_REGISTERSERVERREQUEST:
         *service = (UA_Service)Service_RegisterServer;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE];
+        break;
+    case UA_NS0ID_REGISTERSERVER2REQUEST:
+        *service = (UA_Service)Service_RegisterServer2;
+        *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST:

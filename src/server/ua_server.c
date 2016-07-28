@@ -272,17 +272,39 @@ void UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
-    registeredServer_list_entry *current, *temp;
-    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-        LIST_REMOVE(current, pointers);
-        UA_RegisteredServer_deleteMembers(&current->registeredServer);
-        UA_free(current);
-    }
+	{
+		registeredServer_list_entry* current, * temp;
+		LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+			LIST_REMOVE(current, pointers);
+			UA_RegisteredServer_deleteMembers(&current->registeredServer);
+			UA_free(current);
+		}
+	}
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
     	UA_Discovery_multicastDestroy(server);
-#endif
+
+	{
+		serverOnNetwork_list_entry* current, * temp;
+		LIST_FOREACH_SAFE(current, &server->serverOnNetwork, pointers, temp) {
+			LIST_REMOVE(current, pointers);
+			UA_ServerOnNetwork_deleteMembers(&current->serverOnNetwork);
+			if (current->pathTmp)
+				free(current->pathTmp);
+			UA_free(current);
+		}
+
+		for (size_t i=0; i<SERVER_ON_NETWORK_HASH_PRIME; i++) {
+			serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
+			while (currHash) {
+				serverOnNetwork_hash_entry* nextHash = currHash->next;
+				free(currHash);
+				currHash = nextHash;
+			}
+		}
+	}
+# endif
 
 #endif
 
@@ -582,6 +604,12 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
 		UA_Discovery_multicastInit(server);
 	}
+
+	LIST_INIT(&server->serverOnNetwork);
+	server->serverOnNetworkSize = 0;
+	server->serverOnNetworkRecordIdCounter = 0;
+	server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+	memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
 # endif
 #endif
 
@@ -1545,8 +1573,8 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         return retval;
     }
 
-    UA_RegisterServerRequest request;
-    UA_RegisterServerRequest_init(&request);
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
 
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
@@ -1604,23 +1632,78 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
     }
 
-    // now send the request
-    UA_RegisterServerResponse response;
-    UA_RegisterServerResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+	UA_MdnsDiscoveryConfiguration *mdnsConfig = UA_MdnsDiscoveryConfiguration_new();
+	UA_MdnsDiscoveryConfiguration_init(mdnsConfig);
 
-    UA_RegisterServerRequest_deleteMembers(&request);
+	request.discoveryConfigurationSize = 0;
+	request.discoveryConfigurationSize = 1;
+	request.discoveryConfiguration = UA_ExtensionObject_new();
+	UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+	request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+	request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
+	request.discoveryConfiguration[0].content.decoded.data = mdnsConfig;
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-        UA_RegisterServerResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
-    }
+	UA_String_copy(&server->config.mdnsServerName, &mdnsConfig->mdnsServerName);
+	retval |= UA_Array_copy(&server->config.serverCapabilities, server->config.serverCapabilitiesSize, (void**)&mdnsConfig->serverCapabilities, &UA_TYPES[UA_TYPES_STRING]);
+	mdnsConfig->serverCapabilitiesSize = server->config.serverCapabilitiesSize;
 
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+					 "Could not initialize RegisterServer request");
+		UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
+		UA_RegisterServer2Request_deleteMembers(&request);
+		return retval;
+	}
+
+	// First try with RegisterServer2, if that isn't implemented, use RegisterServer
+	UA_RegisterServer2Response response;
+	UA_RegisterServer2Response_init(&response);
+	__UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+						&response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
+
+	if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED) {
+		// try RegisterServer
+		UA_RegisterServerResponse response_fallback;
+		UA_RegisterServerResponse_init(&response_fallback);
+
+		// copy from RegisterServer2 request
+		UA_RegisterServerRequest request_fallback;
+		UA_RegisterServerRequest_init(&request_fallback);
+
+		UA_RequestHeader_copy(&request.requestHeader, &request_fallback.requestHeader);
+		UA_RegisteredServer_copy(&request.server, &request_fallback.server);
+
+		UA_RegisterServer2Request_deleteMembers(&request);
+
+		__UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+							&response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+
+		UA_RegisterServerRequest_deleteMembers(&request_fallback);
+
+		if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+						 "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+			UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
+			UA_RegisterServer2Response_deleteMembers(&response);
+			UA_RegisterServerResponse_deleteMembers(&response_fallback);
+			UA_Client_disconnect(client);
+			UA_Client_delete(client);
+			return response.responseHeader.serviceResult;
+		}
+	} else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+					 "RegisterServer2 failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+		UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
+		UA_RegisterServer2Request_deleteMembers(&request);
+		UA_RegisterServer2Response_deleteMembers(&response);
+		UA_Client_disconnect(client);
+		UA_Client_delete(client);
+		return response.responseHeader.serviceResult;
+	}
+
+	UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
+	UA_RegisterServer2Request_deleteMembers(&request);
+	UA_RegisterServer2Response_deleteMembers(&response);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

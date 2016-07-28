@@ -56,6 +56,11 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryProfileUri = UA_STRING_STATIC_NULL,
         .discoveryUrlsSize = 0,
         .discoveryUrls = NULL },
+#ifdef UA_ENABLE_DISCOVERY
+		.serverCapabilities = NULL,
+		.serverCapabilitiesSize = 0,
+		.mdnsServerName = UA_STRING_STATIC_NULL,
+#endif
     .serverCertificate = UA_STRING_STATIC_NULL,
 
     /* Networking */

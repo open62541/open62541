@@ -101,6 +101,11 @@ typedef struct {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
+#ifdef UA_ENABLE_DISCOVERY
+    UA_String mdnsServerName;
+    size_t serverCapabilitiesSize;
+    UA_String *serverCapabilities;
+#endif
 
     /* Networking */
     size_t networkLayersSize;
