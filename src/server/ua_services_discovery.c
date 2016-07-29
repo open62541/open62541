@@ -339,7 +339,7 @@ static int mdns_hash_record(const char *s)
 	return (int)h;
 }
 
-static struct serverOnNetwork_list_entry* mdns_record_add_or_get(UA_Server *server, const char* record, const char* serverName, size_t serverNameLen) {
+static struct serverOnNetwork_list_entry* mdns_record_add_or_get(UA_Server *server, const char* record, const char* serverName, size_t serverNameLen, UA_Boolean createNew) {
 	int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
 	struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
 
@@ -351,12 +351,16 @@ static struct serverOnNetwork_list_entry* mdns_record_add_or_get(UA_Server *serv
 		hash_entry = hash_entry->next;
 	}
 
+	if (!createNew)
+		return NULL;
+
 	// not yet in list, create new one
 	struct serverOnNetwork_list_entry* listEntry = malloc(sizeof(struct serverOnNetwork_list_entry));
 	listEntry->created = UA_DateTime_now();
 	listEntry->pathTmp = NULL;
 	listEntry->txtSet = UA_FALSE;
 	listEntry->srvSet = UA_FALSE;
+	UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
 	listEntry->serverOnNetwork.recordId = server->serverOnNetworkRecordIdCounter;
 	listEntry->serverOnNetwork.serverName.length = serverNameLen;
 	listEntry->serverOnNetwork.serverName.data = malloc(serverNameLen);
@@ -380,6 +384,43 @@ static struct serverOnNetwork_list_entry* mdns_record_add_or_get(UA_Server *serv
 	return listEntry;
 }
 
+static void mdns_record_remove(UA_Server *server, const char* record, struct serverOnNetwork_list_entry* entry) {
+
+	// remove from hash
+
+	int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+	struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
+	struct serverOnNetwork_hash_entry* prevEntry = hash_entry;
+	while (hash_entry) {
+		if (hash_entry->entry == entry) {
+			if (server->serverOnNetworkHash[hashIdx] == hash_entry)
+				server->serverOnNetworkHash[hashIdx] = hash_entry->next;
+			else if (prevEntry){
+				prevEntry->next = hash_entry->next;
+			}
+			break;
+		}
+		prevEntry = hash_entry;
+		hash_entry = hash_entry->next;
+	}
+	free(hash_entry);
+
+	// remove from list
+
+	LIST_REMOVE(entry, pointers);
+	UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
+	if (entry->pathTmp)
+		free(entry->pathTmp);
+
+#ifndef UA_ENABLE_MULTITHREADING
+	UA_free(entry);
+	server->serverOnNetworkSize--;
+#else
+	server->serverOnNetworkSize = uatomic_add_return(&server->serverOnNetworkSize, -1);
+    UA_Server_delayedFree(server, entry);
+#endif
+}
+
 static void mdns_append_path_to_url(UA_String* url, const char* path) {
 	size_t pathLen = strlen(path);
 	char *newUrl = malloc(url->length + pathLen);
@@ -397,7 +438,7 @@ static void mdns_append_path_to_url(UA_String* url, const char* path) {
 static void mdns_record_received(const struct resource* r, void* data) {
 	UA_Server *server = (UA_Server *) data;
 	// we only need SRV and TXT records
-	if (r->class != QCLASS_IN || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+	if ((r->class != QCLASS_IN && r->class != QCLASS_IN +  + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
 		return;
 
 	// we only handle '_opcua-tcp._tcp.' records
@@ -413,7 +454,17 @@ static void mdns_record_received(const struct resource* r, void* data) {
 	// opcStr + strlen("_opcua-tcp._tcp.")
 	//char *hostname = opcStr + 16;
 
-	struct serverOnNetwork_list_entry* entry = mdns_record_add_or_get(server, r->name, r->name, servernameLen);
+	struct serverOnNetwork_list_entry* entry = mdns_record_add_or_get(server, r->name, r->name, servernameLen, r->ttl > 0);
+
+	if (entry == NULL)
+		// TTL is 0 and entry not yet in list
+		return;
+	else if (r->ttl == 0) {
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: remove server (TTL=0): %.*s", entry->serverOnNetwork.discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.data);
+		mdns_record_remove(server, r->name, entry);
+		return;
+	}
+
 	entry->lastSeen = UA_DateTime_now();
 
 	if (entry->txtSet && entry->srvSet)
@@ -464,7 +515,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
 			}
 		}
 		xht_free(x);
-	} else if (!entry->srvSet){
+	} else if (r->type == QTYPE_SRV && !entry->srvSet){
 		entry->srvSet = UA_TRUE;
 
 		// opc.tcp://[servername]:[port][path]
@@ -473,6 +524,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
 			srvNameLen--;
 		char *newUrl = malloc(10 + srvNameLen + 8);
 		sprintf(newUrl, "opc.tcp://%.*s:%d",(int)srvNameLen, r->known.srv.name, r->known.srv.port);
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: found server: %s", newUrl);
 		entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
 		free(newUrl);
 

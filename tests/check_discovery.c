@@ -339,6 +339,12 @@ START_TEST(Util_wait_timeout) {
 	}
 END_TEST
 
+START_TEST(Util_wait_mdns) {
+		// wait until server received mdns package
+		sleep(2);
+	}
+END_TEST
+
 static Suite* testSuite_Client(void) {
 	Suite *s = suite_create("Register Server and Client");
 	TCase *tc_register = tcase_create("RegisterServer");
@@ -358,6 +364,7 @@ static Suite* testSuite_Client(void) {
 	tcase_add_test(tc_register_find, Client_find_discovery);
 	tcase_add_test(tc_register_find, Server_register);
 	tcase_add_test(tc_register_find, Client_find_registered);
+	tcase_add_test(tc_register_find, Util_wait_mdns);
 	tcase_add_test(tc_register_find, Client_find_on_network_registered);
 	tcase_add_test(tc_register_find, Client_find_filter);
 	tcase_add_test(tc_register_find, Server_unregister);
