@@ -6,8 +6,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build -enable-checker security.FloatLoopCounter \
+        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build-3.7 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j 8
@@ -15,8 +15,8 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build -enable-checker security.FloatLoopCounter \
+        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build-3.7 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j 8
