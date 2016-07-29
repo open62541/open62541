@@ -42,6 +42,8 @@ option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
