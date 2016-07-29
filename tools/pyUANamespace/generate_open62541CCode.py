@@ -76,6 +76,7 @@ elif (verbosity==3):
   level = logging.INFO
 elif (verbosity>=4):
   level = logging.DEBUG
+
 logging.basicConfig(level=level)
 logger.setLevel(logging.INFO)
 

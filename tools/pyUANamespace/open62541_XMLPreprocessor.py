@@ -216,6 +216,14 @@ class preProcessDocument:
 
         returns: nothing
     """
+
+    #change ids in aliases
+    ns = self.nodeset.getElementsByTagName("Alias")
+    for al in ns:
+      if al.nodeType == al.ELEMENT_NODE:
+        if al.hasAttribute("Alias"):
+          al.firstChild.data = al.firstChild.data.replace("ns=" + str(currentNsId), "ns=" + str(newNsId))
+
     logger.debug("Migrating nodes /w ns index " + str(currentNsId) + " to " + str(newNsId))
     for nd in self.containedNodes:
       if nd[0].ns == currentNsId:
