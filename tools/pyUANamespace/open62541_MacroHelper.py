@@ -58,6 +58,7 @@ class open62541_MacroHelper():
         if illegal_char == '_': # underscore is allowed
             continue
         input = input.replace(illegal_char, "_") # map to underscore
+    input = input.replace(" ", "_")
     return input
 
   def getNodeIdDefineString(self, node):
