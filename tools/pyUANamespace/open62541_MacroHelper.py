@@ -104,6 +104,8 @@ class open62541_MacroHelper():
 
     if reference.isForward():
       code.append("UA_Server_addReference(server, %s, %s, %s, true);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
+    else:
+      code.append("UA_Server_addReference(server, %s, %s, %s, false);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
     return code
 
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes=[]):
