@@ -80,6 +80,7 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
+                              ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_HighLevelApi_Code_Generator.py
                               ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                               ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
 

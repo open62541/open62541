@@ -438,7 +438,8 @@ class opcua_namespace():
 
     return tdNodes
 
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
+  
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
@@ -469,16 +470,12 @@ class opcua_namespace():
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
     header.append('#include "ua_types.h"')
-    if high_level_api:
-        header.append('#include "ua_job.h"')
-        header.append('#include "ua_server.h"')
-    if not high_level_api:
-        header.append('#include "server/ua_server_internal.h"')
-        header.append('#include "server/ua_nodes.h"')
-        header.append('#include "ua_util.h"')
-        header.append('#include "ua_types_encoding_binary.h"')
-        header.append('#include "ua_types_generated_encoding_binary.h"')
-        header.append('#include "ua_transport_generated_encoding_binary.h"')
+    header.append('#include "server/ua_server_internal.h"')
+    header.append('#include "server/ua_nodes.h"')
+    header.append('#include "ua_util.h"')
+    header.append('#include "ua_types_encoding_binary.h"')
+    header.append('#include "ua_types_generated_encoding_binary.h"')
+    header.append('#include "ua_transport_generated_encoding_binary.h"')
     header.append('#else')
     header.append('#include "open62541.h"')
     header.append('#define NULL ((void *)0)')
@@ -519,61 +516,40 @@ class opcua_namespace():
 
     logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
 
-    if not high_level_api:
-        # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
-        #               Nodes remove themselves from this list when printed.
-        logger.debug("Printing all other nodes.")
-        for n in self.nodes:
-          code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
+    # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
+    #               Nodes remove themselves from this list when printed.
+    logger.debug("Printing all other nodes.")
+    for n in self.nodes:
+      code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
 
-        if len(unPrintedNodes) != 0:
-          logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
-        else:
-          logger.debug("Printing suceeded for all nodes")
+    if len(unPrintedNodes) != 0:
+      logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
+    else:
+      logger.debug("Printing suceeded for all nodes")
 
-        if len(unPrintedRefs) != 0:
-          logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
-          tmprefs = []
-          for r in unPrintedRefs:
-            if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
-              if not isinstance(r.parent(), opcua_node_t):
-                logger.debug("Reference has no parent!")
-              elif not isinstance(r.parent().id(), opcua_node_id_t):
-                logger.debug("Parents nodeid is not a nodeID!")
-              else:
-                if (len(tmprefs) == 0):
-                  code.append("//  Creating leftover references:")
-                code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
-                code.append("")
-                tmprefs.append(r)
-          # Remove printed refs from list
-          for r in tmprefs:
-            unPrintedRefs.remove(r)
-          if len(unPrintedRefs) != 0:
-            logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
-        else:
-          logger.debug("Printing succeeded for all references")
-    else:  # Using only High Level API
-        already_printed = list(printedExternally)
-        while unPrintedNodes:
-            node_found = False
-            for node in unPrintedNodes:
-                for ref in node.getReferences():
-                    if ref.referenceType() in already_printed and ref.target() in already_printed:
-                        node_found = True
-                        code.extend(node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute))
-                        unPrintedRefs.remove(ref)
-                        unPrintedNodes.remove(node)
-                        already_printed.append(node)
-                        break
-            if not node_found:
-                logger.critical("no complete code generation with high level API possible; not all nodes will be created")
-                code.append("CRITICAL: no complete code generation with high level API possible; not all nodes will be created")
-                break
-        code.append("// creating references")
-        for r in unPrintedRefs:
+    if len(unPrintedRefs) != 0:
+      logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
+      tmprefs = []
+      for r in unPrintedRefs:
+        if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
+          if not isinstance(r.parent(), opcua_node_t):
+            logger.debug("Reference has no parent!")
+          elif not isinstance(r.parent().id(), opcua_node_id_t):
+            logger.debug("Parents nodeid is not a nodeID!")
+          else:
+            if (len(tmprefs) == 0):
+              code.append("//  Creating leftover references:")
             code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
-
+            code.append("")
+            tmprefs.append(r)
+      # Remove printed refs from list
+      for r in tmprefs:
+        unPrintedRefs.remove(r)
+      if len(unPrintedRefs) != 0:
+        logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
+    else:
+      logger.debug("Printing succeeded for all references")
+        
     # finalizing source and header
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")

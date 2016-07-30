@@ -169,7 +169,14 @@ for ignore in args.ignoreFiles:
 logger.info("Generating Header")
 # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
 from os.path import basename
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile), high_level_api=args.high_level_api)
+
+if args.high_level_api:
+    from open62541_HighLevelApi_Code_Generator import CodeGenerator
+    code_generator = CodeGenerator(ns.namespaceIdentifiers)
+    generatedCode = code_generator.printOpen62541CodeHighLevelApi(basename(args.outputFile), ns.nodes, ignoreNodes)
+else:
+    generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
+    
 for line in generatedCode[0]:
   outfileh.write(line+"\n")
 for line in generatedCode[1]:

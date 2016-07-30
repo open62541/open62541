@@ -651,30 +651,6 @@ class opcua_node_t:
     """
     return []
 
-  def printOpen62541CCode_HL_API(self, reference, supressGenerationOfAttribute=[]):
-    """ printOpen62541CCode_HL_API
-
-        Returns a list of strings containing the C-code necessary to intialize
-        this node for the open62541 OPC-UA Stack using only the high level API
-
-        Note that this function will fail if the nodeid is non-numeric, as
-        there is no UA_EXPANDEDNNODEID_[STRING|GUID|BYTESTRING] macro.
-    """
-    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
-    code = []
-    code.append("")
-    code.append("do {")
-    # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
-    # Note: getFirstParentNode will return [parentNode, referenceToChild]
-    parentNode = reference.target()
-    parentRefType = reference.referenceType()
-    code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
-                  str(parentNode .__node_browseName__) + " using " + str(parentRefType.id()) +
-                  "/" + str(parentRefType.__node_browseName__))
-    code.extend(codegen.getCreateNodeNoBootstrap(self, parentNode, reference))
-    code.append("} while(0);")
-    return code
-
 
   def printOpen62541CCode(self, unPrintedNodes=[], unPrintedReferences=[], supressGenerationOfAttribute=[]):
     """ printOpen62541CCode
