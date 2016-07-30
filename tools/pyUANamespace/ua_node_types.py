@@ -503,12 +503,12 @@ class opcua_node_t:
     """ Check the health of this node.
 
         Return True if all mandatory attributes are valid and all references have been
-        correclty linked to nodes. Returns False on failure, which should indicate
+        correctly linked to nodes. Returns False on failure, which should indicate
         that this node needs to be removed from the namespace.
     """
     # Do we have an id?
     if not isinstance(self.id(), opcua_node_id_t):
-      logger.error("HELP! I'm an id'less node!")
+      logger.error("HELP! I'm an id'less node!", self.id())
       return False
 
     # Remove unlinked references

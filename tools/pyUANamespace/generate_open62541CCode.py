@@ -21,6 +21,8 @@ from ua_namespace import *
 import logging
 import argparse
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
+from os.path import basename
+
 
 logger = logging.getLogger(__name__)
 
@@ -166,9 +168,8 @@ for ignore in args.ignoreFiles:
   ignore.close()
 
 # Create the C Code
-logger.info("Generating Header")
+logger.info("Generating %s and %s", outfilec.name, outfileh.name)
 # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-from os.path import basename
 
 if args.high_level_api:
     from open62541_HighLevelApi_Code_Generator import CodeGenerator
