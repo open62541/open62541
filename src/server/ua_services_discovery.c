@@ -1,14 +1,47 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-
 #ifdef UA_ENABLE_DISCOVERY
-    #ifdef _MSC_VER
-    # include <io.h> //access
-    # define access _access
-    #else
-    # include <unistd.h> //access
-    #endif
+# ifdef _MSC_VER
+#  include <io.h> //access
+#  define access _access
+# else
+#  include <unistd.h> //access
+# endif
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+#  include <fcntl.h>
+#  include <errno.h>
+#  include <stdio.h>
+#  ifndef UA_ENABLE_AMALGAMATION
+#   include "mdnsd/libmdnsd/xht.h"
+#   include "mdnsd/libmdnsd/sdtxt.h"
+#  endif
+#  ifdef _WIN32
+#   define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
+#   include <winsock2.h>
+#   include <ws2tcpip.h>
+#   define CLOSESOCKET(S) closesocket((SOCKET)S)
+#  else
+#   define CLOSESOCKET(S) close(S)
+#	include <sys/time.h> // for struct timeval
+#	include <netinet/in.h> // for struct ip_mreq
+#  endif
+# endif
+#endif
+
+#ifndef STRDUP
+# if defined(__MINGW32__)
+static char *ua_strdup(const char *s) {
+    char *p = malloc(strlen(s) + 1);
+    if(p) { strcpy(p, s); }
+    return p;
+}
+# define STRDUP ua_strdup
+# elif defined(_WIN32)
+# define STRDUP _strdup
+# else
+# define STRDUP strdup
+# endif
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -281,76 +314,507 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 }
 
 #ifdef UA_ENABLE_DISCOVERY
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+/* Generates a hash code for a string.
+ * This function uses the ELF hashing algorithm as reprinted in
+ * Andrew Binstock, "Hashing Rehashed," Dr. Dobb's Journal, April 1996.
+ */
+static int mdns_hash_record(const char *s)
+{
+	/* ELF hash uses unsigned chars and unsigned arithmetic for portability */
+	const unsigned char *name = (const unsigned char *)s;
+	unsigned long h = 0;
+
+	while(*name) {
+		/* do some fancy bitwanking on the string */
+		h = (h << 4) + (unsigned long)(*name++);
+		unsigned long g;
+		if ((g = (h & 0xF0000000UL)) != 0)
+			h ^= (g >> 24);
+		h &= ~g;
+	}
+
+	return (int)h;
+}
+
+static struct serverOnNetwork_list_entry* mdns_record_add_or_get(UA_Server *server, const char* record, const char* serverName, size_t serverNameLen, UA_Boolean createNew) {
+	int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+	struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
+
+	while (hash_entry) {
+		size_t maxLen = serverNameLen > hash_entry->entry->serverOnNetwork.serverName.length ? hash_entry->entry->serverOnNetwork.serverName.length : serverNameLen;
+		if (strncmp((char*)hash_entry->entry->serverOnNetwork.serverName.data, serverName,maxLen)==0) {
+			return hash_entry->entry;
+		}
+		hash_entry = hash_entry->next;
+	}
+
+	if (!createNew)
+		return NULL;
+
+	// not yet in list, create new one
+	struct serverOnNetwork_list_entry* listEntry = malloc(sizeof(struct serverOnNetwork_list_entry));
+	listEntry->created = UA_DateTime_now();
+	listEntry->pathTmp = NULL;
+	listEntry->txtSet = UA_FALSE;
+	listEntry->srvSet = UA_FALSE;
+	UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
+	listEntry->serverOnNetwork.recordId = server->serverOnNetworkRecordIdCounter;
+	listEntry->serverOnNetwork.serverName.length = serverNameLen;
+	listEntry->serverOnNetwork.serverName.data = malloc(serverNameLen);
+	memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
+	#  ifndef UA_ENABLE_MULTITHREADING
+	server->serverOnNetworkRecordIdCounter++;
+	#  else
+	server->serverOnNetworkRecordIdCounter = uatomic_add_return(&server->serverOnNetworkRecordIdCounter, 1);
+	#  endif
+	if (server->serverOnNetworkRecordIdCounter == 0)
+		server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+
+	// add to hash
+	struct serverOnNetwork_hash_entry* newHashEntry = malloc(sizeof(struct serverOnNetwork_hash_entry));
+	newHashEntry->next = server->serverOnNetworkHash[hashIdx];
+	server->serverOnNetworkHash[hashIdx] = newHashEntry;
+	newHashEntry->entry = listEntry;
+
+	LIST_INSERT_HEAD(&server->serverOnNetwork, listEntry, pointers);
+
+	return listEntry;
+}
+
+static void mdns_record_remove(UA_Server *server, const char* record, struct serverOnNetwork_list_entry* entry) {
+
+	// remove from hash
+
+	int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
+	struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
+	struct serverOnNetwork_hash_entry* prevEntry = hash_entry;
+	while (hash_entry) {
+		if (hash_entry->entry == entry) {
+			if (server->serverOnNetworkHash[hashIdx] == hash_entry)
+				server->serverOnNetworkHash[hashIdx] = hash_entry->next;
+			else if (prevEntry){
+				prevEntry->next = hash_entry->next;
+			}
+			break;
+		}
+		prevEntry = hash_entry;
+		hash_entry = hash_entry->next;
+	}
+	free(hash_entry);
+
+	// remove from list
+
+	LIST_REMOVE(entry, pointers);
+	UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
+	if (entry->pathTmp)
+		free(entry->pathTmp);
+
+#ifndef UA_ENABLE_MULTITHREADING
+	UA_free(entry);
+	server->serverOnNetworkSize--;
+#else
+	server->serverOnNetworkSize = uatomic_add_return(&server->serverOnNetworkSize, -1);
+    UA_Server_delayedFree(server, entry);
+#endif
+}
+
+static void mdns_append_path_to_url(UA_String* url, const char* path) {
+	size_t pathLen = strlen(path);
+	char *newUrl = malloc(url->length + pathLen);
+	memcpy(newUrl,url->data, url->length);
+	memcpy(newUrl+url->length,path,pathLen);
+	url->length = url->length + pathLen;
+	url->data = (UA_Byte*)newUrl;
+}
+
+/**
+ * This will be called by the mDNS library on every record which is received.
+ * @param r
+ * @param data
+ */
+static void mdns_record_received(const struct resource* r, void* data) {
+	UA_Server *server = (UA_Server *) data;
+	// we only need SRV and TXT records
+	if ((r->class != QCLASS_IN && r->class != QCLASS_IN +  + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+		return;
+
+	// we only handle '_opcua-tcp._tcp.' records
+	char *opcStr = strstr(r->name, "_opcua-tcp._tcp.");
+	if (opcStr == NULL)
+		return;
+
+	size_t servernameLen = (size_t)(opcStr - r->name);
+	if (servernameLen == 0)
+		return;
+	servernameLen--; // remove point
+
+	// opcStr + strlen("_opcua-tcp._tcp.")
+	//char *hostname = opcStr + 16;
+
+	struct serverOnNetwork_list_entry* entry = mdns_record_add_or_get(server, r->name, r->name, servernameLen, r->ttl > 0);
+
+	if (entry == NULL)
+		// TTL is 0 and entry not yet in list
+		return;
+	else if (r->ttl == 0) {
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: remove server (TTL=0): %.*s", entry->serverOnNetwork.discoveryUrl.length, entry->serverOnNetwork.discoveryUrl.data);
+		mdns_record_remove(server, r->name, entry);
+		return;
+	}
+
+	entry->lastSeen = UA_DateTime_now();
+
+	if (entry->txtSet && entry->srvSet)
+		return;
+
+	// [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+	// TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+	if (r->type == QTYPE_TXT && !entry->txtSet) {
+		entry->txtSet = UA_TRUE;
+
+
+		xht_t* x = txt2sd((unsigned char*)r->rdata, r->rdlength);
+		char* path = (char*)xht_get(x, "path");
+		char* caps = (char*)xht_get(x, "caps");
+
+		if (strlen(path) > 1) {
+			if (!entry->srvSet) {
+				// txt arrived before SRV, thus cache path entry
+				entry->pathTmp = STRDUP(path);
+			} else {
+				// SRV already there and discovery URL set. Add path to discovery URL
+				mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
+			}
+		}
+
+		if (strlen(caps) > 0) {
+			size_t capsCount = 1;
+			// count comma in caps
+			for (size_t i=0; caps[i]; i++) {
+				if (caps[i]==',')
+					capsCount++;
+			}
+			// set capabilities
+			entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
+			entry->serverOnNetwork.serverCapabilities = UA_Array_new(capsCount, &UA_TYPES[UA_TYPES_STRING]);
+			for (size_t i=0; i<capsCount; i++) {
+
+				char* nextStr = strchr(caps, ',');
+
+				size_t len = nextStr ? (size_t)(nextStr - caps) : strlen(caps);
+				entry->serverOnNetwork.serverCapabilities[i].length = len;
+				entry->serverOnNetwork.serverCapabilities[i].data = malloc(len);
+				memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
+				if (nextStr)
+					caps = nextStr+1;
+				else
+					break;
+			}
+		}
+		xht_free(x);
+	} else if (r->type == QTYPE_SRV && !entry->srvSet){
+		entry->srvSet = UA_TRUE;
+
+		// opc.tcp://[servername]:[port][path]
+		size_t srvNameLen = strlen(r->known.srv.name);
+		if (srvNameLen > 0 && r->known.srv.name[srvNameLen-1] == '.')
+			srvNameLen--;
+		char *newUrl = malloc(10 + srvNameLen + 8);
+		sprintf(newUrl, "opc.tcp://%.*s:%d",(int)srvNameLen, r->known.srv.name, r->known.srv.port);
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: found server: %s", newUrl);
+		entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
+		free(newUrl);
+
+		if (entry->pathTmp) {
+			mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
+			free(entry->pathTmp);
+		}
+
+	}
+}
+
+void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
+                         const UA_FindServersOnNetworkRequest *request, UA_FindServersOnNetworkResponse *response) {
+	UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersOnNetworkRequest");
+
+	UA_UInt32 recordCount;
+	if (request->startingRecordId < server->serverOnNetworkRecordIdCounter)
+		recordCount = server->serverOnNetworkRecordIdCounter - request->maxRecordsToReturn;
+	else
+		recordCount = 0;
+
+	if (request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn) {
+		recordCount = request->maxRecordsToReturn;
+	}
+
+	UA_ServerOnNetwork** filtered = NULL;
+	if (recordCount > 0) {
+		filtered = UA_malloc(sizeof(UA_ServerOnNetwork*) * recordCount);
+		if (!filtered) {
+			response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+			return;
+		}
+		memset(filtered, 0, sizeof(UA_ServerOnNetwork*) * recordCount);
+
+		if (request->serverCapabilityFilterSize) {
+			UA_UInt32 filteredCount = 0;
+			// iterate over all records and add to filtered list
+			serverOnNetwork_list_entry* current;
+			LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
+				if (current->serverOnNetwork.recordId < request->startingRecordId)
+					continue;
+				UA_Boolean foundAll = UA_TRUE;
+				for (size_t i = 0; i < request->serverCapabilityFilterSize && foundAll; i++) {
+					UA_Boolean foundSingle = UA_FALSE;
+					for (size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize && !foundSingle; j++) {
+						foundSingle |= UA_String_equal(&request->serverCapabilityFilter[i], &current->serverOnNetwork.serverCapabilities[j]);
+					}
+					foundAll &= foundSingle;
+				}
+				if (foundAll) {
+					filtered[filteredCount++] = &current->serverOnNetwork;
+					if (filteredCount >= recordCount)
+						break;
+				}
+			}
+			recordCount = filteredCount;
+		} else {
+			UA_UInt32 filteredCount = 0;
+			serverOnNetwork_list_entry* current;
+			LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
+				if (current->serverOnNetwork.recordId < request->startingRecordId)
+					continue;
+				filtered[filteredCount++] = &current->serverOnNetwork;
+				if (filteredCount >= recordCount)
+					break;
+			}
+			recordCount = filteredCount;
+		}
+	}
+	response->serversSize = recordCount;
+	if (recordCount > 0) {
+		response->servers = UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
+		if (!response->servers) {
+			response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+			free(filtered);
+			return;
+		}
+		for (size_t i=0; i<recordCount; i++) {
+			UA_ServerOnNetwork_copy(filtered[i],&response->servers[recordCount - i -1]);
+		}
+	}
+	free(filtered);
+
+	UA_DateTime_copy(&server->serverOnNetworkRecordIdLastReset, &response->lastCounterResetTime);
+	response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+}
+# endif
+
+static void process_RegisterServer(UA_Server *server, UA_Session *session,
+								   const UA_RequestHeader* requestHeader, const UA_RegisteredServer *requestServer, const size_t requestDiscoveryConfigurationSize,
+								   const UA_ExtensionObject *requestDiscoveryConfiguration,
+								   UA_ResponseHeader* responseHeader, size_t *responseConfigurationResultsSize,
+								   UA_StatusCode **responseConfigurationResults, size_t *responseDiagnosticInfosSize,
+								   UA_DiagnosticInfo *responseDiagnosticInfos) {
+	registeredServer_list_entry *registeredServer_entry = NULL;
+
+	{
+		// find the server from the request in the registered list
+		registeredServer_list_entry* current;
+		LIST_FOREACH(current, &server->registeredServers, pointers) {
+			if (UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
+				registeredServer_entry = current;
+				break;
+			}
+		}
+	}
+
+	UA_MdnsDiscoveryConfiguration *mdnsConfig = NULL;
+
+	const UA_String* mdnsServerName = NULL;
+	if (requestDiscoveryConfigurationSize) {
+		*responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
+		*responseConfigurationResults = UA_Array_new(requestDiscoveryConfigurationSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+		for (size_t i =0; i<requestDiscoveryConfigurationSize; i++) {
+			const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
+			if (!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED || object->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE)
+				&& (object->content.decoded.type == &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION])) {
+				// yayy, we have a known extension object type
+				mdnsConfig = object->content.decoded.data;
+
+				mdnsServerName = &mdnsConfig->mdnsServerName;
+
+				*responseConfigurationResults[i] = UA_STATUSCODE_GOOD;
+			} else {
+				*responseConfigurationResults[i] = UA_STATUSCODE_BADNOTSUPPORTED;
+			}
+		}
+	}
+	if (!mdnsServerName && requestServer->serverNamesSize) {
+		mdnsServerName = &requestServer->serverNames[0].text;
+	}
+
+	if (!mdnsServerName) {
+		responseHeader->serviceResult = UA_STATUSCODE_BADSERVERNAMEMISSING;
+		return;
+	}
+
+
+	if (requestServer->discoveryUrlsSize == 0) {
+		responseHeader->serviceResult = UA_STATUSCODE_BADDISCOVERYURLMISSING;
+		return;
+	}
+
+	if (requestServer->semaphoreFilePath.length) {
+		char* filePath = malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+		memcpy( filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
+		filePath[requestServer->semaphoreFilePath.length] = '\0';
+		if (access( filePath, 0 ) == -1) {
+			responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
+			free(filePath);
+			return;
+		}
+		free(filePath);
+	}
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+
+		char* mdnsServer = malloc(sizeof(char) * mdnsServerName->length + 1);
+		memcpy(mdnsServer, mdnsServerName->data, mdnsServerName->length);
+		mdnsServer[mdnsServerName->length] = '\0';
+
+		for (size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
+			char port[10] = "\0";
+			char hostname[256];
+			char path[256];
+			{
+				char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
+				strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
+				uri[requestServer->discoveryUrls[i].length] = '\0';
+				UA_StatusCode retval;
+				const char* portTmp = NULL;
+				const char* pathTmp = NULL;
+				if ((retval = UA_EndpointUrl_split(uri, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
+					hostname[0] = '\0';
+					if (retval == UA_STATUSCODE_BADOUTOFRANGE)
+						UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
+					else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+						UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
+				}
+				if (!portTmp)
+					portTmp = "0";
+				if (pathTmp) {
+					strncpy(port, portTmp, (size_t)(pathTmp-portTmp));
+					port[(size_t)(pathTmp-portTmp)]='\0';
+					strncpy(path, pathTmp, strlen(pathTmp));
+					path[strlen(pathTmp)]='\0';
+				} else {
+					strncpy(port, portTmp, strlen(portTmp));
+					port[strlen(portTmp)]='\0';
+					path[0]='\0';
+				}
+				free(uri);
+			}
+
+			if (!requestServer->isOnline) {
+				if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
+					UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not reomve mDNS record for hostname %s.%s", mdnsServer);
+				}
+			}
+			else {
+				UA_String *capabilities = NULL;
+				size_t capabilitiesSize = 0;
+				if (mdnsConfig) {
+					capabilities = mdnsConfig->serverCapabilities;
+					capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
+				}
+				if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
+					UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not add mDNS record for hostname %s.%s", mdnsServer);
+				}
+			}
+		}
+		free(mdnsServer);
+	}
+#endif
+
+
+	if (!requestServer->isOnline) {
+		// server is shutting down. Remove it from the registered servers list
+		if (!registeredServer_entry) {
+			// server not found, show warning
+			UA_LOG_WARNING_SESSION(server->config.logger, session, "Could not unregister server %.*s. Not registered.", (int)requestServer->serverUri.length, requestServer->serverUri.data);
+			responseHeader->serviceResult = UA_STATUSCODE_BADNOTFOUND;
+			return;
+		}
+
+		// server found, remove from list
+		LIST_REMOVE(registeredServer_entry, pointers);
+		UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
+#ifndef UA_ENABLE_MULTITHREADING
+		UA_free(registeredServer_entry);
+		server->registeredServersSize--;
+#else
+		server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
+        UA_Server_delayedFree(server, registeredServer_entry);
+#endif
+		responseHeader->serviceResult = UA_STATUSCODE_GOOD;
+		return;
+	}
+
+
+	UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	if (!registeredServer_entry) {
+		// server not yet registered, register it by adding it to the list
+
+
+		UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s", (int)requestServer->serverUri.length, requestServer->serverUri.data);
+
+		registeredServer_entry = UA_malloc(sizeof(registeredServer_list_entry));
+		if(!registeredServer_entry) {
+			responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+			return;
+		}
+
+		LIST_INSERT_HEAD(&server->registeredServers, registeredServer_entry, pointers);
+#ifndef UA_ENABLE_MULTITHREADING
+		server->registeredServersSize++;
+#else
+		server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
+#endif
+
+	} else {
+		UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
+	}
+
+	// copy the data from the request into the list
+	UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
+	registeredServer_entry->lastSeen = UA_DateTime_now();
+
+	responseHeader->serviceResult = retval;
+}
+
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                          const UA_RegisterServerRequest *request, UA_RegisterServerResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
+	process_RegisterServer(server, session, &request->requestHeader, &request->server, 0, NULL, &response->responseHeader, 0, NULL, 0, NULL);
+}
 
-    registeredServer_list_entry *registeredServer_entry = NULL;
-
-    {
-        // find the server from the request in the registered list
-        registeredServer_list_entry* current;
-        LIST_FOREACH(current, &server->registeredServers, pointers) {
-            if (UA_String_equal(&current->registeredServer.serverUri, &request->server.serverUri)) {
-                registeredServer_entry = current;
-                break;
-            }
-        }
-    }
-
-    if (!request->server.isOnline) {
-        // server is shutting down. Remove it from the registered servers list
-        if (!registeredServer_entry) {
-            // server not found, show warning
-            UA_LOG_WARNING_SESSION(server->config.logger, session, "Could not unregister server %.*s. Not registered.", (int)request->server.serverUri.length, request->server.serverUri.data);
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTFOUND;
-            return;
-        }
-
-        // server found, remove from list
-        LIST_REMOVE(registeredServer_entry, pointers);
-        UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
-#ifndef UA_ENABLE_MULTITHREADING
-        UA_free(registeredServer_entry);
-        server->registeredServersSize--;
-#else
-        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
-        UA_Server_delayedFree(server, registeredServer_entry);
-#endif
-        response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
-        return;
-    }
-
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (!registeredServer_entry) {
-        // server not yet registered, register it by adding it to the list
-
-
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s", (int)request->server.serverUri.length, request->server.serverUri.data);
-
-        registeredServer_entry = UA_malloc(sizeof(registeredServer_list_entry));
-        if(!registeredServer_entry) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
-        }
-
-        LIST_INSERT_HEAD(&server->registeredServers, registeredServer_entry, pointers);
-#ifndef UA_ENABLE_MULTITHREADING
-        server->registeredServersSize++;
-#else
-        server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
-#endif
-
-    } else {
-        UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
-    }
+void Service_RegisterServer2(UA_Server *server, UA_Session *session,
+                            const UA_RegisterServer2Request *request, UA_RegisterServer2Response *response) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(&request->server, &registeredServer_entry->registeredServer);
     registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
 
-    response->responseHeader.serviceResult = retval;
+	process_RegisterServer(server, session, &request->requestHeader, &request->server, request->discoveryConfigurationSize, request->discoveryConfiguration,
+						   &response->responseHeader, &response->configurationResultsSize, &response->configurationResults,
+						   &response->diagnosticInfosSize, response->diagnosticInfos);
+
 }
 
 /**
@@ -360,7 +824,6 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
  * If there is no semaphore file, then the registration will be removed if it is older than 60 minutes.
  */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
-
     UA_DateTime timedOut = nowMonotonic;
     // registration is timed out if lastSeen is older than 60 minutes (default value, can be modified by user).
     if (server->config.discoveryCleanupTimeout) {
@@ -376,7 +839,12 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             char* filePath = malloc(sizeof(char)*current->registeredServer.semaphoreFilePath.length+1);
             memcpy( filePath, current->registeredServer.semaphoreFilePath.data, current->registeredServer.semaphoreFilePath.length );
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+
+#ifdef _MSC_VER
+            semaphoreDeleted = _access( filePath, 0 ) == -1;
+#else
             semaphoreDeleted = access( filePath, 0 ) == -1;
+#endif
             free(filePath);
         }
 
@@ -405,4 +873,503 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     }
 }
 
+struct PeriodicServerRegisterJob {
+    UA_Boolean is_main_job;
+    UA_UInt32 default_interval;
+    UA_Guid job_id;
+    UA_Job *job;
+    UA_UInt32 this_interval;
+};
+
+/**
+ * Called by the UA_Server job.
+ * The OPC UA specification says:
+ *
+ * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
+ * > must periodically re-attempt registration. The frequency of these attempts should start at 1 second
+ * > but gradually increase until the registration frequency is the same as what it would be if not
+ * > errors occurred. The recommended approach would double the period each attempt until reaching the maximum.
+ *
+ * We will do so by using the additional data parameter which holds information if the next interval
+ * is default or if it is a repeaded call.
+ */
+static void periodicServerRegister(UA_Server *server, void *data) {
+
+    if (data == NULL) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Data parameter must be not NULL for periodic server register");
+        return;
+    }
+
+    struct PeriodicServerRegisterJob *retryJob = (struct PeriodicServerRegisterJob *)data;
+
+    if (!retryJob->is_main_job) {
+        // remove the retry job because we don't want to fire it again.
+        UA_Server_removeRepeatedJob(server, retryJob->job_id);
+    }
+
+
+    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", NULL);
+    // You can also use a semaphore file. That file must exist. When the file is deleted, the server is automatically unregistered.
+    // The semaphore file has to be accessible by the discovery server
+    // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", "/path/to/some/file");
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not register server with discovery server. Is the discovery server started? StatusCode 0x%08x", retval);
+
+        // first retry in 1 second
+        UA_UInt32 nextInterval = 1;
+
+        if (!retryJob->is_main_job) {
+            nextInterval = retryJob->this_interval*2;
+        }
+
+        // as long as next retry is smaller than 10 minutes, retry
+        if (nextInterval < retryJob->default_interval) {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
+            struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
+            newRetryJob->job = malloc(sizeof(UA_Job));
+            newRetryJob->default_interval = retryJob->default_interval;
+            newRetryJob->is_main_job = UA_FALSE;
+            newRetryJob->this_interval = nextInterval;
+
+            newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
+            newRetryJob->job->job.methodCall.method = periodicServerRegister;
+            newRetryJob->job->job.methodCall.data = newRetryJob;
+
+            UA_Server_addRepeatedJob(server, *newRetryJob->job, nextInterval*1000, &newRetryJob->job_id);
+        }
+    } else {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Server successfully registered. Next periodical register will be in %d seconds", (int)(retryJob->default_interval/1000));
+    }
+    if (!retryJob->is_main_job) {
+        UA_free(retryJob->job);
+        UA_free(retryJob);
+    }
+
+}
+
+UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
+
+    // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
+
+    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
+            .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
+
+    struct PeriodicServerRegisterJob defaultJob = {
+            .job = &job,
+            .this_interval = 0,
+            .is_main_job = UA_TRUE,
+            .default_interval = intervalMs
+    };
+    job.job.methodCall.data = &defaultJob;
+
+
+    if (periodicJobId)
+        *periodicJobId = defaultJob.job_id;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *defaultJob.job, intervalMs, &defaultJob.job_id);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode 0x%08x", retval);
+        return retval;
+    }
+
+    if (delayFirstRegisterMs>0) {
+        // Register the server with the discovery server.
+        // Delay this first registration until the server is fully initialized
+        // will be freed in the callback
+        struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
+        newRetryJob->job = malloc(sizeof(UA_Job));
+        newRetryJob->this_interval = 1;
+        newRetryJob->is_main_job = UA_FALSE;
+        newRetryJob->default_interval = intervalMs;
+        newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
+        newRetryJob->job->job.methodCall.method = periodicServerRegister;
+        newRetryJob->job->job.methodCall.data = newRetryJob;
+        retval = UA_Server_addRepeatedJob(server, *newRetryJob->job, delayFirstRegisterMs, &newRetryJob->job_id);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not create first job for server register. StatusCode 0x%08x", retval);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+static void socket_mdns_set_nonblocking(int sockfd) {
+#ifdef _WIN32
+    u_long iMode = 1;
+    ioctlsocket(sockfd, FIONBIO, &iMode);
+#else
+    int opts = fcntl(sockfd, F_GETFL);
+    fcntl(sockfd, F_SETFL, opts|O_NONBLOCK);
 #endif
+}
+
+/* Create multicast 224.0.0.251:5353 socket */
+static int discovery_createMulticastSocket(void) {
+    int s, flag = 1, ittl = 255;
+    struct sockaddr_in in;
+    struct ip_mreq mc;
+    char ttl = (char)255; // publish to complete net, not only subnet. See: https://docs.oracle.com/cd/E23824_01/html/821-1602/sockets-137.html
+
+    memset(&in, 0, sizeof(in));
+    in.sin_family = AF_INET;
+    in.sin_port = htons(5353);
+    in.sin_addr.s_addr = 0;
+
+    if ((s = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+        return 0;
+
+#ifdef SO_REUSEPORT
+    setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
+#endif
+    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
+    if (bind(s, (struct sockaddr *)&in, sizeof(in))) {
+        CLOSESOCKET(s);
+        return 0;
+    }
+
+    mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
+    mc.imr_interface.s_addr = htonl(INADDR_ANY);
+    setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&mc, sizeof(mc));
+    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&ttl, sizeof(ttl));
+    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&ittl, sizeof(ittl));
+
+	socket_mdns_set_nonblocking(s);
+    return s;
+}
+
+UA_StatusCode UA_Discovery_multicastInit(UA_Server* server) {
+    server->mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
+    if ((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Could not create multicast socket. Error: %s", strerror(errno));
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+	mdnsd_register_receive_callback(server->mdnsDaemon, mdns_record_received, server);
+    return UA_STATUSCODE_GOOD;
+}
+
+void UA_Discovery_multicastDestroy(UA_Server* server) {
+    mdnsd_shutdown(server->mdnsDaemon);
+    mdnsd_free(server->mdnsDaemon);
+}
+
+static void UA_Discovery_multicastConflict(char *name, int type, void *arg) {
+	// cppcheck-suppress unreadVariable
+	UA_Server *server = (UA_Server*) arg;
+    UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS name conflict detected: '%s' for type %d", name, type);
+}
+
+static char* create_fullServiceDomain(const char* servername, const char* hostname) {
+	size_t hostnameLen = strlen(hostname);
+	size_t servernameLen = strlen(servername);
+	// [servername]._opcua-tcp._tcp.[hostname].
+	char *fullServiceDomain = malloc(hostnameLen + 25 + servernameLen);
+	if (!fullServiceDomain) {
+		return NULL;
+	}
+	snprintf(fullServiceDomain, hostnameLen + hostnameLen + 25 + servernameLen, "%s._opcua-tcp._tcp.%s.", servername, hostname);
+	return fullServiceDomain;
+}
+
+/**
+ * Check if mDNS already has an entry for given hostname and port combination.
+ * @param server
+ * @param hostname
+ * @param port
+ * @param protocol
+ * @return
+ */
+static UA_StatusCode UA_Discovery_recordExists(UA_Server* server,const char* fullServiceDomain, unsigned short port, const UA_DiscoveryProtocol protocol) {
+    unsigned short found = 0;
+
+    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+    mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
+    if (r) {
+        while (r) {
+            const mdns_answer_t *data = mdnsd_record_data(r);
+            if (data->type == QTYPE_SRV && data->srv.port == port) {
+                found = 1;
+                break;
+            }
+            r = mdnsd_record_next(r);
+        }
+    }
+    return found ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, const char* path,
+									 const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize) {
+	if (capabilitiesSize == NULL || (*capabilitiesSize>0 && capabilites == NULL)) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	size_t hostnameLen = strlen(hostname);
+	size_t servernameLen = strlen(servername);
+	// use a limit for the hostname length to make sure full string fits into 256 chars
+	if (hostnameLen == 0 || hostnameLen > 150 || servernameLen == 0 || servernameLen > 150) {
+		return UA_STATUSCODE_BADOUTOFRANGE;
+	}
+
+	if (!server->mdnsMainSrvAdded) {
+		mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, "_services._dns-sd._udp.local.", QTYPE_PTR, 600);
+		mdnsd_set_host(server->mdnsDaemon, r, "_opcua-tcp._tcp.local.");
+		server->mdnsMainSrvAdded = 1;
+	}
+
+	// [servername]._opcua-tcp._tcp.[hostname].
+	char *fullServiceDomain;
+	if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+
+    if (UA_Discovery_recordExists(server, fullServiceDomain, port, protocol) == UA_STATUSCODE_GOOD) {
+		free(fullServiceDomain);
+        return UA_STATUSCODE_GOOD;
+    }
+
+	UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: add record for domain: %s", fullServiceDomain);
+
+
+	// _services._dns-sd._udp.local. PTR _opcua-tcp._tcp.local
+
+    // check if there is already a PTR entry for the given service.
+    mdns_record_t *r = mdnsd_get_published(server->mdnsDaemon, "_opcua-tcp._tcp.local.");
+    unsigned short found = 0;
+    // search for the record with the correct ptr hostname
+    while (r) {
+        const mdns_answer_t *data = mdnsd_record_data(r);
+
+        if (data->type == QTYPE_PTR && strcmp(data->rdname, fullServiceDomain)==0) {
+            found = 1;
+            break;
+        }
+        r = mdnsd_record_next(r);
+    }
+
+	// _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    if (!found) {
+        r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
+        mdnsd_set_host(server->mdnsDaemon, r, fullServiceDomain);
+    }
+
+    // hostname.local
+    char *localDomain = malloc(hostnameLen + 8);
+    if (!localDomain) {
+        free(fullServiceDomain);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    snprintf(localDomain, hostnameLen + 8, "%s.", hostname);
+
+
+    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+	r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600, UA_Discovery_multicastConflict, server);
+	// r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600);
+    mdnsd_set_srv(server->mdnsDaemon, r, 0, 0, port, localDomain);
+
+    // TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+	if (createTxt) {
+		r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_TXT, 600, UA_Discovery_multicastConflict, server);
+		xht_t* h = xht_new(11);
+		char* allocPath = NULL;
+		if (strlen(path) == 0)
+			xht_set(h, "path", "/");
+		else {
+			allocPath = STRDUP(path);
+			xht_set(h, "path", allocPath);
+		}
+
+
+		// calculate max string length:
+		size_t capsLen = 0;
+
+		for (size_t i = 0; i < *capabilitiesSize; i++) {
+			// add comma or last \0
+			capsLen += capabilites[i].length + 1;
+		}
+
+		char* caps = NULL;
+		if (capsLen) {
+			// freed when xht_free is called
+			caps = malloc(sizeof(char) * capsLen);
+			size_t idx = 0;
+			for (size_t i = 0; i < *capabilitiesSize; i++) {
+				strncpy(caps + idx, (const char *)capabilites[i].data, capabilites[i].length);
+				idx += capabilites[i].length + 1;
+				caps[idx - 1] = ',';
+			}
+			caps[idx - 1] = '\0';
+
+			xht_set(h, "caps", caps);
+		} else {
+			xht_set(h, "caps", "NA");
+		}
+
+		int txtRecordLength;
+		unsigned char* packet = sd2txt(h, &txtRecordLength);
+		if (allocPath)
+			free(allocPath);
+		if (caps)
+			free(caps);
+		xht_free(h);
+		mdnsd_set_raw(server->mdnsDaemon, r, (char*) packet, (unsigned short) txtRecordLength);
+		free(packet);
+	}
+
+    free(fullServiceDomain);
+    free(localDomain);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, UA_Boolean removeTxt) {
+	size_t hostnameLen = strlen(hostname);
+	size_t servernameLen = strlen(servername);
+	// use a limit for the hostname length to make sure full string fits into 256 chars
+	if (hostnameLen == 0 || hostnameLen > 150 || servernameLen == 0 || servernameLen > 150) {
+		return UA_STATUSCODE_BADOUTOFRANGE;
+	}
+
+	// [servername]._opcua-tcp._tcp.[hostname].
+	char *fullServiceDomain;
+	if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	}
+
+	UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: remove record for domain: %s", fullServiceDomain);
+
+    // count the number of records stil there for the given hostname, but a different port.
+    // it does not represent the total number, but the minimum value.
+    // if the number is 1, then also delete the main PTR record
+    unsigned int recordMinCount = 0;
+	// _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    mdns_record_t *r = mdnsd_get_published(server->mdnsDaemon, "_opcua-tcp._tcp.local.");
+	if (r) {
+		while (r) {
+            recordMinCount++;
+            const mdns_answer_t *data = mdnsd_record_data(r);
+			if (data->type == QTYPE_PTR && strcmp(data->rdname, fullServiceDomain)==0) {
+				mdnsd_done(server->mdnsDaemon,r);
+				if (mdnsd_record_next(r))
+					recordMinCount++; // there may still be more records, but we don't care how much
+				break;
+			}
+			r = mdnsd_record_next(r);
+		}
+	} else {
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: could not remove record. PTR Record not found for domain: %s", fullServiceDomain);
+		free(fullServiceDomain);
+		return UA_STATUSCODE_BADNOTFOUND;
+	}
+
+	// [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port hostname.local.
+	// and TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+    r = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
+	if (r) {
+		while (r) {
+            const mdns_answer_t *data = mdnsd_record_data(r);
+			if ((removeTxt && data->type == QTYPE_TXT) || data->srv.port == port) {
+                mdnsd_done(server->mdnsDaemon,r);
+                break;
+            }
+			r = mdnsd_record_next(r);
+		}
+	} else {
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: could not remove record. Record not found for domain: %s", fullServiceDomain);
+		free(fullServiceDomain);
+		return UA_STATUSCODE_BADNOTFOUND;
+	}
+
+    if (recordMinCount <= 1) {
+        // _services._dns-sd._udp.local. PTR "_opcua-tcp._tcp.local."
+        r = mdnsd_get_published(server->mdnsDaemon, "_services._dns-sd._udp.local.");
+        // search for the record with the correct ptr hostname
+        while (r) {
+            const mdns_answer_t *data = mdnsd_record_data(r);
+            if (data->type == QTYPE_PTR && strcmp(data->rdname, "_opcua-tcp._tcp.local.")==0) {
+                mdnsd_done(server->mdnsDaemon,r);
+                break;
+            }
+            r = mdnsd_record_next(r);
+        }
+		server->mdnsMainSrvAdded = 0;
+    }
+
+    free(fullServiceDomain);
+	return UA_STATUSCODE_GOOD;
+}
+
+#  ifdef UA_ENABLE_MULTITHREADING
+
+static void * multicastWorkerLoop(UA_Server *server) {
+	struct timeval next_sleep = {.tv_sec = 0, .tv_usec = 0};
+
+
+	volatile UA_Boolean *running = &server->mdnsRunning;
+	fd_set fds;
+
+	while (*running) {
+
+		FD_ZERO(&fds);
+		FD_SET(server->mdnsSocket, &fds);
+		select(server->mdnsSocket + 1, &fds, 0, 0, &next_sleep);
+
+		if (!*running)
+			break;
+
+
+		unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket, FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
+		if (retVal == 1) {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not read from socket. %s", strerror(errno));
+			break;
+		} else if (retVal == 2) {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not write to socket. %s", strerror(errno));
+			break;
+		}
+
+		if (!*running)
+			break;
+	}
+
+	return NULL;
+}
+
+UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server) {
+	if (pthread_create(&server->mdnsThread, NULL, (void* (*)(void*))multicastWorkerLoop, server)) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not create multicast thread.");
+		return UA_STATUSCODE_BADUNEXPECTEDERROR;
+	}
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server) {
+	mdnsd_shutdown(server->mdnsDaemon);
+	// wake up select
+	write(server->mdnsSocket, "\0", 1);
+	if(pthread_join(server->mdnsThread, NULL)) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not stop thread.");
+		return UA_STATUSCODE_BADUNEXPECTEDERROR;
+	}
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+#  endif // UA_ENABLE_DISCOVERY_MULTICAST && UA_ENABLE_MULTITHREADING
+
+
+UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn) {
+    struct timeval next_sleep = {.tv_sec = 0, .tv_usec = 0};
+    unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket, processIn, true, &next_sleep);
+    if (retVal == 1) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not read from socket. %s", strerror(errno));
+        return UA_STATUSCODE_BADNOCOMMUNICATION;
+    } else if (retVal == 2) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast error: Can not write to socket. %s", strerror(errno));
+        return UA_STATUSCODE_BADNOCOMMUNICATION;
+    }
+	if (nextRepeat)
+    	*nextRepeat = UA_DateTime_now() + (UA_DateTime)(next_sleep.tv_sec * UA_SEC_TO_DATETIME + next_sleep.tv_usec * UA_USEC_TO_DATETIME);
+    return UA_STATUSCODE_GOOD;
+}
+
+# endif // UA_ENABLE_DISCOVERY_MULTICAST
+
+#endif // UA_ENABLE_DISCOVERY

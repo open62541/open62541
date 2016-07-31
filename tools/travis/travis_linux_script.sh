@@ -103,7 +103,13 @@ else
 
     echo "Compile without discovery version"
     mkdir -p build && cd build
-    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
+    make -j
+    cd .. && rm build -rf
+
+    echo "Compile discovery without multicast version"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     cd .. && rm build -rf
 

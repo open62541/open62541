@@ -32,6 +32,10 @@
  *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
  */
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+# include <unistd.h> // gethostname
+#endif
+
 #define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
@@ -588,6 +592,28 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
         result |= nl->start(nl, server->config.logger);
     }
 
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+		char *hostname = malloc(sizeof(char)*256);
+		if(gethostname(hostname, 255) == 0) {
+            char *appName = malloc(server->config.mdnsServerName.length +1);
+            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+            appName[server->config.mdnsServerName.length] = '\0';
+            UA_Discovery_addRecord(server, appName ,hostname, 4840, "/", UA_DISCOVERY_TCP, UA_TRUE, server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
+            free(appName);
+		} else {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+						"Could not get hostname for multicast discovery.");
+		}
+		free(hostname);
+
+# ifdef UA_ENABLE_MULTITHREADING
+        UA_Discovery_multicastListenStart(server);
+# endif
+    }
+#endif
+
     return result;
 }
 
@@ -665,6 +691,22 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #endif
     }
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+# ifndef UA_ENABLE_MULTITHREADING
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_DateTime multicastNextRepeat;
+        UA_DateTime_init(&multicastNextRepeat);
+        //TODO multicastNextRepeat does not consider new input data (requests) on the socket. It will be handled on the next call.
+        // if needed, we need to use select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library) on higher level.
+        if (UA_Discovery_multicastIterate(server, &multicastNextRepeat, UA_TRUE)) {
+            if (multicastNextRepeat < nextRepeated) {
+                UA_DateTime_copy(&multicastNextRepeat, &nextRepeated);
+            }
+        }
+    }
+# endif
+#endif
+
     now = UA_DateTime_nowMonotonic();
     timeout = 0;
     if(nextRepeated > now)
@@ -698,6 +740,32 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
 #endif
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+		char* hostname = malloc(sizeof(char) * 256);
+		if (gethostname(hostname, 255) == 0) {
+            char *appName = malloc(server->config.mdnsServerName.length +1);
+            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+            appName[server->config.mdnsServerName.length] = '\0';
+			UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
+			free(appName);
+		} else {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+						 "Could not get hostname for multicast discovery.");
+		}
+		free(hostname);
+
+# ifdef UA_ENABLE_MULTITHREADING
+		UA_Discovery_multicastListenStop(server);
+# else
+		// send out last package with TTL = 0
+		UA_Discovery_multicastIterate(server, NULL, UA_FALSE);
+# endif
+	}
+
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 

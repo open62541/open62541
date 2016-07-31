@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <ua_util.h>
 #include <ua_types_generated.h>
@@ -35,6 +36,13 @@ static void setup_lds(void) {
 	UA_ServerConfig config_lds = UA_ServerConfig_standard;
 	config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
 	config_lds.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.local_discovery_server");
+	config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("EN");
+	config_lds.applicationDescription.applicationName.text = UA_String_fromChars("LDS Server");
+	config_lds.mdnsServerName = UA_String_fromChars("LDS_test");
+	config_lds.serverCapabilitiesSize = 1;
+	UA_String *caps = UA_String_new();
+	*caps = UA_String_fromChars("LDS");
+	config_lds.serverCapabilities = caps;
 	config_lds.discoveryCleanupTimeout = registerTimeout;
 	nl_lds = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
 	config_lds.networkLayers = &nl_lds;
@@ -50,6 +58,9 @@ static void teardown_lds(void) {
 	UA_Server_run_shutdown(server_lds);
 	UA_Boolean_delete(running_lds);
 	UA_String_deleteMembers(&server_lds->config.applicationDescription.applicationUri);
+	UA_LocalizedText_deleteMembers(&server_lds->config.applicationDescription.applicationName);
+	UA_String_deleteMembers(&server_lds->config.mdnsServerName);
+	UA_Array_delete(server_lds->config.serverCapabilities, server_lds->config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
 	UA_Server_delete(server_lds);
 	nl_lds.deleteMembers(&nl_lds);
 }
@@ -59,6 +70,8 @@ UA_Server *server_register;
 UA_Boolean *running_register;
 UA_ServerNetworkLayer nl_register;
 pthread_t server_thread_register;
+
+UA_Guid periodicRegisterJobId;
 
 static void * serverloop_register(void *_) {
 	while(*running_register)
@@ -72,6 +85,9 @@ static void setup_register(void) {
 	*running_register = true;
 	UA_ServerConfig config_register = UA_ServerConfig_standard;
 	config_register.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.server_register");
+	config_register.applicationDescription.applicationName.locale = UA_String_fromChars("EN");
+	config_register.applicationDescription.applicationName.text = UA_String_fromChars("Register Server");
+	config_register.mdnsServerName = UA_String_fromChars("Register_test");
 	nl_register = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
 	config_register.networkLayers = &nl_register;
 	config_register.networkLayersSize = 1;
@@ -86,6 +102,8 @@ static void teardown_register(void) {
 	UA_Server_run_shutdown(server_register);
 	UA_Boolean_delete(running_register);
 	UA_String_deleteMembers(&server_register->config.applicationDescription.applicationUri);
+	UA_LocalizedText_deleteMembers(&server_register->config.applicationDescription.applicationName);
+	UA_String_deleteMembers(&server_register->config.mdnsServerName);
 	UA_Server_delete(server_register);
 	nl_register.deleteMembers(&nl_register);
 }
@@ -97,6 +115,22 @@ START_TEST(Server_register) {
 END_TEST
 
 START_TEST(Server_unregister) {
+		UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+	}
+END_TEST
+
+START_TEST(Server_register_periodic) {
+		// periodic register every minute, first register immediately
+		UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server_register, 60*1000, 100, &periodicRegisterJobId);
+		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+	}
+END_TEST
+
+START_TEST(Server_unregister_periodic) {
+		// wait for first register delay
+		sleep(1);
+		UA_Server_removeRepeatedJob(server_register, periodicRegisterJobId);
 		UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
 		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 	}
@@ -188,6 +222,82 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
 	UA_Client_delete(client);
 }
 
+static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize, UA_ServerOnNetwork** serverOnNetwork) {
+	UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+	UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+	if(retval != UA_STATUSCODE_GOOD) {
+		UA_Client_delete(client);
+		return retval;
+	}
+
+
+	UA_FindServersOnNetworkRequest request;
+	UA_FindServersOnNetworkRequest_init(&request);
+
+	request.startingRecordId = 0;
+	request.maxRecordsToReturn = 0; // get all
+	/*
+	 * Here you can define some filtering rules:
+	 */
+	//request.serverCapabilityFilterSize = 1;
+	//request.serverCapabilityFilter[0] = UA_String_fromChars("LDS");
+
+	// now send the request
+	UA_FindServersOnNetworkResponse response;
+	UA_FindServersOnNetworkResponse_init(&response);
+	__UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
+						&response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
+
+	//UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
+
+	if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+		UA_FindServersOnNetworkResponse_deleteMembers(&response);
+		UA_Client_disconnect(client);
+		UA_Client_delete(client);
+		ck_abort_msg("FindServersOnNetwork failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+	}
+
+	*serverOnNetworkSize = response.serversSize;
+	*serverOnNetwork = (UA_ServerOnNetwork*)UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+	for(size_t i=0;i<response.serversSize;i++)
+		UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
+	UA_FindServersOnNetworkResponse_deleteMembers(&response);
+
+	UA_Client_disconnect(client);
+	UA_Client_delete(client);
+	return (int) UA_STATUSCODE_GOOD;
+}
+
+static void FindOnNetworkAndCheck(const char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale) {
+	UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+	UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+
+	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+	UA_ServerOnNetwork* serverOnNetwork = NULL;
+	size_t serverOnNetworkSize = 0;
+
+	retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork);
+	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+	// only the discovery server is expected
+	ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
+
+	for (size_t i=0; i<expectedServerNamesSize; i++) {
+		char* serverName = malloc(sizeof(char)*serverOnNetwork[i].serverName.length+1);
+		memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
+		serverName[serverOnNetwork[i].serverName.length] = '\0';
+		ck_assert_str_eq(serverName, expectedServerNames[i]);
+		free(serverName);
+	}
+
+	UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+
+	UA_Client_disconnect(client);
+	UA_Client_delete(client);
+}
+
+
 // Test if discovery server lists himself as registered server, before any other registration.
 START_TEST(Client_find_discovery) {
 		const char* expectedUris[] ={"open62541.test.local_discovery_server"};
@@ -204,9 +314,15 @@ END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-
 		const char* expectedUris[] ={"open62541.test.local_discovery_server", "open62541.test.server_register"};
 		FindAndCheck(expectedUris, 2, NULL, NULL);
+	}
+END_TEST
+
+// Test if registered server is returned from LDS using FindServersOnNetwork
+START_TEST(Client_find_on_network_registered) {
+		const char* expectedUris[] ={"LDS_test", "Register_test"};
+		FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL);
 	}
 END_TEST
 
@@ -223,6 +339,12 @@ START_TEST(Util_wait_timeout) {
 	}
 END_TEST
 
+START_TEST(Util_wait_mdns) {
+		// wait until server received mdns package
+		sleep(2);
+	}
+END_TEST
+
 static Suite* testSuite_Client(void) {
 	Suite *s = suite_create("Register Server and Client");
 	TCase *tc_register = tcase_create("RegisterServer");
@@ -232,6 +354,8 @@ static Suite* testSuite_Client(void) {
 	// register two times
 	tcase_add_test(tc_register, Server_register);
 	tcase_add_test(tc_register, Server_unregister);
+	tcase_add_test(tc_register, Server_register_periodic);
+	tcase_add_test(tc_register, Server_unregister_periodic);
 	suite_add_tcase(s,tc_register);
 
 	TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
@@ -240,6 +364,8 @@ static Suite* testSuite_Client(void) {
 	tcase_add_test(tc_register_find, Client_find_discovery);
 	tcase_add_test(tc_register_find, Server_register);
 	tcase_add_test(tc_register_find, Client_find_registered);
+	tcase_add_test(tc_register_find, Util_wait_mdns);
+	tcase_add_test(tc_register_find, Client_find_on_network_registered);
 	tcase_add_test(tc_register_find, Client_find_filter);
 	tcase_add_test(tc_register_find, Server_unregister);
 	tcase_add_test(tc_register_find, Client_find_discovery);

@@ -95,6 +95,8 @@ START_TEST(encodeShallYieldDecode) {
 END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
+    if (_i == UA_TYPES_DISCOVERYCONFIGURATION)
+        return;
     // given
     UA_ByteString msg1;
     void *obj1 = UA_new(&UA_TYPES[_i]);
@@ -187,10 +189,11 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-    /* Empty variants (with no type defined) cannot be encoded. This is intentional. */
+    /* Empty variants (with no type defined) cannot be encoded. This is intentional. Discovery configuration is just a base class and void * */
     if(_i == UA_TYPES_VARIANT ||
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
-       _i == UA_TYPES_VARIABLETYPEATTRIBUTES)
+       _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
+	   _i == UA_TYPES_DISCOVERYCONFIGURATION)
         return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
