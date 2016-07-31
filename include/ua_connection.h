@@ -104,7 +104,8 @@ struct UA_Connection {
      *         can be repeated, UA_STATUSCODE_GOOD if it succeeded and
      *         UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was
      *         closed. */
-    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
+    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response,
+                          UA_UInt32 timeout);
 
     /* Release the buffer of a received message */
     void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);

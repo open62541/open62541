@@ -14,7 +14,11 @@ As an example, we will create a simple object model using UA Modeler and embed t
 
 .. code-block:: xml
 
-    <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/example_nodeset/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+               xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+               xmlns:s1="http://yourorganisation.org/example_nodeset/"
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema">
         <NamespaceUris>
             <Uri>http://yourorganisation.org/example_nodeset/</Uri>
         </NamespaceUris>
@@ -49,7 +53,8 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 <Reference ReferenceType="HasComponent">ns=1;i=6002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6001" BrowseName="1:ManufacturerName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6001"
+                    BrowseName="1:ManufacturerName" UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ManufacturerName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
@@ -57,7 +62,8 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6002" BrowseName="1:ModelName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6002"
+                    BrowseName="1:ModelName" UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ModelName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
@@ -75,7 +81,8 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6003" BrowseName="1:isOn" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6003"
+                    BrowseName="1:isOn" UserAccessLevel="3" AccessLevel="3">
             <DisplayName>isOn</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
@@ -83,7 +90,8 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6004" BrowseName="1:MotorRPM" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6004"
+                    BrowseName="1:MotorRPM" UserAccessLevel="3" AccessLevel="3">
             <DisplayName>MotorRPM</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
@@ -99,11 +107,14 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
             </References>
         </UAMethod>
-        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1" NodeId="ns=1;i=6005" ArrayDimensions="1" BrowseName="OutputArguments">
+        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1"
+                    NodeId="ns=1;i=6005" ArrayDimensions="1"
+                    BrowseName="OutputArguments">
             <DisplayName>OutputArguments</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7001</Reference>
+                <Reference ReferenceType="HasProperty"
+                           IsForward="false">ns=1;i=7001</Reference>
                 <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             </References>
             <Value>
@@ -127,19 +138,25 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 </ListOfExtensionObject>
             </Value>
         </UAVariable>
-        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7002" BrowseName="1:stopPump">
+        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7002"
+                  BrowseName="1:stopPump">
             <DisplayName>stopPump</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
                 <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent"
+                           IsForward="false">ns=1;i=1002</Reference>
             </References>
         </UAMethod>
-        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1" NodeId="ns=1;i=6006" ArrayDimensions="1" BrowseName="OutputArguments">
+        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1"
+                    NodeId="ns=1;i=6006" ArrayDimensions="1"
+                    BrowseName="OutputArguments">
             <DisplayName>OutputArguments</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7002</Reference>
+                <Reference ReferenceType="HasProperty" IsForward="false">
+                    ns=1;i=7002
+                </Reference>
                 <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             </References>
             <Value>
@@ -340,10 +357,11 @@ Let's look at an example that will create a pump instance given the newly define
       running = 0;
     }
 
-    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
-    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle) {
-      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n", objectId.namespaceIndex, objectId.identifier.numeric,
-              definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
+    static UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId,
+                                                   void *handle) {
+      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n",
+             objectId.namespaceIndex, objectId.identifier.numeric,
+             definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
       return UA_STATUSCODE_GOOD;
     }
 
@@ -447,8 +465,8 @@ Since searching in nodes is a common operation, the high-level branch provides a
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
 
-    UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
-    UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
+    static UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse,
+                                  UA_NodeId referenceTypeId, void *handle) {  
       struct {
         UA_Client *client;
         UA_Boolean isAPump;

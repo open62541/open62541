@@ -119,20 +119,20 @@ class Type(object):
         return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
         
     def functions_c(self):
-        funcs = "static UA_INLINE void UA_%s_init(UA_%s *p) { memset(p, 0, sizeof(UA_%s)); }\n" % (self.name, self.name, self.name)
-        funcs += "static UA_INLINE UA_%s * UA_%s_new(void) { return (UA_%s*) UA_new(%s); }\n" % (self.name, self.name, self.name, self.datatype_ptr())
+        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n" % (self.name, self.name, self.name)
+        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*) UA_new(%s);\n}\n" % (self.name, self.name, self.name, self.datatype_ptr())
         if self.fixed_size == "true":
-            funcs += "static UA_INLINE UA_StatusCode UA_%s_copy(const UA_%s *src, UA_%s *dst) { *dst = *src; return UA_STATUSCODE_GOOD; }\n" % (self.name, self.name, self.name)
-            funcs += "static UA_INLINE void UA_%s_deleteMembers(UA_%s *p) { }\n" % (self.name, self.name)
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src,\n%sUA_%s *dst) {\n    *dst = *src; return UA_STATUSCODE_GOOD;\n}\n" % (self.name, self.name, ' ' * (len(self.name)+9), self.name)
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) { }\n" % (self.name, self.name)
         else:
-            funcs += "static UA_INLINE UA_StatusCode UA_%s_copy(const UA_%s *src, UA_%s *dst) { return UA_copy(src, dst, %s); }\n" % (self.name, self.name, self.name, self.datatype_ptr())
-            funcs += "static UA_INLINE void UA_%s_deleteMembers(UA_%s *p) { UA_deleteMembers(p, %s); }\n" % (self.name, self.name, self.datatype_ptr())
-        funcs += "static UA_INLINE void UA_%s_delete(UA_%s *p) { UA_delete(p, %s); }" % (self.name, self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src,\n%sUA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n" % (self.name, self.name, ' ' * (len(self.name)+9), self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n" % (self.name, self.name, self.datatype_ptr())
+        funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (self.name, self.name, self.datatype_ptr())
         return funcs
 
     def encoding_h(self):
-        enc = "static UA_INLINE UA_StatusCode UA_%s_encodeBinary(const UA_%s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, NULL, NULL, dst, offset); }\n"
-        enc += "static UA_INLINE UA_StatusCode UA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) { return UA_decodeBinary(src, offset, dst, %s); }"
+        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_ByteString *dst, size_t *offset) {\n    return UA_encodeBinary(src, %s, NULL, NULL, dst, offset);\n}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s);\n}"
         return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 2))))
 
 class BuiltinType(Type):
