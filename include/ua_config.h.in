@@ -27,12 +27,21 @@ extern "C" {
 # define _DEFAULT_SOURCE
 #endif
 
+// On older systems we need to define _BSD_SOURCE
+// _DEFAULT_SOURCE is an alias for that
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
+#cmakedefine UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_DISCOVERY
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_TYPENAMES
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES

@@ -6,8 +6,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build -enable-checker security.FloatLoopCounter \
+        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build-3.7 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j 8
@@ -15,8 +15,8 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build -enable-checker security.FloatLoopCounter \
+        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build-3.7 -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j 8
@@ -51,7 +51,7 @@ else
         echo "Cross compile release build for MinGW 32 bit"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
-        make -j8
+        make -j
         zip -r open62541-win32.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
@@ -59,7 +59,7 @@ else
         echo "Cross compile release build for MinGW 64 bit"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
-        make -j8
+        make -j
         zip -r open62541-win64.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
@@ -67,7 +67,7 @@ else
         echo "Cross compile release build for 32-bit linux"
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
-        make -j8
+        make -j
         tar -pczf open62541-linux32.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
@@ -76,7 +76,7 @@ else
     echo "Compile release build for 64-bit linux"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j8
+    make -j
     tar -pczf open62541-linux64.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h .. # copy single file-release
@@ -103,7 +103,13 @@ else
 
     echo "Compile without discovery version"
     mkdir -p build && cd build
-    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
+    make -j
+    cd .. && rm build -rf
+
+    echo "Compile discovery without multicast version"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     cd .. && rm build -rf
 
@@ -111,12 +117,12 @@ else
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
-    make -j8 && make test ARGS="-V"
+    make -j && make test ARGS="-V"
     echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
     (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
-    if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
+    if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && ([ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] || [ "${TRAVIS_REPO_SLUG}" = "Pro/open62541" ]); then
         echo "  Building coveralls for ${TRAVIS_REPO_SLUG}"
         coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
     else

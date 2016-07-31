@@ -718,6 +718,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
             client->state = UA_CLIENTSTATE_ERRORED;
+            UA_ByteString_deleteMembers(&reply);
             return;
         }
     } while(!reply.data);

@@ -843,3 +843,41 @@ void UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     }
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
+
+UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, const char ** port, const char **path) {
+    size_t urlLength = strlen(endpointUrl);
+    if(urlLength < 11 || urlLength >= 512) {
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
+    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+    }
+
+    /* where does the port begin? */
+    size_t portpos = 10;
+    for(; portpos < urlLength-1; portpos++) {
+        if(endpointUrl[portpos] == ':')
+            break;
+    }
+
+    memcpy(hostname, &endpointUrl[10], portpos - 10);
+    hostname[portpos-10] = 0;
+
+    if(port && portpos < urlLength - 1)
+        *port = &endpointUrl[portpos + 1];
+
+	if (path) {
+		size_t pathpos = portpos < urlLength - 1 ? portpos + 1 : 10;
+		for(; pathpos < urlLength; pathpos++) {
+			if(endpointUrl[pathpos] == '/')
+				break;
+		}
+		if (pathpos < urlLength)
+			*path = &endpointUrl[pathpos];
+		else
+			*path = NULL;
+	}
+
+	return UA_STATUSCODE_GOOD;
+}
+

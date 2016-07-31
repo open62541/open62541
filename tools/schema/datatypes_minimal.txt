@@ -161,3 +161,10 @@ SetMonitoringModeResponse
 RegisteredServer
 RegisterServerRequest
 RegisterServerResponse
+DiscoveryConfiguration
+MdnsDiscoveryConfiguration
+RegisterServer2Request
+RegisterServer2Response
+ServerOnNetwork
+FindServersOnNetworkRequest
+FindServersOnNetworkResponse

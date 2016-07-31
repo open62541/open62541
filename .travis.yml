@@ -34,10 +34,13 @@ addons:
       # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
       - kalakris-cmake
       - ubuntu-toolchain-r-test
+      - llvm-toolchain-precise
+      - llvm-toolchain-precise-3.7
     packages:
       - binutils-mingw-w64-i686
       - build-essential
       - clang
+      - clang-3.7
       - cmake
       - gcc-4.8
       - gcc-mingw-w64-i686

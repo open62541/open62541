@@ -72,6 +72,55 @@ static UA_StatusCode FindServers(const char* discoveryServerUrl, size_t* registe
     return (int) UA_STATUSCODE_GOOD;
 }
 
+
+static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize, UA_ServerOnNetwork** serverOnNetwork) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+    }
+
+
+    UA_FindServersOnNetworkRequest request;
+    UA_FindServersOnNetworkRequest_init(&request);
+
+    request.startingRecordId = 0;
+    request.maxRecordsToReturn = 0; // get all
+    /*
+     * Here you can define some filtering rules:
+     */
+    //request.serverCapabilityFilterSize = 1;
+    //request.serverCapabilityFilter[0] = UA_String_fromChars("LDS");
+
+    // now send the request
+    UA_FindServersOnNetworkResponse response;
+    UA_FindServersOnNetworkResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
+
+    //UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
+
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
+                     "FindServersOnNetwork failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+        UA_FindServersOnNetworkResponse_deleteMembers(&response);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return response.responseHeader.serviceResult;
+    }
+
+    *serverOnNetworkSize = response.serversSize;
+    *serverOnNetwork = (UA_ServerOnNetwork*)UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    for(size_t i=0;i<response.serversSize;i++)
+        UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
+    UA_FindServersOnNetworkResponse_deleteMembers(&response);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    return (int) UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
@@ -103,6 +152,42 @@ static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUr
 }
 
 int main(void) {
+
+    /*
+     * Example for calling FindServersOnNetwork
+     */
+
+    {
+        UA_ServerOnNetwork* serverOnNetwork = NULL;
+        size_t serverOnNetworkSize = 0;
+
+        UA_StatusCode retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork);
+        if (retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServersOnNetwork service. Is the discovery server started? StatusCode 0x%08x",
+                         retval);
+            return (int) retval;
+        }
+
+        // output all the returned/registered servers
+        for (size_t i = 0; i < serverOnNetworkSize; i++) {
+            UA_ServerOnNetwork* server = &serverOnNetwork[i];
+            printf("Server[%lu]: %.*s", (unsigned long) i, (int) server->serverName.length, server->serverName.data);
+            printf("\n\tRecordID: %d", server->recordId);
+            printf("\n\tDiscovery URL: %.*s", (int) server->discoveryUrl.length, server->discoveryUrl.data);
+            printf("\n\tCapabilities: ");
+            for (size_t j = 0; j < server->serverCapabilitiesSize; j++) {
+                printf("%.*s,", (int) server->serverCapabilities[j].length, server->serverCapabilities[j].data);
+            }
+            printf("\n\n");
+        }
+
+		UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    }
+
+    /*
+     * Example for calling FindServers
+     */
+
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
