@@ -1,4 +1,5 @@
 #include "ua_session.h"
+#include "ua_types_generated_handling.h"
 #include "ua_util.h"
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "server/ua_subscription.h"

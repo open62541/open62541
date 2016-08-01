@@ -23,6 +23,7 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 #include "ua_nodeids.h"
 #include "ua_log.h"
 #include "ua_job.h"
@@ -50,7 +51,7 @@ struct UA_ServerNetworkLayer {
      * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code. */
     UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_Logger logger);
-    
+
     /* Gets called from the main server loop and returns the jobs (accumulated
      * messages and close events) for dispatch.
      *

@@ -117,16 +117,16 @@ class Type(object):
 
     def datatype_ptr(self):
         return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
-        
+
     def functions_c(self):
-        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n" % (self.name, self.name, self.name)
-        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*) UA_new(%s);\n}\n" % (self.name, self.name, self.name, self.datatype_ptr())
+        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.name, self.name, self.name)
+        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
         if self.fixed_size == "true":
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src,\n%sUA_%s *dst) {\n    *dst = *src; return UA_STATUSCODE_GOOD;\n}\n" % (self.name, self.name, ' ' * (len(self.name)+9), self.name)
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) { }\n" % (self.name, self.name)
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (self.name, self.name, self.name)
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) { }\n\n" % (self.name, self.name)
         else:
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src,\n%sUA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n" % (self.name, self.name, ' ' * (len(self.name)+9), self.name, self.datatype_ptr())
-            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n" % (self.name, self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n\n" % (self.name, self.name, self.datatype_ptr())
         funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (self.name, self.name, self.datatype_ptr())
         return funcs
 
@@ -168,13 +168,13 @@ class EnumerationType(Type):
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
                 self.elements[child.get("Name")] = child.get("Value")
-    
+
     def typedef_h(self):
         if sys.version_info[0] < 3:
             values = self.elements.iteritems()
         else:
             values = self.elements.items()
-        return "typedef enum { \n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
+        return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
                                                             " = " + kv[1], values)) + "\n} UA_%s;" % self.name
 
 class OpaqueType(Type):
@@ -328,7 +328,7 @@ parser.add_argument('typexml_additional', nargs='*', help='path/to/Opc.Ua.Types.
 parser.add_argument('outfile', help='output file w/o extension')
 args = parser.parse_args()
 
-outname = args.outfile.split("/")[-1] 
+outname = args.outfile.split("/")[-1]
 inname = ', '.join([args.typexml_ns0.split("/")[-1]] + list(map(lambda x:x.split("/")[-1], args.typexml_additional)))
 
 ################
@@ -358,14 +358,29 @@ if args.selected_types:
 #############################
 
 fh = open(args.outfile + "_generated.h",'w')
+ff = open(args.outfile + "_generated_handling.h",'w')
 fe = open(args.outfile + "_generated_encoding_binary.h",'w')
 fc = open(args.outfile + "_generated.c",'w')
 def printh(string):
     print(string, end='\n', file=fh)
+def printf(string):
+    print(string, end='\n', file=ff)
 def printe(string):
     print(string, end='\n', file=fe)
 def printc(string):
     print(string, end='\n', file=fc)
+
+def iter_types(v):
+    l = None
+    if sys.version_info[0] < 3:
+        l = list(v.itervalues())
+    else:
+        l = list(v.values())
+    return filter(lambda t: t.name in selected_types, l)
+
+################
+# Print Header #
+################
 
 printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
@@ -379,9 +394,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#ifdef UA_INTERNAL
-#include "ua_types_encoding_binary.h"
-#endif''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
 
 /**
  * Additional Data Type Definitions
@@ -392,45 +405,8 @@ extern "C" {
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(selected_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
-printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
-       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
- 
-#include "stddef.h"
-#include "ua_types.h"
-#include "''' + outname + '''_generated.h"''')
-
-printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
- * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
-       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
- 
-#include "ua_types_encoding_binary.h"
-#include "''' + outname + '''_generated.h"''')
-
-if sys.version_info[0] < 3:
-    values = types.itervalues()
-else:
-    values = types.values()
-
-# Datatype members
-for t in values:
-    if not t.name in selected_types:
-        continue
-    printc("")
-    printc("/* " + t.name + " */")
-    printc(t.members_c())
-printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
-
-if sys.version_info[0] < 3:
-    values = types.itervalues()
-else:
-    values = types.values()
-
 i = 0
-for t in values:
-    if not t.name in selected_types:
-        continue
-    # Header
+for t in iter_types(types):
     printh("\n/**\n * " +  t.name)
     printh(" * " + "-" * len(t.name))
     if t.description == "":
@@ -440,16 +416,7 @@ for t in values:
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
     printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-    printh(t.functions_c())
     i += 1
-    # Datatype
-    printc("")
-    printc("/* " + t.name + " */")
-    printc(t.datatype_c() + ",")
-    # Encoding
-    printe("")
-    printe("/* " + t.name + " */")
-    printe(t.encoding_h())
 
 printh('''
 #ifdef __cplusplus
@@ -457,8 +424,84 @@ printh('''
 #endif\n
 #endif /* %s_GENERATED_H_ */''' % outname.upper())
 
+##################
+# Print Handling #
+##################
+
+printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
+#ifndef ''' + outname.upper() + '''_GENERATED_HANDLING_H_
+#define ''' + outname.upper() + '''_GENERATED_HANDLING_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "''' + outname + '''_generated.h"
+
+#if defined(__GNUC__) && __GNUC__ <= 4
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+# pragma GCC diagnostic ignored "-Wmissing-braces"
+#endif
+''')
+
+for t in iter_types(types):
+    printf("\n/* " + t.name + " */")
+    printf(t.functions_c())
+
+printf('''
+#if defined(__GNUC__) && __GNUC__ <= 4
+# pragma GCC diagnostic pop
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif\n
+#endif /* %s_GENERATED_HANDLING_H_ */''' % outname.upper())
+
+###########################
+# Print Description Array #
+###########################
+
+printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
+#include "stddef.h"
+#include "ua_types.h"
+#include "''' + outname + '''_generated.h"''')
+
+for t in iter_types(types):
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.members_c())
+
+printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+for t in iter_types(types):
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.datatype_c() + ",")
 printc("};\n")
 
+##################
+# Print Encoding #
+##################
+
+printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
+#include "ua_types_encoding_binary.h"
+#include "''' + outname + '''_generated.h"''')
+
+for t in iter_types(types):
+    printe("\n/* " + t.name + " */")
+    printe(t.encoding_h())
+
 fh.close()
+ff.close()
 fc.close()
 fe.close()

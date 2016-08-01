@@ -4,6 +4,8 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
+#include "ua_types_generated_handling.h"
+#include "ua_transport_generated_handling.h"
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 

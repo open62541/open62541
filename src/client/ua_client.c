@@ -4,10 +4,11 @@
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_generated.h"
-#include "ua_nodeids.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_transport_generated.h"
 #include "ua_types_generated_encoding_binary.h"
+#include "ua_nodeids.h"
+#include "ua_transport_generated.h"
+#include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 
 /*********************/
