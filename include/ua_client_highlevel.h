@@ -42,7 +42,7 @@ extern "C" {
  * using the raw :ref:`OPC UA services <client-services>`.
  *
  * Read Attributes
- * ===============
+ * ^^^^^^^^^^^^^^^
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
 /* Don't call this function, use the typed versions */
@@ -220,7 +220,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 /**
  * Write Attributes
- * ================
+ * ^^^^^^^^^^^^^^^^
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
 /* Don't call this function, use the typed versions */
@@ -399,7 +399,7 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
 
 /**
  * Method Calling
- * ============== */
+ * ^^^^^^^^^^^^^^ */
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId,
                const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
@@ -407,10 +407,8 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
 
 /**
  * Node Management
- * ===============
- *
- * See the section on :ref:`server-side node management <addnodes>`.
- */
+ * ^^^^^^^^^^^^^^^
+ * See the section on :ref:`server-side node management <addnodes>`. */
 UA_StatusCode UA_EXPORT
 UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
                        const UA_NodeId referenceTypeId, UA_Boolean isForward,
@@ -556,8 +554,7 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
  * .. _client-subscriptions:
  *
  * Subscriptions Handling
- * ======================
- *
+ * ^^^^^^^^^^^^^^^^^^^^^^
  * At this point, the client does not yet contain its own thread or event-driven
  * main-loop. So the client will not perform any actions automatically in the
  * background. This is especially relevant for subscriptions. The user will have
@@ -607,7 +604,7 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client,
 
 /**
  * Misc Highlevel Functionality
- * ============================ */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 /* Get the namespace-index of a namespace-URI
  *
  * @param client The UA_Client struct for this connection
