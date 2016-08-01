@@ -135,6 +135,9 @@ typedef struct {
     UA_UInt32Range queueSizeLimits;
 } UA_ServerConfig;
 
+/* Add a new namespace to the server. Returns the index of the new namespace */
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+
 /**
  * Server Lifecycle
  * ---------------- */
@@ -172,8 +175,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
 
 /**
- * Modify a running server
- * ----------------------- */
+ * Repeated jobs
+ * ------------- */
 /* Add a job for cyclic repetition to the server.
  *
  * @param server The server object.
@@ -199,19 +202,11 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
 UA_StatusCode UA_EXPORT
 UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
 
-/* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
-
 /**
- * Reading / Writing Node Attributes
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- *
- * The node attributes are read/written separately. The read/write functions do
- * not require the construction of variants used in the service definition. This
- * is handled internally.
- *
- * Reading Node Attributes
- * ~~~~~~~~~~~~~~~~~~~~~~~
+ * Reading and Writing Node Attributes
+ * -----------------------------------
+ * The functions for reading and writing node attributes call the regular read
+ * and write service in the background that are also used over the network.
  *
  * The following attributes cannot be read, since the local "admin" user always
  * has full rights.
@@ -359,9 +354,6 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
 }
 
 /**
- * Writing Node Attributes
- * ~~~~~~~~~~~~~~~~~~~~~~~
- *
  * The following node attributes cannot be changed once a node has been created:
  *
  * - NodeClass
@@ -485,8 +477,9 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
  * function for each child node (in ifdef because GCC/CLANG handle include order
  * differently) */
-typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-                                                 UA_NodeId referenceTypeId, void *handle);
+typedef UA_StatusCode
+(*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+						   UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
