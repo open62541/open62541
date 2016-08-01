@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include "ua_log_stdout.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
 const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "client", "userland"};

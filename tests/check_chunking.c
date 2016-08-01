@@ -1,6 +1,7 @@
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_securechannel.h"
 #include "ua_util.h"

@@ -1,6 +1,7 @@
 #include "ua_util.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 /* Jumptables for de-/encoding and computing the buffer length */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);

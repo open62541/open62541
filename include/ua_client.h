@@ -23,6 +23,7 @@ extern "C" {
 #include "ua_connection.h"
 #include "ua_log.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 /**
  * .. _client:
