@@ -119,10 +119,10 @@ class Type(object):
         return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
 
     def functions_c(self):
-        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    *p = (UA_%s){0};\n}\n\n" % (self.name, self.name, self.name)
-        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*) UA_new(%s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
+        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n#ifdef __cplusplus\n    *p = {0};\n#else\n    *p = (UA_%s){0};\n#endif\n}\n\n" % (self.name, self.name, self.name)
+        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
         if self.fixed_size == "true":
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src; return UA_STATUSCODE_GOOD;\n}\n\n" % (self.name, self.name, self.name)
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (self.name, self.name, self.name)
             funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) { }\n\n" % (self.name, self.name)
         else:
             funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
