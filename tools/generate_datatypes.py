@@ -439,13 +439,24 @@ printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
-#include "''' + outname + '''_generated.h"''')
+#include "''' + outname + '''_generated.h"
+
+#if defined(__GNUC__) && __GNUC__ <= 4
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+# pragma GCC diagnostic ignored "-Wmissing-braces"
+#endif
+''')
 
 for t in iter_types(types):
     printf("\n/* " + t.name + " */")
     printf(t.functions_c())
 
 printf('''
+#if defined(__GNUC__) && __GNUC__ <= 4
+# pragma GCC diagnostic pop
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif\n
