@@ -824,17 +824,11 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
-
-    // copy the data from the request into the list
-    UA_RegisteredServer_copy(&request->server, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_now();
-
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
                            &response->configurationResults, &response->diagnosticInfosSize,
                            response->diagnosticInfos);
-
 }
 
 /**
