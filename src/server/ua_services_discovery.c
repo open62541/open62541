@@ -824,17 +824,11 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
-
-    // copy the data from the request into the list
-    UA_RegisteredServer_copy(&request->server, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
-
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
                            &response->configurationResults, &response->diagnosticInfosSize,
                            response->diagnosticInfos);
-
 }
 
 /**
@@ -875,9 +869,13 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                             (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
                             (int)current->registeredServer.semaphoreFilePath.length, current->registeredServer.semaphoreFilePath.data);
             } else {
+                // cppcheck-suppress unreadVariable
+                UA_String lastStr = UA_DateTime_toString(current->lastSeen);
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Registration of server with URI %.*s has timed out and is removed",
-                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data);
+                             "Registration of server with URI %.*s has timed out and is removed. Last seen: %.*s",
+                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
+                            (int)lastStr.length, lastStr.data);
+                UA_free(lastStr.data);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_deleteMembers(&current->registeredServer);
