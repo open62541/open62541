@@ -27,7 +27,7 @@ Building with CMake on Ubuntu or Debian
    # enable additional features
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
-   sudo apt-get install sphinx # for documentation generation
+   sudo apt-get install sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style
 
    cd open62541
@@ -81,6 +81,7 @@ Building on OS X
    brew install cmake
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
+   brew install graphviz # for graphics in the documentation
    brew install check # for unit tests
    brew install userspace-rcu # for multi-threading support
 

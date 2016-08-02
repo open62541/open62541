@@ -35,40 +35,52 @@ As an example, we will create a simple object model using UA Modeler and embed t
         </Aliases>
         <Extensions>
             <Extension>
-                <ModelInfo Tool="UaModeler" Hash="Zs8w1AQI71W8P/GOk3k/xQ==" Version="1.3.4"/>
+                <ModelInfo Tool="UaModeler" Hash="Zs8w1AQI71W8P/GOk3k/xQ=="
+                           Version="1.3.4"/>
             </Extension>
         </Extensions>
         <UAReferenceType NodeId="ns=1;i=4001" BrowseName="1:providesInputTo">
             <DisplayName>providesInputTo</DisplayName>
             <References>
-                <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    i=33
+                </Reference>
             </References>
             <InverseName Locale="en_US">inputProcidedBy</InverseName>
         </UAReferenceType>
-        <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001" BrowseName="1:FieldDevice">
+        <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001"
+                      BrowseName="1:FieldDevice">
             <DisplayName>FieldDevice</DisplayName>
             <References>
-                <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    i=58
+                </Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6001</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6001"
-                    BrowseName="1:ManufacturerName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001"
+                    NodeId="ns=1;i=6001" BrowseName="1:ManufacturerName"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ManufacturerName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6002"
-                    BrowseName="1:ModelName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001"
+                    NodeId="ns=1;i=6002" BrowseName="1:ModelName"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ModelName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
             </References>
         </UAVariable>
         <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:Pump">
@@ -76,35 +88,46 @@ As an example, we will create a simple object model using UA Modeler and embed t
             <References>
                 <Reference ReferenceType="HasComponent">ns=1;i=6003</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6004</Reference>
-                <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6003"
-                    BrowseName="1:isOn" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002"
+                    NodeId="ns=1;i=6003" BrowseName="1:isOn" UserAccessLevel="3"
+                    AccessLevel="3">
             <DisplayName>isOn</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6004"
-                    BrowseName="1:MotorRPM" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002"
+                    NodeId="ns=1;i=6004" BrowseName="1:MotorRPM"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>MotorRPM</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAVariable>
-        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7001" BrowseName="1:startPump">
+        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7001"
+                  BrowseName="1:startPump">
             <DisplayName>startPump</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
                 <Reference ReferenceType="HasProperty">ns=1;i=6005</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAMethod>
         <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1"
@@ -182,44 +205,65 @@ As an example, we will create a simple object model using UA Modeler and embed t
         </UAVariable>
     </UANodeSet>
 
-Or, more consiscly, this::
+Or, more consiscly, this:
 
-   +------------------+
-   |  <<ObjectType>>  |
-   |   FieldDevice    |
-   +------------------+
-             |              +------------------+
-             |              |   <<Variable>>   |
-             |------------->| ManufacturerName |
-             | hasComponent +------------------+
-             |              +------------------+
-             |              |   <<Variable>>   |
-             |------------->|    ModelName     |
-             | hasComponent +------------------+
-             |              +----------------+
-             |              | <<ObjectType>> |
-             '------------->|      Pump      |
-                hasSubtype  +----------------+
-                                     |
-                                     |
-                                     |                +------------------+
-                                     |                |   <<Variable>>   |
-                                     |--------------->|     MotorRPM     |
-                                     |  hasComponent  +------------------+
-                                     |                +------------------+
-                                     |                |   <<Variable>>   |
-                                     |--------------->|       isOn       |
-                                     |  hasComponent  +------------------+
-                                     |                +------------------+    +------------------+
-                                     |                |    <<Method>>    |    |   <<Variable>>   |
-                                     |--------------->|    startPump     |--->| outputArguments  |
-                                     |  hasProperty   +------------------+    +------------------+
-                                     |                +------------------+    +------------------+
-                                     |                |    <<Method>>    |    |   <<Variable>>   |
-                                     '--------------->|     stopPump     |--->| outputArguments  |
-                                        hasProperty   +------------------+    +------------------+
+.. graphviz::
 
-                 
+    digraph tree {
+
+    fixedsize=true;
+    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+
+    node_root [label="<<ObjectType>>\nFieldDevice"]
+
+    { rank=same
+      point_1 [shape=point]
+      node_1 [label="<<Variable>>\nManufacturerName"] }
+    node_root -> point_1 [arrowhead=none]
+    point_1 -> node_1 [label="hasComponent"]
+
+    { rank=same
+      point_2 [shape=point]
+      node_2 [label="<<Variable>>\nModelName"] }
+    point_1 -> point_2 [arrowhead=none]
+    point_2 -> node_2 [label="hasComponent"]
+
+    {  rank=same
+       point_3 [shape=point]
+       node_3 [label="<<ObjectType>>\nPump"] }
+    point_2 -> point_3 [arrowhead=none]
+    point_3 -> node_3 [label="hasComponent"]
+
+    {  rank=same
+       point_4 [shape=point]
+       node_4 [label="<<Variable>>\nMotorRPM"] }
+    node_3 -> point_4 [arrowhead=none]
+    point_4 -> node_4 [label="hasComponent"]
+
+    {  rank=same
+       point_5 [shape=point]
+       node_5 [label="<<Variable>>\nisOn"] }
+    point_4 -> point_5 [arrowhead=none]
+    point_5 -> node_5 [label="hasComponent"]
+
+    {  rank=same
+       point_6 [shape=point]
+       node_6 [label="<<Method>>\nstartPump"]
+       node_8 [label="<<Variable>>\nOutputArguments"] }
+    point_5 -> point_6 [arrowhead=none]
+    point_6 -> node_6 [label="hasComponent"]
+    node_6 -> node_8 [label="hasProperty"]
+
+    {  rank=same
+       point_7 [shape=point]
+       node_7 [label="<<Method>>\nstopPump"]
+       node_9 [label="<<Variable>>\nOutputArguments"] }
+    point_6 -> point_7 [arrowhead=none]
+    point_7 -> node_7 [label="hasComponent"]
+    node_7 -> node_9 [label="hasProperty"]
+
+    }
+
 UA Modeler prepends the namespace qualifier "uax:" to some fields - this is not supported by the namespace compiler, who has strict aliasing rules concerning field names. If a datatype defines a field called "Argument", the compiler expects to find "<Argument>" tags, not "<uax:Argument>". Remove/Substitute such fields to remove namespace qualifiers.
 
 The namespace compiler can be invoked manually and has numerous options. In its simplest form, an invokation will look like this::

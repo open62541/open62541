@@ -50,6 +50,7 @@ addons:
       - wget
       - xutils-dev
       - zip
+      - graphviz
     # - libsubunit-dev #for check_0.10.0
   coverity_scan:
     project:
