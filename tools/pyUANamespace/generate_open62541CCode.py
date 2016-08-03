@@ -20,7 +20,7 @@ from __future__ import print_function
 import logging
 import argparse
 from os.path import basename
-from ua_namespace import *
+from ua_nodeset import *
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
 from open62541_backend import generateCCode
 
@@ -92,7 +92,7 @@ outfileh = open(args.outputFile+".h", r"w+")
 outfilec = open(args.outputFile+".c", r"w+")
 
 # Create a new nodeset. The nodeset name is not significant.
-ns = opcua_namespace("open62541")
+ns = NodeSet("open62541")
 
 # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
 preProc = open62541_XMLPreprocessor()

@@ -35,11 +35,7 @@ def getNextElementNode(xmlvalue):
     xmlvalue = xmlvalue.nextSibling
   return xmlvalue
 
-###
-### Namespace Organizer
-###
-
-class opcua_namespace():
+class NodeSet():
   """ Class holding and managing a set of OPCUA nodes.
 
       This class handles parsing XML description of namespaces, instantiating

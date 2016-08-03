@@ -1,32 +1,32 @@
-from ua_namespace import *
+from ua_nodeset import *
 
 class testing:
   def __init__(self):
-    self.namespace = opcua_namespace("testing")
+    self.ns = NodeSet("testing")
 
     logger.debug("Phase 1: Reading XML file nodessets")
-    self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
-    #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
+    self.ns.parseXML("Opc.Ua.NodeSet2.xml")
+    #self.ns.parseXML("Opc.Ua.NodeSet2.Part4.xml")
+    #self.ns.parseXML("Opc.Ua.NodeSet2.Part5.xml")
+    #self.ns.parseXML("Opc.Ua.SimulationNodeSet2.xml")
 
     logger.debug("Phase 2: Linking address space references and datatypes")
-    self.namespace.linkOpenPointers()
-    self.namespace.sanitize()
+    self.ns.linkOpenPointers()
+    self.ns.sanitize()
 
     logger.debug("Phase 3: Comprehending DataType encoding rules")
-    self.namespace.buildEncodingRules()
+    self.ns.buildEncodingRules()
 
     logger.debug("Phase 4: Allocating variable value data")
-    self.namespace.allocateVariables()
+    self.ns.allocateVariables()
 
-    bin = self.namespace.buildBinary()
+    bin = self.ns.buildBinary()
     f = open("binary.base64","w+")
     f.write(bin.encode("base64"))
     f.close()
 
-    allnodes = self.namespace.nodes;
-    ns = [self.namespace.getRoot()]
+    allnodes = self.ns.nodes;
+    ns = [self.ns.getRoot()]
 
     i = 0
     #print "Starting depth search on " + str(len(allnodes)) + " nodes starting with from " + str(ns)
@@ -47,22 +47,22 @@ class testing:
 
 class testing_open62541_header:
   def __init__(self):
-    self.namespace = opcua_namespace("testing")
+    self.ns = opcua_ns("testing")
 
     logger.debug("Phase 1: Reading XML file nodessets")
-    self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
-    #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
+    self.ns.parseXML("Opc.Ua.NodeSet2.xml")
+    #self.ns.parseXML("Opc.Ua.NodeSet2.Part4.xml")
+    #self.ns.parseXML("Opc.Ua.NodeSet2.Part5.xml")
+    #self.ns.parseXML("Opc.Ua.SimulationNodeSet2.xml")
 
     logger.debug("Phase 2: Linking address space references and datatypes")
-    self.namespace.linkOpenPointers()
-    self.namespace.sanitize()
+    self.ns.linkOpenPointers()
+    self.ns.sanitize()
 
     logger.debug("Phase 3: Calling C Printers")
-    code = self.namespace.printOpen62541Header()
+    code = self.ns.printOpen62541Header()
 
-    codeout = open("./open62541_namespace.c", "w+")
+    codeout = open("./open62541_nodeset.c", "w+")
     for line in code:
       codeout.write(line + "\n")
     codeout.close()
@@ -70,8 +70,8 @@ class testing_open62541_header:
 
 # Call testing routine if invoked standalone.
 # For better debugging, it is advised to import this file using an interactive
-# python shell and instantiating a namespace.
+# python shell and instantiating a nodeset.
 #
-# import ua_types.py as ua; ns=ua.testing().namespace
+# import ua_types.py as ua; ns=ua.testing().nodeset
 if __name__ == '__main__':
   tst = testing_open62541_header()
