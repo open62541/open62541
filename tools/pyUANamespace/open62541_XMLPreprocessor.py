@@ -16,6 +16,8 @@
 ###
 
 import logging
+logger = logging.getLogger(__name__)
+
 from ua_constants import *
 import tempfile
 import xml.dom.minidom as dom
@@ -25,8 +27,6 @@ from collections import Counter
 
 from ua_namespace import opcua_node_id_t
 
-
-logger = logging.getLogger(__name__)
 
 class preProcessDocument:
   originXML = '' # Original XML passed to the preprocessor
@@ -67,14 +67,10 @@ class preProcessDocument:
     return None
 
   def extractNamespaceURIs(self):
-    """ extractNamespaceURIs
-
-        minidom gobbles up <NamespaceUris></NamespaceUris> elements, without a decent
+    """ minidom gobbles up <NamespaceUris></NamespaceUris> elements, without a decent
         way to reliably access this dom2 <uri></uri> elements (only attribute xmlns= are
         accessible using minidom).  We need them for dereferencing though... This
         function attempts to do just that.
-
-        returns: Nothing
     """
     infile = open(self.originXML)
     foundURIs = False
@@ -100,12 +96,8 @@ class preProcessDocument:
     infile.close()
 
   def analyze(self):
-    """ analyze()
-
-        analyze will gather information about the nodes and references contained in a XML File
+    """ analyze will gather information about the nodes and references contained in a XML File
         to facilitate later preprocessing stages that adresss XML dependency issues
-
-        returns: No return value
     """
     nodeIds = []
     ns = self.nodeset.getElementsByTagName("UANodeSet")
@@ -134,9 +126,7 @@ class preProcessDocument:
     logger.debug("Nodes: " + str(len(self.containedNodes)) + " References: " + str(len(self.referencedNodes)))
 
   def getNamespaceId(self):
-    """ namespaceId()
-
-        Counts the namespace IDs in all nodes of this XML and picks the most used
+    """ Counts the namespace IDs in all nodes of this XML and picks the most used
         namespace as the numeric identifier of this data model.
 
         returns: Integer ID of the most propable/most used namespace in this XML
@@ -155,24 +145,18 @@ class preProcessDocument:
       if idDict[entry] > max:
         max = idDict[entry]
         namespaceIdGuessed = entry
-    #logger.debug("XML Contents are propably in namespace " + str(entry) + " (used by " + str(idDict[entry]) + " Nodes)")
     return namespaceIdGuessed
 
   def getReferencedNamespaceUri(self, nsId):
-    """ getReferencedNamespaceUri
-
-        returns an URL that hopefully corresponds to the nsId that was used to reference this model
-
-        return: URI string corresponding to nsId
-    """
+    """ Returns an URL that hopefully corresponds to the nsId that was used to reference this model """
     # Might be the more reliable method: Get the URI from the xmlns attributes (they have numers)
     if len(self.namespaceOrder) > 0:
       for el in self.namespaceOrder:
         if el[0] == nsId:
           return el[1]
 
-    # Fallback:
-    #  Some models do not have xmlns:sX attributes, but still <URI>s (usually when they only reference NS0)
+    # Fallback: Some models do not have xmlns:sX attributes, but still <URI>s
+    # (usually when they only reference NS0)
     if len(self.referencedNamesSpaceUris) > 0  and len(self.referencedNamesSpaceUris) >= nsId-1:
       return self.referencedNamesSpaceUris[nsId-1]
 
@@ -196,9 +180,7 @@ class preProcessDocument:
     os.close(outfile)
 
   def reassignReferencedNamespaceId(self, currentNsId, newNsId):
-    """ reassignReferencedNamespaceId
-
-        Iterates over all references in this document, find references to currentNsId and changes them to newNsId.
+    """ Iterates over all references in this document, find references to currentNsId and changes them to newNsId.
         NodeIds themselves are not altered.
 
         returns: nothing
@@ -210,9 +192,7 @@ class preProcessDocument:
         refNd[0].toString()
 
   def reassignNamespaceId(self, currentNsId, newNsId):
-    """ reassignNamespaceId
-
-        Iterates over all nodes in this document, find those in namespace currentNsId and changes them to newNsId.
+    """ Iterates over all nodes in this document, find those in namespace currentNsId and changes them to newNsId.
 
         returns: nothing
     """
@@ -238,17 +218,11 @@ class preProcessDocument:
         nd[0].toString()
 
 class open62541_XMLPreprocessor:
-  preProcDocuments = []
-
   def __init__(self):
       self.preProcDocuments = []
 
   def addDocument(self, documentPath):
     self.preProcDocuments.append(preProcessDocument(documentPath))
-
-  def removePreprocessedFiles(self):
-    for doc in self.preProcDocuments:
-      doc.clean()
 
   def getPreProcessedFiles(self):
     files = []
@@ -258,9 +232,7 @@ class open62541_XMLPreprocessor:
     return files
 
   def testModelCongruencyAgainstReferences(self, doc, refs):
-    """ testModelCongruencyAgainstReferences
-
-        Counts how many of the nodes referenced in refs can be found in the model
+    """ Counts how many of the nodes referenced in refs can be found in the model
         doc.
 
         returns: double corresponding to the percentage of hits
@@ -368,28 +340,20 @@ class open62541_XMLPreprocessor:
         logger.error("Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d))
 
   def preprocessAll(self):
-    ##
-    ## First: Gather statistics about the namespaces:
+    # Gather statistics about the namespaces:
     for doc in self.preProcDocuments:
       doc.analyze()
 
     # Preprocess step: Remove XML specific Naming scheme ("uax:")
     # FIXME: Not implemented
 
-    ##
-    ## Preprocess step: Check namespace ID multiplicity and reassign IDs if necessary
-    ##
+    # Check namespace ID multiplicity and reassign IDs if necessary
     self.preprocess_assignUniqueNsIds()
     self.preprocess_linkDependantModels()
 
+    # Prep step: prevent any XML from using namespace 1 (reserved for instances)
+    # FIXME: Not implemented
 
-    ##
-    ## Prep step: prevent any XML from using namespace 1 (reserved for instances)
-    ## FIXME: Not implemented
-
-    ##
-    ## Final: Write modified XML tmp files
+    # Final: Write modified XML tmp files
     for doc in self.preProcDocuments:
       doc.finalize()
-
-    return True

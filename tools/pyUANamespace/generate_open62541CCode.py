@@ -17,23 +17,25 @@
 ###
 
 from __future__ import print_function
-from ua_namespace import *
 import logging
 import argparse
+from os.path import basename
+from ua_namespace import *
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
 
-logger = logging.getLogger(__name__)
-
 parser = argparse.ArgumentParser(
-    description="""Parse OPC UA NamespaceXML file(s) and create C code for generating nodes in open62541
+  description="""Parse OPC UA NodeSetXML file(s) and create C code for generating nodes in open62541
 
-generate_open62541CCode.py will first read all XML files passed on the command line, then link and check the namespace. All nodes that fulfill the basic requirements will then be printed as C-Code intended to be included in the open62541 OPC UA Server that will initialize the corresponding namespace.""",
+generate_open62541CCode.py will first read all XML files passed on the command
+line, then link and check the nodeset. All nodes that fulfill the basic
+requirements will then be printed as C-Code intended to be included in the
+open62541 OPC UA Server that will initialize the corresponding nodeset.""",
     formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('infiles',
-                    metavar="<namespaceXML>",
+                    metavar="<nodeSetXML>",
                     nargs='+',
                     type=argparse.FileType('r'),
-                    help='Namespace XML file(s). Note that the last definition of a node encountered will be used and all prior definitions are discarded.')
+                    help='NodeSet XML file(s). Note that the last definition of a node encountered will be used and all prior definitions are discarded.')
 parser.add_argument('outputFile',
                     metavar='<outputFile>',
                     #type=argparse.FileType('w', 0),
@@ -51,7 +53,7 @@ parser.add_argument('-b','--blacklist',
                     action='append',
                     dest="blacklistFiles",
                     default=[],
-                    help='Loads a list of NodeIDs stored in blacklistFile (one NodeID per line). Any of the nodeIds encountered in this file will be removed from the namespace prior to compilation. Any references to these nodes will also be removed')
+                    help='Loads a list of NodeIDs stored in blacklistFile (one NodeID per line). Any of the nodeIds encountered in this file will be removed from the nodeset prior to compilation. Any references to these nodes will also be removed')
 parser.add_argument('-s','--suppress',
                     metavar="<attribute>",
                     action='append',
@@ -67,34 +69,28 @@ parser.add_argument('-v','--verbose', action='count', help='Make the script more
 
 args = parser.parse_args()
 
-level = logging.CRITICAL
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 verbosity = 0
 if args.verbose:
   verbosity = int(args.verbose)
 if (verbosity==1):
-  level = logging.ERROR
+  logging.basicConfig(level=logging.ERROR)
 elif (verbosity==2):
-  level = logging.WARNING
+  logging.basicConfig(level=logging.WARNING)
 elif (verbosity==3):
-  level = logging.INFO
+  logging.basicConfig(level=logging.INFO)
 elif (verbosity>=4):
-  level = logging.DEBUG
-
-logging.basicConfig(level=level)
-logger.setLevel(logging.INFO)
-
-# Creating the header is tendious. We can skip the entire process if
-# the header exists.
-#if path.exists(argv[-1]+".c") or path.exists(argv[-1]+".h"):
-#  log(None, "File " + str(argv[-1]) + " does already exists.", LOG_LEVEL_INFO)
-#  log(None, "Header generation will be skipped. Delete the header and rerun this script if necessary.", LOG_LEVEL_INFO)
-#  exit(0)
+  logging.basicConfig(level=logging.DEBUG)
+else:
+  logging.basicConfig(level=logging.CRITICAL)
 
 # Open the output file
 outfileh = open(args.outputFile+".h", r"w+")
 outfilec = open(args.outputFile+".c", r"w+")
 
-# Create a new namespace. Note that the namespace name is not significant.
+# Create a new nodeset. The nodeset name is not significant.
 ns = opcua_namespace("open62541")
 
 # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
@@ -114,10 +110,7 @@ namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
 for key in namespaceArrayNames:
   ns.addNamespace(key, namespaceArrayNames[key])
 
-# Remove any temp files - they are not needed after the AST is created
-preProc.removePreprocessedFiles()
-
-# Remove blacklisted nodes from the namespace
+# Remove blacklisted nodes from the nodeset
 # Doing this now ensures that unlinkable pointers will be cleanly removed
 # during sanitation.
 for blacklist in args.blacklistFiles:
@@ -130,7 +123,7 @@ for blacklist in args.blacklistFiles:
       ns.removeNodeById(line)
   blacklist.close()
 
-# Link the references in the namespace
+# Link the references in the nodeset
 logger.info("Linking namespace nodes and references")
 ns.linkOpenPointers()
 
@@ -161,7 +154,7 @@ for ignore in args.ignoreFiles:
     line = line.replace(" ","")
     id = line.replace("\n","")
     if ns.getNodeByIDString(id) == None:
-      logger.warn("Can't ignore node, Namespace does currently not contain a node with id " + str(id))
+      logger.warn("Can't ignore node, NodeSet does currently not contain a node with id " + str(id))
     else:
       ignoreNodes.append(ns.getNodeByIDString(id))
   ignore.close()
@@ -169,14 +162,15 @@ for ignore in args.ignoreFiles:
 # Create the C Code
 logger.info("Generating Header")
 # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-from os.path import basename
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile), high_level_api=args.high_level_api)
+generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes,
+                                        outfilename=basename(args.outputFile),
+                                        high_level_api=args.high_level_api)
 for line in generatedCode[0]:
-  outfileh.write(line+"\n")
+  print(line, end='\n', file=outfileh)
 for line in generatedCode[1]:
-  outfilec.write(line+"\n")
+  print(line, end='\n', file=outfilec)
 
 outfilec.close()
 outfileh.close()
 
-logger.info("Namespace generation code successfully printed")
+logger.info("NodeSet generation code successfully printed")
