@@ -18,19 +18,14 @@
 
 from __future__ import print_function
 import sys
-from time import struct_time, strftime, strptime, mktime
 from struct import pack as structpack
-
 from collections import deque
+from time import struct_time, strftime, strptime, mktime
+import logging; logger = logging.getLogger(__name__)
 
-import logging
 from ua_builtin_types import *;
 from ua_node_types import *;
 from ua_constants import *;
-from open62541_MacroHelper import open62541_MacroHelper
-
-
-logger = logging.getLogger(__name__)
 
 def getNextElementNode(xmlvalue):
   if xmlvalue == None:
@@ -361,7 +356,8 @@ class opcua_namespace():
       if referenceLinked == True and targetLinked == True:
         linked.append(l)
 
-    # References marked as "not forward" must be inverted (removed from source node, assigned to target node and relinked)
+    # References marked as "not forward" must be inverted (removed from source
+    # node, assigned to target node and relinked)
     logger.warn("Inverting reference direction for all references with isForward==False attribute (is this correct!?)")
     for n in self.nodes:
       for r in n.getReferences():
@@ -417,7 +413,6 @@ class opcua_namespace():
       if isinstance(n, opcua_node_variable_t):
         n.allocateValue()
 
-
   def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
     # If this is a toplevel call, collect the following information as defaults
     if tdNodes == None:
@@ -440,7 +435,8 @@ class opcua_namespace():
 
     return tdNodes
 
-  def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
+  def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None,
+                        followInverse = False, excludeNodeIds=[]):
     """ Outputs a graphiz/dot description the nodes centered around rootNode.
 
         References beginning from rootNode will be followed for depth steps. If
@@ -543,230 +539,3 @@ class opcua_namespace():
         logger.error("Node graph is circular on the specified references")
         self.nodes = L + [x for x in self.nodes if x not in L]
     return
-
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
-    unPrintedNodes = []
-    unPrintedRefs  = []
-    code = []
-    header = []
-
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies(printedExternally)
-
-    # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
-    # bulky. This class will help to offload some code.
-    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
-
-    # Populate the unPrinted-Lists with everything we have.
-    # Every Time a nodes printfunction is called, it will pop itself and
-    #   all printed references from these lists.
-    for n in self.nodes:
-      if not n in printedExternally:
-        unPrintedNodes.append(n)
-      else:
-        logger.debug("Node " + str(n.id()) + " is being ignored.")
-    for n in unPrintedNodes:
-      for r in n.getReferences():
-        if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
-          unPrintedRefs.append(r)
-
-    logger.debug("%d nodes and %d references need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
-    header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
-    code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
-
-    header.append('#ifndef '+outfilename.upper()+'_H_')
-    header.append('#define '+outfilename.upper()+'_H_')
-    header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append('#include "ua_types.h"')
-    if high_level_api:
-        header.append('#include "ua_job.h"')
-        header.append('#include "ua_server.h"')
-    if not high_level_api:
-        header.append('#include "server/ua_server_internal.h"')
-        header.append('#include "server/ua_nodes.h"')
-        header.append('#include "ua_util.h"')
-        header.append('#include "ua_types_encoding_binary.h"')
-        header.append('#include "ua_types_generated_encoding_binary.h"')
-        header.append('#include "ua_transport_generated_encoding_binary.h"')
-    header.append('#else')
-    header.append('#include "open62541.h"')
-    header.append('#define NULL ((void *)0)')
-    header.append('#endif')
-
-    code.append('#include "'+outfilename+'.h"')
-    code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
-
-    # Before printing nodes, we need to request additional namespace arrays from the server
-    for nsid in self.namespaceIdentifiers:
-      if nsid == 0 or nsid==1:
-        continue
-      else:
-        name =  self.namespaceIdentifiers[nsid]
-        name = name.replace("\"","\\\"")
-        code.append("UA_Server_addNamespace(server, \"" + name + "\");")
-
-    # Find all references necessary to create the namespace and
-    # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
-    # they can locate both source and target of the reference.
-    logger.debug("Collecting all references used in the namespace.")
-    refsUsed = []
-    for n in self.nodes:
-      # Since we are already looping over all nodes, use this chance to print NodeId defines
-      if n.id().ns != 0:
-        nc = n.nodeClass()
-        if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
-          header.append(codegen.getNodeIdDefineString(n))
-
-      # Now for the actual references...
-      for r in n.getReferences():
-        # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
-        if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
-          refsUsed.append(r.referenceType())
-    logger.debug("%d reference types are used in the namespace, which will now get bootstrapped.", len(refsUsed))
-    for r in refsUsed:
-      code.extend(r.printOpen62541CCode(unPrintedNodes, unPrintedRefs))
-
-    logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
-
-    if not high_level_api:
-        # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
-        #               Nodes remove themselves from this list when printed.
-        logger.debug("Printing all other nodes.")
-        for n in self.nodes:
-          code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
-
-        if len(unPrintedNodes) != 0:
-          logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
-        else:
-          logger.debug("Printing suceeded for all nodes")
-
-        if len(unPrintedRefs) != 0:
-          logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
-          tmprefs = []
-          for r in unPrintedRefs:
-            if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
-              if not isinstance(r.parent(), opcua_node_t):
-                logger.debug("Reference has no parent!")
-              elif not isinstance(r.parent().id(), opcua_node_id_t):
-                logger.debug("Parents nodeid is not a nodeID!")
-              else:
-                if (len(tmprefs) == 0):
-                  code.append("//  Creating leftover references:")
-                code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
-                code.append("")
-                tmprefs.append(r)
-          # Remove printed refs from list
-          for r in tmprefs:
-            unPrintedRefs.remove(r)
-          if len(unPrintedRefs) != 0:
-            logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
-        else:
-          logger.debug("Printing succeeded for all references")
-    else:  # Using only High Level API
-        already_printed = list(printedExternally)
-        while unPrintedNodes:
-            node_found = False
-            for node in unPrintedNodes:
-                for ref in node.getReferences():
-                    if ref.referenceType() in already_printed and ref.target() in already_printed:
-                        node_found = True
-                        code.extend(node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute))
-                        unPrintedRefs.remove(ref)
-                        unPrintedNodes.remove(node)
-                        already_printed.append(node)
-                        break
-            if not node_found:
-                logger.critical("no complete code generation with high level API possible; not all nodes will be created")
-                code.append("CRITICAL: no complete code generation with high level API possible; not all nodes will be created")
-                break
-        code.append("// creating references")
-        for r in unPrintedRefs:
-            code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
-
-    # finalizing source and header
-    header.append("extern void "+outfilename+"(UA_Server *server);\n")
-    header.append("#endif /* "+outfilename.upper()+"_H_ */")
-    code.append("} // closing nodeset()")
-    return (header,code)
-
-###
-### Testing
-###
-
-class testing:
-  def __init__(self):
-    self.namespace = opcua_namespace("testing")
-
-    logger.debug("Phase 1: Reading XML file nodessets")
-    self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
-    #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
-
-    logger.debug("Phase 2: Linking address space references and datatypes")
-    self.namespace.linkOpenPointers()
-    self.namespace.sanitize()
-
-    logger.debug("Phase 3: Comprehending DataType encoding rules")
-    self.namespace.buildEncodingRules()
-
-    logger.debug("Phase 4: Allocating variable value data")
-    self.namespace.allocateVariables()
-
-    bin = self.namespace.buildBinary()
-    f = open("binary.base64","w+")
-    f.write(bin.encode("base64"))
-    f.close()
-
-    allnodes = self.namespace.nodes;
-    ns = [self.namespace.getRoot()]
-
-    i = 0
-    #print "Starting depth search on " + str(len(allnodes)) + " nodes starting with from " + str(ns)
-    while (len(ns) < len(allnodes)):
-      i = i + 1;
-      tmp = [];
-      print("Iteration: " + str(i))
-      for n in ns:
-        tmp.append(n)
-        for r in n.getReferences():
-          if (not r.target() in tmp):
-           tmp.append(r.target())
-      print("...tmp, " + str(len(tmp)) + " nodes discovered")
-      ns = []
-      for n in tmp:
-        ns.append(n)
-      print("...done, " + str(len(ns)) + " nodes discovered")
-
-
-class testing_open62541_header:
-  def __init__(self):
-    self.namespace = opcua_namespace("testing")
-
-    logger.debug("Phase 1: Reading XML file nodessets")
-    self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
-    #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
-    #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
-
-    logger.debug("Phase 2: Linking address space references and datatypes")
-    self.namespace.linkOpenPointers()
-    self.namespace.sanitize()
-
-    logger.debug("Phase 3: Calling C Printers")
-    code = self.namespace.printOpen62541Header()
-
-    codeout = open("./open62541_namespace.c", "w+")
-    for line in code:
-      codeout.write(line + "\n")
-    codeout.close()
-    return
-
-# Call testing routine if invoked standalone.
-# For better debugging, it is advised to import this file using an interactive
-# python shell and instantiating a namespace.
-#
-# import ua_types.py as ua; ns=ua.testing().namespace
-if __name__ == '__main__':
-  tst = testing_open62541_header()

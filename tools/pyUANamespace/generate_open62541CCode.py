@@ -22,6 +22,7 @@ import argparse
 from os.path import basename
 from ua_namespace import *
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
+from open62541_backend import generateCCode
 
 parser = argparse.ArgumentParser(
   description="""Parse OPC UA NodeSetXML file(s) and create C code for generating nodes in open62541
@@ -159,15 +160,14 @@ for ignore in args.ignoreFiles:
       ignoreNodes.append(ns.getNodeByIDString(id))
   ignore.close()
 
-# Create the C Code
-logger.info("Generating Header")
-# Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes,
-                                        outfilename=basename(args.outputFile),
-                                        high_level_api=args.high_level_api)
-for line in generatedCode[0]:
+# Create the C code with the open62541 backend of the compiler
+logger.info("Generating Code")
+(header, code) = generateCCode(ns, ignoreNodes, args.suppressedAttributes,
+                               outfilename=basename(args.outputFile),
+                               high_level_api=args.high_level_api)
+for line in header:
   print(line, end='\n', file=outfileh)
-for line in generatedCode[1]:
+for line in code:
   print(line, end='\n', file=outfilec)
 
 outfilec.close()
