@@ -33,9 +33,9 @@ class open62541_MacroHelper():
 
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
+      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (str(node.id().ns),str(node.id().i))
     elif node.id().s != None:
-      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
+      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (str(node.id().ns), node.id().s)
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -82,8 +82,8 @@ class open62541_MacroHelper():
       symbolic_name = symbolic_name+"_"+str(extendedN)
 
     defined_typealiases.append(symbolic_name)
-    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
 
+    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
       return "UA_NODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
@@ -103,6 +103,8 @@ class open62541_MacroHelper():
 
     if reference.isForward():
       code.append("UA_Server_addReference(server, %s, %s, %s, true);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
+    else:
+      code.append("UA_Server_addReference(server, %s, %s, %s, false);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
     return code
 
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes=[]):
@@ -229,7 +231,7 @@ class open62541_MacroHelper():
     else:
       code.append("       , attr, (UA_MethodCallback) NULL, NULL, %s, inputArguments,  %s, outputArguments, NULL);" % (str(len(inArgVal)), str(len(outArgVal))))
 
-    #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since
+    #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since 
     #a real Reference will be add in a later step (a single HasTypeDefinition reference is assumed here)
     #The current API does not let us specify IDs of Object's subelements.
     if nodetype is "Object":

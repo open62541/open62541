@@ -21,6 +21,8 @@ import sys
 from time import struct_time, strftime, strptime, mktime
 from struct import pack as structpack
 
+from collections import deque
+
 import logging
 from ua_builtin_types import *;
 from ua_node_types import *;
@@ -438,11 +440,119 @@ class opcua_namespace():
 
     return tdNodes
 
+  def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
+    """ Outputs a graphiz/dot description the nodes centered around rootNode.
+
+        References beginning from rootNode will be followed for depth steps. If
+        "followInverse = True" is passed, then inverse (not Forward) references
+        will also be followed.
+
+        Nodes can be excluded from the graph by passing a list of NodeIds as
+        string representation using excludeNodeIds (ex ["i=53", "ns=2;i=453"]).
+
+        Output is written into filename to be parsed by dot/neato/srfp...
+    """
+    iter = depth
+    processed = []
+    if rootNode == None or \
+       not isinstance(rootNode, opcua_node_t) or \
+       not rootNode in self.nodes:
+      root = self.getRoot()
+    else:
+      root = rootNode
+
+    file=open(filename, 'w+')
+
+    if root == None:
+      return
+
+    file.write("digraph ns {\n")
+    file.write(root.printDot())
+    refs=[]
+    if followInverse == True:
+      refs = root.getReferences(); # + root.getInverseReferences()
+    else:
+      for ref in root.getReferences():
+        if ref.isForward():
+          refs.append(ref)
+    while iter > 0:
+      tmp = []
+      for ref in refs:
+        if isinstance(ref.target(), opcua_node_t):
+          tgt = ref.target()
+          if not str(tgt.id()) in excludeNodeIds:
+            if not tgt in processed:
+              file.write(tgt.printDot())
+              processed.append(tgt)
+              if ref.isForward() == False and followInverse == True:
+                tmp = tmp + tgt.getReferences(); # + tgt.getInverseReferences()
+              elif ref.isForward() == True :
+                tmp = tmp + tgt.getReferences();
+      refs = tmp
+      iter = iter - 1
+
+    file.write("}\n")
+    file.close()
+
+  def getSubTypesOf2(self, node):
+    re = [node]
+    for ref in node.getReferences(): 
+      if isinstance(ref.target(), opcua_node_t):
+        if ref.referenceType().displayName() == "HasSubtype" and ref.isForward():
+          re = re + self.getSubTypesOf2(ref.target())
+    return re
+
+  def reorderNodesMinDependencies(self, printedExternally):
+    #Kahn's algorithm
+    #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
+    
+    relevant_types = ["HierarchicalReferences", "HasComponent"]
+    
+    temp = []
+    for t in relevant_types:
+        temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
+    relevant_types = temp
+
+    in_degree = { u : 0 for u in self.nodes }     # determine in-degree
+    for u in self.nodes: # of each node
+      if u not in printedExternally:
+        for ref in u.getReferences():
+         if isinstance(ref.target(), opcua_node_t):
+           if(ref.referenceType() in relevant_types and ref.isForward()):
+             in_degree[ref.target()] += 1
+    
+    Q = deque()                 # collect nodes with zero in-degree
+    for u in in_degree:
+      if in_degree[u] == 0:
+        Q.appendleft(u)
+ 
+    L = []     # list for order of nodes
+    
+    while Q:
+      u = Q.pop()          # choose node of zero in-degree
+      L.append(u)          # and 'remove' it from graph
+      for ref in u.getReferences():
+       if isinstance(ref.target(), opcua_node_t):
+         if(ref.referenceType() in relevant_types and ref.isForward()):
+           in_degree[ref.target()] -= 1
+           if in_degree[ref.target()] == 0:
+             Q.appendleft(ref.target())
+    if len(L) == len(self.nodes):
+        self.nodes = L
+    else:                    # if there is a cycle,  
+        logger.error("Node graph is circular on the specified references")
+        self.nodes = L + [x for x in self.nodes if x not in L]
+    return
+
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
+
+    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
+    logger.debug("Reordering nodes for minimal dependencies during printing.")
+    self.reorderNodesMinDependencies(printedExternally)
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
