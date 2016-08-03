@@ -59,7 +59,10 @@ parser.add_argument('-s','--suppress',
                     choices=['description', 'browseName', 'displayName', 'writeMask', 'userWriteMask','nodeid'],
                     default=[],
                     help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
-
+parser.add_argument('--high-level-api',
+                    action='store_true', default=False,
+                    dest='high_level_api',
+                    help="Use only high level API which makes it possible to add nodes in userspace")
 parser.add_argument('-v','--verbose', action='count', help='Make the script more verbose. Can be applied up to 4 times')
 
 args = parser.parse_args()
@@ -167,7 +170,7 @@ for ignore in args.ignoreFiles:
 logger.info("Generating Header")
 # Returns a tuple of (["Header","lines"],["Code","lines","generated"])
 from os.path import basename
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
+generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile), high_level_api=args.high_level_api)
 for line in generatedCode[0]:
   outfileh.write(line+"\n")
 for line in generatedCode[1]:

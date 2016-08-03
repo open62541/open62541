@@ -135,31 +135,13 @@ class opcua_namespace():
   def getNodeByBrowseName(self, idstring):
     """ Returns the first node in the nodelist whose browseName matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.browseName()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.browseName())), None)
 
   def getNodeByIDString(self, idstring):
     """ Returns the first node in the nodelist whose id string representation
         matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.id()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.id())), None)
 
   def createNode(self, ndtype, xmlelement):
     """ createNode is instantiates a node described by xmlelement, its type being
@@ -433,22 +415,6 @@ class opcua_namespace():
       if isinstance(n, opcua_node_variable_t):
         n.allocateValue()
 
-  def printDot(self, filename="namespace.dot"):
-    """ Outputs a graphiz/dot description of all nodes in the namespace.
-
-        Output will written into filename to be parsed by dot/neato...
-
-        Note that for namespaces with more then 20 nodes the reference structure
-        will lead to a mostly illegible and huge graph. Use printDotGraphWalk()
-        for plotting specific portions of a large namespace.
-    """
-    file=open(filename, 'w+')
-
-    file.write("digraph ns {\n")
-    for n in self.nodes:
-      file.write(n.printDot())
-    file.write("}\n")
-    file.close()
 
   def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
     # If this is a toplevel call, collect the following information as defaults
@@ -472,151 +438,11 @@ class opcua_namespace():
 
     return tdNodes
 
-
-  def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
-    """ Outputs a graphiz/dot description the nodes centered around rootNode.
-
-        References beginning from rootNode will be followed for depth steps. If
-        "followInverse = True" is passed, then inverse (not Forward) references
-        will also be followed.
-
-        Nodes can be excluded from the graph by passing a list of NodeIds as
-        string representation using excludeNodeIds (ex ["i=53", "ns=2;i=453"]).
-
-        Output is written into filename to be parsed by dot/neato/srfp...
-    """
-    iter = depth
-    processed = []
-    if rootNode == None or \
-       not isinstance(rootNode, opcua_node_t) or \
-       not rootNode in self.nodes:
-      root = self.getRoot()
-    else:
-      root = rootNode
-
-    file=open(filename, 'w+')
-
-    if root == None:
-      return
-
-    file.write("digraph ns {\n")
-    file.write(root.printDot())
-    refs=[]
-    if followInverse == True:
-      refs = root.getReferences(); # + root.getInverseReferences()
-    else:
-      for ref in root.getReferences():
-        if ref.isForward():
-          refs.append(ref)
-    while iter > 0:
-      tmp = []
-      for ref in refs:
-        if isinstance(ref.target(), opcua_node_t):
-          tgt = ref.target()
-          if not str(tgt.id()) in excludeNodeIds:
-            if not tgt in processed:
-              file.write(tgt.printDot())
-              processed.append(tgt)
-              if ref.isForward() == False and followInverse == True:
-                tmp = tmp + tgt.getReferences(); # + tgt.getInverseReferences()
-              elif ref.isForward() == True :
-                tmp = tmp + tgt.getReferences();
-      refs = tmp
-      iter = iter - 1
-
-    file.write("}\n")
-    file.close()
-
-  def __reorder_getMinWeightNode__(self, nmatrix):
-    rcind = -1
-    rind = -1
-    minweight = -1
-    minweightnd = None
-    for row in nmatrix:
-      rcind += 1
-      if row[0] == None:
-        continue
-      w = sum(row[1:])
-      if minweight < 0:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-      elif w < minweight:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-    return (rind, minweightnd, minweight)
-
-  def reorderNodesMinDependencies(self):
-    # create a matrix represtantion of all node
-    #
-    nmatrix = []
-    for n in range(0,len(self.nodes)):
-      nmatrix.append([None] + [0]*len(self.nodes))
-
-    typeRefs = []
-    tn = self.getNodeByBrowseName("HasTypeDefinition")
-    if tn != None:
-      typeRefs.append(tn)
-      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
-    subTypeRefs = []
-    tn = self.getNodeByBrowseName("HasSubtype")
-    if tn  != None:
-      subTypeRefs.append(tn)
-      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
-
-    logger.debug("Building connectivity matrix for node order optimization.")
-    # Set column 0 to contain the node
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      nmatrix[nind][0] = node
-
-    # Determine the dependencies of all nodes
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      #print "Examining node " + str(nind) + " " + str(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          # Typedefinition of this node has precedence over this node
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # isSubTypeOf/typeDefinition of this node has precedence over this node
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # Else the target depends on us
-          elif ref.isForward():
-            nmatrix[tind][nind+1] += 1
-
-    logger.debug("Using Djikstra topological sorting to determine printing order.")
-    reorder = []
-    while len(reorder) < len(self.nodes):
-      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
-      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
-      reorder.append(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.isForward():
-            nmatrix[tind][nind+1] -= 1
-      nmatrix[nind][0] = None
-    self.nodes = reorder
-    logger.debug("Nodes reordered.")
-    return
-
-  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
+  def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename="", high_level_api=False):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-
-    # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
@@ -635,20 +461,24 @@ class opcua_namespace():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)
 
-    logger.debug(str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.")
+    logger.debug("%d nodes and %d references need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append('#include "server/ua_server_internal.h"')
-    header.append('#include "server/ua_nodes.h"')
-    header.append('#include "ua_util.h"')
     header.append('#include "ua_types.h"')
-    header.append('#include "ua_types_encoding_binary.h"')
-    header.append('#include "ua_types_generated_encoding_binary.h"')
-    header.append('#include "ua_transport_generated_encoding_binary.h"')
+    if high_level_api:
+        header.append('#include "ua_job.h"')
+        header.append('#include "ua_server.h"')
+    if not high_level_api:
+        header.append('#include "server/ua_server_internal.h"')
+        header.append('#include "server/ua_nodes.h"')
+        header.append('#include "ua_util.h"')
+        header.append('#include "ua_types_encoding_binary.h"')
+        header.append('#include "ua_types_generated_encoding_binary.h"')
+        header.append('#include "ua_transport_generated_encoding_binary.h"')
     header.append('#else')
     header.append('#include "open62541.h"')
     header.append('#define NULL ((void *)0)')
@@ -676,55 +506,78 @@ class opcua_namespace():
       if n.id().ns != 0:
         nc = n.nodeClass()
         if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
-          header = header + codegen.getNodeIdDefineString(n)
+          header.append(codegen.getNodeIdDefineString(n))
 
       # Now for the actual references...
       for r in n.getReferences():
         # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
-    logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
+    logger.debug("%d reference types are used in the namespace, which will now get bootstrapped.", len(refsUsed))
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
+      code.extend(r.printOpen62541CCode(unPrintedNodes, unPrintedRefs))
 
+    logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
+
+    if not high_level_api:
+        # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
+        #               Nodes remove themselves from this list when printed.
+        logger.debug("Printing all other nodes.")
+        for n in self.nodes:
+          code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
+
+        if len(unPrintedNodes) != 0:
+          logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
+        else:
+          logger.debug("Printing suceeded for all nodes")
+
+        if len(unPrintedRefs) != 0:
+          logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
+          tmprefs = []
+          for r in unPrintedRefs:
+            if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
+              if not isinstance(r.parent(), opcua_node_t):
+                logger.debug("Reference has no parent!")
+              elif not isinstance(r.parent().id(), opcua_node_id_t):
+                logger.debug("Parents nodeid is not a nodeID!")
+              else:
+                if (len(tmprefs) == 0):
+                  code.append("//  Creating leftover references:")
+                code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
+                code.append("")
+                tmprefs.append(r)
+          # Remove printed refs from list
+          for r in tmprefs:
+            unPrintedRefs.remove(r)
+          if len(unPrintedRefs) != 0:
+            logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
+        else:
+          logger.debug("Printing succeeded for all references")
+    else:  # Using only High Level API
+        already_printed = list(printedExternally)
+        while unPrintedNodes:
+            node_found = False
+            for node in unPrintedNodes:
+                for ref in node.getReferences():
+                    if ref.referenceType() in already_printed and ref.target() in already_printed:
+                        node_found = True
+                        code.extend(node.printOpen62541CCode_HL_API(ref, supressGenerationOfAttribute))
+                        unPrintedRefs.remove(ref)
+                        unPrintedNodes.remove(node)
+                        already_printed.append(node)
+                        break
+            if not node_found:
+                logger.critical("no complete code generation with high level API possible; not all nodes will be created")
+                code.append("CRITICAL: no complete code generation with high level API possible; not all nodes will be created")
+                break
+        code.append("// creating references")
+        for r in unPrintedRefs:
+            code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
+
+    # finalizing source and header
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")
-
-    # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
-    #               Nodes remove themselves from this list when printed.
-    logger.debug("Printing all other nodes.")
-    for n in self.nodes:
-      code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
-
-    if len(unPrintedNodes) != 0:
-      logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
-    else:
-      logger.debug("Printing suceeded for all nodes")
-
-    if len(unPrintedRefs) != 0:
-      logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
-      tmprefs = []
-      for r in unPrintedRefs:
-        if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
-          if not isinstance(r.parent(), opcua_node_t):
-            logger.debug("Reference has no parent!")
-          elif not isinstance(r.parent().id(), opcua_node_id_t):
-            logger.debug("Parents nodeid is not a nodeID!")
-          else:
-            if (len(tmprefs) == 0):
-              code.append("//  Creating leftover references:")
-            code = code + codegen.getCreateStandaloneReference(r.parent(), r)
-            code.append("")
-            tmprefs.append(r)
-      # Remove printed refs from list
-      for r in tmprefs:
-        unPrintedRefs.remove(r)
-      if len(unPrintedRefs) != 0:
-        logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
-    else:
-      logger.debug("Printing succeeded for all references")
-
-    code.append("}")
+    code.append("} // closing nodeset()")
     return (header,code)
 
 ###
@@ -776,9 +629,6 @@ class testing:
         ns.append(n)
       print("...done, " + str(len(ns)) + " nodes discovered")
 
-    logger.debug("Phase 5: Printing pretty graph")
-    self.namespace.printDotGraphWalk(depth=1, rootNode=self.namespace.getNodeByIDString("i=84"), followInverse=False, excludeNodeIds=["i=29", "i=22", "i=25"])
-    #self.namespace.printDot()
 
 class testing_open62541_header:
   def __init__(self):

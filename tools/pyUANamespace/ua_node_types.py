@@ -651,6 +651,31 @@ class opcua_node_t:
     """
     return []
 
+  def printOpen62541CCode_HL_API(self, reference, supressGenerationOfAttribute=[]):
+    """ printOpen62541CCode_HL_API
+
+        Returns a list of strings containing the C-code necessary to intialize
+        this node for the open62541 OPC-UA Stack using only the high level API
+
+        Note that this function will fail if the nodeid is non-numeric, as
+        there is no UA_EXPANDEDNNODEID_[STRING|GUID|BYTESTRING] macro.
+    """
+    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
+    code = []
+    code.append("")
+    code.append("do {")
+    # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
+    # Note: getFirstParentNode will return [parentNode, referenceToChild]
+    parentNode = reference.target()
+    parentRefType = reference.referenceType()
+    code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
+                  str(parentNode .__node_browseName__) + " using " + str(parentRefType.id()) +
+                  "/" + str(parentRefType.__node_browseName__))
+    code.extend(codegen.getCreateNodeNoBootstrap(self, parentNode, reference))
+    code.append("} while(0);")
+    return code
+
+
   def printOpen62541CCode(self, unPrintedNodes=[], unPrintedReferences=[], supressGenerationOfAttribute=[]):
     """ printOpen62541CCode
 
@@ -677,7 +702,7 @@ class opcua_node_t:
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
                   "/" + str(parentRef.referenceType().__node_browseName__))
-      code = code + codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef, unPrintedNodes)
+      code.extend(codegen.getCreateNodeNoBootstrap(self, parentNode, parentRef, unPrintedNodes))
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
@@ -689,9 +714,9 @@ class opcua_node_t:
             unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
     else:
-      code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)
-      code = code + codegen.getCreateNodeBootstrap(self)
-      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
+      code.extend(self.printOpen62541CCode_SubtypeEarly(bootstrapping = True))
+      code.extend(codegen.getCreateNodeBootstrap(self))
+      code.extend(self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True))
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
       code.append("UA_RCU_LOCK();")
       code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ");")
@@ -707,7 +732,7 @@ class opcua_node_t:
         if r in unPrintedReferences:
           if (len(tmprefs) == 0):
             code.append("// This node has the following references that can be created:")
-          code = code + codegen.getCreateStandaloneReference(self, r)
+          code.extend(codegen.getCreateStandaloneReference(self, r))
           tmprefs.append(r)
     # Remove printed refs from list
     for r in tmprefs:
@@ -726,7 +751,7 @@ class opcua_node_t:
         else:
           if (len(tmprefs) == 0):
             code.append("//  Creating this node has resolved the following open references:")
-          code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+          code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
           tmprefs.append(r)
     # Remove printed refs from list
     for r in tmprefs:
@@ -1077,7 +1102,7 @@ class opcua_node_variable_t(opcua_node_t):
       # determined a valid encoding
       if self.dataType().target().isEncodable():
         if self.value() != None:
-          code = code + self.value().printOpen62541CCode(bootstrapping)
+          code.extend(self.value().printOpen62541CCode(bootstrapping))
           return code
     if(bootstrapping):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
@@ -1334,7 +1359,7 @@ class opcua_node_variableType_t(opcua_node_t):
       # determined a valid encoding
       if self.dataType().target().isEncodable():
         if self.value() != None:
-          code = code + self.value().printOpen62541CCode(bootstrapping)
+          code.extend(self.value().printOpen62541CCode(bootstrapping))
           return code
     if(bootstrapping):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
