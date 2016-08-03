@@ -185,11 +185,9 @@ class preProcessDocument:
     os.close(outfile)
 
   def reassignReferencedNamespaceId(self, currentNsId, newNsId):
-    """ Iterates over all references in this document, find references to currentNsId and changes them to newNsId.
-        NodeIds themselves are not altered.
-
-        returns: nothing
-    """
+    """Iterates over all references in this document, find references to
+       currentNsId and changes them to newNsId. NodeIds themselves are not
+       altered."""
     for refNd in self.referencedNodes:
       if refNd[0].ns == currentNsId:
         refNd[1].firstChild.data = refNd[1].firstChild.data.replace("ns="+str(currentNsId), "ns="+str(newNsId))
@@ -197,10 +195,8 @@ class preProcessDocument:
         refNd[0].toString()
 
   def reassignNamespaceId(self, currentNsId, newNsId):
-    """ Iterates over all nodes in this document, find those in namespace currentNsId and changes them to newNsId.
-
-        returns: nothing
-    """
+    """Iterates over all nodes in this document, find those in namespace
+       currentNsId and changes them to newNsId."""
 
     #change ids in aliases
     ns = self.nodeset.getElementsByTagName("Alias")
@@ -218,7 +214,8 @@ class preProcessDocument:
             refNd[1].firstChild.data = refNd[1].firstChild.data.replace("ns="+str(currentNsId), "ns="+str(newNsId))
             refNd[0].ns = newNsId
             refNd[0].toString()
-        nd[1].setAttribute(u'NodeId', nd[1].getAttribute(u'NodeId').replace("ns="+str(currentNsId), "ns="+str(newNsId)))
+        nd[1].setAttribute(u'NodeId', nd[1].getAttribute(u'NodeId').replace("ns="+str(currentNsId),
+                                                                            "ns="+str(newNsId)))
         nd[0].ns = newNsId
         nd[0].toString()
 

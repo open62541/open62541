@@ -24,8 +24,9 @@ from __future__ import print_function
 import logging
 import argparse
 from os.path import basename
-from ua_namespace import *
+from ua_nodeset import *
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
+from open62541_backend import generateCCode
 
 parser = argparse.ArgumentParser(
   description="""Parse OPC UA NodeSetXML file(s) and create C code for generating nodes in open62541
@@ -95,7 +96,7 @@ outfileh = open(args.outputFile+".h", r"w+")
 outfilec = open(args.outputFile+".c", r"w+")
 
 # Create a new nodeset. The nodeset name is not significant.
-ns = opcua_namespace("open62541")
+ns = NodeSet("open62541")
 
 # Clean up the XML files by removing duplicate namespaces and unwanted prefixes
 preProc = open62541_XMLPreprocessor()
@@ -163,14 +164,13 @@ for ignore in args.ignoreFiles:
       ignoreNodes.append(ns.getNodeByIDString(id))
   ignore.close()
 
-# Create the C Code
-logger.info("Generating Header")
-# Returns a tuple of (["Header","lines"],["Code","lines","generated"])
-
-generatedCode = ns.printOpen62541Header(ignoreNodes, args.suppressedAttributes, outfilename=basename(args.outputFile))
-for line in generatedCode[0]:
+# Create the C code with the open62541 backend of the compiler
+logger.info("Generating Code")
+(header, code) = generateCCode( ns,ignoreNodes, args.suppressedAttributes,
+                                        outfilename=basename(args.outputFile))
+for line in header:
   print(line, end='\n', file=outfileh)
-for line in generatedCode[1]:
+for line in code:
   print(line, end='\n', file=outfilec)
 
 outfilec.close()
