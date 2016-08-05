@@ -20,7 +20,7 @@ from __future__ import print_function
 import logging
 import argparse
 from os.path import basename
-from ua_nodeset import *
+from nodeset import *
 from open62541_XMLPreprocessor import open62541_XMLPreprocessor
 from open62541_backend import generateCCode
 
@@ -94,22 +94,16 @@ outfilec = open(args.outputFile+".c", r"w+")
 # Create a new nodeset. The nodeset name is not significant.
 ns = NodeSet("open62541")
 
-# Clean up the XML files by removing duplicate namespaces and unwanted prefixes
+# Parse the XML files
 preProc = open62541_XMLPreprocessor()
 for xmlfile in args.infiles:
   logger.info("Preprocessing " + str(xmlfile.name))
-  preProc.addDocument(xmlfile.name)
-preProc.preprocessAll()
+  ns.addNodeSet(xmlfile)
 
-# Parse the XML files
-for xmlfile in preProc.getPreProcessedFiles():
-  logger.info("Parsing " + str(xmlfile))
-  ns.parseXML(xmlfile)
-
-# We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
-namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
-for key in namespaceArrayNames:
-  ns.addNamespace(key, namespaceArrayNames[key])
+# # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
+# namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
+# for key in namespaceArrayNames:
+#   ns.addNamespace(key, namespaceArrayNames[key])
 
 # Remove blacklisted nodes from the nodeset
 # Doing this now ensures that unlinkable pointers will be cleanly removed
@@ -123,10 +117,6 @@ for blacklist in args.blacklistFiles:
     else:
       ns.removeNodeById(line)
   blacklist.close()
-
-# Link the references in the nodeset
-logger.info("Linking namespace nodes and references")
-ns.linkOpenPointers()
 
 # Remove nodes that are not printable or contain parsing errors, such as
 # unresolvable or no references or invalid NodeIDs

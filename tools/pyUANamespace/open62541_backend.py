@@ -19,7 +19,7 @@
 import string
 import logging; logger = logging.getLogger(__name__)
 
-from ua_constants import *
+from constants import *
 from open62541_backend_nodes import Node_printOpen62541CCode, getCreateStandaloneReference
 
 ####################
@@ -36,7 +36,7 @@ def substitutePunctuationCharacters(input):
 
 defined_typealiases = []
 def getNodeIdDefineString(node):
-    extrNs = node.browseName().split(":")
+    extrNs = node.browseName.split(":")
     symbolic_name = ""
     # strip all characters that would be illegal in C-Code
     if len(extrNs) > 1:
@@ -56,7 +56,7 @@ def getNodeIdDefineString(node):
         extendedN+=1
       symbolic_name = symbolic_name+"_"+str(extendedN)
     defined_typealiases.append(symbolic_name)
-    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
+    return "#define UA_NS%sID_%s %s" % (node.id.ns, symbolic_name.upper(), node.id.i)
 
 ###################
 # Generate C Code #
@@ -82,10 +82,10 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
       else:
         logger.debug("Node " + str(n.id()) + " is being ignored.")
     for n in unPrintedNodes:
-      for r in n.getReferences():
-        if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
-          unPrintedRefs.append(r)
-    logger.debug("%d nodes and %d references need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
+      for r in n.references:
+        unPrintedRefs.append(r)
+    logger.debug("%d nodes and %d references need to get printed.",
+                 len(unPrintedNodes), len(unPrintedRefs))
 
     # Print the preamble of the generated code
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
@@ -113,12 +113,8 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
 
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in nodeset.namespaceIdentifiers:
-      if nsid == 0 or nsid==1:
-        continue
-      else:
-        name =  nodeset.namespaceIdentifiers[nsid]
-        name = name.replace("\"","\\\"")
-        code.append("UA_Server_addNamespace(server, \"" + name + "\");")
+      nsid = nsid.replace("\"","\\\"")
+      code.append("UA_Server_addNsidspace(server, \"" + nsid + "\");")
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
@@ -127,16 +123,17 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
     refsUsed = []
     for n in nodeset.nodes:
       # Since we are already looping over all nodes, use this chance to print NodeId defines
-      if n.id().ns != 0:
-        nc = n.nodeClass()
+      if n.id.ns != 0:
+        nc = n.nodeClass
         if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
           header.append(getNodeIdDefineString(n))
 
       # Now for the actual references...
-      for r in n.getReferences():
+      for r in n.references:
         # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
-        if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
-          refsUsed.append(r.referenceType())
+        if not r.referenceType in refsUsed and r.referenceType != None and \
+           r.referenceType.ns == 0:
+          refsUsed.append(r.referenceType)
     logger.debug("%d reference types are used in the namespace, which will now get bootstrapped.", len(refsUsed))
     for r in refsUsed:
       code.extend(Node_printOpen62541CCode(r, unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute))
@@ -182,8 +179,8 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
         while unPrintedNodes:
             node_found = False
             for node in unPrintedNodes:
-                for ref in node.getReferences():
-                    if ref.referenceType() in already_printed and ref.target() in already_printed:
+                for ref in node.references:
+                    if ref.referenceType in already_printed and ref.target in already_printed:
                         node_found = True
                         code.extend(Node_printOpen62541CCode_HL_API(node, ref, supressGenerationOfAttribute))
                         unPrintedRefs.remove(ref)
@@ -196,7 +193,7 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
                 break
         code.append("// creating references")
         for r in unPrintedRefs:
-            code.extend(getCreateStandaloneReference(r.parent(), r))
+            code.extend(getCreateStandaloneReference(r))
 
     # finalizing source and header
     header.append("extern void "+outfilename+"(UA_Server *server);\n")

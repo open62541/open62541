@@ -16,50 +16,70 @@
 ### this program.
 ###
 
-from ua_node_types import *
+from nodes import *
 
 ####################
 # Helper Functions #
 ####################
 
-def getCreateNodeIDMacro(node):
-    if node.id().i != None:
-      return "UA_NODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
-    elif node.id().s != None:
-      return "UA_NODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
-    elif node.id().b != None:
+def getCodePrintableNodeID(self):
+    CodePrintable="NODE_"
+
+    if isinstance(self.id, NodeId):
+      CodePrintable = self.__class__.__name__ + "_" +  str(self.id)
+    else:
+      CodePrintable = self.__class__.__name__ + "_unknown_nid"
+
+    CodePrintable = CodePrintable.lower()
+    cleanPrintable = ""
+    for i in range(0,len(CodePrintable)):
+      if not CodePrintable[i] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_".lower():
+        cleanPrintable = cleanPrintable + "_"
+      else:
+        cleanPrintable = cleanPrintable + CodePrintable[i]
+    return cleanPrintable
+
+def getCreateNodeIDMacro(nodeid):
+    if nodeid.i != None:
+      return "UA_NODEID_NUMERIC(%s, %s)" % (nodeid.ns, nodeid.i)
+    elif nodeid.s != None:
+      return "UA_NODEID_STRING(%s, %s)" % (nodeid.ns, nodeid.s)
+    elif nodeid.b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
-    elif node.id().g != None:
+    elif nodeid.g != None:
       logger.debug("NodeID Generation macro for guids has not been implemented.")
       return ""
     else:
       return ""
 
-def getCreateExpandedNodeIDMacro(node):
-    if node.id().i != None:
-      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (str(node.id().ns),str(node.id().i))
-    elif node.id().s != None:
-      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (str(node.id().ns), node.id().s)
-    elif node.id().b != None:
+def getCreateExpandedNodeIDMacro(nodeid):
+    print(nodeid)
+    if nodeid.i != None:
+      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (str(nodeid.ns),str(nodeid.i))
+    elif nodeid.s != None:
+      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (str(nodeid.ns), nodeid.s)
+    elif nodeid.b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
-    elif node.id().g != None:
+    elif nodeid.g != None:
       logger.debug("NodeID Generation macro for guids has not been implemented.")
       return ""
     else:
       return ""
 
-def getCreateStandaloneReference(sourcenode, reference):
+def getCreateStandaloneReference(reference):
     code = []
-    if reference.isForward():
+    if reference.isForward:
       code.append("UA_Server_addReference(server, %s, %s, %s, true);" % \
-                  (getCreateNodeIDMacro(sourcenode), getCreateNodeIDMacro(reference.referenceType()), \
-                   getCreateExpandedNodeIDMacro(reference.target())))
+                  (getCreateNodeIDMacro(reference.source), \
+                   getCreateNodeIDMacro(reference.referenceType), \
+                   getCreateExpandedNodeIDMacro(reference.target)))
     else:
       code.append("UA_Server_addReference(server, %s, %s, %s, false);" % \
-                  (getCreateNodeIDMacro(sourcenode), getCreateNodeIDMacro(reference.referenceType()), \
-                   getCreateExpandedNodeIDMacro(reference.target())))
+                  (getCreateNodeIDMacro(reference.source), \
+                   getCreateNodeIDMacro(reference.referenceType), \
+                   getCreateExpandedNodeIDMacro(reference.target)))
     return code
 
 
@@ -72,18 +92,20 @@ def Node_printOpen62541CCode_SubtypeEarly(node, bootstrapping = True):
         the actual UA_Server_addNode or UA_NodeStore_insert calls.
     """
     code = []
-    if isinstance(node, opcua_node_variable_t) or isinstance(node, opcua_node_variableType_t):
+    if isinstance(node, VariableNode) or isinstance(node, VariableTypeNode):
+      # TODO: Print the value
+      pass
         # If we have an encodable value, try to encode that
-        if node.dataType() != None and isinstance(node.dataType().target(), opcua_node_dataType_t):
-          # Delegate the encoding of the datavalue to the helper if we have
-          # determined a valid encoding
-          if node.dataType().target().isEncodable():
-            if node.value() != None:
-              code.extend(node.value().printOpen62541CCode(bootstrapping))
-              return code
-        if(bootstrapping):
-          code.append("UA_Variant *" + node.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
-          code.append("UA_Variant_init(" + node.getCodePrintableID() + "_variant);")
+        # if node.dataType != None and isinstance(node.dataType().target(), opcua_node_dataType_t):
+        #   # Delegate the encoding of the datavalue to the helper if we have
+        #   # determined a valid encoding
+        #   if node.dataType().target().isEncodable():
+        #     if node.value() != None:
+        #       code.extend(node.value().printOpen62541CCode(bootstrapping))
+        #       return code
+        # if(bootstrapping):
+        #   code.append("UA_Variant *" + node.getCodePrintableNodeID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+        #   code.append("UA_Variant_init(" + node.getCodePrintableNodeID() + "_variant);")
 
     return code
 
@@ -121,13 +143,14 @@ def ReferenceTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], 
         code.append("       // FIXME: Missing, symmetric")
         return code
 
-    if node.isAbstract():
-        code.append(node.getCodePrintableID() + "->isAbstract = true;")
-    if node.symmetric():
-        code.append(node.getCodePrintableID() + "->symmetric  = true;")
-    if node.__reference_inverseName__ != "":
-        code.append(node.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
-                    node.__reference_inverseName__ + "\");")
+    if node.isAbstract:
+        code.append(getCodePrintableNodeID(node) + "->isAbstract = true;")
+    if node.symmetric:
+        code.append(getCodePrintableNodeID(node) + "->symmetric  = true;")
+    if node.inverseName != "":
+        code.append(getCodePrintableNodeID(node) + \
+                    "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
+                    node.inverseName + "\");")
     return code;
 
 def ObjectNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
@@ -159,7 +182,8 @@ def ObjectNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstr
       return code
 
     # We are being bootstrapped! Add the raw attributes to the node.
-    code.append(node.getCodePrintableID() + "->eventNotifier = (UA_Byte) " + str(node.eventNotifier()) + ";")
+    code.append(getCodePrintableNodeID(node) + "->eventNotifier = (UA_Byte) " + \
+                str(node.eventNotifier) + ";")
     return code
 
 
@@ -195,8 +219,8 @@ def ObjectTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], boo
         code.append("       false,")
 
     # Fallback mode for bootstrapping
-    if (node.isAbstract()):
-      code.append(node.getCodePrintableID() + "->isAbstract = true;")
+    if node.isAbstract:
+      code.append(getCodePrintableNodeID(node) + "->isAbstract = true;")
 
     return code
 
@@ -205,30 +229,34 @@ def VariableNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], boots
 
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
-      code.append("       " + node.getCodePrintableID() + "_variant, ")
+      code.append("       " + getCodePrintableNodeID(node) + "_variant, ")
       code.append("       // FIXME: missing minimumSamplingInterval")
       code.append("       // FIXME: missing accessLevel")
       code.append("       // FIXME: missing userAccessLevel")
       code.append("       // FIXME: missing valueRank")
       return code
 
-    if node.historizing():
-      code.append(node.getCodePrintableID() + "->historizing = true;")
+    if node.historizing:
+      code.append(getCodePrintableNodeID(node) + "->historizing = true;")
 
-    code.append(node.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + \
-                str(node.minimumSamplingInterval()) + ";")
-    code.append(node.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(node.userAccessLevel()) + ";")
-    code.append(node.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(node.accessLevel()) + ";")
-    code.append(node.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(node.valueRank()) + ";")
+    code.append(getCodePrintableNodeID(node) + "->minimumSamplingInterval = (UA_Double) " + \
+                str(node.minimumSamplingInterval) + ";")
+    code.append(getCodePrintableNodeID(node) + "->userAccessLevel = (UA_Int32) " + \
+                str(node.userAccessLevel) + ";")
+    code.append(getCodePrintableNodeID(node) + "->accessLevel = (UA_Int32) " + \
+                str(node.accessLevel) + ";")
+    code.append(getCodePrintableNodeID(node) + "->valueRank = (UA_Int32) " + \
+                str(node.valueRank) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(node.getCodePrintableID() + "->value.variant.value = *" + node.getCodePrintableID() + "_variant;")
-    code.append(node.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    code.append(getCodePrintableNodeID(node) + "->value.variant.value = *" + \
+                getCodePrintableNodeID(node) + "_variant;")
+    code.append(getCodePrintableNodeID(node) + "->valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 def VariableTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
     code = []
     if bootstrapping == False:
-      code.append("       " + node.getCodePrintableID() + "_variant, ")
+      code.append("       " + getCodePrintableNodeID(node) + "_variant, ")
       code.append("       " + str(node.valueRank()) + ",")
       if node.isAbstract():
         code.append("       true,")
@@ -237,13 +265,14 @@ def VariableTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], b
       return code
 
     if (node.isAbstract()):
-      code.append(node.getCodePrintableID() + "->isAbstract = true;")
+      code.append(getCodePrintableNodeID(node) + "->isAbstract = true;")
     else:
-      code.append(node.getCodePrintableID() + "->isAbstract = false;")
+      code.append(getCodePrintableNodeID(node) + "->isAbstract = false;")
 
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(node.getCodePrintableID() + "->value.variant.value = *" + node.getCodePrintableID() + "_variant;")
-    code.append(node.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    code.append(getCodePrintableNodeID(node) + "->value.variant.value = *" + \
+                getCodePrintableNodeID(node) + "_variant;")
+    code.append(getCodePrintableNodeID(node) + "->valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 def MethodNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
@@ -262,10 +291,10 @@ def MethodNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstr
       return code
 
     # UA_False is default for booleans on _init()
-    if node.executable():
-      code.append(node.getCodePrintableID() + "->executable = true;")
-    if node.userExecutable():
-      code.append(node.getCodePrintableID() + "->userExecutable = true;")
+    if node.executable:
+      code.append(getCodePrintableNodeID(node) + "->executable = true;")
+    if node.userExecutable:
+      code.append(getCodePrintableNodeID(node) + "->userExecutable = true;")
     return code
 
 def DataTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
@@ -299,10 +328,10 @@ def DataTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], boots
         code.append("       false,")
       return code
 
-    if (node.isAbstract()):
-      code.append(node.getCodePrintableID() + "->isAbstract = true;")
+    if node.isAbstract:
+      code.append(getCodePrintableNodeID(node) + "->isAbstract = true;")
     else:
-      code.append(node.getCodePrintableID() + "->isAbstract = false;")
+      code.append(getCodePrintableNodeID(node) + "->isAbstract = false;")
     return code
 
 def ViewNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
@@ -334,11 +363,12 @@ def ViewNode_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrap
       code.append("       // FIXME: Missing containsNoLoops")
       return code
 
-    if node.containsNoLoops():
-      code.append(node.getCodePrintableID() + "->containsNoLoops = true;")
+    if node.containsNoLoops:
+      code.append(getCodePrintableNodeID(node) + "->containsNoLoops = true;")
     else:
-      code.append(node.getCodePrintableID() + "->containsNoLoops = false;")
-    code.append(node.getCodePrintableID() + "->eventNotifier = (UA_Byte) " + str(node.eventNotifier()) + ";")
+      code.append(getCodePrintableNodeID(node) + "->containsNoLoops = false;")
+    code.append(getCodePrintableNodeID(node) + "->eventNotifier = (UA_Byte) " + \
+                str(node.eventNotifier) + ";")
     return code
 
 def Node_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping = True):
@@ -346,21 +376,21 @@ def Node_printOpen62541CCode_Subtype(node, unPrintedReferences=[], bootstrapping
         or UA_NodeStore_insert calls.
     """
 
-    if isinstance(node, opcua_node_referenceType_t):
+    if isinstance(node, ReferenceTypeNode):
       return ReferenceTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_object_t):
+    elif isinstance(node, ObjectNode):
       return ObjectNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_objectType_t):
+    elif isinstance(node, ObjectTypeNode):
       return ObjectTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_variable_t):
+    elif isinstance(node, VariableNode):
       return VariableNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_variableType_t):
+    elif isinstance(node, VariableTypeNode):
       return VariableTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_method_t):
+    elif isinstance(node, MethodNode):
       return MethodNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_dataType_t):
+    elif isinstance(node, DataTypeNode):
       return DataTypeNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
-    elif isinstance(node, opcua_node_view_t):
+    elif isinstance(node, ViewNode):
       return ViewNode_printOpen62541CCode_Subtype(node, unPrintedReferences, bootstrapping)
     
     raise Exception('Unknown node type', node)
@@ -534,71 +564,81 @@ def getCreateNodeBootstrap(node, supressGenerationOfAttribute=[]):
     nodetype = ""
     code = []
 
-    code.append("// Node: " + str(node) + ", " + str(node.browseName()))
+    code.append("// Node: " + str(node) + ", " + str(node.browseName))
 
-    if node.nodeClass() == NODE_CLASS_OBJECT:
+    if node.nodeClass == NODE_CLASS_OBJECT:
       nodetype = "Object"
-    elif node.nodeClass() == NODE_CLASS_VARIABLE:
+    elif node.nodeClass == NODE_CLASS_VARIABLE:
       nodetype = "Variable"
-    elif node.nodeClass() == NODE_CLASS_METHOD:
+    elif node.nodeClass == NODE_CLASS_METHOD:
       nodetype = "Method"
-    elif node.nodeClass() == NODE_CLASS_OBJECTTYPE:
+    elif node.nodeClass == NODE_CLASS_OBJECTTYPE:
       nodetype = "ObjectType"
-    elif node.nodeClass() == NODE_CLASS_REFERENCETYPE:
+    elif node.nodeClass == NODE_CLASS_REFERENCETYPE:
       nodetype = "ReferenceType"
-    elif node.nodeClass() == NODE_CLASS_VARIABLETYPE:
+    elif node.nodeClass == NODE_CLASS_VARIABLETYPE:
       nodetype = "VariableType"
-    elif node.nodeClass() == NODE_CLASS_DATATYPE:
+    elif node.nodeClass == NODE_CLASS_DATATYPE:
       nodetype = "DataType"
-    elif node.nodeClass() == NODE_CLASS_VIEW:
+    elif node.nodeClass == NODE_CLASS_VIEW:
       nodetype = "View"
     else:
       raise Exception('Undefined NodeClass')
 
-    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + \
+    code.append("UA_" + nodetype + "Node *" + getCodePrintableNodeID(node) + \
                 " = UA_NodeStore_new" + nodetype + "Node();")
     if not "browsename" in supressGenerationOfAttribute:
-      extrNs = node.browseName().split(":")
+      extrNs = node.browseName.split(":")
       if len(extrNs) > 1:
-        code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(" + \
+        code.append(getCodePrintableNodeID(node) + "->browseName = UA_QUALIFIEDNAME_ALLOC(" + \
                     str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
       else:
-        code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(0, \"" + \
-                    node.browseName() + "\");")
+        code.append(getCodePrintableNodeID(node) + \
+                    "->browseName = UA_QUALIFIEDNAME_ALLOC(0, \"" + \
+                    node.browseName + "\");")
     if not "displayname" in supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
-                  node.displayName() + "\");")
+      code.append(getCodePrintableNodeID(node) + \
+                  "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
+                  node.displayName.value[1] + "\");")
     if not "description" in supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
-                  node.description() + "\");")
+      code.append(getCodePrintableNodeID(node) + \
+                  "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + \
+                  node.description.value[1] + "\");")
 
     if not "writemask" in supressGenerationOfAttribute:
-        if node.__node_writeMask__ != 0:
-          code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " + \
-                      str(node.__node_writeMask__) + ";")
+        if node.writeMask != 0:
+          code.append(getCodePrintableNodeID(node) + "->writeMask = (UA_Int32) " + \
+                      str(node.node_writeMask) + ";")
     if not "userwritemask" in supressGenerationOfAttribute:
-        if node.__node_userWriteMask__ != 0:
-          code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + \
-                      str(node.__node_userWriteMask__) + ";")
+        if node.userWriteMask != 0:
+          code.append(getCodePrintableNodeID(node) + "->userWriteMask = (UA_Int32) " + \
+                      str(node.userWriteMask) + ";")
     if not "nodeid" in supressGenerationOfAttribute:
-      if node.id().ns != 0:
-        code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")
-      if node.id().i != None:
-        code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
-      elif node.id().b != None:
-        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;")
+      if node.id.ns != 0:
+        code.append(getCodePrintableNodeID(node) + "->nodeId.namespaceIndex = " + \
+                    str(node.id.ns) + ";")
+      if node.id.i != None:
+        code.append(getCodePrintableNodeID(node) + "->nodeId.identifier.numeric = " + \
+                    str(node.id.i) + ";")
+      elif node.id.b != None:
+        code.append(getCodePrintableNodeID(node) + \
+                    "->nodeId.identifierType = UA_NODEIDTYPE_BYTESTRING;")
         logger.error("ByteString IDs for nodes has not been implemented yet.")
         return []
-      elif node.id().g != None:
+      elif node.id.g != None:
         #<jpfr> the string is sth like { .length = 111, .data = <ptr> }
         #<jpfr> there you _may_ alloc the <ptr> on the heap
         #<jpfr> for the guid, just set it to {.data1 = 111, .data2 = 2222, ....
-        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_GUID;")
+        code.append(getCodePrintableNodeID(node) + \
+                    "->nodeId.identifierType = UA_NODEIDTYPE_GUID;")
         logger.error("GUIDs for nodes has not been implemented yet.")
         return []
-      elif node.id().s != None:
-        code.append(node.getCodePrintableID() + "->nodeId.identifierType = UA_NODEIDTYPE_STRING;")
-        code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = UA_STRING_ALLOC(\"" + str(node.id().i) + "\");")
+      elif node.id.s != None:
+        code.append(getCodePrintableNodeID(node) + \
+                    "->nodeId.identifierType = UA_NODEIDTYPE_STRING;")
+        code.append(getCodePrintableNodeID(node) + \
+                    "->nodeId.identifier.numeric = UA_STRING_ALLOC(\"" + \
+                    str(node.id.i) + "\");")
       else:
         logger.error("Node ID is not numeric, bytestring, guid or string. I do not know how to create c code for that...")
         return []
@@ -623,11 +663,11 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
 
     # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
     # Note: getFirstParentNode will return [parentNode, referenceToChild]
-    (parentNode, parentRef) = node.getFirstParentNode()
-    if not (parentNode in unPrintedNodes) and (parentNode != None) and (parentRef.referenceType() != None):
-      code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
-                  str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
-                  "/" + str(parentRef.referenceType().__node_browseName__))
+    (parentNode, parentRef) = node.getParent()
+    if not parentNode in unPrintedNodes and parentNode != None and parentRef != None:
+      code.append("// Referencing node found and declared as parent: " + \
+                  str(parentNode.id) + "/" + str(parentNode.browseName) + \
+                  " using " + str(parentRef))
       code.extend(getCreateNodeNoBootstrap(node, parentNode, parentRef, unPrintedNodes))
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
@@ -636,8 +676,8 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
       # bidirectional reference; remove any inverse references to our parent to
       # avoid duplicate refs
       for ref in node.getReferences():
-        if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and \
-           ref.isForward() == False:
+        if ref.target == parentNode and ref.referenceType == parentRef.referenceType and \
+           ref.isForward == False:
           while ref in unPrintedReferences:
             unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
@@ -648,20 +688,21 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
                                                    bootstrapping = True))
       code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
       code.append("UA_RCU_LOCK();")
-      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + node.getCodePrintableID() + ");")
+      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + \
+                  getCodePrintableNodeID(node) + ");")
       code.append("UA_RCU_UNLOCK();")
 
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
     #       the first ones being printed
     tmprefs = []
-    for r in node.getReferences():
+    for r in node.references:
       #logger.debug("Checking if reference from " + str(r.parent()) + "can be created...")
-      if not (r.target() in unPrintedNodes):
+      if not (r.target in unPrintedNodes):
         if r in unPrintedReferences:
           if (len(tmprefs) == 0):
             code.append("// This node has the following references that can be created:")
-          code.extend(getCreateStandaloneReference(node, r))
+          code.extend(getCreateStandaloneReference(r))
           tmprefs.append(r)
     # Remove printed refs from list
     for r in tmprefs:
@@ -671,9 +712,9 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
     # because this node did not exist...
     tmprefs = []
     for r in unPrintedReferences:
-      #logger.debug("Checking if another reference " + str(r.target()) + "can be created...")
-      if (r.target() == node) and not (r.parent() in unPrintedNodes):
-        if not isinstance(r.parent(), opcua_node_t):
+      #logger.debug("Checking if another reference " + str(r.target) + "can be created...")
+      if (r.target == node) and not (r.source in unPrintedNodes):
+        if not isinstance(r.source, NodeId):
           logger.debug("Reference has no parent!")
         elif not isinstance(r.parent().id(), opcua_node_id_t):
           logger.debug("Parents nodeid is not a nodeID!")
@@ -709,8 +750,8 @@ def Node_printOpen62541CCode_HL_API(node, reference, supressGenerationOfAttribut
     parentNode = reference.target()
     parentRefType = reference.referenceType()
     code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
-                  str(parentNode .__node_browseName__) + " using " + str(parentRefType.id()) +
-                  "/" + str(parentRefType.__node_browseName__))
+                  str(parentNode.browseName) + " using " + str(parentRefType.id()) +
+                  "/" + str(parentRefType.browseName))
     code.extend(getCreateNodeNoBootstrap(node, parentNode, reference))
     code.append("} while(0);")
     return code
