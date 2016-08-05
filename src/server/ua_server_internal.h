@@ -121,6 +121,10 @@ struct UA_Server {
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
+    /* For bootstrapping, omit some consistency checks, creating a reference to
+     * the parent and member instantiation */
+    UA_Boolean bootstrapNS0;
+
     /* Config */
     UA_ServerConfig config;
 };

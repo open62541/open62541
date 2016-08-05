@@ -55,9 +55,9 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     /* See if the parent exists */
     const UA_Node *parent = UA_Nodestore_get(server, parentNodeId);
     if(!parent) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Parent node not found");
-        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
+
+        returnUA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
     UA_NodeClass parentNodeClass = parent->nodeClass;
@@ -69,7 +69,8 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     if(!referenceType) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Reference type to the parent not found");
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+
+        returnUA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     UA_NodeClass referenceTypeNodeClass = referenceType->nodeClass;
@@ -122,7 +123,9 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-    return UA_STATUSCODE_GOOD;
+
+
+    returnUA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
