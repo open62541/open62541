@@ -178,4 +178,9 @@ SimpleAttributeOperand
 EventNotificationList
 EventFieldList
 StatusChangeNotification
+ServerDiagnosticsSummaryDataType
+SubscriptionDiagnosticsDataType
+SessionDiagnosticsDataType
+ServiceCounterDataType
+SessionSecurityDiagnosticsDataType
 Duration

@@ -1,4 +1,4 @@
-from ua_nodeset import *
+from nodeset import *
 
 class testing:
   def __init__(self):
@@ -29,7 +29,8 @@ class testing:
     ns = [self.ns.getRoot()]
 
     i = 0
-    #print "Starting depth search on " + str(len(allnodes)) + " nodes starting with from " + str(ns)
+    #print "Starting depth search on " + str(len(allnodes)) + " nodes starting
+    #with from " + str(ns)
     while (len(ns) < len(allnodes)):
       i = i + 1;
       tmp = [];
@@ -68,10 +69,5 @@ class testing_open62541_header:
     codeout.close()
     return
 
-# Call testing routine if invoked standalone.
-# For better debugging, it is advised to import this file using an interactive
-# python shell and instantiating a nodeset.
-#
-# import ua_types.py as ua; ns=ua.testing().nodeset
 if __name__ == '__main__':
   tst = testing_open62541_header()
