@@ -70,13 +70,13 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
     header = []
 
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    logger.debug("Reordering nodes for minimal dependencies during printing.")
-    nodeset.reorderNodesMinDependencies(printedExternally)
+    logger.info("Reordering nodes for minimal dependencies during printing.")
+    sorted_nodes = nodeset.reorderNodesMinDependencies(printedExternally)
 
     # Populate the unPrinted-Lists with everything we have. Every Time a nodes
     # printfunction is called, it will pop itself and all printed references
     # from these lists.
-    for n in nodeset.nodes:
+    for n in sorted_nodes:
       if not n in printedExternally:
         unPrintedNodes.append(n)
       else:
@@ -112,7 +112,7 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
 
     # Before printing nodes, we need to request additional namespace arrays from the server
-    for nsid in nodeset.namespaceIdentifiers:
+    for nsid in nodeset.namespaces:
       nsid = nsid.replace("\"","\\\"")
       code.append("UA_Server_addNsidspace(server, \"" + nsid + "\");")
 
@@ -121,7 +121,7 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
     # they can locate both source and target of the reference.
     logger.debug("Collecting all references used in the namespace.")
     refsUsed = []
-    for n in nodeset.nodes:
+    for n in sorted_nodes:
       # Since we are already looping over all nodes, use this chance to print NodeId defines
       if n.id.ns != 0:
         nc = n.nodeClass
@@ -144,7 +144,7 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
         # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
         #               Nodes remove themselves from this list when printed.
         logger.debug("Printing all other nodes.")
-        for n in nodeset.nodes:
+        for n in sorted_nodes:
           code.extend(Node_printOpen62541CCode(n, unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute))
 
         if len(unPrintedNodes) != 0:

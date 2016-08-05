@@ -22,14 +22,6 @@ import logging; logger = logging.getLogger(__name__)
 
 from constants import *
 
-def getNextElementNode(xmlvalue):
-  if xmlvalue == None:
-    return None
-  xmlvalue = xmlvalue.nextSibling
-  while not xmlvalue == None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
-    xmlvalue = xmlvalue.nextSibling
-  return xmlvalue
-
 if sys.version_info[0] >= 3:
   # strings are already parsed to unicode
   def unicode(s):
@@ -41,14 +33,15 @@ knownTypes = ['boolean', 'int32', 'uint32', 'int16', 'uint16', \
               'diagnosticinfo', 'nodeid', 'guid', 'datetime', \
               'qualifiedname', 'expandednodeid', 'xmlelement']
 
-class Value():
-
-  def __init__(self):
+class Value(object):
+  def __init__(self, xmlelement = None):
     self.value = None
     self.numericRepresentation = 0
     self.alias = None
     self.dataType = None
     self.encodingRule = []
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def getValueFieldByAlias(self, fieldname):
     if not isinstance(self.value, list):
@@ -63,93 +56,16 @@ class Value():
   def isBuiltinByString(self, string):
     return (str(string).lower() in knownTypes)
 
-  # def getTypeByString(self, stringName, encodingRule):
-  #   stringName = str(stringName.lower())
-  #   if stringName == 'boolean':
-  #     t = Boolean(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'int32':
-  #     t = Int32(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'uint32':
-  #     t = UInt32(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'int16':
-  #     t = Int16(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'uint16':
-  #     t = UInt16(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'int64':
-  #     t = Int64(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'uint64':
-  #     t = UInt64(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'byte':
-  #     t = Byte(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'sbyte':
-  #     t = SByte(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'float':
-  #     t = Float(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'double':
-  #     t = Double(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'string':
-  #     t = String(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'bytestring':
-  #     t = ByteString(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'localizedtext':
-  #     t = LocalizedText(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'statuscode':
-  #     t = StatusCode(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'diagnosticinfo':
-  #     t = DiagnosticInfo(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'nodeid':
-  #     t = opcua_BuiltinType_nodeid_t(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'guid':
-  #     t = Guid(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'datetime':
-  #     t = opcua_BuiltinType_datetime_t(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'qualifiedname':
-  #     t = QualifiedName(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'expandednodeid':
-  #     t = opcua_BuiltinType_expandednodeid_t(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   elif stringName == 'xmlelement':
-  #     t = XmlElement(self.parent)
-  #     t.setEncodingRule(encodingRule)
-  #   else:
-  #     logger.debug("No class representing stringName " + stringName + " was found. Cannot create builtinType.")
-  #     return None
-  #   return t
-
   def checkXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
       logger.error("Expected XML Element, but got junk...")
       return
-    # if self.alias() != None:
-    #   if not self.alias() == xmlvalue.tagName:
-    #     logger.warn("Expected an aliased XML field called " + self.alias() + " but got " + xmlvalue.tagName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
-    # else:
     if not self.__class__.__name__ == xmlvalue.tagName:
-      logger.warn("Expected XML field " + self.__class__.__name__ + " but got " + xmlvalue.tagName + " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
+      logger.warn("Expected XML field " + self.__class__.__name__ + " but got " + xmlvalue.tagName + \
+                  " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
 
   def parseXML(self, xmlvalue):
-    logger.debug("parsing xmlvalue for " + self.browseName + " (" + str(self.parent.id) + ") according to " + str(self.parent.dataType.target.getEncoding))
-
+    self.checkXML(xmlvalue)
     if not "value" in xmlvalue.tagName.lower():
       logger.error("Expected <Value> , but found " + xmlvalue.tagName + " instead. Value will not be parsed.")
       return
@@ -163,132 +79,16 @@ class Value():
         xmlvalue = n
         break
 
-    if "ListOf" in xmlvalue.tagName:
-      self.value = []
-      for el in xmlvalue.childNodes:
-        if not el.nodeType == el.ELEMENT_NODE:
-          continue
-        self.value.append(self.__parseXMLSingleValue(el))
-    else:
-      self.value = [self.__parseXMLSingleValue(xmlvalue)]
+    # if "ListOf" in xmlvalue.tagName:
+    #   self.value = []
+    #   for el in xmlvalue.childNodes:
+    #     if not el.nodeType == el.ELEMENT_NODE:
+    #       continue
+    #     self.value.append(self.__parseXMLSingleValue(el))
+    # else:
+    #   self.value = [self.__parseXMLSingleValue(xmlvalue)]
 
     logger.debug( "Parsed Value: " + str(self.value))
-
-  def __parseXMLSingleValue(self, xmlvalue, alias=None, encodingPart=None):
-    # Parse an encoding list such as enc = [[Int32], ['Duration', ['DateTime']]],
-    # returning a possibly aliased variable or list of variables.
-    # Keep track of aliases, as ['Duration', ['Hawaii', ['UtcTime', ['DateTime']]]]
-    # will be of type DateTime, but tagged as <Duration>2013-04-10 12:00 UTC</Duration>,
-    # and not as <Duration><Hawaii><UtcTime><String>2013-04-10 12:00 UTC</String>...
-
-    # Encoding may be partially handed down (iterative call). Only resort to
-    # type definition if we are not given a specific encoding to match
-    if encodingPart == None:
-      enc = self.parent.dataType().target().getEncoding()
-    else:
-      enc = encodingPart
-
-    # Check the structure of the encoding list to determine if a type is to be
-    # returned or we need to descend further checking aliases or multipart types
-    # such as extension Objects.
-    if len(enc) == 1:
-      # 0: ['BuiltinType']          either builtin type
-      # 1: [ [ 'Alias', [...], n] ] or single alias for possible multipart
-      if isinstance(enc[0], str):
-        # 0: 'BuiltinType'
-        if alias != None:
-          if not xmlvalue.tagName == alias:
-            logger.error("Expected XML element with tag " + alias + " but found " + xmlvalue.tagName + " instead")
-            return None
-          else:
-            t = self.getTypeByString(enc[0], enc)
-            t.alias(alias)
-            t.parseXML(xmlvalue)
-            return t
-        else:
-          if not self.isBuiltinByString(xmlvalue.tagName):
-            logger.error("Expected XML describing builtin type " + enc[0] + " but found " + xmlvalue.tagName + " instead")
-          else:
-            t = self.getTypeByString(enc[0], enc)
-            t.parseXML(xmlvalue)
-            return t
-      else:
-        # 1: ['Alias', [...], n]
-        # Let the next elif handle this
-        return self.__parseXMLSingleValue(xmlvalue, alias=alias, encodingPart=enc[0])
-    elif len(enc) == 3 and isinstance(enc[0], str):
-      # [ 'Alias', [...], 0 ]          aliased multipart
-      if alias == None:
-        alias = enc[0]
-      # if we have an alias and the next field is multipart, keep the alias
-      elif alias != None and len(enc[1]) > 1:
-        alias = enc[0]
-      # otherwise drop the alias
-      return self.__parseXMLSingleValue(xmlvalue, alias=alias, encodingPart=enc[1])
-    else:
-      # [ [...], [...], [...]] multifield of unknowns (analyse separately)
-      # create an extension object to hold multipart type
-
-      # FIXME: This implementation expects an extensionobject to be manditory for
-      #        multipart variables. Variants/Structures are not included in the
-      #        OPCUA Namespace 0 nodeset.
-      #        Consider moving this ExtensionObject specific parsing into the
-      #        builtin type and only determining the multipart type at this stage.
-      if not xmlvalue.tagName == "ExtensionObject":
-        logger.error("Expected XML tag <ExtensionObject> for multipart type, but found " + xmlvalue.tagName + " instead.")
-        return None
-
-      extobj = opcua_BuiltinType_extensionObject_t(self.parent)
-      extobj.setEncodingRule(enc)
-      etype = xmlvalue.getElementsByTagName("TypeId")
-      if len(etype) == 0:
-        logger.error("Did not find <TypeId> for ExtensionObject")
-        return None
-      etype = etype[0].getElementsByTagName("Identifier")
-      if len(etype) == 0:
-        logger.error("Did not find <Identifier> for ExtensionObject")
-        return None
-      etype = self.parent.getNamespace().getNodeByIDString(etype[0].firstChild.data)
-      if etype == None:
-        logger.error("Identifier Node not found in namespace" )
-        return None
-
-      extobj.typeId(etype)
-
-      ebody = xmlvalue.getElementsByTagName("Body")
-      if len(ebody) == 0:
-        logger.error("Did not find <Body> for ExtensionObject")
-        return None
-      ebody = ebody[0]
-
-      # Body must contain an Object of type 'DataType' as defined in Variable
-      ebodypart = ebody.firstChild
-      if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-        ebodypart = getNextElementNode(ebodypart)
-      if ebodypart == None:
-        logger.error("Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found nothing.")
-        return None
-
-      if not ebodypart.tagName == self.parent.dataType().target().browseName():
-        logger.error("Expected ExtensionObject to hold a variable of type " + str(self.parent.dataType().target().browseName()) + " but found " + str(ebodypart.tagName) + " instead.")
-        return None
-      extobj.alias(ebodypart.tagName)
-
-      ebodypart = ebodypart.firstChild
-      if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
-        ebodypart = getNextElementNode(ebodypart)
-      if ebodypart == None:
-        logger.error("Description of dataType " + str(self.parent.dataType().target().browseName()) + " in ExtensionObject is empty/invalid.")
-        return None
-
-      extobj.value = []
-      for e in enc:
-        if not ebodypart == None:
-          extobj.value.append(extobj.__parseXMLSingleValue(ebodypart, alias=None, encodingPart=e))
-        else:
-          logger.error("Expected encoding " + str(e) + " but found none in body.")
-        ebodypart = getNextElementNode(ebodypart)
-      return extobj
 
   def __str__(self):
     if self.__alias__ != None:
@@ -303,9 +103,11 @@ class Value():
 ########################
 
 class Boolean(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_BOOLEAN
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Boolean>value</Boolean> or
@@ -320,9 +122,11 @@ class Boolean(Value):
         self.value = "true"
 
 class Byte(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_BYTE
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Byte>value</Byte> or
@@ -334,9 +138,11 @@ class Byte(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class SByte(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_SBYTE
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <SByte>value</SByte> or
@@ -348,9 +154,11 @@ class SByte(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class Int16(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_INT16
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Int16>value</Int16> or
@@ -362,9 +170,11 @@ class Int16(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class UInt16(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_UINT16
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <UInt16>value</UInt16> or
@@ -376,9 +186,11 @@ class UInt16(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class Int32(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_INT32
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Int32>value</Int32> or
@@ -390,9 +202,11 @@ class Int32(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class UInt32(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_UINT32
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <UInt32>value</UInt32> or
@@ -404,9 +218,11 @@ class UInt32(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class Int64(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_INT64
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Int64>value</Int64> or
@@ -418,9 +234,11 @@ class Int64(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class UInt64(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_UINT64
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <UInt16>value</UInt16> or
@@ -432,9 +250,11 @@ class UInt64(Value):
       self.value = int(unicode(xmlvalue.firstChild.data))
 
 class Float(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_FLOAT
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Float>value</Float> or
@@ -446,9 +266,11 @@ class Float(Value):
       self.value = float(unicode(xmlvalue.firstChild.data))
 
 class Double(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_DOUBLE
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <Double>value</Double> or
@@ -460,9 +282,11 @@ class Double(Value):
       self.value = float(unicode(xmlvalue.firstChild.data))
 
 class String(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_STRING
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def pack(self):
     bin = structpack("I", len(unicode(self.value)))
@@ -479,38 +303,24 @@ class String(Value):
       self.value = str(unicode(xmlvalue.firstChild.data))
 
 class XmlElement(String):
-  def __init__(self):
-    Value.__init__(self)
+  def __init__(self, xmlelement = None):
+    Value.__init__(self, xmlelement)
     self.numericRepresentation = BUILTINTYPE_TYPEID_XMLELEMENT
 
 class ByteString(Value):
-  def __init__(self):
-    Value.__init__(self)
+  def __init__(self, xmlelement = None):
+    Value.__init__(self, xmlelement)
     self.numericRepresentation = BUILTINTYPE_TYPEID_BYTESTRING
 
 class ExtensionObject(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_EXTENSIONOBJECT
+    if xmlelement:
+      self.parseXML(xmlelement)
 
-  def typeId(self, data=None):
-    if not data == None:
-      self.__typeId__ = data
-    return self.__typeId__
-
-  def getCodeInstanceName(self):
-    return self.__codeInstanceName__
-
-  def setCodeInstanceName(self, recursionDepth, arrayIndex):
-    self.__inVariableRecursionDepth__ = recursionDepth
-    self.__inVariableArrayIndex__ = arrayIndex
-    self.__codeInstanceName__ = self.parent.getCodePrintableID() + "_" + str(self.alias()) + "_" + str(arrayIndex) + "_" + str(recursionDepth)
-    return self.__codeInstanceName__
-
-  def printOpen62541CCode_SubType(self, asIndirect=True):
-    if asIndirect == False:
-      return "*" + str(self.getCodeInstanceName())
-    return str(self.getCodeInstanceName())
+  def parseXML(self, xmlelement):
+    pass
 
   def __str__(self):
     return "'" + self.alias() + "':" + self.stringRepresentation + "(" + str(self.value) + ")"
@@ -556,7 +366,6 @@ class LocalizedText(Value):
         self.value[1] = tmp[0].firstChild.data
 
 class NodeId(Value):
-
   def __init__(self, idstring = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_NODEID
@@ -630,35 +439,23 @@ class NodeId(Value):
   def __hash__(self):
     return hash(str(self))
 
-  # def printOpen62541CCode_SubType(self, asIndirect=True):
-  #   if self.value == None:
-  #     return "UA_NODEID_NUMERIC(0,0)"
-  #   nodeId = self.value.id()
-  #   if nodeId.i != None:
-  #     return "UA_NODEID_NUMERIC(" + str(nodeId.ns) + ", " + str(nodeId.i) + ")"
-  #   elif nodeId.s != None:
-  #     return "UA_NODEID_STRING("  + str(nodeId.ns) + ", " + str(nodeId.s) + ")"
-  #   elif nodeId.b != None:
-  #     logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
-  #     return "UA_NODEID_NUMERIC(0,0)"
-  #   elif nodeId.g != None:
-  #     logger.debug("NodeID Generation macro for guids has not been implemented.")
-  #     return "UA_NODEID_NUMERIC(0,0)"
-  #   return "UA_NODEID_NUMERIC(0,0)"
-
 class ExpandedNodeId(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_EXPANDEDNODEID
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     self.checkXML(xmlvalue)
     logger.debug("Not implemented", LOG_LEVEL_ERR)
 
 class DateTime(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_DATETIME
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <DateTime> or <AliasName>
@@ -680,18 +477,22 @@ class DateTime(Value):
       try:
         self.value = strptime(timestr, "%Y-%m-%dT%H:%M:%S")
       except:
-        logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23, but got " + timestr + " instead. Time will be defaultet to now()")
+        logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23, but got " + \
+                     timestr + " instead. Time will be defaultet to now()")
         self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
 
 class QualifiedName(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_QUALIFIEDNAME
+    self.value = [0, '']
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <QualifiedName> or <AliasName>
-    #           <NamespaceIndex>Int16<NamespaceIndex> # Optional, apparently ommitted if ns=0 ??? (Not given in OPCUA Nodeset2)
-    #           <Name>SomeString<Name>                # Speculation: Manditory if NamespaceIndex is given, omitted otherwise?
+    #           <NamespaceIndex>Int16<NamespaceIndex> # Optional, apparently ommitted if ns=0?
+    #           <Name>SomeString<Name>                # Mandatory
     #        </QualifiedName> or </AliasName>
     self.checkXML(xmlvalue)
     if xmlvalue.firstChild == None :
@@ -711,28 +512,28 @@ class QualifiedName(Value):
         self.value = [0]
         self.value.append(unicode(xmlvalue.firstChild.data))
 
-class StatusCode(Value):
-  def __init__(self):
-    Value.__init__(self)
+class StatusCode(UInt32):
+  def __init__(self, xmlelement = None):
+    Value.__init__(self, xmlelement)
     self.numericRepresentation = BUILTINTYPE_TYPEID_STATUSCODE
 
-  def parseXML(self, xmlvalue):
-    self.checkXML(xmlvalue)
-    logger.warn("Not implemented")
-
 class DiagnosticInfo(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_DIAGNOSTICINFO
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     self.checkXML(xmlvalue)
     logger.warn("Not implemented")
 
 class Guid(Value):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_GUID
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     self.checkXML(xmlvalue)
@@ -744,16 +545,15 @@ class Guid(Value):
       self.value = self.value.replace("}","")
       self.value = self.value.split("-")
       tmp = []
-      ok = True
       for g in self.value:
         try:
           tmp.append(int("0x"+g, 16))
         except:
-          logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data))
-          self.value = [0,0,0,0,0]
-          ok = False
+          logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
+                       unicode(xmlvalue.firstChild.data))
+          tmp = [0,0,0,0,0]
       if len(tmp) != 5:
-        logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + unicode(xmlvalue.firstChild.data))
-        self.value = [0,0,0,0]
-        ok = False
+        logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
+                     unicode(xmlvalue.firstChild.data))
+        tmp = [0,0,0,0]
       self.value = tmp

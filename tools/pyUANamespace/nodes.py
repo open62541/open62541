@@ -29,38 +29,13 @@ if sys.version_info[0] >= 3:
   def unicode(s):
     return s
 
-def getNextElementNode(xmlvalue):
-  if xmlvalue == None:
-    return None
-  xmlvalue = xmlvalue.nextSibling
-  while not xmlvalue == None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
-    xmlvalue = xmlvalue.nextSibling
-  return xmlvalue
-
-# References are not really described by OPC-UA. This is how we
-# use them here.
-
-class Reference():
-  # source, referenceType and target are expected to be Nodes (not NodeIds)
+class Reference(object):
+  # all either nodeids or strings with an alias
   def __init__(self, source, referenceType, target, isForward = True):
     self.source = source
     self.referenceType = referenceType
     self.target = target
     self.isForward = isForward
-
-  def getCodePrintableID(self):
-    src = str(self.source.id)
-    tgt = str(self.target.id)
-    type = str(self.referenceType.id)
-    tmp = src+"_"+type+"_"+tgt
-    tmp = tmp.lower()
-    refid = ""
-    for i in tmp:
-      if not i in "ABCDEFGHIJKLMOPQRSTUVWXYZ0123456789".lower():
-        refid = refid + ("_")
-      else:
-        refid = refid + i
-    return refid
 
   def __str__(self):
     retval = str(self.source)
@@ -74,10 +49,13 @@ class Reference():
   def __repr__(self):
       return str(self)
 
+  def __eq__(self, other):
+      return str(self) == str(other)
+
   def __hash__(self):
     return hash(str(self))
 
-class Node:
+class Node(object):
   def __init__(self):
     self.id             = NodeId()
     self.nodeClass      = NODE_CLASS_GENERERIC
@@ -110,7 +88,7 @@ class Node:
           if '=' in av:
             reftype = NodeId(av)
           else:
-            reftype = av # cleartext, such as "HasSubType"
+            reftype = av # alias, such as "HasSubType"
         elif at == "IsForward":
           forward = not "false" in av.lower()
       if forward:
@@ -119,15 +97,11 @@ class Node:
         self.inverseReferences.add(Reference(self.id, target, reftype, forward))
 
   def parseXML(self, xmlelement):
-    """ Extracts base attributes from the XML description of an element.
-        ParentNodeIds are ignored.
-    """
     for idname in ['NodeId', 'NodeID', 'nodeid']:
       if xmlelement.hasAttribute(idname):
         self.id = NodeId(xmlelement.getAttribute(idname))
 
-    thisxml = xmlelement
-    for (at, av) in thisxml.attributes.items():
+    for (at, av) in xmlelement.attributes.items():
       if at == "BrowseName":
         self.browseName = av
       elif at == "DisplayName":
@@ -141,7 +115,7 @@ class Node:
       elif at == "EventNotifier":
         self.eventNotifier = int(av)
 
-    for x in thisxml.childNodes:
+    for x in xmlelement.childNodes:
       if x.nodeType != x.ELEMENT_NODE:
         continue
       if x.firstChild:
@@ -157,10 +131,6 @@ class Node:
           self.userWriteMask = int(unicode(x.firstChild.data))
         if x.tagName == "References":
           self.parseXMLReferences(x)
-
-  def getType(self):
-    """For variables and objects, return the type"""
-    pass
 
   def getParent(self):
     """ Return a tuple of (Node, ReferencePointer) indicating
@@ -189,12 +159,14 @@ class Node:
     return (parent, parentref)
 
 class ReferenceTypeNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_REFERENCETYPE
     self.isAbstract    = False
     self.symmetric     = False
     self.inverseName   = ""
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -212,10 +184,12 @@ class ReferenceTypeNode(Node):
           self.inverseName = str(unicode(x.firstChild.data))
 
 class ObjectNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_OBJECT
     self.eventNotifier = 0
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -224,7 +198,7 @@ class ObjectNode(Node):
         self.eventNotifier = int(av)
 
 class VariableNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_VARIABLE
     self.dataType            = NodeId()
@@ -236,6 +210,8 @@ class VariableNode(Node):
     self.historizing         = False
     self.value               = None
     self.xmlValueDef         = None
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -272,17 +248,21 @@ class VariableNode(Node):
           self.historizing = "false" not in x.lower()
 
 class VariableTypeNode(VariableNode):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     VariableNode.__init__(self)
     self.nodeClass = NODE_CLASS_VARIABLETYPE
+    if xmlelement:
+      self.parseXML(xmlelement)
 
 class MethodNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_METHOD
     self.executable     = True
     self.userExecutable = True
     self.methodDecalaration = None
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -295,10 +275,12 @@ class MethodNode(Node):
         self.methodDeclaration = str(av)
 
 class ObjectTypeNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_OBJECTTYPE
     self.isAbstract = False
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -307,10 +289,12 @@ class ObjectTypeNode(Node):
         self.isAbstract = "false" not in av.lower()
 
 class DataTypeNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_DATATYPE
     self.isAbstract = False
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)
@@ -319,11 +303,13 @@ class DataTypeNode(Node):
         self.isAbstract = "false" not in av.lower()
 
 class ViewNode(Node):
-  def __init__(self):
+  def __init__(self, xmlelement = None):
     Node.__init__(self)
     self.nodeClass = NODE_CLASS_VIEW
     self.containsNoLoops == False
     self.eventNotifier == False
+    if xmlelement:
+      self.parseXML(xmlelement)
 
   def parseXML(self, xmlelement):
     Node.parseXML(self, xmlelement)

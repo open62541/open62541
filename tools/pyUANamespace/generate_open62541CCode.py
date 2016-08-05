@@ -122,19 +122,6 @@ for blacklist in args.blacklistFiles:
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
 
-# Parse Datatypes in order to find out what the XML keyed values actually
-# represent.
-# Ex. <rpm>123</rpm> is not encodable
-#     only after parsing the datatypes, it is known that
-#     rpm is encoded as a double
-logger.info("Building datatype encoding rules")
-ns.buildEncodingRules()
-
-# Allocate/Parse the data values. In order to do this, we must have run
-# buidEncodingRules.
-logger.info("Allocating variables")
-ns.allocateVariables()
-
 # Users may have manually defined some nodes in their code already (such as serverStatus).
 # To prevent those nodes from being reprinted, we will simply mark them as already
 # converted to C-Code. That way, they will still be referred to by other nodes, but

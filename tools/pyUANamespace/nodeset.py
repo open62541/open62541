@@ -32,6 +32,40 @@ knownNodeTypes = ['variable', 'object', 'method', 'referencetype', \
                   'objecttype', 'variabletype', 'methodtype', \
                   'datatype', 'referencetype', 'aliases']
 
+def extractNamespaces(xmlfile):
+    # Extract a list of namespaces used. The first namespace is always
+    # "http://opcfoundation.org/UA/". minidom gobbles up
+    # <NamespaceUris></NamespaceUris> elements, without a decent way to reliably
+    # access this dom2 <uri></uri> elements (only attribute xmlns= are accessible
+    # using minidom). We need them for dereferencing though... This function
+    # attempts to do just that.
+    
+    namespaces = ["http://opcfoundation.org/UA/"]
+    infile = open(xmlfile.name)
+    foundURIs = False
+    nsline = ""
+    line = infile.readline()
+    for line in infile:
+      if "<namespaceuris>" in line.lower():
+        foundURIs = True
+      elif "</namespaceuris>" in line.lower():
+        foundURIs = False
+        nsline = nsline + line
+        break
+      if foundURIs:
+        nsline = nsline + line
+
+    if len(nsline) > 0:
+      ns = dom.parseString(nsline).getElementsByTagName("NamespaceUris")
+      for uri in ns[0].childNodes:
+        if uri.nodeType != uri.ELEMENT_NODE:
+          continue
+        if uri.firstChild.data in namespaces:
+          continue
+        namespaces.append(uri.firstChild.data)
+    infile.close()
+    return namespaces
+
 class NodeSet():
   """ This class handles parsing XML description of namespaces, instantiating
       nodes, linking references, graphing the namespace and compiling a binary
@@ -43,22 +77,20 @@ class NodeSet():
       in that segment of memory.
   """
   def __init__(self, name):
-    self.nodes = []
-    self.name = name
-    self.nodeids = {}
+    self.nodes = {}
     self.aliases = {}
-    self.namespaceIdentifiers = ["http://opcfoundation.org/UA/"]
+    self.namespaces = ["http://opcfoundation.org/UA/"]
 
   def addNamespace(self, nsURL):
-    if not nsURL in self.namespaceIdentifiers:
-      self.namespaceIdentifiers.append(nsURL)
+    if not nsURL in self.namespaces:
+      self.namespaces.append(nsURL)
 
   def createNamespaceMapping(self, orig_namespaces):
     """Creates a dict that maps from the nsindex in the original nodeset to the
        nsindex in the combined nodeset"""
     m = {}
     for index,name in enumerate(orig_namespaces):
-      m[index] = self.namespaceIdentifiers.index(name)
+      m[index] = self.namespaces.index(name)
     return m
 
   def buildAliasList(self, xmlelement):
@@ -106,11 +138,8 @@ class NodeSet():
   def getRoot(self):
     return self.getNodeByBrowseName("Root")
 
-  def getNodeByIDString(self, idstring):
-    return next((n for n in self.nodes if idstring==str(n.id)), None)
-
   def getNodeByBrowseName(self, idstring):
-    return next((n for n in self.nodes if idstring==str(n.browseName)), None)
+    return next((n for n in self.nodes.values() if idstring==str(n.browseName)), None)
 
   def createNode(self, xmlelement, nsMapping):
     """ createNode is instantiates a node described by xmlelement, its type being
@@ -155,30 +184,26 @@ class NodeSet():
 
     node = None
     if ndtype == 'variable':
-      node = VariableNode()
+      node = VariableNode(xmlelement)
     elif ndtype == 'object':
-      node = ObjectNode()
+      node = ObjectNode(xmlelement)
     elif ndtype == 'method':
-      node = MethodNode()
+      node = MethodNode(xmlelement)
     elif ndtype == 'objecttype':
-      node = ObjectTypeNode()
+      node = ObjectTypeNode(xmlelement)
     elif ndtype == 'variabletype':
-      node = VariableTypeNode()
+      node = VariableTypeNode(xmlelement)
     elif ndtype == 'methodtype':
-      node = MethodNode()
+      node = MethodNode(xmlelement)
     elif ndtype == 'datatype':
-      node = DataTypeNode()
+      node = DataTypeNode(xmlelement)
     elif ndtype == 'referencetype':
-      node = ReferenceTypeNode()
+      node = ReferenceTypeNode(xmlelement)
     else:
       return
 
-    node.parseXML(xmlelement)
-
     if node.id == None:
       raise Exception("Error: XMLElement has no id")
-    if node.id in self.nodeids:
-      raise Exception("XMLElement with duplicate ID " + str(node.id))
 
     # Exchange the namespace indices
     self.replaceAliases(node)
@@ -186,64 +211,19 @@ class NodeSet():
     # TODO Exchange all the reference namespaces
     # TODO Create the inverse references in the node that should have the forward reference
 
-    self.nodes.append(node)
-    self.nodeids[str(node.id)] = node
-
-  def removeNodeById(self, nodeId):
-    nd = self.getNodeByIDString(nodeId)
-    if nd == None:
-      return
-
-    logger.debug("Removing nodeId " + str(nodeId))
-    self.nodes.remove(nd)
-    for ref in nd.inverseReferences:
-      src = ref.target;
-      src.removeReferenceToNode(nd)
-
-  @staticmethod
-  def XmlNamespaces(xmlfile):
-    # Extract a list of namespaces used. The first namespace is always
-    # "http://opcfoundation.org/UA/". minidom gobbles up
-    # <NamespaceUris></NamespaceUris> elements, without a decent way to reliably
-    # access this dom2 <uri></uri> elements (only attribute xmlns= are accessible
-    # using minidom). We need them for dereferencing though... This function
-    # attempts to do just that.
-    
-    namespaces = ["http://opcfoundation.org/UA/"]
-    infile = open(xmlfile.name)
-    foundURIs = False
-    nsline = ""
-    line = infile.readline()
-    for line in infile:
-      if "<namespaceuris>" in line.lower():
-        foundURIs = True
-      elif "</namespaceuris>" in line.lower():
-        foundURIs = False
-        nsline = nsline + line
-        break
-      if foundURIs:
-        nsline = nsline + line
-
-    if len(nsline) > 0:
-      ns = dom.parseString(nsline).getElementsByTagName("NamespaceUris")
-      for uri in ns[0].childNodes:
-        if uri.nodeType != uri.ELEMENT_NODE:
-          continue
-        if uri.firstChild.data in namespaces:
-          continue
-        namespaces.append(uri.firstChild.data)
-    infile.close()
-    return namespaces
+    if str(node.id) in self.nodes:
+      raise Exception("XMLElement with duplicate ID " + str(node.id))
+    self.nodes[str(node.id)] = node
 
   def addNodeSet(self, xmlfile):
     nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
     if len(nodesets) == 0 or len(nodesets) > 1:
       raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
     nodeset = nodesets[0] # Parsed DOM XML object
-    orig_namespaces = self.XmlNamespaces(xmlfile) # List of namespaces used in the xml file
+    orig_namespaces = extractNamespaces(xmlfile) # List of namespaces used in the xml file
     for ns in orig_namespaces:
-      if not ns in self.namespaceIdentifiers:
-        self.namespaceIdentifiers.append(ns)
+      if not ns in self.namespaces:
+        self.namespaces.append(ns)
     nsMapping = self.createNamespaceMapping(orig_namespaces)
 
     # Instantiate nodes
@@ -253,39 +233,16 @@ class NodeSet():
     logger.debug("Currently " + str(len(self.nodes)) + " nodes in address space.")
 
   def sanitize(self):
-    remove = []
-    logger.debug("Sanitizing nodes and references...")
-    for n in self.nodes:
+    for n in self.nodes.values():
       if n.sanitize() == False:
-        remove.append(n)
-    if not len(remove) == 0:
-      logger.warn(str(len(remove)) + " nodes will be removed because they failed sanitation.")
-    # FIXME: Some variable ns=0 nodes fail because they don't have DataType fields...
-    #        How should this be handles!?
-    logger.warn("Not actually removing nodes... it's unclear if this is valid or not")
+        raise Exception("Failed to sanitize node " + str(n))
 
-  def buildEncodingRules(self):
-    """ Calls buildEncoding() for all DataType nodes (DataTypeNode). """
-    return
-    stat = {True: 0, False: 0}
-    for n in self.nodes:
-      if isinstance(n, DataTypeNode):
-        n.buildEncoding()
-        stat[n.isEncodable] = stat[n.isEncodable] + 1
-    logger.debug("Type definitions built/passed: " +  str(stat))
-
-  def allocateVariables(self):
-    return
-    for n in self.nodes:
-      if isinstance(n, VariableNode):
-        n.allocateValue()
-
-  def getSubTypesOf2(self, node):
+  def getSubTypesOf(self, node):
     re = [node]
     for ref in node.references: 
       if isinstance(ref.target(), Node):
         if ref.referenceType().displayName() == "HasSubtype" and ref.isForward():
-          re = re + self.getSubTypesOf2(ref.target())
+          re = re + self.getSubTypesOf(ref.target())
     return re
 
   def reorderNodesMinDependencies(self, printedExternally):
@@ -296,12 +253,12 @@ class NodeSet():
     
     temp = []
     for t in relevant_types:
-        temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
+        temp = temp + self.getSubTypesOf(self.getNodeByBrowseName(t))
     relevant_types = temp
 
     # determine in-degree
-    in_degree = { u : 0 for u in self.nodes }
-    for u in self.nodes: # of each node
+    in_degree = { u : 0 for u in self.nodes.values() }
+    for u in self.nodes.values(): # of each node
       if u not in printedExternally:
         for ref in u.references:
          if isinstance(ref.target, Node):
@@ -325,9 +282,6 @@ class NodeSet():
            in_degree[ref.target] -= 1
            if in_degree[ref.target] == 0:
              Q.appendleft(ref.target)
-    if len(L) == len(self.nodes):
-        self.nodes = L
-    else:                    # if there is a cycle,  
-        logger.error("Node graph is circular on the specified references")
-        self.nodes = L + [x for x in self.nodes if x not in L]
-    return
+    if len(L) != len(self.nodes.values()):
+      raise Exception("Node graph is circular on the specified references")
+    return L

@@ -54,7 +54,6 @@ def getCreateNodeIDMacro(nodeid):
       return ""
 
 def getCreateExpandedNodeIDMacro(nodeid):
-    print(nodeid)
     if nodeid.i != None:
       return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (str(nodeid.ns),str(nodeid.i))
     elif nodeid.s != None:
