@@ -17,9 +17,11 @@
 ###
 
 import string
+from collections import deque
 import logging; logger = logging.getLogger(__name__)
 
 from constants import *
+from nodes import *
 from open62541_backend_nodes import Node_printOpen62541CCode, getCreateStandaloneReference
 
 ####################
@@ -58,6 +60,59 @@ def getNodeIdDefineString(node):
     defined_typealiases.append(symbolic_name)
     return "#define UA_NS%sID_%s %s" % (node.id.ns, symbolic_name.upper(), node.id.i)
 
+##############
+# Sort Nodes #
+##############
+
+def getSubTypesOf(nodeset, node):
+  re = [node]
+  for ref in node.references: 
+    if isinstance(ref.target, Node):
+      if ref.referenceType.displayName == "HasSubtype" and ref.isForward:
+        re = re + getSubTypesOf(nodeset, ref.target)
+  return re
+
+def reorderNodesMinDependencies(nodeset, printedExternally):
+    #Kahn's algorithm
+    #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
+    
+    relevant_types = ["HierarchicalReferences", "HasComponent"]
+    
+    temp = []
+    for t in relevant_types:
+        temp = temp + getSubTypesOf(nodeset, nodeset.getNodeByBrowseName(t))
+    relevant_types = temp
+
+    # determine in-degree
+    in_degree = { u : 0 for u in nodeset.nodes.values() }
+    for u in nodeset.nodes.values(): # of each node
+      if u not in printedExternally:
+        for ref in u.references:
+         if isinstance(ref.target, Node):
+           if(ref.referenceType() in relevant_types and ref.isForward):
+             in_degree[ref.target] += 1
+    
+    # collect nodes with zero in-degree
+    Q = deque()
+    for u in in_degree:
+      if in_degree[u] == 0:
+        Q.appendleft(u)
+ 
+    L = []     # list for order of nodes
+    
+    while Q:
+      u = Q.pop()          # choose node of zero in-degree
+      L.append(u)          # and 'remove' it from graph
+      for ref in u.references:
+       if isinstance(ref.target, Node):
+         if(ref.referenceType in relevant_types and ref.isForward()):
+           in_degree[ref.target] -= 1
+           if in_degree[ref.target] == 0:
+             Q.appendleft(ref.target)
+    if len(L) != len(nodeset.nodes.values()):
+      raise Exception("Node graph is circular on the specified references")
+    return L
+
 ###################
 # Generate C Code #
 ###################
@@ -71,7 +126,7 @@ def generateCCode(nodeset, printedExternally=[], supressGenerationOfAttribute=[]
 
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
     logger.info("Reordering nodes for minimal dependencies during printing.")
-    sorted_nodes = nodeset.reorderNodesMinDependencies(printedExternally)
+    sorted_nodes = reorderNodesMinDependencies(nodeset, printedExternally)
 
     # Populate the unPrinted-Lists with everything we have. Every Time a nodes
     # printfunction is called, it will pop itself and all printed references

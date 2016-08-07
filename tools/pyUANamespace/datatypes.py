@@ -27,10 +27,10 @@ if sys.version_info[0] >= 3:
   def unicode(s):
     return s
 
-knownTypes = ['boolean', 'int32', 'uint32', 'int16', 'uint16', \
-              'int64', 'uint64', 'byte', 'sbyte', 'float', 'double', \
-              'string', 'bytestring', 'localizedtext', 'statuscode', \
-              'diagnosticinfo', 'nodeid', 'guid', 'datetime', \
+knownTypes = ['boolean', 'int32', 'uint32', 'int16', 'uint16',
+              'int64', 'uint64', 'byte', 'sbyte', 'float', 'double',
+              'string', 'bytestring', 'localizedtext', 'statuscode',
+              'diagnosticinfo', 'nodeid', 'guid', 'datetime',
               'qualifiedname', 'expandednodeid', 'xmlelement']
 
 class Value(object):
@@ -53,25 +53,23 @@ class Value(object):
             return val.value
     return None
 
-  def isBuiltinByString(self, string):
-    return (str(string).lower() in knownTypes)
-
   def checkXML(self, xmlvalue):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
       logger.error("Expected XML Element, but got junk...")
       return
     if not self.__class__.__name__ == xmlvalue.tagName:
-      logger.warn("Expected XML field " + self.__class__.__name__ + " but got " + xmlvalue.tagName + \
-                  " instead. This is a parsing error of Value.__parseXMLSingleValue(), will try to continue anyway.")
+      logger.warn("Expected XML field " + self.__class__.__name__ + \
+                  " but got " + xmlvalue.tagName + " instead.")
 
   def parseXML(self, xmlvalue):
     self.checkXML(xmlvalue)
     if not "value" in xmlvalue.tagName.lower():
-      logger.error("Expected <Value> , but found " + xmlvalue.tagName + " instead. Value will not be parsed.")
+      logger.error("Expected <Value> , but found " + xmlvalue.tagName + \
+                   " instead. Value will not be parsed.")
       return
 
     if len(xmlvalue.childNodes) == 0:
-      logger.error("Expected childnodes for value, but none where found... Value will not be parsed.")
+      logger.error("Expected childnodes for value, but none were found...")
       return
 
     for n in xmlvalue.childNodes:
@@ -91,16 +89,14 @@ class Value(object):
     logger.debug( "Parsed Value: " + str(self.value))
 
   def __str__(self):
-    if self.__alias__ != None:
-      return "'" + self.alias() + "':" + self.__class__.__name__ + "(" + str(self.value) + ")"
     return self.__class__.__name__ + "(" + str(self.value) + ")"
 
   def __repr__(self):
     return self.__str__()
 
-########################
-# Actual builtin types #
-########################
+#################
+# Builtin Types #
+#################
 
 class Boolean(Value):
   def __init__(self, xmlelement = None):

@@ -31,11 +31,12 @@ if sys.version_info[0] >= 3:
 
 class Reference(object):
   # all either nodeids or strings with an alias
-  def __init__(self, source, referenceType, target, isForward = True):
+  def __init__(self, source, referenceType, target, isForward = True, hidden = False):
     self.source = source
     self.referenceType = referenceType
     self.target = target
     self.isForward = isForward
+    self.hidden = hidden # the reference is part of a nodeset that already exists
 
   def __str__(self):
     retval = str(self.source)
@@ -132,6 +133,35 @@ class Node(object):
         if x.tagName == "References":
           self.parseXMLReferences(x)
 
+  def replaceAliases(self, aliases):
+    if str(self.id) in aliases:
+      self.id = NodeId(aliases[self.id])
+    for ref in self.references:
+      if str(ref.source) in aliases:
+        ref.source = NodeId(aliases[ref.source])
+      if str(ref.target) in aliases:
+        ref.target = NodeId(aliases[ref.target])
+      if str(ref.referenceType) in aliases:
+        ref.referenceType = NodeId(aliases[ref.referenceType])
+    for ref in self.inverseReferences:
+      if str(ref.source) in aliases:
+        ref.source = NodeId(aliases[ref.source])
+      if str(ref.target) in aliases:
+        ref.target = NodeId(aliases[ref.target])
+      if str(ref.referenceType) in aliases:
+        ref.referenceType = NodeId(aliases[ref.referenceType])
+
+  def replaceNamespaces(self, nsMapping):
+    self.id.ns = nsMapping[self.id.ns]
+    for ref in self.references:
+      ref.source.ns = nsMapping[ref.source.ns]
+      ref.target.ns = nsMapping[ref.target.ns]
+      ref.referenceType.ns = nsMapping[ref.referenceType.ns]
+    for ref in self.inverseReferences:
+      ref.source.ns = nsMapping[ref.source.ns]
+      ref.target.ns = nsMapping[ref.target.ns]
+      ref.referenceType.ns = nsMapping[ref.referenceType.ns]
+
   def getParent(self):
     """ Return a tuple of (Node, ReferencePointer) indicating
         the first node found that references this node. If this node is not
@@ -143,20 +173,14 @@ class Node(object):
         reference will be returned.
     """
     # TODO What a parent is depends on the node type
-    parent = None
-    parentref = None
-
-    for hiddenstatus in [False, True]:
-      for r in self.references:
-        if r.isForward == False:
-          parent = r.source
-          for r in parent.references:
-            if r.target == self.id:
-              parentref = r
-              break
-          if parentref != None:
-            return (parent, parentref)
-    return (parent, parentref)
+    for r in self.references:
+      if r.isForward == True:
+        continue
+      parent = r.source
+      for ref in parent.references:
+        if ref.target == self.id:
+          return (parent, ref)
+    return (None, None)
 
 class ReferenceTypeNode(Node):
   def __init__(self, xmlelement = None):

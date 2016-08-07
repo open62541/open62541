@@ -20,7 +20,6 @@ from __future__ import print_function
 import sys
 import xml.dom.minidom as dom
 from struct import pack as structpack
-from collections import deque
 from time import struct_time, strftime, strptime, mktime
 import logging; logger = logging.getLogger(__name__)
 
@@ -28,9 +27,9 @@ from datatypes import *
 from nodes import *
 from constants import *
 
-knownNodeTypes = ['variable', 'object', 'method', 'referencetype', \
-                  'objecttype', 'variabletype', 'methodtype', \
-                  'datatype', 'referencetype', 'aliases']
+####################
+# Helper Functions #
+####################
 
 def extractNamespaces(xmlfile):
     # Extract a list of namespaces used. The first namespace is always
@@ -66,7 +65,20 @@ def extractNamespaces(xmlfile):
     infile.close()
     return namespaces
 
-class NodeSet():
+def buildAliasList(xmlelement):
+    """Parses the <Alias> XML Element present in must XML NodeSet definitions.
+       Contents the Alias element are stored in a dictionary for further
+       dereferencing during pointer linkage (see linkOpenPointer())."""
+    aliases = {}
+    for al in xmlelement.childNodes:
+      if al.nodeType == al.ELEMENT_NODE:
+        if al.hasAttribute("Alias"):
+          aliasst = al.getAttribute("Alias")
+          aliasnd = unicode(al.firstChild.data)
+          aliases[aliasst] = aliasnd
+    return aliases
+
+class NodeSet(object):
   """ This class handles parsing XML description of namespaces, instantiating
       nodes, linking references, graphing the namespace and compiling a binary
       representation.
@@ -78,8 +90,18 @@ class NodeSet():
   """
   def __init__(self, name):
     self.nodes = {}
-    self.aliases = {}
     self.namespaces = ["http://opcfoundation.org/UA/"]
+
+  def sanitize(self):
+    for n in self.nodes.values():
+      if n.sanitize() == False:
+        raise Exception("Failed to sanitize node " + str(n))
+
+  def sanitizeReferenceConsistency:
+    for n in self.nodes.values():
+      for ref in n.references:
+        if not ref.source == n.id:
+          raise Exception("Reference " + ref)
 
   def addNamespace(self, nsURL):
     if not nsURL in self.namespaces:
@@ -93,195 +115,70 @@ class NodeSet():
       m[index] = self.namespaces.index(name)
     return m
 
-  def buildAliasList(self, xmlelement):
-    """Parses the <Alias> XML Element present in must XML NodeSet definitions.
-       Contents the Alias element are stored in a dictionary for further
-       dereferencing during pointer linkage (see linkOpenPointer())."""
-    if not xmlelement.tagName == "Aliases":
-      logger.error("XMLElement passed is not an Aliaslist")
-      return
-    for al in xmlelement.childNodes:
-      if al.nodeType == al.ELEMENT_NODE:
-        if al.hasAttribute("Alias"):
-          aliasst = al.getAttribute("Alias")
-          if sys.version_info[0] < 3:
-            aliasnd = unicode(al.firstChild.data)
-          else:
-            aliasnd = al.firstChild.data
-          if not aliasst in self.aliases:
-            self.aliases[aliasst] = aliasnd
-            logger.debug("Added new alias \"" + str(aliasst) + "\" == \"" + str(aliasnd) + "\"")
-          else:
-            if self.aliases[aliasst] != aliasnd:
-              logger.error("Alias definitions for " + aliasst + " differ. Have " + \
-                           self.aliases[aliasst] + " but XML defines " + aliasnd + \
-                           ". Keeping current definition.")
-
-  def replaceAliases(self, node):
-    if str(node.id) in self.aliases:
-      node.id = NodeId(self.aliases[node.id])
-    for ref in node.references:
-      if str(ref.source) in self.aliases:
-        ref.source = NodeId(self.aliases[ref.source])
-      if str(ref.target) in self.aliases:
-        ref.target = NodeId(self.aliases[ref.target])
-      if str(ref.referenceType) in self.aliases:
-        ref.referenceType = NodeId(self.aliases[ref.referenceType])
-    for ref in node.inverseReferences:
-      if str(ref.source) in self.aliases:
-        ref.source = NodeId(self.aliases[ref.source])
-      if str(ref.target) in self.aliases:
-        ref.target = NodeId(self.aliases[ref.target])
-      if str(ref.referenceType) in self.aliases:
-        ref.referenceType = NodeId(self.aliases[ref.referenceType])
+  def getNodeByBrowseName(self, idstring):
+    return next((n for n in self.nodes.values() if idstring==str(n.browseName)), None)
 
   def getRoot(self):
     return self.getNodeByBrowseName("Root")
 
-  def getNodeByBrowseName(self, idstring):
-    return next((n for n in self.nodes.values() if idstring==str(n.browseName)), None)
-
   def createNode(self, xmlelement, nsMapping):
-    """ createNode is instantiates a node described by xmlelement, its type being
-        defined by the string ndtype.
-
-        If the xmlelement is an <Alias>, the contents will be parsed and stored
-        for later dereferencing during pointer linking (see linkOpenPointers).
-
-        Recognized types are:
-        * UAVariable
-        * UAObject
-        * UAMethod
-        * UAView
-        * UAVariableType
-        * UAObjectType
-        * UAMethodType
-        * UAReferenceType
-        * UADataType
-
-        For every recognized type, an appropriate node class is added to the node
-        list of the namespace. The NodeId of the given node is created and parsing
-        of the node attributes and elements is delegated to the parseXML() and
-        parseXMLSubType() functions of the instantiated class.
-
-        If the NodeID attribute is non-unique in the node list, the creation is
-        deferred and an error is logged.
-    """
-    if not isinstance(xmlelement, dom.Element):
-      return
-      raise Exception( "Error: Can not create node from invalid XMLElement")
-
-    if xmlelement.nodeType != xmlelement.ELEMENT_NODE:
-      return
-
     ndtype = xmlelement.tagName.lower()
     if ndtype[:2] == "ua":
       ndtype = ndtype[2:]
 
-    if ndtype == 'aliases':
-      self.buildAliasList(xmlelement)
-      return
-
-    node = None
     if ndtype == 'variable':
-      node = VariableNode(xmlelement)
-    elif ndtype == 'object':
-      node = ObjectNode(xmlelement)
-    elif ndtype == 'method':
-      node = MethodNode(xmlelement)
-    elif ndtype == 'objecttype':
-      node = ObjectTypeNode(xmlelement)
-    elif ndtype == 'variabletype':
-      node = VariableTypeNode(xmlelement)
-    elif ndtype == 'methodtype':
-      node = MethodNode(xmlelement)
-    elif ndtype == 'datatype':
-      node = DataTypeNode(xmlelement)
-    elif ndtype == 'referencetype':
-      node = ReferenceTypeNode(xmlelement)
-    else:
-      return
-
-    if node.id == None:
-      raise Exception("Error: XMLElement has no id")
-
-    # Exchange the namespace indices
-    self.replaceAliases(node)
-    node.id.ns = nsMapping[node.id.ns]
-    # TODO Exchange all the reference namespaces
-    # TODO Create the inverse references in the node that should have the forward reference
-
-    if str(node.id) in self.nodes:
-      raise Exception("XMLElement with duplicate ID " + str(node.id))
-    self.nodes[str(node.id)] = node
+      return VariableNode(xmlelement)
+    if ndtype == 'object':
+      return ObjectNode(xmlelement)
+    if ndtype == 'method':
+      return MethodNode(xmlelement)
+    if ndtype == 'objecttype':
+      return ObjectTypeNode(xmlelement)
+    if ndtype == 'variabletype':
+      return VariableTypeNode(xmlelement)
+    if ndtype == 'methodtype':
+      return MethodNode(xmlelement)
+    if ndtype == 'datatype':
+      return DataTypeNode(xmlelement)
+    if ndtype == 'referencetype':
+      return ReferenceTypeNode(xmlelement)
+    return None
 
   def addNodeSet(self, xmlfile):
+    # Extract NodeSet DOM
     nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
     if len(nodesets) == 0 or len(nodesets) > 1:
       raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
-    nodeset = nodesets[0] # Parsed DOM XML object
+    nodeset = nodesets[0]
+
+    # Create the namespace mapping
     orig_namespaces = extractNamespaces(xmlfile) # List of namespaces used in the xml file
     for ns in orig_namespaces:
       if not ns in self.namespaces:
         self.namespaces.append(ns)
     nsMapping = self.createNamespaceMapping(orig_namespaces)
 
+    # Extract the aliases
+    aliases = None
+    for nd in nodeset.childNodes:
+      if nd.nodeType != nd.ELEMENT_NODE:
+        continue
+      ndtype = nd.tagName.lower()
+      if 'aliases' in ndtype:
+        aliases = buildAliasList(nd)
+
     # Instantiate nodes
     for nd in nodeset.childNodes:
-      self.createNode(nd, nsMapping)
-
-    logger.debug("Currently " + str(len(self.nodes)) + " nodes in address space.")
-
-  def sanitize(self):
-    for n in self.nodes.values():
-      if n.sanitize() == False:
-        raise Exception("Failed to sanitize node " + str(n))
-
-  def getSubTypesOf(self, node):
-    re = [node]
-    for ref in node.references: 
-      if isinstance(ref.target(), Node):
-        if ref.referenceType().displayName() == "HasSubtype" and ref.isForward():
-          re = re + self.getSubTypesOf(ref.target())
-    return re
-
-  def reorderNodesMinDependencies(self, printedExternally):
-    #Kahn's algorithm
-    #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-    
-    relevant_types = ["HierarchicalReferences", "HasComponent"]
-    
-    temp = []
-    for t in relevant_types:
-        temp = temp + self.getSubTypesOf(self.getNodeByBrowseName(t))
-    relevant_types = temp
-
-    # determine in-degree
-    in_degree = { u : 0 for u in self.nodes.values() }
-    for u in self.nodes.values(): # of each node
-      if u not in printedExternally:
-        for ref in u.references:
-         if isinstance(ref.target, Node):
-           if(ref.referenceType() in relevant_types and ref.isForward):
-             in_degree[ref.target] += 1
-    
-    # collect nodes with zero in-degree
-    Q = deque()
-    for u in in_degree:
-      if in_degree[u] == 0:
-        Q.appendleft(u)
- 
-    L = []     # list for order of nodes
-    
-    while Q:
-      u = Q.pop()          # choose node of zero in-degree
-      L.append(u)          # and 'remove' it from graph
-      for ref in u.references:
-       if isinstance(ref.target, Node):
-         if(ref.referenceType in relevant_types and ref.isForward()):
-           in_degree[ref.target] -= 1
-           if in_degree[ref.target] == 0:
-             Q.appendleft(ref.target)
-    if len(L) != len(self.nodes.values()):
-      raise Exception("Node graph is circular on the specified references")
-    return L
+      if nd.nodeType != nd.ELEMENT_NODE:
+        continue
+      node = self.createNode(nd, nsMapping)
+      if not node:
+        continue
+      node.replaceAliases(aliases)
+      node.replaceNamespaces(nsMapping)
+      # TODO Create the inverse references in the node that should have the forward reference
+      
+      # Add the node the the global dict
+      if str(node.id) in self.nodes:
+        raise Exception("XMLElement with duplicate ID " + str(node.id))
+      self.nodes[str(node.id)] = node

@@ -661,7 +661,6 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
       return []
 
     # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
-    # Note: getFirstParentNode will return [parentNode, referenceToChild]
     (parentNode, parentRef) = node.getParent()
     if not parentNode in unPrintedNodes and parentNode != None and parentRef != None:
       code.append("// Referencing node found and declared as parent: " + \
