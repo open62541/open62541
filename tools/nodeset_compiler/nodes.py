@@ -67,6 +67,7 @@ class Node(object):
     self.userWriteMask  = 0
     self.references     = Set()
     self.inverseReferences = Set()
+    self.hidden = False
 
   def __str__(self):
     return self.__class__.__name__ + "(" + str(self.id) + ")"
@@ -93,9 +94,9 @@ class Node(object):
         elif at == "IsForward":
           forward = not "false" in av.lower()
       if forward:
-        self.references.add(Reference(self.id, target, reftype, forward))
+        self.references.add(Reference(self.id, reftype, target, forward))
       else:
-        self.inverseReferences.add(Reference(self.id, target, reftype, forward))
+        self.inverseReferences.add(Reference(self.id, reftype, target, forward))
 
   def parseXML(self, xmlelement):
     for idname in ['NodeId', 'NodeID', 'nodeid']:

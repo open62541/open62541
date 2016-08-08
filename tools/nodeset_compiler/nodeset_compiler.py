@@ -16,38 +16,29 @@
 ### this program.
 ###
 
-from __future__ import print_function
 import logging
 import argparse
 from os.path import basename
 from nodeset import *
-from open62541_XMLPreprocessor import open62541_XMLPreprocessor
-from open62541_backend import generateCCode
+from backend_open62541 import generateOpen62541Code
 
-parser = argparse.ArgumentParser(
-  description="""Parse OPC UA NodeSetXML file(s) and create C code for generating nodes in open62541
-
-generate_open62541CCode.py will first read all XML files passed on the command
-line, then link and check the nodeset. All nodes that fulfill the basic
-requirements will then be printed as C-Code intended to be included in the
-open62541 OPC UA Server that will initialize the corresponding nodeset.""",
-    formatter_class=argparse.RawDescriptionHelpFormatter)
+parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
+parser.add_argument('-e','--existing',
+                    metavar="<existingNodeSetXML>",
+                    type=argparse.FileType('r'),
+                    dest="existing",
+                    action='append',
+                    help='NodeSet XML files with nodes that are already present on the server.')
 parser.add_argument('infiles',
                     metavar="<nodeSetXML>",
                     nargs='+',
                     type=argparse.FileType('r'),
-                    help='NodeSet XML file(s). Note that the last definition of a node encountered will be used and all prior definitions are discarded.')
+                    help='NodeSet XML files with nodes that shall be generated.')
+
 parser.add_argument('outputFile',
                     metavar='<outputFile>',
-                    #type=argparse.FileType('w', 0),
                     help='The basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
-parser.add_argument('-i','--ignore',
-                    metavar="<ignoreFile>",
-                    type=argparse.FileType('r'),
-                    action='append',
-                    dest="ignoreFiles",
-                    default=[],
-                    help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). The compiler will assume that these nodes have been created externally and not generate any code for them. They will however be linked to from other nodes.')
+
 parser.add_argument('-b','--blacklist',
                     metavar="<blacklistFile>",
                     type=argparse.FileType('r'),
@@ -55,6 +46,7 @@ parser.add_argument('-b','--blacklist',
                     dest="blacklistFiles",
                     default=[],
                     help='Loads a list of NodeIDs stored in blacklistFile (one NodeID per line). Any of the nodeIds encountered in this file will be removed from the nodeset prior to compilation. Any references to these nodes will also be removed')
+
 parser.add_argument('-s','--suppress',
                     metavar="<attribute>",
                     action='append',
@@ -62,10 +54,7 @@ parser.add_argument('-s','--suppress',
                     choices=['description', 'browseName', 'displayName', 'writeMask', 'userWriteMask','nodeid'],
                     default=[],
                     help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
-parser.add_argument('--high-level-api',
-                    action='store_true', default=False,
-                    dest='high_level_api',
-                    help="Use only high level API which makes it possible to add nodes in userspace")
+
 parser.add_argument('-v','--verbose', action='count', help='Make the script more verbose. Can be applied up to 4 times')
 
 args = parser.parse_args()
@@ -87,15 +76,12 @@ elif (verbosity>=4):
 else:
   logging.basicConfig(level=logging.CRITICAL)
 
-# Open the output file
-outfileh = open(args.outputFile+".h", r"w+")
-outfilec = open(args.outputFile+".c", r"w+")
-
 # Create a new nodeset. The nodeset name is not significant.
-ns = NodeSet("open62541")
-
 # Parse the XML files
-preProc = open62541_XMLPreprocessor()
+ns = NodeSet("open62541")
+for xmlfile in args.existing:
+  logger.info("Preprocessing (existing) " + str(xmlfile.name))
+  ns.addNodeSet(xmlfile, True)
 for xmlfile in args.infiles:
   logger.info("Preprocessing " + str(xmlfile.name))
   ns.addNodeSet(xmlfile)
@@ -122,32 +108,7 @@ for blacklist in args.blacklistFiles:
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
 
-# Users may have manually defined some nodes in their code already (such as serverStatus).
-# To prevent those nodes from being reprinted, we will simply mark them as already
-# converted to C-Code. That way, they will still be referred to by other nodes, but
-# they will not be created themselves.
-ignoreNodes = []
-for ignore in args.ignoreFiles:
-  for line in ignore.readlines():
-    line = line.replace(" ","")
-    id = line.replace("\n","")
-    if ns.getNodeByIDString(id) == None:
-      logger.warn("Can't ignore node, NodeSet does currently not contain a node with id " + str(id))
-    else:
-      ignoreNodes.append(ns.getNodeByIDString(id))
-  ignore.close()
-
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-(header, code) = generateCCode(ns, ignoreNodes, args.suppressedAttributes,
-                               outfilename=basename(args.outputFile),
-                               high_level_api=args.high_level_api)
-for line in header:
-  print(line, end='\n', file=outfileh)
-for line in code:
-  print(line, end='\n', file=outfilec)
-
-outfilec.close()
-outfileh.close()
-
+generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes)
 logger.info("NodeSet generation code successfully printed")

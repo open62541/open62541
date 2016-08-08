@@ -97,11 +97,15 @@ class NodeSet(object):
       if n.sanitize() == False:
         raise Exception("Failed to sanitize node " + str(n))
 
-  def sanitizeReferenceConsistency:
+    # Sanitize reference consistency
     for n in self.nodes.values():
       for ref in n.references:
         if not ref.source == n.id:
-          raise Exception("Reference " + ref)
+          raise Exception("Reference " + str(ref) + " has an invalid source")
+        if not ref.referenceType in self.nodes:
+          raise Exception("Reference " + str(ref) + " has an unknown reference type")
+        if not ref.target in self.nodes:
+          raise Exception("Reference " + str(ref) + " has an unknown target")
 
   def addNamespace(self, nsURL):
     if not nsURL in self.namespaces:
@@ -121,30 +125,38 @@ class NodeSet(object):
   def getRoot(self):
     return self.getNodeByBrowseName("Root")
 
-  def createNode(self, xmlelement, nsMapping):
+  def createNode(self, xmlelement, nsMapping, hidden=False):
     ndtype = xmlelement.tagName.lower()
     if ndtype[:2] == "ua":
       ndtype = ndtype[2:]
 
+    node = None
     if ndtype == 'variable':
-      return VariableNode(xmlelement)
+      node = VariableNode(xmlelement)
     if ndtype == 'object':
-      return ObjectNode(xmlelement)
+      node = ObjectNode(xmlelement)
     if ndtype == 'method':
-      return MethodNode(xmlelement)
+      node = MethodNode(xmlelement)
     if ndtype == 'objecttype':
-      return ObjectTypeNode(xmlelement)
+      node = ObjectTypeNode(xmlelement)
     if ndtype == 'variabletype':
-      return VariableTypeNode(xmlelement)
+      node = VariableTypeNode(xmlelement)
     if ndtype == 'methodtype':
-      return MethodNode(xmlelement)
+      node = MethodNode(xmlelement)
     if ndtype == 'datatype':
-      return DataTypeNode(xmlelement)
+      node = DataTypeNode(xmlelement)
     if ndtype == 'referencetype':
-      return ReferenceTypeNode(xmlelement)
-    return None
+      node = ReferenceTypeNode(xmlelement)
 
-  def addNodeSet(self, xmlfile):
+    if node and hidden:
+        node.hidden = True
+        for ref in node.references:
+            ref.hidden = True
+        for ref in node.inverseReferences:
+            ref.hidden = True
+    return node
+
+  def addNodeSet(self, xmlfile, existing = False):
     # Extract NodeSet DOM
     nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
     if len(nodesets) == 0 or len(nodesets) > 1:

@@ -57,9 +57,6 @@ class Value(object):
     if xmlvalue == None or xmlvalue.nodeType != xmlvalue.ELEMENT_NODE:
       logger.error("Expected XML Element, but got junk...")
       return
-    if not self.__class__.__name__ == xmlvalue.tagName:
-      logger.warn("Expected XML field " + self.__class__.__name__ + \
-                  " but got " + xmlvalue.tagName + " instead.")
 
   def parseXML(self, xmlvalue):
     self.checkXML(xmlvalue)
@@ -405,8 +402,7 @@ class NodeId(Value):
 
   def memoizeString(self):
     self.__mystrname__ = ""
-    if self.ns != 0:
-      self.__mystrname__ = "ns="+str(self.ns)+";"
+    self.__mystrname__ = "ns="+str(self.ns)+";"
     # Order of preference is numeric, guid, bytestring, string
     if self.i != None:
       self.__mystrname__ = self.__mystrname__ + "i="+str(self.i)

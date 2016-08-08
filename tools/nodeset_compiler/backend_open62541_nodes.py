@@ -660,7 +660,8 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
       logger.warn(str(node) + " attempted to reprint already printed node " + str(node)+ ".")
       return []
 
-    # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
+    # If we are being passed a parent node by the namespace, use that for
+    # registering ourselves in the namespace
     (parentNode, parentRef) = node.getParent()
     if not parentNode in unPrintedNodes and parentNode != None and parentRef != None:
       code.append("// Referencing node found and declared as parent: " + \
@@ -678,7 +679,8 @@ def Node_printOpen62541CCode(node, unPrintedNodes=[], unPrintedReferences=[],
            ref.isForward == False:
           while ref in unPrintedReferences:
             unPrintedReferences.remove(ref)
-    # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
+    # Otherwise use the "Bootstrapping" method and we will get registered with
+    # other nodes later.
     else:
       code.extend(Node_printOpen62541CCode_SubtypeEarly(node, bootstrapping = True))
       code.extend(getCreateNodeBootstrap(node, supressGenerationOfAttribute))
