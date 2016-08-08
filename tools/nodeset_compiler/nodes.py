@@ -82,6 +82,7 @@ class Node(object):
     for ref in xmlelement.childNodes:
       if ref.nodeType != ref.ELEMENT_NODE:
         continue
+      source = NodeId(str(self.id))
       target = NodeId(unicode(ref.firstChild.data))
       reftype = None
       forward = True
@@ -94,9 +95,9 @@ class Node(object):
         elif at == "IsForward":
           forward = not "false" in av.lower()
       if forward:
-        self.references.add(Reference(self.id, reftype, target, forward))
+        self.references.add(Reference(source, reftype, target, forward))
       else:
-        self.inverseReferences.add(Reference(self.id, reftype, target, forward))
+        self.inverseReferences.add(Reference(source, reftype, target, forward))
 
   def parseXML(self, xmlelement):
     for idname in ['NodeId', 'NodeID', 'nodeid']:

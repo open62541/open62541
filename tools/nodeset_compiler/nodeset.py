@@ -166,8 +166,7 @@ class NodeSet(object):
     # Create the namespace mapping
     orig_namespaces = extractNamespaces(xmlfile) # List of namespaces used in the xml file
     for ns in orig_namespaces:
-      if not ns in self.namespaces:
-        self.namespaces.append(ns)
+        self.addNamespace(ns)
     nsMapping = self.createNamespaceMapping(orig_namespaces)
 
     # Extract the aliases
@@ -189,12 +188,11 @@ class NodeSet(object):
         continue
       node.replaceAliases(aliases)
       node.replaceNamespaces(nsMapping)
-      # TODO Create the inverse references in the node that should have the forward reference
       
       # Add the node the the global dict
-      if str(node.id) in self.nodes:
+      if node.id in self.nodes:
         raise Exception("XMLElement with duplicate ID " + str(node.id))
-      self.nodes[str(node.id)] = node
+      self.nodes[node.id] = node
       newnodes.append(node)
 
     # add inverse references

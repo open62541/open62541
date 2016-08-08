@@ -346,7 +346,6 @@ class NodeId(Value):
     self.ns = 0
 
     if not idstring:
-      self.memoizeString()
       return
 
     # The ID will encoding itself appropriatly as string. If multiple ID's
@@ -372,29 +371,24 @@ class NodeId(Value):
         self.s = p[2:]
       else:
         raise Exception("no valid nodeid: " + idstring)
-    self.memoizeString()
 
-  def memoizeString(self):
-    self.__mystrname__ = ""
-    self.__mystrname__ = "ns="+str(self.ns)+";"
+  def __str__(self):
+    s = "ns="+str(self.ns)+";"
     # Order of preference is numeric, guid, bytestring, string
     if self.i != None:
-      self.__mystrname__ = self.__mystrname__ + "i="+str(self.i)
+      return s + "i="+str(self.i)
     elif self.g != None:
-      self.__mystrname__ = self.__mystrname__ + "g="
+      s = s + "g="
       tmp = []
       for i in self.g:
         tmp.append(hex(i).replace("0x",""))
       for i in tmp:
-        self.__mystrname__ = self.__mystrname__ + "-" + i
-      self.__mystrname__ = self.__mystrname__.replace("g=-","g=")
+        s = s + "-" + i
+      return s.replace("g=-","g=")
     elif self.b != None:
-      self.__mystrname__ = self.__mystrname__ + "b="+str(self.b)
+      return s + "b="+str(self.b)
     elif self.s != None:
-      self.__mystrname__ = self.__mystrname__ + "s="+str(self.s)
-
-  def __str__(self):
-    return self.__mystrname__
+      return s + "s="+str(self.s)
 
   def __eq__(self, nodeId2):
     return (str(self) == str(nodeId2))
