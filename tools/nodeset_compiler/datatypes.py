@@ -19,6 +19,7 @@
 import sys
 from time import strftime, strptime
 import logging; logger = logging.getLogger(__name__)
+import xml.dom.minidom as dom
 
 from constants import *
 
@@ -26,12 +27,6 @@ if sys.version_info[0] >= 3:
   # strings are already parsed to unicode
   def unicode(s):
     return s
-
-knownTypes = ['boolean', 'int32', 'uint32', 'int16', 'uint16',
-              'int64', 'uint64', 'byte', 'sbyte', 'float', 'double',
-              'string', 'bytestring', 'localizedtext', 'statuscode',
-              'diagnosticinfo', 'nodeid', 'guid', 'datetime',
-              'qualifiedname', 'expandednodeid', 'xmlelement']
 
 class Value(object):
   def __init__(self, xmlelement = None):
@@ -322,7 +317,8 @@ class LocalizedText(Value):
   def __init__(self, xmlvalue = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_LOCALIZEDTEXT
-    self.value = ['en_US', '']
+    self.locale = 'en_US'
+    self.text = ''
     if xmlvalue:
       self.parseXML(xmlvalue)
 
@@ -332,40 +328,21 @@ class LocalizedText(Value):
     #          <Text>TextText</Text>
     #        <LocalizedText> or </AliasName>
     self.checkXML(xmlvalue)
-    if xmlvalue.firstChild == None:
-      return
-
     tmp = xmlvalue.getElementsByTagName("Locale")
-    if len(tmp) == 0:
-      self.value[0] = 'en_US'
-    else:
-      if tmp[0].firstChild == None:
-        self.value[0] = 'en_US'
-      else:
-        self.value[0] = tmp[0].firstChild.data
-      clean = ""
-      for s in self.value[0]:
-        if s in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_":
-          clean = clean + s
-      self.value[0] = clean
-
+    if len(tmp) > 0 and tmp[0].firstChild != None:
+        self.locale = tmp[0].firstChild.data
     tmp = xmlvalue.getElementsByTagName("Text")
-    if len(tmp) == 0:
-      self.value[1] = ''
-    else:
-      if tmp[0].firstChild == None:
-        self.value[1] = ''
-      else:
-        self.value[1] = tmp[0].firstChild.data
+    if len(tmp) > 0 and tmp[0].firstChild != None:
+        self.text = tmp[0].firstChild.data
 
 class NodeId(Value):
   def __init__(self, idstring = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_NODEID
-    self.i = -1
-    self.o = ""
-    self.g = ""
-    self.s = ""
+    self.i = None
+    self.b = None
+    self.g = None
+    self.s = None
     self.ns = 0
 
     if not idstring:
@@ -376,12 +353,7 @@ class NodeId(Value):
     # (numeric, string, guid) are defined, the order of preference for the ID
     # string is always numeric, guid, bytestring, string. Binary encoding only
     # applies to numeric values (UInt16).
-    idparts = idstring.split(";")
-    self.i = None
-    self.b = None
-    self.g = None
-    self.s = None
-    self.ns = 0
+    idparts = idstring.strip().split(";")
     for p in idparts:
       if p[:2] == "ns":
         self.ns = int(p[3:])
@@ -398,6 +370,8 @@ class NodeId(Value):
         self.g = tmp
       elif p[:2] == "s=":
         self.s = p[2:]
+      else:
+        raise Exception("no valid nodeid: " + idstring)
     self.memoizeString()
 
   def memoizeString(self):
@@ -477,32 +451,25 @@ class QualifiedName(Value):
   def __init__(self, xmlelement = None):
     Value.__init__(self)
     self.numericRepresentation = BUILTINTYPE_TYPEID_QUALIFIEDNAME
-    self.value = [0, '']
+    self.ns = 0
+    self.name = ''
     if xmlelement:
       self.parseXML(xmlelement)
 
   def parseXML(self, xmlvalue):
     # Expect <QualifiedName> or <AliasName>
-    #           <NamespaceIndex>Int16<NamespaceIndex> # Optional, apparently ommitted if ns=0?
-    #           <Name>SomeString<Name>                # Mandatory
+    #           <NamespaceIndex>Int16<NamespaceIndex>
+    #           <Name>SomeString<Name>
     #        </QualifiedName> or </AliasName>
+    if not isinstance(xmlvalue, dom.Element):
+      self.name = xmlvalue
+      return
     self.checkXML(xmlvalue)
-    if xmlvalue.firstChild == None :
-      self.value = [0, ''] # Catch XML <Qalified /> by setting the value to a default
-    else:
-      # Is a namespace index passed?
-      if len(xmlvalue.getElementsByTagName("NamespaceIndex")) != 0:
-        self.value = [int(xmlvalue.getElementsByTagName("NamespaceIndex")[0].firstChild.data)]
-        # namespace index is passed and <Name> tags are now manditory?
-        if len(xmlvalue.getElementsByTagName("Name")) != 0:
-          self.value.append(xmlvalue.getElementsByTagName("Name")[0].firstChild.data)
-        else:
-          logger.debug("No name is specified, will default to empty string")
-          self.value.append('')
-      else:
-        logger.debug("No namespace is specified, will default to 0")
-        self.value = [0]
-        self.value.append(unicode(xmlvalue.firstChild.data))
+    # Is a namespace index passed?
+    if len(xmlvalue.getElementsByTagName("NamespaceIndex")) != 0:
+      self.ns = int(xmlvalue.getElementsByTagName("NamespaceIndex")[0].firstChild.data)
+    if len(xmlvalue.getElementsByTagName("Name")) != 0:
+      self.name = xmlvalue.getElementsByTagName("Name")[0].firstChild.data
 
 class StatusCode(UInt32):
   def __init__(self, xmlelement = None):

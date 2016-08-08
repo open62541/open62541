@@ -120,7 +120,7 @@ class NodeSet(object):
     return m
 
   def getNodeByBrowseName(self, idstring):
-    return next((n for n in self.nodes.values() if idstring==str(n.browseName)), None)
+    return next((n for n in self.nodes.values() if idstring==n.browseName.name), None)
 
   def getRoot(self):
     return self.getNodeByBrowseName("Root")
@@ -180,6 +180,7 @@ class NodeSet(object):
         aliases = buildAliasList(nd)
 
     # Instantiate nodes
+    newnodes = []
     for nd in nodeset.childNodes:
       if nd.nodeType != nd.ELEMENT_NODE:
         continue
@@ -194,3 +195,19 @@ class NodeSet(object):
       if str(node.id) in self.nodes:
         raise Exception("XMLElement with duplicate ID " + str(node.id))
       self.nodes[str(node.id)] = node
+      newnodes.append(node)
+
+    # add inverse references
+    for node in newnodes:
+        for ref in node.references:
+            newsource = self.nodes[ref.target]
+            hide = node.hidden and newsource.hidden
+            newref = Reference(newsource.id, ref.referenceType, ref.source, False, hide)
+            newsource.inverseReferences.add(newref)
+        for ref in node.inverseReferences:
+            newsource = self.nodes[ref.target]
+            hide = node.hidden and newsource.hidden
+            newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide)
+            newsource.references.add(newref)
+
+        

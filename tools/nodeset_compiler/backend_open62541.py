@@ -23,7 +23,7 @@ import logging; logger = logging.getLogger(__name__)
 
 from constants import *
 from nodes import *
-from backend_open62541_nodes import Node_printOpen62541CCode, getCreateStandaloneReference
+from backend_open62541_nodes import generateNodeCode, generateReferenceCode
 
 ##############
 # Sort Nodes #
@@ -34,20 +34,16 @@ def getSubTypesOf(nodeset, node):
   re = [node]
   for ref in node.references: 
     if ref.referenceType == hassubtype and ref.isForward:
-      re = re + getSubTypesOf(nodeset, ref.target)
+      re = re + getSubTypesOf(nodeset, nodeset.nodes[ref.target])
   return re
 
 def reorderNodesMinDependencies(nodeset):
     #Kahn's algorithm
     #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
     
-    relevant_types = [nodeset.getNodeByBrowseName("HierarchicalReferences"),
-                      nodeset.getNodeByBrowseName("HasComponent")]
-    
-    temp = []
-    for t in relevant_types:
-        temp = temp + getSubTypesOf(nodeset, t)
-    relevant_types = map(lambda x: x.id, temp)
+    relevant_types = getSubTypesOf(nodeset,
+                                   nodeset.getNodeByBrowseName("HierarchicalReferences"))
+    relevant_types = map(lambda x: x.id, relevant_types)
 
     # determine in-degree
     in_degree = { u.id : 0 for u in nodeset.nodes.values() }
@@ -117,7 +113,7 @@ extern void %s(UA_Server *server);
 
 void %s(UA_Server *server) {""" % (outfilename, outfilename))
 
-    # Generate anmespaces (don't worry about duplicates)
+    # Generate namespaces (don't worry about duplicates)
     for nsid in nodeset.namespaces:
       nsid = nsid.replace("\"","\\\"")
       writec("UA_Server_addNsidspace(server, \"" + nsid + "\");")
@@ -129,14 +125,14 @@ void %s(UA_Server *server) {""" % (outfilename, outfilename))
     for node in sorted_nodes:
         # Print node
         if not node.hidden:
-            writec(Node_printOpen62541CCode(node, supressGenerationOfAttribute))
+            writec(generateNodeCode(node, supressGenerationOfAttribute))
 
         # Print inverse references leading to this node
         for ref in node.inverseReferences:
             if not ref.hidden:
-                writec(getCreateStandaloneReference(ref))
+                writec(generateReferenceCode(ref))
 
-    # finalizing source and header
+    # Finalize the generated source
     writec("} // closing nodeset()")
     outfileh.close()
     outfilec.close()

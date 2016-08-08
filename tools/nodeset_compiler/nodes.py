@@ -105,11 +105,11 @@ class Node(object):
 
     for (at, av) in xmlelement.attributes.items():
       if at == "BrowseName":
-        self.browseName = av
+        self.browseName = QualifiedName(av)
       elif at == "DisplayName":
-        self.displayName = av
+        self.displayName = LocalizedText(av)
       elif at == "Description":
-        self.description = av
+        self.description = LocalizedText(av)
       elif at == "WriteMask":
         self.writeMask = int(av)
       elif at == "UserWriteMask":
@@ -250,7 +250,10 @@ class VariableNode(Node):
       elif at == "MinimumSamplingInterval":
         self.minimumSamplingInterval = float(av)
       elif at == "DataType":
-        self.dataType = NodeId(str(av))
+        if "=" in av:
+          self.dataType = NodeId(av)
+        else:
+          self.dataType = av
 
     for x in xmlelement.childNodes:
       if x.nodeType != x.ELEMENT_NODE:
