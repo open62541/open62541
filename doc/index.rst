@@ -27,6 +27,4 @@ standard.
    constants
    server
    client
-   client_highlevel
    internal
-

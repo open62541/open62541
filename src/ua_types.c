@@ -1,6 +1,7 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 #include "pcg_basic.h"
 #include "libc_time.h"

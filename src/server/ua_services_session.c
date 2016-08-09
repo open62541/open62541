@@ -3,6 +3,14 @@
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
+#ifdef _WIN32
+# include <ws2tcpip.h>
+# undef SLIST_ENTRY // fixes amalgation
+#else
+# include <netinet/in.h>
+# include <sys/socket.h>
+#endif
+
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
     if(channel->securityToken.channelId == 0) {
@@ -66,8 +74,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
         return;
     }
 
+	// Used for the callback, could be used for logging
+    struct sockaddr_in addr;
+    socklen_t addrlen = sizeof(struct sockaddr_in);
+    getpeername(channel->connection->sockfd, (struct sockaddr*)&addr, &addrlen);
 
-    UA_String ap = UA_STRING(ANONYMOUS_POLICY);
+	UA_String ap = UA_STRING(ANONYMOUS_POLICY);
     UA_String up = UA_STRING(USERNAME_POLICY);
 
     /* Compatibility notice: Siemens OPC Scout v10 provides an empty policyId,
@@ -84,40 +96,65 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
-    } else if(server->config.enableUsernamePasswordLogin &&
-              request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        /* username login */
-        const UA_UserNameIdentityToken *token = request->userIdentityToken.content.decoded.data;
-        if(!UA_String_equal(&token->policyId, &up)) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-        if(token->encryptionAlgorithm.length > 0) {
-            /* we don't support encryption */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
 
-        if(token->userName.length == 0 && token->password.length == 0) {
-            /* empty username and password */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-
-        /* trying to match pw/username */
-        UA_Boolean match = false;
-        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
-            UA_String *user = &server->config.usernamePasswordLogins[i].username;
-            UA_String *pw = &server->config.usernamePasswordLogins[i].password;
-            if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
-                match = true;
-                break;
+		/* if the callback is defined ... */
+        else if (server->config.authCallback != NULL) {
+            /* ... we have to check, whether it denies the anonymous access or not */
+            if (!server->config.authCallback(NULL, NULL, &addr)) {
+                /* access denied - abort, we can assume that anonymous login is not allowed */
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
             }
         }
-        if(!match) {
-            UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Did not find matching username/password");
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
-            return;
+    }
+    else if (request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+    {
+        /* We have a UA_UserNameIdentityToken, and need it in both cases */
+        const UA_UserNameIdentityToken *token = request->userIdentityToken.content.decoded.data;
+
+        /* We either use the callback OR the username + password checks of the stack! */
+        if (server->config.authCallback != NULL) {
+            /* trying to use callback to auth user with password */
+            if (!server->config.authCallback(&token->userName, &token->password, &addr))
+            {
+                /* access denied - abort */
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+                return;
+            }
+        }
+        else if(server->config.enableUsernamePasswordLogin) {
+            if(token->userName.length == 0 && token->password.length == 0) {
+                /* empty username and password */
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
+            }
+
+            /* username login */
+            if(!UA_String_equal(&token->policyId, &up)) {
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
+            }
+            if(token->encryptionAlgorithm.length > 0) {
+                /* we don't support encryption */
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
+            }
+            
+            /* trying to match pw/username */
+            UA_Boolean match = false;
+            for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
+                UA_String *user = &server->config.usernamePasswordLogins[i].username;
+                UA_String *pw = &server->config.usernamePasswordLogins[i].password;
+                if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
+                    match = true;
+                    break;
+                }
+            }
+            if(!match) {
+                UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Did not find matching username/password");
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+                return;
+            }
         }
     } else {
         /* Unsupported token type */

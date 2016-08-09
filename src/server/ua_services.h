@@ -79,7 +79,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
  * any other Service request after CreateSession. Failure to do so shall cause
  * the Server to close the Session. */
 void Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                             UA_Session *session, const UA_ActivateSessionRequest *request,
+                             UA_Session *session,
+                             const UA_ActivateSessionRequest *request,
                              UA_ActivateSessionResponse *response);
 
 /* Used to terminate a Session. */
@@ -103,15 +104,18 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
                       UA_AddNodesResponse *response);
 
 void Service_AddNodes_single(UA_Server *server, UA_Session *session,
-                             const UA_AddNodesItem *item, UA_AddNodesResult *result,
+                             const UA_AddNodesItem *item,
+                             UA_AddNodesResult *result,
                              UA_InstantiationCallback *instantiationCallback);
 
 /* Add an existing node. The node is assumed to be "finished", i.e. no
  * instantiation from inheritance is necessary */
 void
 Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition, UA_InstantiationCallback *instantiationCallback,
+                          const UA_NodeId *parentNodeId,
+                          const UA_NodeId *referenceTypeId,
+                          const UA_NodeId *typeDefinition,
+                          UA_InstantiationCallback *instantiationCallback,
                           UA_AddNodesResult *result);
 
 /* Used to add one or more References to one or more Nodes. */
@@ -119,7 +123,8 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,
                            UA_AddReferencesResponse *response);
 
-UA_StatusCode Service_AddReferences_single(UA_Server *server, UA_Session *session,
+UA_StatusCode Service_AddReferences_single(UA_Server *server,
+                                           UA_Session *session,
                                            const UA_AddReferencesItem *item);
 
 /* Used to delete one or more Nodes from the AddressSpace. */
@@ -136,8 +141,8 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session,
                               const UA_DeleteReferencesRequest *request,
                               UA_DeleteReferencesResponse *response);
 
-UA_StatusCode Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
-                                              const UA_DeleteReferencesItem *item);
+UA_StatusCode Service_DeleteReferences_single(UA_Server *server,
+                      UA_Session *session, const UA_DeleteReferencesItem *item);
 
 /**
  * View Service Set
@@ -153,7 +158,8 @@ void Service_Browse(UA_Server *server, UA_Session *session,
                     UA_BrowseResponse *response);
 
 void Service_Browse_single(UA_Server *server, UA_Session *session,
-                           struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
+                           struct ContinuationPointEntry *cp,
+                           const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
 /* Used to request the next set of Browse or BrowseNext response information
@@ -172,10 +178,11 @@ void UA_Server_browseNext_single(UA_Server *server, UA_Session *session,
 
 /* Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
-                                           const UA_TranslateBrowsePathsToNodeIdsRequest *request,
-                                           UA_TranslateBrowsePathsToNodeIdsResponse *response);
+             const UA_TranslateBrowsePathsToNodeIdsRequest *request,
+             UA_TranslateBrowsePathsToNodeIdsResponse *response);
 
-void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
+void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server,
+                                                  UA_Session *session,
                                                   const UA_BrowsePath *path,
                                                   UA_BrowsePathResult *result);
 
@@ -283,7 +290,8 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_ModifyMonitoredItemsRequest *request,
                                   UA_ModifyMonitoredItemsResponse *response);
 
-/* Used to set the monitoring mode for one or more MonitoredItems of a Subscription. */
+/* Used to set the monitoring mode for one or more MonitoredItems of a
+   Subscription. */
 void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                                const UA_SetMonitoringModeRequest *request,
                                UA_SetMonitoringModeResponse *response);

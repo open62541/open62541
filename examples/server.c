@@ -129,6 +129,18 @@ outargMethod (void *methodHandle, const UA_NodeId objectId,
 }
 #endif
 
+static UA_Boolean
+authCallback(const UA_String* username, const UA_String* password, struct sockaddr_in* endpoint) {
+    /* If both params are NULL, the callback was issued to check an anonymous login */
+    if (username && password)
+        printf("Auth user '%.*s' with password '%.*s'.\n", username->length, username->data, password->length, password->data);
+    else
+        printf("Auth anonymous user.\n");
+    
+    /* Allow access to all users (as it is an example) */
+    return true;
+}
+
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
@@ -136,6 +148,7 @@ int main(int argc, char** argv) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+    config.authCallback = authCallback;
 
     /* load certificate */
     config.serverCertificate = loadCertificate();

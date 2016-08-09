@@ -8,6 +8,7 @@ else
     brew install check
     brew install userspace-rcu
     brew install valgrind
+    brew install graphviz
 
     pip install --user sphinx
     pip install --user breathe

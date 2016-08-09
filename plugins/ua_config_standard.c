@@ -65,6 +65,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     /* Login */
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
+    .authCallback = NULL,
     .usernamePasswordLogins = usernamePasswords,
     .usernamePasswordLoginsSize = 2,
 
@@ -108,3 +109,19 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     },
     .connectionFunc = UA_ClientConnectionTCP
 };
+/****************************************/
+/* Default Client Subscription Settings */
+/****************************************/
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
+const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
+    .requestedPublishingInterval = 500.0,
+    .requestedLifetimeCount = 10000,
+    .requestedMaxKeepAliveCount = 1,
+    .maxNotificationsPerPublish = 10,
+    .publishingEnabled = true,
+    .priority = 0
+};
+
+#endif

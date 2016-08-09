@@ -148,32 +148,6 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         return;
     }
 
-    /* Test if the reference to the parent is valid */
-    const UA_NodeId nodeIdHasSubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    switch(node->nodeClass) {
-    case UA_NODECLASS_OBJECTTYPE:
-    case UA_NODECLASS_VARIABLETYPE:
-    case UA_NODECLASS_REFERENCETYPE:
-        /* DataTypeNodes have no subtype relations */
-        /* -- CTT throw errors with this check as they test all combinations of node and reference type -- */
-        /* if(!UA_NodeId_equal(referenceTypeId, &nodeIdHasSubtype)) { */
-        /*     UA_LOG_DEBUG_SESSION(server->config.logger, session, */
-        /*                          "AddNodes: Trying to add a type node without a hassubtype relation"); */
-        /*     result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED; */
-        /*     UA_NodeStore_deleteNode(node); */
-        /*     return; */
-        /* } */
-        break;
-    default:
-        if(UA_NodeId_equal(referenceTypeId, &nodeIdHasSubtype)) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                 "AddNodes: Trying to add a non-type node with a hassubtype relation");
-            result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED;
-            UA_NodeStore_deleteNode(node);
-            return;
-        }
-    }
-
     const UA_ReferenceTypeNode *referenceType =
         (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
@@ -233,7 +207,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
             if(!found)
                 result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: The object is not derived from BaseObjectType");
+                UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: The object if not derived from BaseObjectType");
                 goto remove_node;
             }
         }
@@ -255,7 +229,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
             if(!found)
                 result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: The variable is not derived from BaseVariableType");
+                UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: The variable if not derived from BaseVariableType");
                 goto remove_node;
             }
         }
@@ -678,9 +652,7 @@ void Service_AddNodes_single(UA_Server *server, UA_Session *session, const UA_Ad
         node = variableNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        /* The structures of UA_ObjectTypeAttributes and UA_ObjectType are identical. CTT uses this. */
-        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES] &&
-           item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES]) {
+        if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]) {
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
