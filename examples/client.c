@@ -1,11 +1,13 @@
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_client.h"
 # include "ua_client_highlevel.h"
 # include "ua_nodeids.h"
-# include "networklayer_tcp.h"
+# include "ua_network_tcp.h"
 # include "ua_config_standard.h"
-# include "ua_types_encoding_binary.h"
 #else
 # include "open62541.h"
 # include <string.h>
@@ -118,24 +120,16 @@ int main(int argc, char *argv[]) {
 #endif
 
     /* Read attribute */
-    printf("\nReading the value of node (1, \"the.answer\"):\n");
     UA_Int32 value = 0;
-    UA_ReadRequest rReq;
-    UA_ReadRequest_init(&rReq);
-    rReq.nodesToRead =  UA_Array_new(1, &UA_TYPES[UA_TYPES_READVALUEID]);
-    rReq.nodesToReadSize = 1;
-    rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer"); /* assume this node exists */
-    rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE; /* return the value attribute */
-    UA_ReadResponse rResp = UA_Client_Service_read(client, rReq);
-    if(rResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-       rResp.resultsSize > 0 && rResp.results[0].hasValue &&
-       UA_Variant_isScalar(&rResp.results[0].value) &&
-       rResp.results[0].value.type == &UA_TYPES[UA_TYPES_INT32]) {
-        value = *(UA_Int32*)rResp.results[0].value.data;
-        printf("the value is: %i\n", value);
+    printf("\nReading the value of node (1, \"the.answer\"):\n");
+    UA_Variant *val = UA_Variant_new();
+    retval = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), val);
+    if(retval == UA_STATUSCODE_GOOD && UA_Variant_isScalar(val) &&
+       val->type == &UA_TYPES[UA_TYPES_INT32]) {
+            value = *(UA_Int32*)val->data;
+            printf("the value is: %i\n", value);
     }
-    UA_ReadRequest_deleteMembers(&rReq);
-    UA_ReadResponse_deleteMembers(&rResp);
+    UA_Variant_delete(val);
 
     /* Write node attribute */
     value++;

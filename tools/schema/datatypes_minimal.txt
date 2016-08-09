@@ -156,3 +156,5 @@ MonitoredItemModifyRequest
 ModifyMonitoredItemsRequest
 MonitoredItemModifyResult
 ModifyMonitoredItemsResponse
+SetMonitoringModeRequest
+SetMonitoringModeResponse

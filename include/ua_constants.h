@@ -66,11 +66,11 @@ typedef enum {
 #define UA_ACCESSLEVELMASK_HISTORYWRITE 0x08
 #define UA_ACCESSLEVELMASK_SEMANTICCHANGE 0x10
 
-/** Write Masks
- *  -----------
- *  The write mask and user write mask is given by the following constants that are
- *  XORed for the overall write mask.
- *  Part 3: 5.2.7 Table 2
+/**
+ * Write Masks
+ * -----------
+ * The write mask and user write mask is given by the following constants that
+ * are XORed for the overall write mask. Part 3: 5.2.7 Table 2
  */
 #define UA_WRITEMASK_ACCESSLEVEL                1<<0
 #define UA_WRITEMASK_ARRRAYDIMENSIONS           1<<1
@@ -96,13 +96,13 @@ typedef enum {
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE       1<<21
 
 /**
-* Encoding Offsets
-* ----------------
-* Subtract from the typeid of the encoding nodeids to get to the type
-* definition. */
+ * Encoding Offsets
+ * ----------------
+ * Subtract from the typeid of the encoding nodeids to get to the type
+ * definition. */
 #define UA_ENCODINGOFFSET_XML 1
 #define UA_ENCODINGOFFSET_BINARY 2
-    
+
 /**
  * .. _statuscodes:
  *

@@ -75,7 +75,7 @@ struct UA_Connection {
     UA_Int32 sockfd;                 /* Most connectivity solutions run on
                                         sockets. Having the socket id here
                                         simplifies the design. */
-    void *handle;                    /* A pointer to the networklayer */
+    void *handle;                    /* A pointer to internal data */
     UA_ByteString incompleteMessage; /* A half-received message (TCP is a
                                         streaming protocol) is stored here */
 
@@ -104,7 +104,8 @@ struct UA_Connection {
      *         can be repeated, UA_STATUSCODE_GOOD if it succeeded and
      *         UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was
      *         closed. */
-    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
+    UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response,
+                          UA_UInt32 timeout);
 
     /* Release the buffer of a received message */
     void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);

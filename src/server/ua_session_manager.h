@@ -13,7 +13,6 @@ typedef struct session_list_entry {
 
 typedef struct UA_SessionManager {
     LIST_HEAD(session_list, session_list_entry) sessions; // doubly-linked list of sessions
-    UA_UInt32 lastSessionId;
     UA_UInt32 currentSessionCount;
     UA_Server *server;
 } UA_SessionManager;
@@ -23,7 +22,7 @@ UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server);
 
 void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager);
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime now);
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_DateTime nowMonotonic);
 
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sessionManager, UA_SecureChannel *channel,

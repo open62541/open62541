@@ -21,11 +21,14 @@ import sys
 from time import struct_time, strftime, strptime, mktime
 from struct import pack as structpack
 
-from logger import *;
+import logging
 from ua_builtin_types import *;
 from ua_node_types import *;
 from ua_constants import *;
 from open62541_MacroHelper import open62541_MacroHelper
+
+
+logger = logging.getLogger(__name__)
 
 def getNextElementNode(xmlvalue):
   if xmlvalue == None:
@@ -59,7 +62,7 @@ class opcua_namespace():
   name = ""
   knownNodeTypes = ""
   namespaceIdentifiers = {} # list of 'int':'string' giving different namespace an array-mapable name
-  
+
   def __init__(self, name):
     self.nodes = []
     self.knownNodeTypes = ['variable', 'object', 'method', 'referencetype', \
@@ -73,7 +76,7 @@ class opcua_namespace():
 
   def addNamespace(self, numericId, stringURL):
     self.namespaceIdentifiers[numericId] = stringURL
-    
+
   def linkLater(self, pointer):
     """ Called by nodes or references who have parsed an XML reference to a
         node represented by a string.
@@ -112,7 +115,7 @@ class opcua_namespace():
         dereferencing during pointer linkage (see linkOpenPointer()).
     """
     if not xmlelement.tagName == "Aliases":
-      log(self, "XMLElement passed is not an Aliaslist", LOG_LEVEL_ERROR)
+      logger.error("XMLElement passed is not an Aliaslist")
       return
     for al in xmlelement.childNodes:
       if al.nodeType == al.ELEMENT_NODE:
@@ -124,10 +127,10 @@ class opcua_namespace():
             aliasnd = al.firstChild.data
           if not aliasst in self.aliases:
             self.aliases[aliasst] = aliasnd
-            log(self, "Added new alias \"" + str(aliasst) + "\" == \"" + str(aliasnd) + "\"")
+            logger.debug("Added new alias \"" + str(aliasst) + "\" == \"" + str(aliasnd) + "\"")
           else:
             if self.aliases[aliasst] != aliasnd:
-              log(self, "Alias definitions for " + aliasst + " differ. Have " + self.aliases[aliasst] + " but XML defines " + aliasnd + ". Keeping current definition.", LOG_LEVEL_ERROR)
+              logger.error("Alias definitions for " + aliasst + " differ. Have " + self.aliases[aliasst] + " but XML defines " + aliasnd + ". Keeping current definition.")
 
   def getNodeByBrowseName(self, idstring):
     """ Returns the first node in the nodelist whose browseName matches idstring.
@@ -137,7 +140,7 @@ class opcua_namespace():
       if idstring==str(n.browseName()):
         matches.append(n)
     if len(matches) > 1:
-      log(self, "Found multiple nodes with same ID!?", LOG_LEVEL_ERROR)
+      logger.error("Found multiple nodes with same ID!?")
     if len(matches) == 0:
       return None
     else:
@@ -152,7 +155,7 @@ class opcua_namespace():
       if idstring==str(n.id()):
         matches.append(n)
     if len(matches) > 1:
-      log(self, "Found multiple nodes with same ID!?", LOG_LEVEL_ERROR)
+      logger.error("Found multiple nodes with same ID!?")
     if len(matches) == 0:
       return None
     else:
@@ -187,10 +190,10 @@ class opcua_namespace():
         deferred and an error is logged.
     """
     if not isinstance(xmlelement, dom.Element):
-      log(self,  "Error: Can not create node from invalid XMLElement", LOG_LEVEL_ERROR)
+      logger.error( "Error: Can not create node from invalid XMLElement")
       return
 
-    # An ID is manditory for everything but aliases!
+    # An ID is mandatory for everything but aliases!
     id = None
     for idname in ['NodeId', 'NodeID', 'nodeid']:
       if xmlelement.hasAttribute(idname):
@@ -199,17 +202,17 @@ class opcua_namespace():
       self.buildAliasList(xmlelement)
       return
     elif id == None:
-      log(self,  "Error: XMLElement has no id, node will not be created!", LOG_LEVEL_INFO)
+      logger.info( "Error: XMLElement has no id, node will not be created!")
       return
     else:
       id = opcua_node_id_t(id)
 
     if str(id) in self.nodeids:
       # Normal behavior: Do not allow duplicates, first one wins
-      #log(self,  "XMLElement with duplicate ID " + str(id) + " found, node will not be created!", LOG_LEVEL_ERROR)
+      #logger.error( "XMLElement with duplicate ID " + str(id) + " found, node will not be created!")
       #return
       # Open62541 behavior for header generation: Replace the duplicate with the new node
-      log(self,  "XMLElement with duplicate ID " + str(id) + " found, node will be replaced!", LOG_LEVEL_INFO)
+      logger.info( "XMLElement with duplicate ID " + str(id) + " found, node will be replaced!")
       nd = self.getNodeByIDString(str(id))
       self.nodes.remove(nd)
       self.nodeids.pop(str(nd.id()))
@@ -232,7 +235,7 @@ class opcua_namespace():
     elif (ndtype == 'referencetype'):
       node = opcua_node_referenceType_t(id, self)
     else:
-      log(self,  "No node constructor for type " + ndtype, LOG_LEVEL_ERROR)
+      logger.error( "No node constructor for type " + ndtype)
 
     if node != None:
       node.parseXML(xmlelement)
@@ -245,7 +248,7 @@ class opcua_namespace():
     if nd == None:
       return False
 
-    log(self, "Removing nodeId " + str(nodeId), LOG_LEVEL_DEBUG)
+    logger.debug("Removing nodeId " + str(nodeId))
     self.nodes.remove(nd)
     if nd.getInverseReferences() != None:
       for ref in nd.getInverseReferences():
@@ -286,10 +289,10 @@ class opcua_namespace():
     typedict = {}
     UANodeSet = dom.parse(xmldoc).getElementsByTagName("UANodeSet")
     if len(UANodeSet) == 0:
-      log(self,  "Error: No NodeSets found", LOG_LEVEL_ERROR)
+      logger.error( "Error: No NodeSets found")
       return
     if len(UANodeSet) != 1:
-      log(self,  "Error: Found more than 1 Nodeset in XML File", LOG_LEVEL_ERROR)
+      logger.error( "Error: Found more than 1 Nodeset in XML File")
 
     UANodeSet = UANodeSet[0]
     for nd in UANodeSet.childNodes:
@@ -300,7 +303,7 @@ class opcua_namespace():
       if ndType[:2] == "ua":
         ndType = ndType[2:]
       elif not ndType in self.knownNodeTypes:
-        log(self, "XML Element or NodeType " + ndType + " is unknown and will be ignored", LOG_LEVEL_WARN)
+        logger.warn("XML Element or NodeType " + ndType + " is unknown and will be ignored")
         continue
 
       if not ndType in typedict:
@@ -309,7 +312,7 @@ class opcua_namespace():
         typedict[ndType] = typedict[ndType] + 1
 
       self.createNode(ndType, nd)
-    log(self, "Currently " + str(len(self.nodes)) + " nodes in address space. Type distribution for this run was: " + str(typedict))
+    logger.debug("Currently " + str(len(self.nodes)) + " nodes in address space. Type distribution for this run was: " + str(typedict))
 
   def linkOpenPointers(self):
     """ Substitutes symbolic NodeIds in references for actual node instances.
@@ -317,7 +320,7 @@ class opcua_namespace():
         No return value
 
         References that have registered themselves with linkLater() to have
-        their symbolic NodeId targets ("ns=2; i=32") substited for an actual
+        their symbolic NodeId targets ("ns=2;i=32") substituted for an actual
         node will be iterated by this function. For each reference encountered
         in the list of unlinked/open references, the target string will be
         evaluated and searched for in the node list of this namespace. If found,
@@ -330,7 +333,7 @@ class opcua_namespace():
     """
     linked = []
 
-    log(self,  str(self.unlinkedItemCount()) + " pointers need to get linked.")
+    logger.debug( str(self.unlinkedItemCount()) + " pointers need to get linked.")
     for l in self.__linkLater__:
       targetLinked = False
       if not l.target() == None and not isinstance(l.target(), opcua_node_t):
@@ -346,30 +349,28 @@ class opcua_namespace():
              l.target()[:3] == "ns=" :
             tgt = self.getNodeByIDString(str(l.target()))
             if tgt == None:
-              log(self, "Failed to link pointer to target (node not found) " + l.target(), LOG_LEVEL_ERROR)
+              logger.error("Failed to link pointer to target (node not found) " + l.target())
             else:
               l.target(tgt)
               targetLinked = True
           else:
-            log(self, "Failed to link pointer to target (target not Alias or Node) " + l.target(), LOG_LEVEL_ERROR)
+            logger.error("Failed to link pointer to target (target not Alias or Node) " + l.target())
         else:
-          log(self, "Failed to link pointer to target (don't know dummy type + " + str(type(l.target())) + " +) " + str(l.target()), LOG_LEVEL_ERROR)
+          logger.error("Failed to link pointer to target (don't know dummy type + " + str(type(l.target())) + " +) " + str(l.target()))
       else:
-        log(self, "Pointer has null target: " + str(l), LOG_LEVEL_ERROR)
+        logger.error("Pointer has null target: " + str(l))
 
 
       referenceLinked = False
       if not l.referenceType() == None:
         if l.referenceType() in self.aliases:
           l.referenceType(self.aliases[l.referenceType()])
-        if l.referenceType()[:2] == "i=" or l.referenceType()[:2] == "g=" or \
-           l.referenceType()[:2] == "b=" or l.referenceType()[:2] == "s=":
-          tgt = self.getNodeByIDString(str(l.referenceType()))
-          if tgt == None:
-            log(self, "Failed to link reference type to target (node not found) " + l.referenceType(), LOG_LEVEL_ERROR)
-          else:
-            l.referenceType(tgt)
-            referenceLinked = True
+        tgt = self.getNodeByIDString(str(l.referenceType()))
+        if tgt == None:
+          logger.error("Failed to link reference type to target (node not found) " + l.referenceType())
+        else:
+          l.referenceType(tgt)
+          referenceLinked = True
       else:
         referenceLinked = True
 
@@ -377,7 +378,7 @@ class opcua_namespace():
         linked.append(l)
 
     # References marked as "not forward" must be inverted (removed from source node, assigned to target node and relinked)
-    log(self, "Inverting reference direction for all references with isForward==False attribute (is this correct!?)", LOG_LEVEL_WARN)
+    logger.warn("Inverting reference direction for all references with isForward==False attribute (is this correct!?)")
     for n in self.nodes:
       for r in n.getReferences():
         if r.isForward() == False:
@@ -388,7 +389,7 @@ class opcua_namespace():
             tgt.addReference(nref)
 
     # Create inverse references for all nodes
-    log(self, "Updating all referencedBy fields in nodes for inverse lookups.")
+    logger.debug("Updating all referencedBy fields in nodes for inverse lookups.")
     for n in self.nodes:
       n.updateInverseReferences()
 
@@ -396,19 +397,19 @@ class opcua_namespace():
       self.__linkLater__.remove(l)
 
     if len(self.__linkLater__) != 0:
-      log(self, str(len(self.__linkLater__)) + " could not be linked.", LOG_LEVEL_WARN)
+      logger.warn(str(len(self.__linkLater__)) + " could not be linked.")
 
   def sanitize(self):
     remove = []
-    log(self, "Sanitizing nodes and references...")
+    logger.debug("Sanitizing nodes and references...")
     for n in self.nodes:
       if n.sanitize() == False:
         remove.append(n)
     if not len(remove) == 0:
-      log(self, str(len(remove)) + " nodes will be removed because they failed sanitation.", LOG_LEVEL_WARN)
+      logger.warn(str(len(remove)) + " nodes will be removed because they failed sanitation.")
     # FIXME: Some variable ns=0 nodes fail because they don't have DataType fields...
     #        How should this be handles!?
-    log(self, "Not actually removing nodes... it's unclear if this is valid or not", LOG_LEVEL_WARN)
+    logger.warn("Not actually removing nodes... it's unclear if this is valid or not")
 
   def getRoot(self):
     """ Returns the first node instance with the browseName "Root".
@@ -425,7 +426,7 @@ class opcua_namespace():
       if isinstance(n, opcua_node_dataType_t):
         n.buildEncoding()
         stat[n.isEncodable()] = stat[n.isEncodable()] + 1
-    log(self, "Type definitions built/passed: " +  str(stat), LOG_LEVEL_DEBUG)
+    logger.debug("Type definitions built/passed: " +  str(stat))
 
   def allocateVariables(self):
     for n in self.nodes:
@@ -448,10 +449,10 @@ class opcua_namespace():
       file.write(n.printDot())
     file.write("}\n")
     file.close()
-  
+
   def getSubTypesOf(self, tdNodes = None, currentNode = None, hasSubtypeRefNode = None):
     # If this is a toplevel call, collect the following information as defaults
-    if tdNodes == None: 
+    if tdNodes == None:
       tdNodes = []
     if currentNode == None:
       currentNode = self.getNodeByBrowseName("HasTypeDefinition")
@@ -462,16 +463,16 @@ class opcua_namespace():
       hasSubtypeRefNode = self.getNodeByBrowseName("HasSubtype")
       if hasSubtypeRefNode == None:
         return tdNodes
-    
+
     # collect all subtypes of this node
     for ref in currentNode.getReferences():
       if ref.isForward() and ref.referenceType().id() == hasSubtypeRefNode.id():
         tdNodes.append(ref.target())
         self.getTypeDefinitionNodes(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
-    
+
     return tdNodes
-      
-  
+
+
   def printDotGraphWalk(self, depth=1, filename="out.dot", rootNode=None, followInverse = False, excludeNodeIds=[]):
     """ Outputs a graphiz/dot description the nodes centered around rootNode.
 
@@ -545,14 +546,14 @@ class opcua_namespace():
         minweight = w
         minweightnd = row[0]
     return (rind, minweightnd, minweight)
-  
+
   def reorderNodesMinDependencies(self):
     # create a matrix represtantion of all node
     #
     nmatrix = []
     for n in range(0,len(self.nodes)):
       nmatrix.append([None] + [0]*len(self.nodes))
-    
+
     typeRefs = []
     tn = self.getNodeByBrowseName("HasTypeDefinition")
     if tn != None:
@@ -563,13 +564,13 @@ class opcua_namespace():
     if tn  != None:
       subTypeRefs.append(tn)
       subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
-    
-    log(self, "Building connectivity matrix for node order optimization.")
+
+    logger.debug("Building connectivity matrix for node order optimization.")
     # Set column 0 to contain the node
     for node in self.nodes:
       nind = self.nodes.index(node)
       nmatrix[nind][0] = node
-      
+
     # Determine the dependencies of all nodes
     for node in self.nodes:
       nind = self.nodes.index(node)
@@ -586,8 +587,8 @@ class opcua_namespace():
           # Else the target depends on us
           elif ref.isForward():
             nmatrix[tind][nind+1] += 1
-    
-    log(self, "Using Djikstra topological sorting to determine printing order.")
+
+    logger.debug("Using Djikstra topological sorting to determine printing order.")
     reorder = []
     while len(reorder) < len(self.nodes):
       (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
@@ -604,23 +605,23 @@ class opcua_namespace():
             nmatrix[tind][nind+1] -= 1
       nmatrix[nind][0] = None
     self.nodes = reorder
-    log(self, "Nodes reordered.")
+    logger.debug("Nodes reordered.")
     return
-  
+
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
     unPrintedNodes = []
     unPrintedRefs  = []
     code = []
     header = []
-    
+
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
-    log(self, "Reordering nodes for minimal dependencies during printing.")
+    logger.debug("Reordering nodes for minimal dependencies during printing.")
     self.reorderNodesMinDependencies()
-    
+
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
     codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
-    
+
     # Populate the unPrinted-Lists with everything we have.
     # Every Time a nodes printfunction is called, it will pop itself and
     #   all printed references from these lists.
@@ -628,13 +629,13 @@ class opcua_namespace():
       if not n in printedExternally:
         unPrintedNodes.append(n)
       else:
-        log(self, "Node " + str(n.id()) + " is being ignored.", LOG_LEVEL_DEBUG)
+        logger.debug("Node " + str(n.id()) + " is being ignored.")
     for n in unPrintedNodes:
       for r in n.getReferences():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)
 
-    log(self, str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.", LOG_LEVEL_DEBUG)
+    logger.debug(str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.")
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
@@ -652,10 +653,10 @@ class opcua_namespace():
     header.append('#include "open62541.h"')
     header.append('#define NULL ((void *)0)')
     header.append('#endif')
-      
+
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
-    
+
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in self.namespaceIdentifiers:
       if nsid == 0 or nsid==1:
@@ -663,12 +664,12 @@ class opcua_namespace():
       else:
         name =  self.namespaceIdentifiers[nsid]
         name = name.replace("\"","\\\"")
-        code.append("UA_Server_addNamespace(server, \"" + name.encode('UTF-8') + "\");")
-    
+        code.append("UA_Server_addNamespace(server, \"" + name + "\");")
+
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
     # they can locate both source and target of the reference.
-    log(self, "Collecting all references used in the namespace.", LOG_LEVEL_DEBUG)
+    logger.debug("Collecting all references used in the namespace.")
     refsUsed = []
     for n in self.nodes:
       # Since we are already looping over all nodes, use this chance to print NodeId defines
@@ -676,39 +677,39 @@ class opcua_namespace():
         nc = n.nodeClass()
         if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
           header = header + codegen.getNodeIdDefineString(n)
-          
+
       # Now for the actual references...
       for r in n.getReferences():
-        # Only print valid refernces in namespace 0 (users will not want their refs bootstrapped)
+        # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
-    log(self, str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.", LOG_LEVEL_DEBUG)
+    logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
-    
+
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")
-    
+
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
-    log(self, "Printing all other nodes.", LOG_LEVEL_DEBUG)
+    logger.debug("Printing all other nodes.")
     for n in self.nodes:
       code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
 
     if len(unPrintedNodes) != 0:
-      log(self, "" + str(len(unPrintedNodes)) + " nodes could not be translated to code.", LOG_LEVEL_WARN)
+      logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
     else:
-      log(self, "Printing suceeded for all nodes", LOG_LEVEL_DEBUG)
+      logger.debug("Printing suceeded for all nodes")
 
     if len(unPrintedRefs) != 0:
-      log(self, "Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.", LOG_LEVEL_DEBUG)
+      logger.debug("Attempting to print " + str(len(unPrintedRefs)) + " unprinted references.")
       tmprefs = []
       for r in unPrintedRefs:
         if  not (r.target() not in unPrintedNodes) and not (r.parent() in unPrintedNodes):
           if not isinstance(r.parent(), opcua_node_t):
-            log(self, "Reference has no parent!", LOG_LEVEL_DEBUG)
+            logger.debug("Reference has no parent!")
           elif not isinstance(r.parent().id(), opcua_node_id_t):
-            log(self, "Parents nodeid is not a nodeID!", LOG_LEVEL_DEBUG)
+            logger.debug("Parents nodeid is not a nodeID!")
           else:
             if (len(tmprefs) == 0):
               code.append("//  Creating leftover references:")
@@ -719,9 +720,9 @@ class opcua_namespace():
       for r in tmprefs:
         unPrintedRefs.remove(r)
       if len(unPrintedRefs) != 0:
-        log(self, "" + str(len(unPrintedRefs)) + " references could not be translated to code.", LOG_LEVEL_WARN)
+        logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
     else:
-      log(self, "Printing succeeded for all references", LOG_LEVEL_DEBUG)
+      logger.debug("Printing succeeded for all references")
 
     code.append("}")
     return (header,code)
@@ -734,20 +735,20 @@ class testing:
   def __init__(self):
     self.namespace = opcua_namespace("testing")
 
-    log(self, "Phase 1: Reading XML file nodessets")
+    logger.debug("Phase 1: Reading XML file nodessets")
     self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
     #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
     #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
     #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
 
-    log(self, "Phase 2: Linking address space references and datatypes")
+    logger.debug("Phase 2: Linking address space references and datatypes")
     self.namespace.linkOpenPointers()
     self.namespace.sanitize()
 
-    log(self, "Phase 3: Comprehending DataType encoding rules")
+    logger.debug("Phase 3: Comprehending DataType encoding rules")
     self.namespace.buildEncodingRules()
 
-    log(self, "Phase 4: Allocating variable value data")
+    logger.debug("Phase 4: Allocating variable value data")
     self.namespace.allocateVariables()
 
     bin = self.namespace.buildBinary()
@@ -775,7 +776,7 @@ class testing:
         ns.append(n)
       print("...done, " + str(len(ns)) + " nodes discovered")
 
-    log(self, "Phase 5: Printing pretty graph")
+    logger.debug("Phase 5: Printing pretty graph")
     self.namespace.printDotGraphWalk(depth=1, rootNode=self.namespace.getNodeByIDString("i=84"), followInverse=False, excludeNodeIds=["i=29", "i=22", "i=25"])
     #self.namespace.printDot()
 
@@ -783,17 +784,17 @@ class testing_open62541_header:
   def __init__(self):
     self.namespace = opcua_namespace("testing")
 
-    log(self, "Phase 1: Reading XML file nodessets")
+    logger.debug("Phase 1: Reading XML file nodessets")
     self.namespace.parseXML("Opc.Ua.NodeSet2.xml")
     #self.namespace.parseXML("Opc.Ua.NodeSet2.Part4.xml")
     #self.namespace.parseXML("Opc.Ua.NodeSet2.Part5.xml")
     #self.namespace.parseXML("Opc.Ua.SimulationNodeSet2.xml")
 
-    log(self, "Phase 2: Linking address space references and datatypes")
+    logger.debug("Phase 2: Linking address space references and datatypes")
     self.namespace.linkOpenPointers()
     self.namespace.sanitize()
 
-    log(self, "Phase 3: Calling C Printers")
+    logger.debug("Phase 3: Calling C Printers")
     code = self.namespace.printOpen62541Header()
 
     codeout = open("./open62541_namespace.c", "w+")

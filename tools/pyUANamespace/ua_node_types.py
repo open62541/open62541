@@ -17,10 +17,12 @@
 ###
 
 import sys
-from logger import *;
+import logging
 from ua_builtin_types import *;
 from open62541_MacroHelper import open62541_MacroHelper
 from ua_constants import *
+
+logger = logging.getLogger(__name__)
 
 def getNextElementNode(xmlvalue):
   if xmlvalue == None:
@@ -215,10 +217,12 @@ class opcua_node_id_t():
 
   def __str__(self):
     return self.__mystrname__
-  
-  def __eq__(self, nodeId2):    
+
+  def __eq__(self, nodeId2):
+    if not nodeId2:
+        return False
     return (self.toString() == nodeId2.toString())
-  
+
   def __repr__(self):
     return self.__mystrname__
 
@@ -322,11 +326,11 @@ class opcua_node_t:
     if not node in self.__node_referencedBy__:
       if not self.hasReferenceTarget(node):
         self.__node_referencedBy__.append(opcua_referencePointer_t(node, hidden=True, parentNode=self))
-#        log(self, self.__node_browseName__ + " added reverse reference to " + str(node.__node_browseName__), LOG_LEVEL_DEBUG)
+#        logger.debug(self.__node_browseName__ + " added reverse reference to " + str(node.__node_browseName__))
 #      else:
-#        log(self, self.__node_browseName__ + " refusing reverse reference to " + str(node.__node_browseName__)  + " (referenced normally)", LOG_LEVEL_DEBUG)
+#        logger.debug(self.__node_browseName__ + " refusing reverse reference to " + str(node.__node_browseName__)  + " (referenced normally)")
 #    else:
-#      log(self, self.__node_browseName__ + " refusing reverse reference to " + str(node.__node_browseName__) + " (already reversed referenced)", LOG_LEVEL_DEBUG)
+#      logger.debug(self.__node_browseName__ + " refusing reverse reference to " + str(node.__node_browseName__) + " (already reversed referenced)")
 
   def getReferences(self):
     return self.__node_references__
@@ -389,10 +393,10 @@ class opcua_node_t:
     for r in self.getReferences():
       if isinstance(r.target(), opcua_node_t):
         if not r.target().hasInverseReferenceTarget(self):
-          #log(self, self.__node_browseName__ + " req. rev. referencing in" + str(r.target().__node_browseName__), LOG_LEVEL_DEBUG)
+          #logger.debug(self.__node_browseName__ + " req. rev. referencing in" + str(r.target().__node_browseName__))
           r.target().addInverseReferenceTarget(self)
       #else:
-        #log(self, "Cannot register inverse link to " + str(r.target()) + " (not a node)")
+        #logger.debug("Cannot register inverse link to " + str(r.target()) + " (not a node)")
 
   def id(self):
     return self.__node_id__
@@ -464,7 +468,7 @@ class opcua_node_t:
         with an actual instance of an opcua_node_t.
     """
     if not xmlelement.tagName == "References":
-      log(self, "XMLElement passed is not a reference list", LOG_LEVEL_ERROR)
+      logger.error("XMLElement passed is not a reference list")
       return
     for ref in xmlelement.childNodes:
       if ref.nodeType == ref.ELEMENT_NODE:
@@ -478,7 +482,7 @@ class opcua_node_t:
             if "false" in av.lower():
               dummy.isForward(False)
           else:
-            log(self, "Don't know how to process attribute " + at + "(" + av + ") for references.", LOG_LEVEL_ERROR)
+            logger.error("Don't know how to process attribute " + at + "(" + av + ") for references.")
 
   def printDot(self):
     cleanname = "node_" + str(self.id()).replace(";","").replace("=","")
@@ -491,31 +495,31 @@ class opcua_node_t:
           dot = dot + cleanname + " -> " + tgtname + " [label=\"" + str(r.referenceType().browseName()) + "\"]\n"
         else:
           if len(r.referenceType().inverseName()) == 0:
-            log(self, "Inverse name of reference is null " + str(r.referenceType().id()), LOG_LEVEL_WARN)
+            logger.warn("Inverse name of reference is null " + str(r.referenceType().id()))
           dot = dot + cleanname + " -> " + tgtname + " [label=\"" + str(r.referenceType().inverseName()) + "\"]\n"
     return dot
 
   def sanitize(self):
     """ Check the health of this node.
 
-        Return True if all manditory attributes are valid and all references have been
+        Return True if all mandatory attributes are valid and all references have been
         correclty linked to nodes. Returns False on failure, which should indicate
         that this node needs to be removed from the namespace.
     """
     # Do we have an id?
     if not isinstance(self.id(), opcua_node_id_t):
-      log(self, "HELP! I'm an id'less node!", LOG_LEVEL_ERROR)
+      logger.error("HELP! I'm an id'less node!")
       return False
 
     # Remove unlinked references
     tmp = []
     for r in self.getReferences():
       if not isinstance(r, opcua_referencePointer_t):
-        log(self, "Reference is not a reference!?.", LOG_LEVEL_ERROR)
+        logger.error("Reference is not a reference!?.")
       elif not isinstance(r.referenceType(), opcua_node_t):
-        log(self, "Reference has no valid reference type and will be removed.", LOG_LEVEL_ERROR)
+        logger.error("Reference has no valid reference type and will be removed.")
       elif not isinstance(r.target(), opcua_node_t):
-        log(self, "Reference to " + str(r.target()) + " is not a node. It has been removed.", LOG_LEVEL_WARN)
+        logger.warn("Reference to " + str(r.target()) + " is not a node. It has been removed.")
       else:
         tmp.append(r)
     self.__node_references__ = tmp
@@ -524,12 +528,12 @@ class opcua_node_t:
     tmp = []
     for r in self.getInverseReferences():
       if not isinstance(r.target(), opcua_node_t):
-        log(self, "Invers reference to " + str(r.target()) + " does not reference a real node. It has been removed.", LOG_LEVEL_WARN)
+        logger.warn("Invers reference to " + str(r.target()) + " does not reference a real node. It has been removed.")
       else:
         if r.target().hasReferenceTarget(self):
           tmp.append(r)
         else:
-          log(self, "Node " + str(self.id()) + " was falsely under the impression that it is referenced by " + str(r.target().id()), LOG_LEVEL_WARN)
+          logger.warn("Node " + str(self.id()) + " was falsely under the impression that it is referenced by " + str(r.target().id()))
     self.__node_referencedBy__ = tmp
 
     # Remove references from inverse list if we can reach this not "the regular way"
@@ -539,7 +543,7 @@ class opcua_node_t:
       if not self.hasReferenceTarget(r.target()):
         tmp.append(r)
       else:
-        log(self, "Removing unnecessary inverse reference to " + str(r.target.id()))
+        logger.debug("Removing unnecessary inverse reference to " + str(r.target.id()))
     self.__node_referencedBy__ = tmp
 
     return self.sanitizeSubType()
@@ -604,22 +608,23 @@ class opcua_node_t:
 
     for x in thisxml.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        if   x.tagName == "BrowseName":
-          self.browseName(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "DisplayName":
-          self.displayName(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "Description":
-          self.description(unicode(x.firstChild.data))
-          xmlelement.removeChild(x)
-        elif x.tagName == "WriteMask":
-          self.writeMask(int(unicode(x.firstChild.data)))
-          xmlelement.removeChild(x)
-        elif x.tagName == "UserWriteMask":
-          self.userWriteMask(int(unicode(x.firstChild.data)))
-          xmlelement.removeChild(x)
-        elif x.tagName == "References":
+        if x.firstChild:
+          if   x.tagName == "BrowseName":
+            self.browseName(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "DisplayName":
+            self.displayName(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "Description":
+            self.description(unicode(x.firstChild.data))
+            xmlelement.removeChild(x)
+          elif x.tagName == "WriteMask":
+            self.writeMask(int(unicode(x.firstChild.data)))
+            xmlelement.removeChild(x)
+          elif x.tagName == "UserWriteMask":
+            self.userWriteMask(int(unicode(x.firstChild.data)))
+            xmlelement.removeChild(x)
+        if x.tagName == "References":
           self.initiateDummyXMLReferences(x)
           xmlelement.removeChild(x)
     self.parseXMLSubType(xmlelement)
@@ -629,7 +634,7 @@ class opcua_node_t:
 
   def printXML(self):
     pass
-  
+
   def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
     """ printOpen62541CCode_SubtypeEarly
 
@@ -637,11 +642,11 @@ class opcua_node_t:
         the actual UA_Server_addNode or UA_NodeStore_insert calls.
     """
     return []
-  
+
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     """ printOpen62541CCode_Subtype
 
-        Appends node type specific information to the nodes  UA_Server_addNode 
+        Appends node type specific information to the nodes  UA_Server_addNode
         or UA_NodeStore_insert calls.
     """
     return []
@@ -662,10 +667,10 @@ class opcua_node_t:
 
     # Just to be sure...
     if not (self in unPrintedNodes):
-      log(self, str(self) + " attempted to reprint already printed node " + str(self)+ ".", LOG_LEVEL_WARN)
+      logger.warn(str(self) + " attempted to reprint already printed node " + str(self)+ ".")
       return []
 
-    # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace   
+    # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
     # Note: getFirstParentNode will return [parentNode, referenceToChild]
     (parentNode, parentRef) = self.getFirstParentNode()
     if not (parentNode in unPrintedNodes) and (parentNode != None) and (parentRef.referenceType() != None):
@@ -676,7 +681,7 @@ class opcua_node_t:
       # Parent to child reference is added by the server, do not reprint that reference
       if parentRef in unPrintedReferences:
         unPrintedReferences.remove(parentRef)
-      # the UA_Server_addNode function will use addReference which creates a biderectional reference; remove any inverse
+      # the UA_Server_addNode function will use addReference which creates a bidirectional reference; remove any inverse
       # references to our parent to avoid duplicate refs
       for ref in self.getReferences():
         if ref.target() == parentNode and ref.referenceType() == parentRef.referenceType() and ref.isForward() == False:
@@ -691,13 +696,13 @@ class opcua_node_t:
       code.append("UA_RCU_LOCK();")
       code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ");")
       code.append("UA_RCU_UNLOCK();")
-      
+
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
     #       the first ones being printed
     tmprefs = []
     for r in self.getReferences():
-      #log(self, "Checking if reference from " + str(r.parent()) + "can be created...", LOG_LEVEL_DEBUG)
+      #logger.debug("Checking if reference from " + str(r.parent()) + "can be created...")
       if not (r.target() in unPrintedNodes):
         if r in unPrintedReferences:
           if (len(tmprefs) == 0):
@@ -712,12 +717,12 @@ class opcua_node_t:
     # not exist...
     tmprefs = []
     for r in unPrintedReferences:
-      #log(self, "Checking if another reference " + str(r.target()) + "can be created...", LOG_LEVEL_DEBUG)
+      #logger.debug("Checking if another reference " + str(r.target()) + "can be created...")
       if (r.target() == self) and not (r.parent() in unPrintedNodes):
         if not isinstance(r.parent(), opcua_node_t):
-          log(self, "Reference has no parent!", LOG_LEVEL_DEBUG)
+          logger.debug("Reference has no parent!")
         elif not isinstance(r.parent().id(), opcua_node_id_t):
-          log(self, "Parents nodeid is not a nodeID!", LOG_LEVEL_DEBUG)
+          logger.debug("Parents nodeid is not a nodeID!")
         else:
           if (len(tmprefs) == 0):
             code.append("//  Creating this node has resolved the following open references:")
@@ -731,7 +736,7 @@ class opcua_node_t:
     if self in unPrintedNodes:
       # This is necessery to make printing work at all!
       unPrintedNodes.remove(self)
-    
+
     code.append("} while(0);")
     return code
 
@@ -770,7 +775,7 @@ class opcua_node_referenceType_t(opcua_node_t):
 
   def sanitizeSubType(self):
     if not isinstance(self.referenceType(), opcua_referencePointer_t):
-      log(self, "ReferenceType " + str(self.referenceType()) + " of " + str(self.id()) + " is not a pointer (ReferenceType is manditory for references).", LOG_LEVEL_ERROR)
+      logger.error("ReferenceType " + str(self.referenceType()) + " of " + str(self.id()) + " is not a pointer (ReferenceType is mandatory for references).")
       self.__reference_referenceType__ = None
       return False
     return True
@@ -793,19 +798,19 @@ class opcua_node_referenceType_t(opcua_node_t):
           self.isAbstract(True)
         xmlelement.removeAttribute(at)
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.warn("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        if x.tagName == "InverseName":
+        if x.tagName == "InverseName" and x.firstChild:
           self.inverseName(str(unicode(x.firstChild.data)))
         else:
-          log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+          logger.warn( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -820,19 +825,19 @@ class opcua_node_referenceType_t(opcua_node_t):
             myTypeRef = ref
             break
       if myTypeRef==None:
-        log(self, str(self) + " failed to locate a type definition, assuming BaseDataType.", LOG_LEVEL_WARN)
+        logger.warn(str(self) + " failed to locate a type definition, assuming BaseDataType.")
         code.append("       // No valid typeDefinition found; assuming BaseDataType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
         while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
-          
+
       code.append("       UA_LOCALIZEDTEXT(\"\",\"" + str(self.inverseName()) + "\"),");
       code.append("       // FIXME: Missing, isAbstract")
       code.append("       // FIXME: Missing, symmetric")
       return code
-    
+
     if self.isAbstract():
       code.append(self.getCodePrintableID() + "->isAbstract = true;")
     if self.symmetric():
@@ -863,16 +868,16 @@ class opcua_node_object_t(opcua_node_t):
         # Silently ignore this one
         xmlelement.removeAttribute(at)
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+        logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-      
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -887,17 +892,17 @@ class opcua_node_object_t(opcua_node_t):
             myTypeRef = ref
             break
       if myTypeRef==None:
-        log(self, str(self) + " failed to locate a type definition, assuming BaseObjectType.", LOG_LEVEL_WARN)
+        logger.warn(str(self) + " failed to locate a type definition, assuming BaseObjectType.")
         code.append("       // No valid typeDefinition found; assuming BaseObjectType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
         while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
-      
+
       #FIXME: No event notifier in UA_Server_addNode call!
       return code
-    
+
     # We are being bootstrapped! Add the raw attributes to the node.
     code.append(self.getCodePrintableID() + "->eventNotifier = (UA_Byte) " + str(self.eventNotifier()) + ";")
     return code
@@ -971,32 +976,32 @@ class opcua_node_variable_t(opcua_node_t):
 
   def sanitizeSubType(self):
     if not isinstance(self.dataType(), opcua_referencePointer_t):
-      log(self, "DataType " + str(self.dataType()) + " of " + str(self.id()) + " is not a pointer (DataType is manditory for variables).", LOG_LEVEL_ERROR)
+      logger.error("DataType " + str(self.dataType()) + " of " + str(self.id()) + " is not a pointer (DataType is mandatory for variables).")
       self.__dataType__ = None
       return False
 
     if not isinstance(self.dataType().target(), opcua_node_t):
-      log(self, "DataType " + str(self.dataType().target()) + " of " + str(self.id()) + " does not point to a node (DataType is manditory for variables).", LOG_LEVEL_ERROR)
+      logger.error("DataType " + str(self.dataType().target()) + " of " + str(self.id()) + " does not point to a node (DataType is mandatory for variables).")
       self.__dataType__ = None
       return False
     return True
 
   def allocateValue(self):
     if not isinstance(self.dataType(), opcua_referencePointer_t):
-      log(self, "Variable " + self.browseName() + "/" + str(self.id()) + " does not reference a valid dataType.", LOG_LEVEL_ERROR)
+      logger.error("Variable " + self.browseName() + "/" + str(self.id()) + " does not reference a valid dataType.")
       return False
 
     if not isinstance(self.dataType().target(), opcua_node_dataType_t):
-      log(self, "Variable " + self.browseName() + "/" + str(self.id()) + " does not have a valid dataType reference.", LOG_LEVEL_ERROR)
+      logger.error("Variable " + self.browseName() + "/" + str(self.id()) + " does not have a valid dataType reference.")
       return False
 
     if not self.dataType().target().isEncodable():
-      log(self, "DataType for Variable " + self.browseName() + "/" + str(self.id()) + " is not encodable.", LOG_LEVEL_ERROR)
+      logger.error("DataType for Variable " + self.browseName() + "/" + str(self.id()) + " is not encodable.")
       return False
 
     # FIXME: Don't build at all or allocate "defaults"? I'm for not building at all.
     if self.__xmlValueDef__ == None:
-      #log(self, "Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.", LOG_LEVEL_WARN)
+      #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
       return False
 
     self.value(opcua_value_t(self))
@@ -1034,7 +1039,7 @@ class opcua_node_variable_t(opcua_node_t):
         # Silently ignore this one
         xmlelement.removeAttribute(at)
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
@@ -1043,7 +1048,7 @@ class opcua_node_variable_t(opcua_node_t):
           # which can only be done if the namespace is linked.
           # Store the Value for later parsing
           self.__xmlValueDef__ = x
-          #log(self,  "Value description stored for later elaboration.", LOG_LEVEL_DEBUG)
+          #logger.debug( "Value description stored for later elaboration.")
         elif x.tagName == "DataType":
           self.dataType(opcua_referencePointer_t(str(av), parentNode=self))
           # dataType needs to be linked to a node once the namespace is read
@@ -1062,7 +1067,7 @@ class opcua_node_variable_t(opcua_node_t):
           if "true" in x.firstChild.data.lower():
             self.historizing(True)
         else:
-          log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+          logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
     code = []
@@ -1078,11 +1083,11 @@ class opcua_node_variable_t(opcua_node_t):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
-  
+
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       code.append("       " + self.getCodePrintableID() + "_variant, ")
@@ -1091,7 +1096,7 @@ class opcua_node_variable_t(opcua_node_t):
       code.append("       // FIXME: missing userAccessLevel")
       code.append("       // FIXME: missing valueRank")
       return code
-    
+
     if self.historizing():
       code.append(self.getCodePrintableID() + "->historizing = true;")
 
@@ -1145,15 +1150,15 @@ class opcua_node_method_t(opcua_node_t):
         # dataType needs to be linked to a node once the namespace is read
         self.getNamespace().linkLater(self.methodDeclaration())
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+        logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       code.append("       // Note: in/outputArguments are added by attaching the variable nodes,")
@@ -1165,7 +1170,7 @@ class opcua_node_method_t(opcua_node_t):
       code.append("       // FIXME: Missing executable")
       code.append("       // FIXME: Missing userExecutable")
       return code
-    
+
     # UA_False is default for booleans on _init()
     if self.executable():
       code.append(self.getCodePrintableID() + "->executable = true;")
@@ -1193,16 +1198,16 @@ class opcua_node_objectType_t(opcua_node_t):
           self.isAbstract(False)
         xmlelement.removeAttribute(at)
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+        logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper();
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -1217,7 +1222,7 @@ class opcua_node_objectType_t(opcua_node_t):
             myTypeRef = ref
             break
       if myTypeRef==None:
-        log(self, str(self) + " failed to locate a type definition, assuming BaseObjectType.", LOG_LEVEL_WARN)
+        logger.warn(str(self) + " failed to locate a type definition, assuming BaseObjectType.")
         code.append("       // No valid typeDefinition found; assuming BaseObjectType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),")
       else:
@@ -1225,12 +1230,12 @@ class opcua_node_objectType_t(opcua_node_t):
         while myTypeRef in unPrintedReferences:
           code.append("       // removed " + str(myTypeRef))
           unPrintedReferences.remove(myTypeRef)
-      
+
       if (self.isAbstract()):
         code.append("       true,")
       else:
         code.append("       false,")
-    
+
     # Fallback mode for bootstrapping
     if (self.isAbstract()):
       code.append(self.getCodePrintableID() + "->isAbstract = true;")
@@ -1255,7 +1260,7 @@ class opcua_node_variableType_t(opcua_node_t):
     self.__xmlDefinition__ = None
 
   def value(self, data=None):
-    log(self, "Setting data not implemented!", LOG_LEVEL_ERROR)
+    logger.error("Setting data not implemented!")
 
   def dataType(self, data=None):
     if data != None:
@@ -1282,15 +1287,15 @@ class opcua_node_variableType_t(opcua_node_t):
     # but if it does have a node set, it must obviously be a valid node
     if not self.dataType() != None:
       if not isinstance(self.dataType(), opcua_referencePointer_t):
-        log(self, "DataType attribute of " + str(self.id()) + " is not a pointer", LOG_LEVEL_ERROR)
+        logger.error("DataType attribute of " + str(self.id()) + " is not a pointer")
         return False
       else:
         if not isinstance(self.dataType().target(), opcua_node_t):
-          log(self, "DataType attribute of " + str(self.id()) + " does not point to a node", LOG_LEVEL_ERROR)
+          logger.error("DataType attribute of " + str(self.id()) + " does not point to a node")
           return False
     else:
       # FIXME: It's unclear wether this is ok or not.
-      log(self, "DataType attribute of variableType " + str(self.id()) + " is not defined.", LOG_LEVEL_WARN)
+      logger.warn("DataType attribute of variableType " + str(self.id()) + " is not defined.")
       return False
 
   def parseXMLSubType(self, xmlelement):
@@ -1304,22 +1309,22 @@ class opcua_node_variableType_t(opcua_node_t):
       elif at == "ValueRank":
         self.valueRank(int(av))
         if self.valueRank() != -1:
-          log(self, "Array's or matrices are only permitted in variables and not supported for variableTypes. This attribute will effectively be ignored.", LOG_LEVEL_WARN)
+          logger.warn("Array's or matrices are only permitted in variables and not supported for variableTypes. This attribute (" + at + "=" + av + ") will effectively be ignored.")
         xmlelement.removeAttribute(at)
       elif at == "DataType":
         self.dataType(opcua_referencePointer_t(str(av), parentNode=self))
         # dataType needs to be linked to a node once the namespace is read
         self.getNamespace().linkLater(self.dataType())
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+        logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
         if x.tagName == "Definition":
           self.__xmlDefinition__ = x
-          log(self,  "Definition stored for future processing", LOG_LEVEL_DEBUG)
+          logger.debug( "Definition stored for future processing")
         else:
-          log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+          logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
     code = []
@@ -1335,11 +1340,11 @@ class opcua_node_variableType_t(opcua_node_t):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
-  
+
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+
     if bootstrapping == False:
       code.append("       " + self.getCodePrintableID() + "_variant, ")
       code.append("       " + str(self.valueRank()) + ",")
@@ -1348,12 +1353,12 @@ class opcua_node_variableType_t(opcua_node_t):
       else:
         code.append("       false,")
       return code
-    
+
     if (self.isAbstract()):
       code.append(self.getCodePrintableID() + "->isAbstract = true;")
     else:
       code.append(self.getCodePrintableID() + "->isAbstract = false;")
-    
+
     # The variant is guaranteed to exist by SubtypeEarly()
     code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
     code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
@@ -1482,22 +1487,22 @@ class opcua_node_dataType_t(opcua_node_t):
 
     if self.__encodingBuilt__ == True:
       if self.isEncodable():
-        log(self, prefix + str(self.__baseTypeEncoding__) + " (already analyzed)")
+        logger.debug(prefix + str(self.__baseTypeEncoding__) + " (already analyzed)")
       else:
-        log(self,  prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
+        logger.debug( prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
       return self.__baseTypeEncoding__
     self.__encodingBuilt__ = True # signify that we have attempted to built this type
     self.__encodable__ = True
 
     if indent==0:
-      log(self, "Parsing DataType " + self.browseName() + " (" + str(self.id()) + ")")
+      logger.debug("Parsing DataType " + self.browseName() + " (" + str(self.id()) + ")")
 
     if proxy.isBuiltinByString(self.browseName()):
       self.__baseTypeEncoding__ = [self.browseName()]
       self.__encodable__ = True
-      log(self,  prefix + self.browseName() + "*")
-      log(self, "Encodable as: " + str(self.__baseTypeEncoding__))
-      log(self, "")
+      logger.debug( prefix + self.browseName() + "*")
+      logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
+      logger.debug("")
       return self.__baseTypeEncoding__
 
     if self.__xmlDefinition__ == None:
@@ -1505,7 +1510,7 @@ class opcua_node_dataType_t(opcua_node_t):
       for ref in self.getReferences():
         if "hassubtype" in ref.referenceType().browseName().lower() and ref.isForward() == False:
           if isinstance(ref.target(), opcua_node_dataType_t):
-            log(self,  prefix + "Attempting definition using supertype " + ref.target().browseName() + " for DataType " + " " + self.browseName())
+            logger.debug( prefix + "Attempting definition using supertype " + ref.target().browseName() + " for DataType " + " " + self.browseName())
             subenc = ref.target().buildEncoding(indent=indent+1)
             if not ref.target().isEncodable():
               self.__encodable__ = False
@@ -1513,15 +1518,15 @@ class opcua_node_dataType_t(opcua_node_t):
             else:
               self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName(), subenc, 0]
       if len(self.__baseTypeEncoding__) == 0:
-        log(self, prefix + "No viable definition for " + self.browseName() + " " + str(self.id()) + " found.")
+        logger.debug(prefix + "No viable definition for " + self.browseName() + " " + str(self.id()) + " found.")
         self.__encodable__ = False
 
       if indent==0:
         if not self.__encodable__:
-          log(self, "Not encodable (partial): " + str(self.__baseTypeEncoding__))
+          logger.debug("Not encodable (partial): " + str(self.__baseTypeEncoding__))
         else:
-          log(self, "Encodable as: " + str(self.__baseTypeEncoding__))
-        log(self,  "")
+          logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
+        logger.debug( "")
 
       return self.__baseTypeEncoding__
 
@@ -1552,14 +1557,14 @@ class opcua_node_dataType_t(opcua_node_t):
             isSubType = False
           elif at == "ValueRank":
             hasValueRank = int(av)
-            log(self, "Arrays or matrices (ValueRank) are not supported for datatypes. This DT will become scalar.", LOG_LEVEL_WARN)
+            logger.warn("Arrays or matrices (ValueRank) are not supported for datatypes. This DT will become scalar.")
           else:
-            log(self, "Unknown Field Attribute " + str(at), LOG_LEVEL_WARN)
+            logger.warn("Unknown Field Attribute " + str(at))
         # This can either be an enumeration OR a structure, not both.
         # Figure out which of the dictionaries gets the newly read value pair
         if isEnum == isSubType:
           # This is an error
-          log(self, "DataType contains both enumeration and subtype (or neither)", LOG_LEVEL_WARN)
+          logger.warn("DataType contains both enumeration and subtype (or neither)")
           self.__encodable__ = False
           break
         elif isEnum:
@@ -1572,7 +1577,7 @@ class opcua_node_dataType_t(opcua_node_t):
           dtnode = self.getNamespace().getNodeByIDString(fdtype)
           if dtnode == None:
             # Node found in datatype element is invalid
-            log(self,  prefix + fname + " ?? " + av + " ??")
+            logger.debug( prefix + fname + " ?? " + av + " ??")
             self.__encodable__ = False
           else:
             # The node in the datatype element was found. we inherit its encoding,
@@ -1581,7 +1586,7 @@ class opcua_node_dataType_t(opcua_node_t):
             if hasValueRank < 0:
               hasValueRank = 0
             fdtype = str(dtnode.browseName()) + "+"*hasValueRank
-            log(self,  prefix + fname + " : " + fdtype + " -> " + str(dtnode.id()))
+            logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id()))
             subenc = dtnode.buildEncoding(indent=indent+1)
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, hasValueRank]]
             if not dtnode.isEncodable():
@@ -1601,17 +1606,17 @@ class opcua_node_dataType_t(opcua_node_t):
       self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + ['Int32']
       self.__definition__ = enumDict
       self.__isEnum__ = True
-      log(self,  prefix+"Int32* -> enumeration with dictionary " + str(enumDict) + " encodable " + str(self.__encodable__))
+      logger.debug( prefix+"Int32* -> enumeration with dictionary " + str(enumDict) + " encodable " + str(self.__encodable__))
       return self.__baseTypeEncoding__
 
     if indent==0:
       if not self.__encodable__:
-        log(self,  "Not encodable (partial): " + str(self.__baseTypeEncoding__))
+        logger.debug( "Not encodable (partial): " + str(self.__baseTypeEncoding__))
       else:
-        log(self,  "Encodable as: " + str(self.__baseTypeEncoding__))
+        logger.debug( "Encodable as: " + str(self.__baseTypeEncoding__))
         self.__isEnum__ = False
         self.__definition__ = typeDict
-      log(self,  "")
+      logger.debug( "")
     return self.__baseTypeEncoding__
 
   def parseXMLSubType(self, xmlelement):
@@ -1628,15 +1633,15 @@ class opcua_node_dataType_t(opcua_node_t):
           self.isAbstract(False)
         xmlelement.removeAttribute(at)
       else:
-        log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_WARN)
+        logger.warn("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
         if x.tagName == "Definition":
           self.__xmlDefinition__ = x
-          #log(self,  "Definition stored for future processing", LOG_LEVEL_DEBUG)
+          #logger.debug( "Definition stored for future processing")
         else:
-          log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_WARN)
+          logger.warn( "Unprocessable XML Element: " + x.tagName)
 
   def encodedTypeId(self):
     """ Returns a number of the builtin Type that should be used
@@ -1669,7 +1674,7 @@ class opcua_node_dataType_t(opcua_node_t):
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -1684,20 +1689,20 @@ class opcua_node_dataType_t(opcua_node_t):
             myTypeRef = ref
             break
       if myTypeRef==None:
-        log(self, str(self) + " failed to locate a type definition, assuming BaseDataType.", LOG_LEVEL_WARN)
+        logger.warn(str(self) + " failed to locate a type definition, assuming BaseDataType.")
         code.append("       // No valid typeDefinition found; assuming BaseDataType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
         while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
-      
+
       if (self.isAbstract()):
         code.append("       true,")
       else:
         code.append("       false,")
       return code
-    
+
     if (self.isAbstract()):
       code.append(self.getCodePrintableID() + "->isAbstract = true;")
     else:
@@ -1725,16 +1730,16 @@ class opcua_node_view_t(opcua_node_t):
 
   def parseXMLSubtype(self, xmlelement):
     for (at, av) in xmlelement.attributes.items():
-      log(self, "Don't know how to process attribute " + at + " (" + av + ")", LOG_LEVEL_ERROR)
+      logger.error("Don't know how to process attribute " + at + " (" + av + ")")
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
-        log(self,  "Unprocessable XML Element: " + x.tagName, LOG_LEVEL_INFO)
+        logger.info( "Unprocessable XML Element: " + x.tagName)
 
   def printOpen62541CCode_Subtype(self, unPrintedReferences=[], bootstrapping = True):
     code = []
     codegen = open62541_MacroHelper()
-    
+
     # Detect if this is bootstrapping or if we are attempting to use userspace...
     if bootstrapping == False:
       typeDefs = self.getNamespace().getSubTypesOf() # defaults to TypeDefinition
@@ -1749,18 +1754,18 @@ class opcua_node_view_t(opcua_node_t):
             myTypeRef = ref
             break
       if myTypeRef==None:
-        log(self, str(self) + " failed to locate a type definition, assuming BaseViewType.", LOG_LEVEL_WARN)
+        logger.warn(str(self) + " failed to locate a type definition, assuming BaseViewType.")
         code.append("       // No valid typeDefinition found; assuming BaseViewType")
         code.append("       UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEViewTYPE),")
       else:
         code.append("       " + codegen.getCreateExpandedNodeIDMacro(myTypeRef.target()) + ",")
         while myTypeRef in unPrintedReferences:
           unPrintedReferences.remove(myTypeRef)
-          
+
       code.append("       // FIXME: Missing eventNotifier")
       code.append("       // FIXME: Missing containsNoLoops")
       return code
-    
+
     if self.containsNoLoops():
       code.append(self.getCodePrintableID() + "->containsNoLoops = true;")
     else:

@@ -22,19 +22,17 @@
  * - Remove the entry from the list
  * - mark it as "dead" with an atomic operation
  * - add a delayed job that frees the memory when all concurrent operations have completed
- * 
+ *
  * This approach to concurrently accessible memory is known as epoch based reclamation [1]. According to
  * [2], it performs competitively well on many-core systems. Our version of EBR does however not require
  * a global epoch. Instead, every worker thread has its own epoch counter that we observe for changes.
- * 
+ *
  * [1] Fraser, K. 2003. Practical lock freedom. Ph.D. thesis. Computer Laboratory, University of Cambridge.
  * [2] Hart, T. E., McKenney, P. E., Brown, A. D., & Walpole, J. (2007). Performance of memory reclamation
  *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
- * 
- * 
  */
 
-#define MAXTIMEOUT 500 // max timeout in millisec until the next main loop iteration
+#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 #define BATCHSIZE 20 // max number of jobs that are dispatched at once to workers
 
 static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
@@ -94,10 +92,10 @@ static void * workerLoop(UA_Worker *worker) {
     UA_Server *server = worker->server;
     UA_UInt32 *counter = &worker->counter;
     volatile UA_Boolean *running = &worker->running;
-    
+
     /* Initialize the (thread local) random seed with the ram address of worker */
     UA_random_seed((uintptr_t)worker);
-   	rcu_register_thread();
+    rcu_register_thread();
 
     pthread_mutex_t mutex; // required for the condition variable
     pthread_mutex_init(&mutex,0);
@@ -122,7 +120,7 @@ static void * workerLoop(UA_Worker *worker) {
     pthread_mutex_destroy(&mutex);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
-   	rcu_unregister_thread();
+    rcu_unregister_thread();
     return NULL;
 }
 
@@ -200,7 +198,7 @@ static UA_StatusCode addRepeatedJob(UA_Server *server, struct AddRepeatedJob * U
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* search for matching entry */
-    UA_DateTime firstTime = UA_DateTime_nowMonotonic();
+    UA_DateTime firstTime = UA_DateTime_nowMonotonic() + arw->interval;
     tempTw = LIST_FIRST(&server->repeatedJobs);
     while(tempTw) {
         if(arw->interval == tempTw->interval) {
@@ -310,18 +308,18 @@ static UA_DateTime processRepeatedJobs(UA_Server *server, UA_DateTime current) {
             jobsCopy[i] = tw->jobs[i].job;
         dispatchJobs(server, jobsCopy, tw->jobsSize); // frees the job pointer
 #else
-		size_t size = tw->jobsSize;
+        size_t size = tw->jobsSize;
         for(size_t i = 0; i < size; i++)
             processJobs(server, &tw->jobs[i].job, 1); // does not free the job ptr
 #endif
 
-		/* Elements are removed only here. Check if empty. */
-		if(tw->jobsSize == 0) {
-			LIST_REMOVE(tw, pointers);
-			UA_free(tw);
+        /* Elements are removed only here. Check if empty. */
+        if(tw->jobsSize == 0) {
+            LIST_REMOVE(tw, pointers);
+            UA_free(tw);
             UA_assert(LIST_FIRST(&server->repeatedJobs) != tw); /* Assert for static code checkers */
-			continue;
-		}
+            continue;
+        }
 
         /* Set the time for the next execution */
         tw->nextTime += tw->interval;
@@ -358,7 +356,7 @@ static void removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
         for(size_t i = 0; i < tw->jobsSize; i++) {
             if(!UA_Guid_equal(jobId, &tw->jobs[i].id))
                 continue;
-			tw->jobsSize--; /* if size == 0, tw is freed during the next processing */
+            tw->jobsSize--; /* if size == 0, tw is freed during the next processing */
             if(tw->jobsSize > 0)
                 tw->jobs[i] = tw->jobs[tw->jobsSize]; // move the last entry to overwrite
             goto finish;
@@ -588,9 +586,6 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; i++) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, server->config.logger);
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
-            UA_String_copy(&nl->discoveryUrl, &server->endpointDescriptions[j].endpointUrl);
-        }
     }
 
     return result;
@@ -614,6 +609,10 @@ static void completeMessages(UA_Server *server, UA_Job *job) {
     }
     if(realloced)
         job->type = UA_JOBTYPE_BINARYMESSAGE_ALLOCATED;
+
+    /* discard the job if message is empty - also no leak is possible here */
+    if(job->job.binaryMessage.message.length == 0)
+        job->type = UA_JOBTYPE_NOTHING;
 }
 
 UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {

@@ -5,6 +5,7 @@
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_util.h"
 #include "check.h"
@@ -1322,7 +1323,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     srcArray[2] = UA_STRING_ALLOC("opc ua");
 
     UA_Int32 *dimensions;
-    dimensions = UA_malloc(sizeof(UA_UInt32));
+    dimensions = UA_malloc(sizeof(UA_Int32));
     dimensions[0] = 3;
 
     UA_Variant value, copiedValue;

@@ -33,6 +33,11 @@ typedef struct {
 } UA_Worker;
 #endif
 
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+/* Internally used context to a session 'context' of the current mehtod call */
+extern UA_THREAD_LOCAL UA_Session* methodCallSession;
+#endif
+
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
@@ -53,10 +58,10 @@ struct UA_Server {
     size_t externalNamespacesSize;
     UA_ExternalNamespace *externalNamespaces;
 #endif
-     
+
     /* Jobs with a repetition interval */
     LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
-    
+
 #ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
     struct cds_wfcq_head dispatchQueue_head;
@@ -89,5 +94,13 @@ void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 #ifdef UA_BUILD_UNIT_TESTS
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
+
+UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count);
+
+UA_StatusCode
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
+             size_t maxDepth, UA_Boolean *found);
 
 #endif /* UA_SERVER_INTERNAL_H_ */

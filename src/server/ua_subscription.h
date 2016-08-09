@@ -32,7 +32,7 @@ typedef struct UA_MonitoredItem {
     UA_MonitoredItemType monitoredItemType;
     UA_TimestampsToReturn timestampsToReturn;
     UA_MonitoringMode monitoringMode;
-    UA_NodeId monitoredNodeId; 
+    UA_NodeId monitoredNodeId;
     UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
     UA_Double samplingInterval; // [ms]
@@ -53,6 +53,7 @@ typedef struct UA_MonitoredItem {
 
 UA_MonitoredItem *UA_MonitoredItem_new(void);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
+void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon);
 UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredItem *mon);
 

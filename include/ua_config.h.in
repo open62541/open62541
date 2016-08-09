@@ -28,14 +28,16 @@ extern "C" {
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
+#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
+
+#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
@@ -43,26 +45,31 @@ extern "C" {
 /**
  * Function Export
  * --------------- */
-#ifdef _WIN32
-# ifdef UA_DYNAMIC_LINKING
+/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
+   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
+   from a DLL.*/
+#cmakedefine UA_DYNAMIC_LINKING
+#if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
+# ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
 #   define UA_EXPORT __attribute__ ((dllexport))
 #  else
 #   define UA_EXPORT __declspec(dllexport)
 #  endif
-# else
+# else /* import dll */
 #  ifdef __GNUC__
-#   define UA_EXPORT __attribute__ ((dllexport))
+#   define UA_EXPORT __attribute__ ((dllimport))
 #  else
 #   define UA_EXPORT __declspec(dllimport)
 #  endif
 # endif
-#else
+#else /* non win32 */
 # if __GNUC__ || __clang__
 #  define UA_EXPORT __attribute__ ((visibility ("default")))
-# else
-#  define UA_EXPORT
 # endif
+#endif
+#ifndef UA_EXPORT
+# define UA_EXPORT /* fallback to default */
 #endif
 
 /**
@@ -149,6 +156,9 @@ extern "C" {
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
     (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
 # define UA_BINARY_OVERLAYABLE_FLOAT true
+#elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
+    (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
+# define UA_BINARY_OVERLAYABLE_FLOAT true
 #endif
 
 /**
@@ -170,11 +180,11 @@ extern "C" {
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
 # define UA_BINARY_OVERLAYABLE_INTEGER false
-# warning Slow Integer Encoding
+# warning Slow Integer Encoding. This warning can be removed safely. It is only an indicator that integer endianness could not be detected.
 #endif
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT false
-# warning Slow Float Encoding
+# warning Slow Float Encoding. This warning can be removed safely. It is only an indicator that the float encoding could not be detected.
 #endif
 
 #if defined(__clang__)

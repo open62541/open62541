@@ -1,9 +1,7 @@
 #!/bin/bash
 
-#
-# This sciprt is run by travis-ci and pushes the first commit
+# This script is run by travis-ci and pushes the first commit
 # of the day to the coverity scan service
-#
 
 git fetch origin coverity_scan
 COMMITS=`git log --oneline --since=today.midnight | wc -l`

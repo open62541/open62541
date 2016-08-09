@@ -1,53 +1,92 @@
 version: '{build}'
+
 os: Visual Studio 2015 RC
+
 clone_folder: c:\projects\open62541
+clone_depth: 20
+
 environment:
     global:
+        CYG_ARCH: x86
         CYG_ROOT: C:/cygwin
+        CYG_SETUP_URL: http://cygwin.com/setup-x86.exe
+        CYG_MIRROR: http://cygwin.mirror.constant.com
+        CYG_CACHE: C:\cygwin\var\cache\setup
+        CYG_BASH: C:/cygwin/bin/bash
+
+cache:
+  - '%CYG_CACHE%'
+
+#
+# Initialisation prior to pulling the Mono repository
+# Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
+#
+init:
+  - git config --global core.autocrlf input
+
+
+#
+# Install needed build dependencies
+#
+install:
+  - if not exist "%CYG_ROOT%" mkdir "%CYG_ROOT%"
+  - ps:  echo "Installing Cygwin from $env:CYG_SETUP_URL to $env:CYG_ROOT/setup-x86.exe"
+  - appveyor DownloadFile %CYG_SETUP_URL% -FileName %CYG_ROOT%/setup-x86.exe
+  - ps:  echo "Downloaded. Now ready to install."
+  - cmd: '"%CYG_ROOT%/setup-x86.exe" --quiet-mode --no-shortcuts --only-site -R "%CYG_ROOT%" -s "%CYG_MIRROR%" -l "%CYG_CACHE%" --packages cmake,gcc-core,make,python'
+  - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
+
+
 before_build:
-# Workaround for CMake not wanting sh.exe on PATH for MinGW
-- set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-- set PATH=C:\MinGW\bin;%PATH%
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - set PATH=C:\MinGW\bin;%PATH%
+
 build_script:
-- cd c:\projects\open62541
-- md build
-- cd build
-- echo "Testing cygwin"
-- C:\cygwin\setup-x86.exe -q -P cmake
-- cmd: '%CYG_ROOT%/bin/bash --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" ..; make"'
-- cd ..
-- rd /s /q build
-- md build
-- cd build
-- echo "Testing MinGW32"
-- cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G"MinGW Makefiles" ..
-- mingw32-make
-- cd ..
-- rd /s /q build
-- md build
-- cd build
-- cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
-- msbuild open62541.sln
-- echo "Testing amalgamation"
-- cd ..
-- rd /s /q build
-- md build
-- cd build
-- cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
-- msbuild open62541.sln 
-- copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
-- copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
-- cd ..
-- echo "Win 64 build"
-- md build64
-- cd build64
-- cmake -DUA_BUILD_EXAMPLESERVER:BOOL=ON -DUA_BUILD_EXAMPLECLIENT:BOOL=ON -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
-- msbuild open62541.sln 
-- copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
-- copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
-- cd ..
+  - cd c:\projects\open62541
+  - md build
+  - cd build
+  # cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
+  #- echo "Testing cygwin"
+  #- '%CYG_BASH% --login -lc "/usr/bin/cmake.exe --version"'
+  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" .."'
+  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; make -j"'
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
+  - echo "Testing MinGW32"
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -G"MinGW Makefiles" ..
+  - mingw32-make
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
+  - msbuild open62541.sln /m
+  - echo "Testing amalgamation"
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
+  - msbuild open62541.sln /m
+  - copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
+  - copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
+  - copy C:\projects\open62541\build\examples\server_cert.der C:\projects\open62541\build\Debug\server_cert.der
+  - cd ..
+  - echo "Win 64 build"
+  - md build64
+  - cd build64
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
+  - msbuild open62541.sln /m
+  - copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
+  - copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
+  - copy C:\projects\open62541\build64\examples\server_cert.der C:\projects\open62541\build64\Debug\server_cert.der
+  - cd ..
+
 after_build:
-- 7z a open62541-win32.zip %APPVEYOR_BUILD_FOLDER%\build\Debug\*
-- 7z a open62541-win64.zip %APPVEYOR_BUILD_FOLDER%\build64\Debug\*
-- appveyor PushArtifact open62541-win32.zip
-- appveyor PushArtifact open62541-win64.zip
+  - 7z a open62541-win32.zip %APPVEYOR_BUILD_FOLDER%\build\Debug\* %APPVEYOR_BUILD_FOLDER%\build\examples\Debug\*
+  - 7z a open62541-win64.zip %APPVEYOR_BUILD_FOLDER%\build64\Debug\* %APPVEYOR_BUILD_FOLDER%\build64\examples\Debug\*
+  - appveyor PushArtifact open62541-win32.zip
+  - appveyor PushArtifact open62541-win64.zip

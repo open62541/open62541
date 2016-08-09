@@ -1,6 +1,7 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 #include "pcg_basic.h"
 #include "libc_time.h"
@@ -8,6 +9,7 @@
 /* static variables */
 UA_EXPORT const UA_String UA_STRING_NULL = {.length = 0, .data = NULL };
 UA_EXPORT const UA_ByteString UA_BYTESTRING_NULL = {.length = 0, .data = NULL };
+UA_EXPORT const UA_Guid UA_GUID_NULL = {.data1 = 0, .data2 = 0, .data3 = 0, .data4 = {0,0,0,0,0,0,0,0}};
 UA_EXPORT const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
     .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0 },
@@ -51,50 +53,6 @@ UA_Boolean UA_String_equal(const UA_String *string1, const UA_String *string2) {
 }
 
 /* DateTime */
-UA_DateTime UA_DateTime_now(void) {
-#ifdef _WIN32
-    /* Windows filetime has the same definition as UA_DateTime */
-    FILETIME ft;
-    SYSTEMTIME st;
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &ft);
-    ULARGE_INTEGER ul;
-    ul.LowPart = ft.dwLowDateTime;
-    ul.HighPart = ft.dwHighDateTime;
-    return (UA_DateTime)ul.QuadPart;
-#else
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
-#endif
-}
-
-UA_DateTime UA_DateTime_nowMonotonic(void) {
-#ifdef _WIN32
-    LARGE_INTEGER freq, ticks;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME;
-    ticks2dt /= freq.QuadPart;
-    return (UA_DateTime)(ticks.QuadPart * ticks2dt);
-#elif defined(__APPLE__) || defined(__MACH__) // OS X does not have clock_gettime, use clock_get_time
-    clock_serv_t cclock;
-    mach_timespec_t mts;
-    host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
-    clock_get_time(cclock, &mts);
-    mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
-#else
-    struct timespec ts;
-#ifdef __CYGWIN__    
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-#else
-    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-#endif
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
-#endif
-}
-
 UA_DateTimeStruct UA_DateTime_toStruct(UA_DateTime t) {
     /* Calculating the the milli-, micro- and nanoseconds */
     UA_DateTimeStruct dateTimeStruct;
@@ -225,8 +183,32 @@ static UA_StatusCode NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_
     return retval;
 }
 
+UA_Boolean UA_NodeId_isNull(const UA_NodeId *p) {
+    if(p->namespaceIndex != 0)
+        return false;
+    switch(p->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        return (p->identifier.numeric == 0);
+    case UA_NODEIDTYPE_GUID:
+        return (p->identifier.guid.data1 == 0 &&
+                p->identifier.guid.data2 == 0 &&
+                p->identifier.guid.data3 == 0 &&
+                p->identifier.guid.data4[0] == 0 &&
+                p->identifier.guid.data4[1] == 0 &&
+                p->identifier.guid.data4[2] == 0 &&
+                p->identifier.guid.data4[3] == 0 &&
+                p->identifier.guid.data4[4] == 0 &&
+                p->identifier.guid.data4[5] == 0 &&
+                p->identifier.guid.data4[6] == 0 &&
+                p->identifier.guid.data4[7] == 0);
+    default:
+        break;
+    }
+    return (p->identifier.string.length == 0);
+}
+
 UA_Boolean UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
-	if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
+    if(n1->namespaceIndex != n2->namespaceIndex || n1->identifierType!=n2->identifierType)
         return false;
     switch(n1->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
@@ -314,7 +296,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst, con
 static void Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
     if(p->storageType != UA_VARIANT_DATA)
         return;
-    if(p->data > UA_EMPTY_ARRAY_SENTINEL) {
+    if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
         if(p->arrayLength == 0)
             p->arrayLength = 1;
         UA_Array_delete(p->data, p->arrayLength, p->type);
@@ -384,12 +366,12 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
     /* Test the integrity of the range */
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; i++) {
         if(range.dimensions[i].min > range.dimensions[i].max)
-            return UA_STATUSCODE_BADINDEXRANGENODATA;
-        if(range.dimensions[i].max >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        if(range.dimensions[i].max >= dims[i])
+            return UA_STATUSCODE_BADINDEXRANGENODATA;
         count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
     }
 
@@ -402,7 +384,7 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range, size_t 
             found_contiguous = true;
             b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             s = dims[k] * running_dimssize;
-        } 
+        }
         f += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
         if(k == 0)
@@ -543,11 +525,11 @@ UA_StatusCode UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_Da
     if(!new)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_StatusCode retval = UA_copy(p, new, type);
-	if(retval != UA_STATUSCODE_GOOD) {
-		UA_free(new);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(new);
         //cppcheck-suppress memleak
-		return retval;
-	}
+        return retval;
+    }
     UA_Variant_setScalar(v, new, type);
     //cppcheck-suppress memleak
     return UA_STATUSCODE_GOOD;
@@ -569,7 +551,7 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
     UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    v->arrayLength = arraySize; 
+    v->arrayLength = arraySize;
     v->type = type;
     return UA_STATUSCODE_GOOD;
 }
@@ -677,16 +659,16 @@ static const UA_copySignature copyJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_copySignature)copyByte, // SByte
     (UA_copySignature)copyByte, // Byte
     (UA_copySignature)copy2Byte, // Int16
-    (UA_copySignature)copy2Byte, // UInt16 
-    (UA_copySignature)copy4Byte, // Int32 
-    (UA_copySignature)copy4Byte, // UInt32 
+    (UA_copySignature)copy2Byte, // UInt16
+    (UA_copySignature)copy4Byte, // Int32
+    (UA_copySignature)copy4Byte, // UInt32
     (UA_copySignature)copy8Byte, // Int64
-    (UA_copySignature)copy8Byte, // UInt64 
-    (UA_copySignature)copy4Byte, // Float 
-    (UA_copySignature)copy8Byte, // Double 
+    (UA_copySignature)copy8Byte, // UInt64
+    (UA_copySignature)copy4Byte, // Float
+    (UA_copySignature)copy8Byte, // Double
     (UA_copySignature)copyNoInit, // String
     (UA_copySignature)copy8Byte, // DateTime
-    (UA_copySignature)copyFixedSize, // Guid 
+    (UA_copySignature)copyFixedSize, // Guid
     (UA_copySignature)copyNoInit, // ByteString
     (UA_copySignature)copyNoInit, // XmlElement
     (UA_copySignature)NodeId_copy,
@@ -750,16 +732,16 @@ static const UA_deleteMembersSignature deleteMembersJumpTable[UA_BUILTIN_TYPES_C
     (UA_deleteMembersSignature)nopDeleteMembers, // SByte
     (UA_deleteMembersSignature)nopDeleteMembers, // Byte
     (UA_deleteMembersSignature)nopDeleteMembers, // Int16
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt16 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Int32 
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt32 
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt16
+    (UA_deleteMembersSignature)nopDeleteMembers, // Int32
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt32
     (UA_deleteMembersSignature)nopDeleteMembers, // Int64
-    (UA_deleteMembersSignature)nopDeleteMembers, // UInt64 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Float 
-    (UA_deleteMembersSignature)nopDeleteMembers, // Double 
+    (UA_deleteMembersSignature)nopDeleteMembers, // UInt64
+    (UA_deleteMembersSignature)nopDeleteMembers, // Float
+    (UA_deleteMembersSignature)nopDeleteMembers, // Double
     (UA_deleteMembersSignature)UA_deleteMembers, // String
     (UA_deleteMembersSignature)nopDeleteMembers, // DateTime
-    (UA_deleteMembersSignature)nopDeleteMembers, // Guid 
+    (UA_deleteMembersSignature)nopDeleteMembers, // Guid
     (UA_deleteMembersSignature)UA_deleteMembers, // ByteString
     (UA_deleteMembersSignature)UA_deleteMembers, // XmlElement
     (UA_deleteMembersSignature)NodeId_deleteMembers,
@@ -822,6 +804,9 @@ UA_Array_copy(const void *src, size_t src_size, void **dst, const UA_DataType *t
             *dst= UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
+
+    if(!type)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
     *dst = UA_calloc(src_size, type->memSize);

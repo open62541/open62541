@@ -44,7 +44,7 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NULL, vattr, NULL, NULL);
-	
+
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
     UA_DataSource temperatureDataSource = (UA_DataSource) {
@@ -54,9 +54,9 @@ static UA_Server* makeTestSequence(void) {
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-					UA_QUALIFIEDNAME(1, "cpu temperature"),
+                                        UA_QUALIFIEDNAME(1, "cpu temperature"),
                                         UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
-    
+
     /* DataSource Variable returning no value */
     UA_DataSource temperatureDataSource1 = (UA_DataSource) {
                                             .handle = NULL, .read = readCPUTemperature_broken, .write = NULL};
@@ -102,42 +102,42 @@ static UA_Server* makeTestSequence(void) {
     view_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Viewtest");
     UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                           UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                           UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
 
 #ifdef UA_ENABLE_METHODCALLS
-	/* MethodNode */
+    /* MethodNode */
     UA_MethodAttributes ma;
     UA_MethodAttributes_init(&ma);
     ma.description = UA_LOCALIZEDTEXT("en_US", "Methodtest");
     ma.displayName = UA_LOCALIZEDTEXT("en_US", "Methodtest");
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
                             UA_NODEID_NUMERIC(0, 3),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
                             NULL, NULL, 0, NULL, 0, NULL, NULL);
 #endif
 
-	return server;
+    return server;
 }
 
 static UA_VariableNode* makeCompareSequence(void) {
-	UA_VariableNode *node = UA_NodeStore_newVariableNode();
+    UA_VariableNode *node = UA_NodeStore_newVariableNode();
 
-	UA_Int32 myInteger = 42;
-	UA_Variant_setScalarCopy(&node->value.variant.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalarCopy(&node->value.variant.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
-	const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-	UA_QualifiedName_copy(&myIntegerName,&node->browseName);
+    const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
+    UA_QualifiedName_copy(&myIntegerName,&node->browseName);
 
-	const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
+    const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
     UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);
     UA_LocalizedText_copy(&myIntegerDisplName, &node->description);
 
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-	UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
+    UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
 
-	return node;
+    return node;
 }
 
 START_TEST(ReadSingleAttributeValueWithoutTimestamp) {

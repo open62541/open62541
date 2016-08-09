@@ -47,44 +47,20 @@
 /* Thread Local Storage */
 /************************/
 
-#ifdef UA_ENABLE_MULTITHREADING
-# ifdef __GNUC__
-#  define UA_THREAD_LOCAL __thread
-# elif defined(_MSC_VER)
-#  define UA_THREAD_LOCAL __declspec(thread)
-# else
-#  error No thread local storage keyword defined for this compiler
-# endif
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# define UA_THREAD_LOCAL _Thread_local /* C11 */
+#elif defined(__GNUC__)
+# define UA_THREAD_LOCAL __thread /* GNU extension */
+#elif defined(_MSC_VER)
+# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 #else
 # define UA_THREAD_LOCAL
-#endif
-
-/********************/
-/* System Libraries */
-/********************/
-
-#ifdef _WIN32
-# include <winsock2.h> //needed for amalgamation
-# include <windows.h>
-# undef SLIST_ENTRY
-#endif
-
-#include <time.h>
-#if defined(_WIN32) && !defined(__MINGW32__)
-int gettimeofday(struct timeval *tp, struct timezone *tzp);
-#else
-# include <sys/time.h>
-#endif
-
-#if defined(__APPLE__) || defined(__MACH__)
-#include <mach/clock.h>
-#include <mach/mach.h>
+# warning The compiler does not allow thread-local variables. The library can be built, but will not be thread safe.
 #endif
 
 /*************************/
 /* External Dependencies */
 /*************************/
-
 #include "queue.h"
 
 #ifdef UA_ENABLE_MULTITHREADING

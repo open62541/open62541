@@ -43,19 +43,19 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem);
 }
 
-static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+    UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %i | MonitoredItem %i | "
-                     "Cannot process a monitoreditem that is not a data change notification",
-                     monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
+                             "Cannot process a monitoreditem that is not a data change notification",
+                             sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Session %i | MonitoredItem %i | Skipped a sample due to lack of memory",
-                    monitoredItem->subscription->session->sessionId, monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
+                               "Skipped a sample due to lack of memory", sub->subscriptionID, monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -67,7 +67,6 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    UA_Subscription *sub = monitoredItem->subscription;
     Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn, &rvid, &newvalue->value);
 
     /* encode to see if the data has changed */
@@ -90,32 +89,44 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
-                     "MonitoredItem %u | Do not sample an unchanged value",
-                     monitoredItem->subscription->session->sessionId.identifier.numeric,
-                     monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                             "MonitoredItem %u | Do not sample an unchanged value",
+                             sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
-    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Session %u | Subscription %u | "
-                 "MonitoredItem %u | Sampling the value",
-                 monitoredItem->subscription->session->sessionId.identifier.numeric,
-                 monitoredItem->subscription->subscriptionID, monitoredItem->itemId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+                         "Sampling the value", sub->subscriptionID, monitoredItem->itemId);
 
-    /* do we have space in the queue? */
+    /* Do we have space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
-        if(!monitoredItem->discardOldest) {
-            // We cannot remove the oldest value and theres no queue space left. We're done here.
+        MonitoredItem_queuedValue *queueItem;
+        if(monitoredItem->discardOldest)
+            queueItem = TAILQ_FIRST(&monitoredItem->queue);
+        else
+            queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
+
+        if(!queueItem) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+                                   "Cannot remove an element from the full queue. Internal error!",
+                                   sub->subscriptionID, monitoredItem->itemId);
             UA_ByteString_deleteMembers(&newValueAsByteString);
             UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
             return;
         }
-        MonitoredItem_queuedValue *queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
+
         TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
         UA_DataValue_deleteMembers(&queueItem->value);
         UA_free(queueItem);
         monitoredItem->currentQueueSize--;
+    }
+
+    /* If the read request returned a datavalue pointing into the nodestore, we
+       must make a copy to keep the datavalue across mainloop iterations */
+    if(newvalue->value.hasValue && newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
+        UA_Variant tempv = newvalue->value.value;
+        UA_Variant_copy(&tempv, &newvalue->value.value);
     }
 
     /* add the sample */
@@ -127,7 +138,7 @@ static void SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = (UA_ServerCallback)SampleCallback, .data = mon} };
+                  .job.methodCall = {.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
                                                     &mon->sampleJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
@@ -160,7 +171,7 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->currentKeepAliveCount = 0;
     new->currentLifetimeCount = 0;
     new->lastMonitoredItemId = 0;
-    new->state = UA_SUBSCRIPTIONSTATE_LATE; /* The first publish response is sent immediately */
+    new->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     LIST_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->MonitoredItems);
     return new;
@@ -249,15 +260,15 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
             sub->currentLifetimeCount++;
-            if(sub->currentLifetimeCount >= sub->lifeTimeCount) {
-                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Session %u | Subscription %u | End of lifetime for subscription",
-                            sub->session->authenticationToken.identifier.numeric, sub->subscriptionID);
+            if(sub->currentLifetimeCount > sub->lifeTimeCount) {
+                UA_LOG_INFO_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                    "End of lifetime for subscription", sub->subscriptionID);
                 UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
             }
         }
         return;
     }
+
     SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
     UA_PublishResponse *response = &pre->response;
     UA_UInt32 requestId = pre->requestId;
@@ -291,6 +302,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         UA_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
             MonitoredItem_queuedValue *qv, *qv_tmp;
+            size_t mon_l = 0;
             TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
                 if(notifications <= l)
                     break;
@@ -300,8 +312,12 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                 TAILQ_REMOVE(&mon->queue, qv, listEntry);
                 UA_free(qv);
                 mon->currentQueueSize--;
-                l++;
+                mon_l++;
             }
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | " \
+                                 "Adding %u notifications to the publish response. %u notifications remain in the queue",
+                                 sub->subscriptionID, mon->itemId, mon_l, mon->currentQueueSize);
+            l += mon_l;
         }
         data->encoding = UA_EXTENSIONOBJECT_DECODED;
         data->content.decoded.data = dcn;
@@ -309,8 +325,13 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
         /* Put the notification message into the retransmission queue */
         UA_NotificationMessageEntry *retransmission = malloc(sizeof(UA_NotificationMessageEntry));
-        retransmission->message = response->notificationMessage;
-        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        if(retransmission) {
+            UA_NotificationMessage_copy(&response->notificationMessage, &retransmission->message);
+            LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        } else {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                   "Could not allocate memory for retransmission", sub->subscriptionID);
+        }
     }
 
     /* Get the available sequence numbers from the retransmission queue */
@@ -330,12 +351,11 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                   "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
+                         "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Remove the queued request */
-    UA_NotificationMessage_init(&response->notificationMessage); /* message was copied to the queue */
     response->availableSequenceNumbers = NULL; /* stack-allocated */
     response->availableSequenceNumbersSize = 0;
     UA_PublishResponse_deleteMembers(&pre->response);

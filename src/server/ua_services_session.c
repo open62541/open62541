@@ -17,12 +17,18 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
     }
+
+    /* Copy the server's endpoint into the response */
     response->responseHeader.serviceResult =
         UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
                       (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
     response->serverEndpointsSize = server->endpointDescriptionsSize;
+
+    /* Mirror back the endpointUrl */
+    for(size_t i = 0; i < response->serverEndpointsSize; i++)
+        UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
 
     UA_Session *newSession;
     response->responseHeader.serviceResult =
@@ -38,22 +44,21 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpointDescriptions)
-        response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+    if(server->endpointDescriptionsSize > 0)
+        response->responseHeader.serviceResult |= UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
                                &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
          return;
     }
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session %i created",
-                         newSession->sessionId.identifier.numeric);
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " UA_PRINTF_GUID_FORMAT " created",
+                         UA_PRINTF_GUID_DATA(newSession->sessionId));
 }
 
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                         const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
-    if(session->validTill < UA_DateTime_now()) {
+    if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
                             "to activate, but the session has timed out", channel->securityToken.channelId);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -64,18 +69,17 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
        (request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
         request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the UserIdentify token is invalid",
-                            channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+                            "to activate, but the UserIdentify token is invalid", channel->securityToken.channelId);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         return;
     }
 
-    // Used for the callback, could be used for logging
+	// Used for the callback, could be used for logging
     struct sockaddr_in addr;
     socklen_t addrlen = sizeof(struct sockaddr_in);
     getpeername(channel->connection->sockfd, (struct sockaddr*)&addr, &addrlen);
 
-    UA_String ap = UA_STRING(ANONYMOUS_POLICY);
+	UA_String ap = UA_STRING(ANONYMOUS_POLICY);
     UA_String up = UA_STRING(USERNAME_POLICY);
 
     /* Compatibility notice: Siemens OPC Scout v10 provides an empty policyId,
@@ -92,6 +96,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
             return;
         }
+
 		/* if the callback is defined ... */
         else if (server->config.authCallback != NULL) {
             /* ... we have to check, whether it denies the anonymous access or not */
@@ -118,6 +123,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             }
         }
         else if(server->config.enableUsernamePasswordLogin) {
+            if(token->userName.length == 0 && token->password.length == 0) {
+                /* empty username and password */
+                response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+                return;
+            }
+
             /* username login */
             if(!UA_String_equal(&token->policyId, &up)) {
                 response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;

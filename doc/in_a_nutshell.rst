@@ -1,3 +1,5 @@
+.. _introduction:
+
 Introduction to OPC UA
 ======================
 
@@ -11,7 +13,7 @@ methods on the server.
 
 For completeness, the following tables contain all services defined in the standard. Do not bother
 with their details yet. We will introduce the different services later in the text. In open62541,
-each service is implemented in a single function. See the \ref services section for details.
+each service is implemented in a single function. See the :ref:`services` section for details.
 
 **Establishing communication**
 
@@ -67,9 +69,7 @@ OPC UA, a web of nodes
 ----------------------
 
 The information model in each OPC UA server is a web of interconnected nodes.
-There are eight different types of nodes. Depending on its type, every node
-contains different attributes. Some attributes, such as the *NodeId* (unique
-identifier) and the *BrowseName*, are contained in all node types.
+There are eight different types of nodes.
 
 +-----------------------+-------------------+
 | ReferenceTypeNode     | MethodNode        |
@@ -80,7 +80,32 @@ identifier) and the *BrowseName*, are contained in all node types.
 +-----------------------+-------------------+
 | VariableNode          | ViewNode          |
 +-----------------------+-------------------+
-                                                                                                            
+
+Depending on its type, every node contains different attributes. Some
+attributes, are contained in all node types:
+
++----------------+---------------+
+| Name           | Type          |
++================+===============+
+| nodeID         | NodeId        |
++----------------+---------------+
+| nodeClass      | NodeClass     |
++----------------+---------------+
+| browseName     | QualifiedName |
++----------------+---------------+
+| displayName    | LocalizedText |
++----------------+---------------+
+| description    | LocalizedText |
++----------------+---------------+
+| writeMask      | UInt32        |
++----------------+---------------+
+| userWriteMask  | UInt32        |
++----------------+---------------+
+| referencesSize | Int32         |
++----------------+---------------+
+| references     |ReferenceNode[]|
++----------------+---------------+
+
 Nodes are interconnected by directed reference-triples of the form ``(nodeid,
 referencetype, target-nodeid)``. Therefore an OPC UA information model is
 easiest imagined as a *web of nodes*. Reference types can be

@@ -1,70 +1,10 @@
 Tutorials
 =========
 
-This section contains structured tutorials
-   
-**Tutorial 1: First steps with open62541-server**
-
-:doc:`tutorial_server_firstSteps`
-
-Contents:
-
-* Checking out the stack
-
-* Creating a minimal user-defined server
-
-* Working with amalgamated files
-
-* Compiling built-in server and client examples
-
-**Tutorial 2: First steps with open62541-client**
-
-:doc:`tutorial_client_firstSteps`
-
-Contents:
-
-* Checking out the stack
-
-* Creating a minimal client
-
-* Minimalistic introduction to OPC UA nodes and node IDs
-
-* Reading a variable
-
-* Introduction to strings
-
-**Tutorial 3: Adding nodes to a server and connecting nodes to user-defined values**
-
-:doc:`tutorial_server_variables`
-
-Contents:
-
-* Introduction to Variants
-
-* Adding user-defined nodes to a server
-
-* Connecting a node to a variable
-
-* Connecting a node to a callback function
-
-**Tutorial 4: Adding server-side methods**
-
-:doc:`tutorial_server_method`
-
-Contents:
-
-* Defining server-side method nodes
-
-**Tutorial 5: Nodeset handling**
-
-:doc:`tutorial_noderelations`
-
 .. toctree::
-   :maxdepth: 2
-   :hidden:
 
    tutorial_server_firstSteps
-   tutorial_client_firstSteps
    tutorial_server_variables
    tutorial_server_method
    tutorial_noderelations
+   tutorial_client_firstSteps
