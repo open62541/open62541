@@ -31,6 +31,14 @@ from constants import *
 # Helper Functions #
 ####################
 
+hassubtype = NodeId("ns=0;i=45")
+def getSubTypesOf(nodeset, node):
+  re = [node]
+  for ref in node.references: 
+    if ref.referenceType == hassubtype and ref.isForward:
+      re = re + getSubTypesOf(nodeset, nodeset.nodes[ref.target])
+  return re
+
 def extractNamespaces(xmlfile):
     # Extract a list of namespaces used. The first namespace is always
     # "http://opcfoundation.org/UA/". minidom gobbles up
@@ -88,7 +96,7 @@ class NodeSet(object):
       space of the binary representation and all nodes that are to be included
       in that segment of memory.
   """
-  def __init__(self, name):
+  def __init__(self):
     self.nodes = {}
     self.namespaces = ["http://opcfoundation.org/UA/"]
 
@@ -156,7 +164,7 @@ class NodeSet(object):
             ref.hidden = True
     return node
 
-  def addNodeSet(self, xmlfile, existing = False):
+  def addNodeSet(self, xmlfile, hidden = False):
     # Extract NodeSet DOM
     nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
     if len(nodesets) == 0 or len(nodesets) > 1:
@@ -183,7 +191,7 @@ class NodeSet(object):
     for nd in nodeset.childNodes:
       if nd.nodeType != nd.ELEMENT_NODE:
         continue
-      node = self.createNode(nd, nsMapping)
+      node = self.createNode(nd, nsMapping, hidden)
       if not node:
         continue
       node.replaceAliases(aliases)
@@ -207,5 +215,3 @@ class NodeSet(object):
             hide = node.hidden and newsource.hidden
             newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide)
             newsource.references.add(newref)
-
-        

@@ -19,6 +19,41 @@
 from nodes import *
 from backend_open62541_datatypes import *
 
+###########################################
+# Extract References with Special Meaning #
+###########################################
+
+def extractNodeParent(node):
+    """Return a tuple of the most likely (parent, parentReference). The
+    parentReference is removed form the inverse references list of the node.
+
+    """
+    # TODO What a parent is depends on the node type
+    for ref in node.inverseReferences:
+        node.inverseReferences.remove(ref)
+        return (ref.target, ref.referenceType)
+    return (None, None)
+
+def extractNodeType(node):
+    """Returns the most likely type of the variable- or objecttype node. The
+     isinstanceof reference is removed form the inverse references list of the
+     node.
+
+    """
+    pass
+
+def extractNodeSuperType(node):
+    """Returns the most likely supertype of the variable-, object-, or referencetype
+       node. The reference to the supertype is removed from the inverse
+       references list of the node.
+
+    """
+    pass
+
+#################
+# Generate Code #
+#################
+
 def generateReferenceCode(reference):
     if reference.isForward:
         return "UA_Server_addReference(server, %s, %s, %s, true);" % \
@@ -33,91 +68,91 @@ def generateReferenceCode(reference):
 
 def generateReferenceTypeNodeCode(node):
     code = []
-    code.append("UA_ReferenceTypeNodeAttributes attr;")
-    code.append("UA_ReferenceTypeNodeAttributes_init(&attr);")
+    code.append("UA_ReferenceTypeAttributes attr;")
+    code.append("UA_ReferenceTypeAttributes_init(&attr);")
     if node.isAbstract:
-        code.append("attr->isAbstract = true;")
+        code.append("attr.isAbstract = true;")
     if node.symmetric:
-        code.append("attr->symmetric  = true;")
+        code.append("attr.symmetric  = true;")
     if node.inverseName != "":
-        code.append("attr->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"%s\");" % \
+        code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"%s\");" % \
                     node.inverseName)
     return code;
 
 def generateObjectNodeCode(node):
     code = []
-    code.append("UA_ObjectNodeAttributes attr;")
-    code.append("UA_ObjectNodeAttributes_init(&attr);")
+    code.append("UA_ObjectAttributes attr;")
+    code.append("UA_ObjectAttributes_init(&attr);")
     if node.eventNotifier:
-        code.append("attr->eventNotifier = true;")
+        code.append("attr.eventNotifier = true;")
     return code;
 
 def generateVariableNodeCode(node):
     code = []
-    code.append("UA_VariableNodeAttributes attr;")
-    code.append("UA_VariableNodeAttributes_init(&attr);")
+    code.append("UA_VariableAttributes attr;")
+    code.append("UA_VariableAttributes_init(&attr);")
     if node.historizing:
-        code.append("attr->historizing = true;")
-    code.append("attr->minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
-    code.append("attr->userAccessLevel = %d;" % node.userAccessLevel)
-    code.append("attr->accessLevel = %d;" % node.accessLevel)
-    code.append("attr->valueRank = %d;" % node.valueRank)
+        code.append("attr.historizing = true;")
+    code.append("attr.minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
+    code.append("attr.userAccessLevel = %d;" % node.userAccessLevel)
+    code.append("attr.accessLevel = %d;" % node.accessLevel)
+    code.append("attr.valueRank = %d;" % node.valueRank)
     # # The variant is guaranteed to exist by SubtypeEarly()
-    # code.append(getCodePrintableNodeID(node) + "->value.variant.value = *" + \
+    # code.append(getCodePrintableNodeID(node) + ".value.variant.value = *" + \
     #             getCodePrintableNodeID(node) + "_variant;")
-    # code.append(getCodePrintableNodeID(node) + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    # code.append(getCodePrintableNodeID(node) + ".valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 def generateVariableTypeNodeCode(node):
     code = []
-    code.append("UA_VariableTypeNodeAttributes attr;")
-    code.append("UA_VariableTypeNodeAttributes_init(&attr);")
+    code.append("UA_VariableTypeAttributes attr;")
+    code.append("UA_VariableTypeAttributes_init(&attr);")
     if node.historizing:
-        code.append("attr->historizing = true;")
-    code.append("attr->minimumSamplingInterval = (UA_Double)%s;" % \
+        code.append("attr.historizing = true;")
+    code.append("attr.minimumSamplingInterval = (UA_Double)%s;" % \
                 str(node.minimumSamplingInterval))
-    code.append("attr->userAccessLevel = (UA_Int32)%s;" % str(node.userAccessLevel))
-    code.append("attr->accessLevel = (UA_Int32)%s;" % str(node.accessLevel))
-    code.append("attr->valueRank = (UA_Int32)%s;" %str(node.valueRank))
+    code.append("attr.userAccessLevel = (UA_Int32)%s;" % str(node.userAccessLevel))
+    code.append("attr.accessLevel = (UA_Int32)%s;" % str(node.accessLevel))
+    code.append("attr.valueRank = (UA_Int32)%s;" %str(node.valueRank))
     # # The variant is guaranteed to exist by SubtypeEarly()
-    # code.append(getCodePrintableNodeID(node) + "->value.variant.value = *" + \
+    # code.append(getCodePrintableNodeID(node) + ".value.variant.value = *" + \
     #             getCodePrintableNodeID(node) + "_variant;")
-    # code.append(getCodePrintableNodeID(node) + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    # code.append(getCodePrintableNodeID(node) + ".valueSource = UA_VALUESOURCE_VARIANT;")
     return code
 
 def generateMethodNodeCode(node):
     code = []
-    code.append("UA_MethodNodeAttributes attr;")
-    code.append("UA_MethodNodeAttributes_init(&attr);")
+    code.append("UA_MethodAttributes attr;")
+    code.append("UA_MethodAttributes_init(&attr);")
     if node.executable:
-      code.append("attr->executable = true;")
+      code.append("attr.executable = true;")
     if node.userExecutable:
-      code.append("attr->userExecutable = true;")
+      code.append("attr.userExecutable = true;")
     return code
 
 def generateObjectTypeNodeCode(node):
     code = []
-    code.append("UA_ObjectTypeNodeAttributes attr;")
-    code.append("UA_ObjectTypeNodeAttributes_init(&attr);")
+    code.append("UA_ObjectTypeAttributes attr;")
+    code.append("UA_ObjectTypeAttributes_init(&attr);")
     if node.isAbstract:
-      code.append("attr->isAbstract = true;")
+      code.append("attr.isAbstract = true;")
     return code
 
 def generateDataTypeNodeCode(node):
     code = []
-    code.append("UA_DataTypeNodeAttributes attr;")
-    code.append("UA_DataTypeNodeAttributes_init(&attr);")
+    code.append("UA_DataTypeAttributes attr;")
+    code.append("UA_DataTypeAttributes_init(&attr);")
     if node.isAbstract:
-      code.append("attr->isAbstract = true;")
+      code.append("attr.isAbstract = true;")
     return code
 
 def generateViewNodeCode(node):
     code = []
-    code.append("UA_ViewNodeAttributes attr;")
-    code.append("UA_ViewNodeAttributes_init(&attr);")
+    code.append("UA_ViewAttributes attr;")
+    code.append("UA_ViewAttributes_init(&attr);")
     if node.containsNoLoops:
-      code.append("attr->containsNoLoops = true;")
-    code.append("attr->eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
+      code.append("attr.containsNoLoops = true;")
+    code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
 
 def generateNodeCode(node, supressGenerationOfAttribute):
@@ -141,18 +176,24 @@ def generateNodeCode(node, supressGenerationOfAttribute):
     elif isinstance(node, ViewNode):
         code.extend(generateViewNodeCode(node))
 
-    code.append("attr->displayName = " + generateLocalizedTextCode(node.displayName) + ";")
-    code.append("attr->description = " + generateLocalizedTextCode(node.description) + ";")
-    code.append("attr->writeMask = %d;" % node.writeMask)
-    code.append("attr->userWriteMask = %d;" % node.userWriteMask)
+    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName) + ";")
+    code.append("attr.description = " + generateLocalizedTextCode(node.description) + ";")
+    code.append("attr.writeMask = %d;" % node.writeMask)
+    code.append("attr.userWriteMask = %d;" % node.userWriteMask)
     
-    (parentNode, parentRef) = node.getParent()
+    (parentNode, parentRef) = extractNodeParent(node)
 
     code.append("UA_Server_add%s(server," % node.__class__.__name__)
-    code.append(generateNodeIdCode(node.id))
-    code.append(generateNodeIdCode(parentNode))
-    code.append(generateNodeIdCode(parentRef))
-    code.append(generateQualifiedNameCode(node.browseName))
-    code.append("attr, NULL, NULL);")
+    code.append(generateNodeIdCode(node.id) + ",")
+    code.append(generateNodeIdCode(parentNode) + ",")
+    code.append(generateNodeIdCode(parentRef) + ",")
+    code.append(generateQualifiedNameCode(node.browseName) + ",")
+    if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
+        code.append("UA_NODEID_NUMERIC(0,0),") # parent
+    code.append("attr,")
+    if isinstance(node, MethodNode):
+        code.append("NULL, NULL, 0, NULL, 0, NULL, NULL);")
+    else:
+        code.append("NULL, NULL);")
     code.append("}")
     return "\n".join(code)

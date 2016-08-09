@@ -78,7 +78,7 @@ else:
 
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
-ns = NodeSet("open62541")
+ns = NodeSet()
 for xmlfile in args.existing:
   logger.info("Preprocessing (existing) " + str(xmlfile.name))
   ns.addNodeSet(xmlfile, True)

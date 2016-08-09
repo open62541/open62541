@@ -327,6 +327,9 @@ class LocalizedText(Value):
     #          <Locale>xx_XX</Locale>
     #          <Text>TextText</Text>
     #        <LocalizedText> or </AliasName>
+    if not isinstance(xmlvalue, dom.Element):
+      self.text = xmlvalue
+      return
     self.checkXML(xmlvalue)
     tmp = xmlvalue.getElementsByTagName("Locale")
     if len(tmp) > 0 and tmp[0].firstChild != None:
@@ -456,8 +459,14 @@ class QualifiedName(Value):
     #           <Name>SomeString<Name>
     #        </QualifiedName> or </AliasName>
     if not isinstance(xmlvalue, dom.Element):
-      self.name = xmlvalue
+      colonindex = xmlvalue.find(":")
+      if colonindex == -1:
+        self.name = xmlvalue
+      else:
+        self.name = xmlvalue[colonindex+1:]
+        self.ns = int(xmlvalue[:colonindex])
       return
+
     self.checkXML(xmlvalue)
     # Is a namespace index passed?
     if len(xmlvalue.getElementsByTagName("NamespaceIndex")) != 0:

@@ -78,27 +78,6 @@ class Node(object):
   def sanitize(self):
     pass
 
-  def parseXMLReferences(self, xmlelement):
-    for ref in xmlelement.childNodes:
-      if ref.nodeType != ref.ELEMENT_NODE:
-        continue
-      source = NodeId(str(self.id))
-      target = NodeId(unicode(ref.firstChild.data))
-      reftype = None
-      forward = True
-      for (at, av) in ref.attributes.items():
-        if at == "ReferenceType":
-          if '=' in av:
-            reftype = NodeId(av)
-          else:
-            reftype = av # alias, such as "HasSubType"
-        elif at == "IsForward":
-          forward = not "false" in av.lower()
-      if forward:
-        self.references.add(Reference(source, reftype, target, forward))
-      else:
-        self.inverseReferences.add(Reference(source, reftype, target, forward))
-
   def parseXML(self, xmlelement):
     for idname in ['NodeId', 'NodeID', 'nodeid']:
       if xmlelement.hasAttribute(idname):
@@ -123,11 +102,11 @@ class Node(object):
         continue
       if x.firstChild:
         if x.tagName == "BrowseName":
-          self.browseName = unicode(x.firstChild.data)
+          self.browseName = QualifiedName(x.firstChild.data)
         elif x.tagName == "DisplayName":
-          self.displayName = LocalizedText(x)
+          self.displayName = LocalizedText(x.firstChild.data)
         elif x.tagName == "Description":
-          self.description = LocalizedText(x)
+          self.description = LocalizedText(x.firstChild.data)
         elif x.tagName == "WriteMask":
           self.writeMask = int(unicode(x.firstChild.data))
         elif x.tagName == "UserWriteMask":
@@ -135,54 +114,64 @@ class Node(object):
         if x.tagName == "References":
           self.parseXMLReferences(x)
 
+  def parseXMLReferences(self, xmlelement):
+    for ref in xmlelement.childNodes:
+      if ref.nodeType != ref.ELEMENT_NODE:
+        continue
+      source = NodeId(str(self.id)) # deep-copy of the nodeid
+      target = NodeId(ref.firstChild.data)
+      reftype = None
+      forward = True
+      for (at, av) in ref.attributes.items():
+        if at == "ReferenceType":
+          if '=' in av:
+            reftype = NodeId(av)
+          else:
+            reftype = av # alias, such as "HasSubType"
+        elif at == "IsForward":
+          forward = not "false" in av.lower()
+      if forward:
+        self.references.add(Reference(source, reftype, target, forward))
+      else:
+        self.inverseReferences.add(Reference(source, reftype, target, forward))
+
   def replaceAliases(self, aliases):
     if str(self.id) in aliases:
       self.id = NodeId(aliases[self.id])
     for ref in self.references:
+      self.references.remove(ref)
       if str(ref.source) in aliases:
         ref.source = NodeId(aliases[ref.source])
       if str(ref.target) in aliases:
         ref.target = NodeId(aliases[ref.target])
       if str(ref.referenceType) in aliases:
         ref.referenceType = NodeId(aliases[ref.referenceType])
+      self.references.add(ref)
     for ref in self.inverseReferences:
+      self.inverseReferences.remove(ref)
       if str(ref.source) in aliases:
         ref.source = NodeId(aliases[ref.source])
       if str(ref.target) in aliases:
         ref.target = NodeId(aliases[ref.target])
       if str(ref.referenceType) in aliases:
         ref.referenceType = NodeId(aliases[ref.referenceType])
+      self.inverseReferences.add(ref)
 
   def replaceNamespaces(self, nsMapping):
     self.id.ns = nsMapping[self.id.ns]
+    self.browseName.ns = nsMapping[self.browseName.ns]
     for ref in self.references:
+      self.references.remove(ref)
       ref.source.ns = nsMapping[ref.source.ns]
       ref.target.ns = nsMapping[ref.target.ns]
       ref.referenceType.ns = nsMapping[ref.referenceType.ns]
+      self.references.add(ref)
     for ref in self.inverseReferences:
+      self.inverseReferences.remove(ref)
       ref.source.ns = nsMapping[ref.source.ns]
       ref.target.ns = nsMapping[ref.target.ns]
       ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-
-  def getParent(self):
-    """ Return a tuple of (Node, ReferencePointer) indicating
-        the first node found that references this node. If this node is not
-        referenced at all, None will be returned.
-
-        Note that there may be more than one nodes that reference this node.
-        The parent returned will be determined by the first isInverse()
-        Reference of this node found. If none exists, the first hidden
-        reference will be returned.
-    """
-    # TODO What a parent is depends on the node type
-    for r in self.references:
-      if r.isForward == True:
-        continue
-      parent = r.source
-      for ref in parent.references:
-        if ref.target == self.id:
-          return (parent, ref)
-    return (None, None)
+      self.inverseReferences.add(ref)
 
 class ReferenceTypeNode(Node):
   def __init__(self, xmlelement = None):
