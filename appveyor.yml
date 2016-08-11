@@ -62,6 +62,13 @@ build_script:
   - rd /s /q build
   - md build
   - cd build
+  - echo "Testing MinGW32 with amalgamation"
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"MinGW Makefiles" ..
+  - mingw32-make
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
   - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
   - msbuild open62541.sln /m
   - echo "Testing amalgamation"
