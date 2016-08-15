@@ -291,18 +291,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
                    PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                           -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
-                           -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
 
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
