@@ -44,8 +44,8 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  */\n\n""" % args.version)
 
 if is_c:
-    file.write(u'''#ifndef UA_DYNAMIC_LINKING
-# define UA_DYNAMIC_LINKING
+    file.write(u'''#ifndef UA_DYNAMIC_LINKING_EXPORT
+# define UA_DYNAMIC_LINKING_EXPORT
 #endif
 
 #include "%s.h"
