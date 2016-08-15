@@ -56,23 +56,23 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-static UA_UInt16 addNamespaceInternal(UA_Server *server, const UA_String *name) {
-    //check if the namespace already exists in the server's namespace array
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
+    /* Override const attribute to get string (dirty hack) */
+    const UA_String nameString = (UA_String){.length = strlen(name),
+                                             .data = (char*)(uintptr_t)name};
+
+    /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i=0;i<server->namespacesSize;i++) {
-        if(UA_String_equal(name, &server->namespaces[i]))
+        if(UA_String_equal(&nameString, &server->namespaces[i]))
             return i;
     }
-    //the namespace URI did not match - add a new namespace to the namsepace array
+
+    /* Add a new namespace to the namsepace array */
     server->namespaces = UA_realloc(server->namespaces,
-        sizeof(UA_String) * (server->namespacesSize + 1));
-    UA_String_copy(name, &(server->namespaces[server->namespacesSize]));
+                                    sizeof(UA_String) * (server->namespacesSize + 1));
+    UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
     server->namespacesSize++;
     return (UA_UInt16)(server->namespacesSize - 1);
-}
-
-UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    UA_String nameString = UA_STRING_ALLOC(name);
-    return addNamespaceInternal(server, &nameString);
 }
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
@@ -101,6 +101,13 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore, UA_UInt16 *assignedNamespaceIndex) {
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
+
+    char urlString[256];
+    if(url.length >= 256)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    memcpy(urlString, url.data, url.length);
+    urlString[url.length] = 0;
+
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
         UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
@@ -109,7 +116,8 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
     server->externalNamespacesSize++;
-    addNamespaceInternal(server, url);
+    addNamespaceInternal(server, urlString);
+
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
