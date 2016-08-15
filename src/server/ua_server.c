@@ -59,7 +59,7 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     /* Override const attribute to get string (dirty hack) */
     const UA_String nameString = (UA_String){.length = strlen(name),
-                                             .data = (char*)(uintptr_t)name};
+                                             .data = (UA_Byte*)(uintptr_t)name};
 
     /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i=0;i<server->namespacesSize;i++) {
