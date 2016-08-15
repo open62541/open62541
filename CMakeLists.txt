@@ -288,12 +288,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 
 # generated namespace 0
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
-                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
