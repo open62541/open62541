@@ -989,14 +989,15 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
     job.job.methodCall.data = server->periodicServerRegisterJob;
 
 
-    if (periodicJobId)
-        *periodicJobId = server->periodicServerRegisterJob->job_id;
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, *server->periodicServerRegisterJob->job, intervalMs, &server->periodicServerRegisterJob->job_id);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode 0x%08x", retval);
         return retval;
     }
+	if (periodicJobId) {
+		UA_Guid_copy(&server->periodicServerRegisterJob->job_id, periodicJobId);
+	}
 
     if (delayFirstRegisterMs>0) {
         // Register the server with the discovery server.
