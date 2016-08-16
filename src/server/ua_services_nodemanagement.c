@@ -144,37 +144,50 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         return;
     }
 
+    /* omit checks */
+    if(server->bootstrapNS0)
+        goto insert_node;
+
+    /* check if the parent exists */
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Parent node not found");
         result->statusCode = UA_STATUSCODE_BADPARENTNODEIDINVALID;
         UA_NodeStore_deleteNode(node);
         return;
     }
 
+    /* check properties of the reference to the parent */
+    // todo: test if the referencetype is hierarchical
     const UA_ReferenceTypeNode *referenceType =
         (const UA_ReferenceTypeNode *)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent not found");
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Reference type to the parent not found");
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         UA_NodeStore_deleteNode(node);
         return;
     }
+
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent invalid");
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Reference type to the parent invalid");
         result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
         UA_NodeStore_deleteNode(node);
         return;
     }
+
     if(referenceType->isAbstract == true) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Abstract feference type to the parent invalid");
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Abstract feference type to the parent invalid");
         result->statusCode = UA_STATUSCODE_BADREFERENCENOTALLOWED;
         UA_NodeStore_deleteNode(node);
         return;
     }
 
-    // todo: test if the referencetype is hierarchical
-    // todo: namespace index is assumed to be valid
+    /* Insert the node */
+ insert_node:
     result->statusCode = UA_NodeStore_insert(server->nodestore, node);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
@@ -182,9 +195,20 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                              result->statusCode);
         return;
     }
-    result->statusCode = UA_NodeId_copy(&node->nodeId, &result->addedNodeId);
 
-    /* Hierarchical reference back to the parent */
+    /* Copy the id of the inserted node (might be generated in the nodestore) */
+    result->statusCode = UA_NodeId_copy(&node->nodeId, &result->addedNodeId);
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Could not copy the NodeId of the inserted node");
+        goto remove_node;
+    }
+
+    /* Omit the reference to the parent and the instantiation*/
+	if(server->bootstrapNS0)
+		return;
+
+    /* Create hierarchical reference back to the parent */
     UA_AddReferencesItem item;
     UA_AddReferencesItem_init(&item);
     item.sourceNodeId = node->nodeId;
@@ -198,6 +222,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         goto remove_node;
     }
 
+    /* Instantiate objects and variables */
     const UA_NodeId hassubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
         const UA_NodeId baseobjtype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
@@ -1003,9 +1028,9 @@ addOneWayReference(UA_Server *server, UA_Session *session,
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session,
                              const UA_AddReferencesItem *item) {
-UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    UA_Boolean handledExternally = UA_FALSE;
+    UA_Boolean handledExternally = false;
 #endif
     if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
@@ -1017,11 +1042,11 @@ UA_StatusCode retval = UA_STATUSCODE_GOOD;
         } else {
             UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
             retval = ens->addOneWayReference(ens->ensHandle, item);
-            handledExternally = UA_TRUE;
+            handledExternally = true;
             break;
         }
     }
-    if(handledExternally == UA_FALSE) {
+    if(!handledExternally) {
 #endif
     /* cast away the const to loop the call through UA_Server_editNode beware
         the "if" above for external nodestores */
@@ -1031,9 +1056,8 @@ UA_StatusCode retval = UA_STATUSCODE_GOOD;
     }
 #endif
 
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
     UA_AddReferencesItem secondItem;
     secondItem = *item;
@@ -1051,7 +1075,6 @@ UA_StatusCode retval = UA_STATUSCODE_GOOD;
             handledExternally = UA_TRUE;
             break;
         }
-
     }
     if(handledExternally == UA_FALSE) {
 #endif

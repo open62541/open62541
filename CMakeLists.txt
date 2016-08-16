@@ -63,8 +63,7 @@ mark_as_advanced(UA_ENABLE_TYPENAMES)
 option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
-mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
+set(UA_NAMESPACE0_XML ${CMAKE_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.Minimal.xml CACHE FILEPATH "Namespace Zero definition XML file")
 
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
@@ -82,7 +81,6 @@ endif()
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
-option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
@@ -194,6 +192,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
@@ -203,6 +202,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -236,13 +236,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 if(UA_ENABLE_EMBEDDED_LIBC)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
-endif()
-
-if(UA_ENABLE_GENERATE_NAMESPACE0)
-  set(GENERATE_NAMESPACE0_FILE "Opc.Ua.NodeSet2.xml" CACHE STRING "Namespace definition XML file")
-  set_property(CACHE GENERATE_NAMESPACE0_FILE PROPERTY STRINGS Opc.Ua.NodeSet2.xml Opc.Ua.NodeSet2.Minimal.xml)
-  list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
-  list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
 #########################
@@ -292,9 +285,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
+                           --generate-ns0
+                           ${UA_NAMESPACE0_XML}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
-                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
+                   DEPENDS ${UA_NAMESPACE0_XML}
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py

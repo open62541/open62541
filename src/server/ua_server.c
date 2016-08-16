@@ -5,10 +5,7 @@
 #include "ua_util.h"
 #include "ua_services.h"
 #include "ua_nodeids.h"
-
-#ifdef UA_ENABLE_GENERATE_NAMESPACE0
-#include "ua_namespaceinit_generated.h"
-#endif
+#include "ua_namespace0.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -210,7 +207,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     if(outNewNodeId)
         *outNewNodeId = result.addedNodeId;
     else
-        UA_AddNodeId_deleteMembers(&result.addedNodeId);
+        UA_NodeId_deleteMembers(&result.addedNodeId);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -431,9 +428,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
 
     /* Generate nodes and references from the XML ns0 definition */
-    server->overrideConsistencyChecks = true;
+    server->bootstrapNS0 = true;
     ua_namespace0(server);
-    server->overrideConsistencyChecks = false;
+    server->bootstrapNS0 = false;
 
     /* ns0 and ns1 */
     server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
@@ -497,16 +494,16 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     }
 
     UA_VariableNode *serverArray = UA_NodeStore_newVariableNode();
-    copyNames((UA_Node*)serverArray, "ServerArray");
+    //copyNames((UA_Node*)serverArray, "ServerArray");
     serverArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERARRAY;
     UA_Variant_setArrayCopy(&serverArray->value.variant.value,
                             &server->config.applicationDescription.applicationUri, 1,
                             &UA_TYPES[UA_TYPES_STRING]);
     serverArray->valueRank = 1;
     serverArray->minimumSamplingInterval = 1.0;
-    addNodeInternal(server, (UA_Node*)serverArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty);
-    addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY), nodeIdHasTypeDefinition,
-                         UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
+    //addNodeInternal(server, (UA_Node*)serverArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty);
+    //addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY), nodeIdHasTypeDefinition,
+    //                     UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true);
 
     /* UA_VariableNode *localeIdArray = UA_NodeStore_newVariableNode(); */
     /* copyNames((UA_Node*)localeIdArray, "LocaleIdArray"); */
@@ -822,7 +819,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(0, "GetMonitoredItems"), addmethodattributes,
-        GetMonitoredItems, /* callback of the method node */
+        readMonitoredItems, /* callback of the method node */
         NULL, /* handle passed with the callback */
         1, &inputArguments,
         2, outputArguments,

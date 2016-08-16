@@ -73,7 +73,9 @@ struct UA_Server {
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
-    UA_Boolean overrideConsistencyChecks; /* Required to bootstrap namespace zero */
+    /* For bootstrapping, omit some consistency checks, creating a reference to
+       the parent and member instantiation */
+    UA_Boolean bootstrapNS0;
 
     /* Config is the last element so that MSVC allows the usernamePasswordLogins
        field with zero-sized array */
