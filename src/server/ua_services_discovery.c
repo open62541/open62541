@@ -942,7 +942,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
             nextInterval = retryJob->this_interval*2;
         }
 
-        // as long as next retry is smaller than 10 minutes, retry
+        // as long as next retry is smaller than default interval, retry
         if (nextInterval < retryJob->default_interval) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
             struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
@@ -972,23 +972,26 @@ static void periodicServerRegister(UA_Server *server, void *data) {
 UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs,
                                                      const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
 
+	if (server->periodicServerRegisterJob != NULL) {
+		return UA_STATUSCODE_BADNOTIMPLEMENTED;
+	}
+
     // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
 
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
             .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
 
-    struct PeriodicServerRegisterJob defaultJob = {
-            .job = &job,
-            .this_interval = 0,
-            .is_main_job = UA_TRUE,
-            .default_interval = intervalMs
-    };
-    job.job.methodCall.data = &defaultJob;
+	server->periodicServerRegisterJob = UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+	server->periodicServerRegisterJob->job = &job;
+	server->periodicServerRegisterJob->this_interval = 0;
+	server->periodicServerRegisterJob->is_main_job = UA_TRUE;
+	server->periodicServerRegisterJob->default_interval = intervalMs;
+    job.job.methodCall.data = server->periodicServerRegisterJob;
 
 
     if (periodicJobId)
-        *periodicJobId = defaultJob.job_id;
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *defaultJob.job, intervalMs, &defaultJob.job_id);
+        *periodicJobId = server->periodicServerRegisterJob->job_id;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *server->periodicServerRegisterJob->job, intervalMs, &server->periodicServerRegisterJob->job_id);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode 0x%08x", retval);
