@@ -475,7 +475,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
         return;
     }
 
-    entry->lastSeen = UA_DateTime_now();
+    entry->lastSeen = UA_DateTime_nowMonotonic();
 
     if (entry->txtSet && entry->srvSet)
         return;
@@ -807,7 +807,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_now();
+    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
 
     responseHeader->serviceResult = retval;
 }
@@ -870,7 +870,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                             (int)current->registeredServer.semaphoreFilePath.length, current->registeredServer.semaphoreFilePath.data);
             } else {
                 // cppcheck-suppress unreadVariable
-                UA_String lastStr = UA_DateTime_toString(current->lastSeen);
+                UA_String lastStr = UA_DateTime_toString(current->lastSeen+ UA_DATETIME_UNIX_EPOCH);
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                              "Registration of server with URI %.*s has timed out and is removed. Last seen: %.*s",
                             (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
