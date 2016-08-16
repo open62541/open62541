@@ -1336,11 +1336,11 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     if (r) {
         while (r) {
             const mdns_answer_t *data = mdnsd_record_data(r);
-            if ((removeTxt && data->type == QTYPE_TXT) || (removeTxt && data->type == QTYPE_A) || data->srv.port == port) {
+			mdns_record_t *next = mdnsd_record_next(r);
+			if ((removeTxt && data->type == QTYPE_TXT) || (removeTxt && data->type == QTYPE_A) || data->srv.port == port) {
                 mdnsd_done(server->mdnsDaemon,r);
-                break;
             }
-            r = mdnsd_record_next(r);
+            r = next;
         }
     } else {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
