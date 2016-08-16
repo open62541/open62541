@@ -26,6 +26,8 @@
 #   include <sys/time.h> // for struct timeval
 #   include <netinet/in.h> // for struct ip_mreq
 #  endif
+#  include <ifaddrs.h>
+#  include <net/if.h> /* for IFF_RUNNING */
 # endif
 #endif
 
@@ -480,8 +482,8 @@ static void mdns_record_received(const struct resource* r, void* data) {
     if (entry->txtSet && entry->srvSet)
         return;
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
-    // TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+    // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if (r->type == QTYPE_TXT && !entry->txtSet) {
         entry->txtSet = UA_TRUE;
 
@@ -1091,12 +1093,12 @@ static void UA_Discovery_multicastConflict(char *name, int type, void *arg) {
 static char* create_fullServiceDomain(const char* servername, const char* hostname) {
     size_t hostnameLen = strlen(hostname);
     size_t servernameLen = strlen(servername);
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain = malloc(hostnameLen + 25 + servernameLen);
     if (!fullServiceDomain) {
         return NULL;
     }
-    snprintf(fullServiceDomain, hostnameLen + hostnameLen + 25 + servernameLen, "%s._opcua-tcp._tcp.%s.", servername, hostname);
+    snprintf(fullServiceDomain, hostnameLen + hostnameLen + 25 + servernameLen, "%s-%s._opcua-tcp._tcp.local.", servername, hostname);
     return fullServiceDomain;
 }
 
@@ -1113,7 +1115,7 @@ UA_Discovery_recordExists(UA_Server* server, const char* fullServiceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     unsigned short found = 0;
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
     if (r) {
         while (r) {
@@ -1149,7 +1151,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         server->mdnsMainSrvAdded = 1;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername].[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
     if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1179,7 +1181,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         r = mdnsd_record_next(r);
     }
 
-    // _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     if (!found) {
         r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
         mdnsd_set_host(server->mdnsDaemon, r, fullServiceDomain);
@@ -1194,12 +1196,44 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     snprintf(localDomain, hostnameLen + 8, "%s.", hostname);
 
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600, UA_Discovery_multicastConflict, server);
     // r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600);
     mdnsd_set_srv(server->mdnsDaemon, r, 0, 0, port, localDomain);
 
-    // TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+	// A/AAAA record for all ip addresses.
+	// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+	{
+		struct ifaddrs *ifaddr, *ifa;
+		if (getifaddrs(&ifaddr) == -1) {
+			perror("getifaddrs");
+			exit(EXIT_FAILURE);
+		}
+
+		/* Walk through linked list, maintaining head pointer so we can free list later */
+		int n;
+		for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+			if (ifa->ifa_addr == NULL)
+				continue;
+
+			if ((strcmp("lo", ifa->ifa_name) == 0) ||
+				!(ifa->ifa_flags & (IFF_RUNNING)))
+				continue;
+
+			if (ifa->ifa_addr->sa_family == AF_INET) {
+				struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
+				// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+				r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+			} /*else if (ifa->ifa_addr->sa_family == AF_INET6) {
+				// IPv6 not implemented yet
+			}*/
+		}
+
+		freeifaddrs(ifaddr);
+	}
+
+    // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if (createTxt) {
         r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_TXT, 600, UA_Discovery_multicastConflict, server);
         xht_t* h = xht_new(11);
@@ -1264,7 +1298,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         return UA_STATUSCODE_BADOUTOFRANGE;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
     if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1276,7 +1310,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     // it does not represent the total number, but the minimum value.
     // if the number is 1, then also delete the main PTR record
     unsigned int recordMinCount = 0;
-    // _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     mdns_record_t *r = mdnsd_get_published(server->mdnsDaemon, "_opcua-tcp._tcp.local.");
     if (r) {
         while (r) {
@@ -1298,13 +1332,14 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port hostname.local.
-    // and TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+    // looks for [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port hostname.local.
+    // and TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
+    // and A record: [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]
     r = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
     if (r) {
         while (r) {
             const mdns_answer_t *data = mdnsd_record_data(r);
-            if ((removeTxt && data->type == QTYPE_TXT) || data->srv.port == port) {
+            if ((removeTxt && data->type == QTYPE_TXT) || (removeTxt && data->type == QTYPE_A) || data->srv.port == port) {
                 mdnsd_done(server->mdnsDaemon,r);
                 break;
             }
