@@ -366,8 +366,10 @@ START_TEST(Util_wait_timeout) {
 END_TEST
 
 START_TEST(Util_wait_mdns) {
-		// wait until server received mdns package
-		sleep(2);
+		printf("Waiting for 1 second for mDNS detecting register server.\n");
+		sleep(1);
+		printf("The register server should now be detected through mDNS?\n");
+
 	}
 END_TEST
 
