@@ -1096,7 +1096,7 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
     if (!fullServiceDomain) {
         return NULL;
     }
-    snprintf(fullServiceDomain, hostnameLen + hostnameLen + 25 + servernameLen, "%s-%s._opcua-tcp._tcp.local.", servername, hostname);
+    snprintf(fullServiceDomain, hostnameLen + 25 + servernameLen, "%s-%s._opcua-tcp._tcp.local.", servername, hostname);
     return fullServiceDomain;
 }
 
@@ -1201,6 +1201,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
 	// A/AAAA record for all ip addresses.
 	// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+	// [hostname]. A [ip].
 #ifdef _WIN32
 	// see http://stackoverflow.com/a/10838854/869402
 	IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
@@ -1217,8 +1218,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
 		DWORD error = GetAdaptersAddresses(
 			AF_UNSPEC, 
-			GAA_FLAG_SKIP_ANYCAST | 
-				GAA_FLAG_SKIP_MULTICAST | 
+			GAA_FLAG_SKIP_ANYCAST |
 				GAA_FLAG_SKIP_DNS_SERVER |
 				GAA_FLAG_SKIP_FRIENDLY_NAME, 
 			NULL, 
@@ -1274,6 +1274,10 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
 				// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
 				r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
+
+				// [hostname]. A [ip].
+				r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
 				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
 			}
 			/*else if (AF_INET6 == family)
@@ -1332,13 +1336,17 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 					continue;
 
 				if ((strcmp("lo", ifa->ifa_name) == 0) ||
-					!(ifa->ifa_flags & (IFF_RUNNING)))
+					!(ifa->ifa_flags & (IFF_RUNNING))||
+					!(ifa->ifa_flags & (IFF_MULTICAST)))
 					continue;
 
 				if (ifa->ifa_addr->sa_family == AF_INET) {
 					struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
 					// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
 					r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+					mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+					// [hostname]. A [ip].
+					r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
 					mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
 				} /*else if (ifa->ifa_addr->sa_family == AF_INET6) {
 					// IPv6 not implemented yet
