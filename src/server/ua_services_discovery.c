@@ -352,6 +352,8 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
 
+	printf("MDNS got server: %s\n", serverName);
+
     while (hash_entry) {
         size_t maxLen = serverNameLen > hash_entry->entry->serverOnNetwork.serverName.length ? hash_entry->entry->serverOnNetwork.serverName.length : serverNameLen;
         if (strncmp((char*)hash_entry->entry->serverOnNetwork.serverName.data, serverName,maxLen)==0) {
@@ -359,6 +361,8 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
         }
         hash_entry = hash_entry->next;
     }
+
+	printf("Create new: %d\n", createNew);
 
     if (!createNew)
         return NULL;
@@ -387,6 +391,8 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
     newHashEntry->next = server->serverOnNetworkHash[hashIdx];
     server->serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
+
+	printf("MDNS add server: %s\n", serverName);
 
     LIST_INSERT_HEAD(&server->serverOnNetwork, listEntry, pointers);
 
@@ -563,6 +569,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     if (request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn) {
         recordCount = request->maxRecordsToReturn;
     }
+	printf("LDS record count: %d\n", recordCount);
 
     UA_ServerOnNetwork** filtered = NULL;
     if (recordCount > 0) {
@@ -600,9 +607,12 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
             UA_UInt32 filteredCount = 0;
             serverOnNetwork_list_entry* current;
             LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
+
+				printf("LDS found: %.*s\n", (int)current->serverOnNetwork.serverName.length, current->serverOnNetwork.serverName.data);
                 if (current->serverOnNetwork.recordId < request->startingRecordId)
                     continue;
                 filtered[filteredCount++] = &current->serverOnNetwork;
+				printf("LDS add: %.*s\n", (int)current->serverOnNetwork.serverName.length, current->serverOnNetwork.serverName.data);
                 if (filteredCount >= recordCount)
                     break;
             }
@@ -610,6 +620,8 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         }
     }
     response->serversSize = recordCount;
+
+	printf("LDS size: %d\n", recordCount);
     if (recordCount > 0) {
         response->servers = UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
         if (!response->servers) {
@@ -1198,6 +1210,12 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: add record for domain: %s", fullServiceDomain);
 
+	if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: register server");
+	else
+		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: discovery server");
+
+
 
     // _services._dns-sd._udp.local. PTR _opcua-tcp._tcp.local
 
@@ -1217,9 +1235,14 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     if (!found) {
+		if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
+			UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: _opcua-tcp not there");
         r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
         mdnsd_set_host(server->mdnsDaemon, r, fullServiceDomain);
-    }
+    } else {
+		if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
+			UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: _opcua-tcp already there");
+	}
 
     // hostname.local
     char *localDomain = malloc(hostnameLen + 8);

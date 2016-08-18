@@ -294,6 +294,15 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
 	retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork);
 	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+
+	for (size_t i=0; i<serverOnNetworkSize; i++) {
+		char* serverName = malloc(sizeof(char)*serverOnNetwork[i].serverName.length+1);
+		memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
+		serverName[serverOnNetwork[i].serverName.length] = '\0';
+		printf("Server on net: %s\n",serverName);
+		free(serverName);
+	}
+
 	// only the discovery server is expected
 	ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
 
