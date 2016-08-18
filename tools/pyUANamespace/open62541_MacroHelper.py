@@ -199,7 +199,9 @@ class open62541_MacroHelper():
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.description().replace("\"", "\\\""))
 
     if nodetype in ["Variable", "VariableType"]:
-      code.extend(node.printOpen62541CCode_SubtypeEarly(bootstrapping = False))
+      #TODO: Fix this
+      pass
+      #code.extend(node.printOpen62541CCode_SubtypeEarly(bootstrapping = False))
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")
