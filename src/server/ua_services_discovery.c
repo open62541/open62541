@@ -448,7 +448,7 @@ static void mdns_append_path_to_url(UA_String* url, const char* path) {
 static void mdns_record_received(const struct resource* r, void* data) {
     UA_Server *server = (UA_Server *) data;
     // we only need SRV and TXT records
-    if ((r->class != QCLASS_IN && r->class != QCLASS_IN +  + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+    if ((r->class != QCLASS_IN && r->class != QCLASS_IN + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
         return;
 
     // we only handle '_opcua-tcp._tcp.' records
@@ -1110,22 +1110,58 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
  */
 static UA_StatusCode
 UA_Discovery_recordExists(UA_Server* server, const char* fullServiceDomain,
-                          unsigned short port, const UA_DiscoveryProtocol protocol) {
-    unsigned short found = 0;
+						  unsigned short port, const UA_DiscoveryProtocol protocol) {
+	unsigned short found = 0;
 
-    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
-    mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
-    if (r) {
-        while (r) {
-            const mdns_answer_t *data = mdnsd_record_data(r);
-            if (data->type == QTYPE_SRV && data->srv.port == port) {
-                found = 1;
-                break;
-            }
-            r = mdnsd_record_next(r);
-        }
-    }
-    return found ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
+	// [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+	mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
+	if (r) {
+		while (r) {
+			const mdns_answer_t *data = mdnsd_record_data(r);
+			if (data->type == QTYPE_SRV && (port == 0 || data->srv.port == port)) {
+				found = 1;
+				break;
+			}
+			r = mdnsd_record_next(r);
+		}
+	}
+	return found ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
+}
+
+static int discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
+	UA_Server *server = (UA_Server*) arg;
+	if (a->type != QTYPE_PTR)
+		return 0;
+
+	if (a->rdname == NULL)
+		return 0;
+
+	if (UA_Discovery_recordExists(server, a->rdname, 0, UA_DISCOVERY_TCP) == UA_STATUSCODE_GOOD) {
+		// we already know about this server. So skip.
+		return 0;
+	}
+
+	if (mdnsd_has_query(server->mdnsDaemon, a->rdname))
+		return 0;
+
+	UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "mDNS send query for: %s SRV&TXT %s", a->name, a->rdname);
+
+	mdnsd_query(server->mdnsDaemon, a->rdname,QTYPE_SRV,discovery_multicastQueryAnswer, server);
+	mdnsd_query(server->mdnsDaemon, a->rdname,QTYPE_TXT,discovery_multicastQueryAnswer, server);
+
+	return 0;
+}
+
+/**
+ * Send a multicast probe to find any other OPC UA server on the network through mDNS.
+ *
+ * @param server
+ * @return
+ */
+UA_StatusCode
+UA_Discovery_multicastQuery(UA_Server* server) {
+    mdnsd_query(server->mdnsDaemon, "_opcua-tcp._tcp.local.",QTYPE_PTR,discovery_multicastQueryAnswer, server);
+	return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
