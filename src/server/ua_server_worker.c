@@ -602,6 +602,8 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
             appName[server->config.mdnsServerName.length] = '\0';
             UA_Discovery_addRecord(server, appName ,hostname, 4840, "/", UA_DISCOVERY_TCP, UA_TRUE, server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
             free(appName);
+            // find any other server on the net
+            UA_Discovery_multicastQuery(server);
 		} else {
 			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
 						"Could not get hostname for multicast discovery.");
