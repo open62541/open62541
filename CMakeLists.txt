@@ -8,7 +8,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 ######################
 
 
-set(MDNSD_LOGLEVEL 100 CACHE STRING "Level at which logs shall be reported" FORCE)
+set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
 
 find_package(PythonInterp REQUIRED)
 find_package(Git)

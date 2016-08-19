@@ -352,8 +352,6 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry* hash_entry = server->serverOnNetworkHash[hashIdx];
 
-	printf("MDNS got server: %s\n", serverName);
-
     while (hash_entry) {
         size_t maxLen = serverNameLen > hash_entry->entry->serverOnNetwork.serverName.length ? hash_entry->entry->serverOnNetwork.serverName.length : serverNameLen;
         if (strncmp((char*)hash_entry->entry->serverOnNetwork.serverName.data, serverName,maxLen)==0) {
@@ -361,8 +359,6 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
         }
         hash_entry = hash_entry->next;
     }
-
-	printf("Create new: %d\n", createNew);
 
     if (!createNew)
         return NULL;
@@ -391,8 +387,6 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
     newHashEntry->next = server->serverOnNetworkHash[hashIdx];
     server->serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
-
-	printf("MDNS add server: %s\n", serverName);
 
     LIST_INSERT_HEAD(&server->serverOnNetwork, listEntry, pointers);
 
@@ -569,7 +563,6 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     if (request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn) {
         recordCount = request->maxRecordsToReturn;
     }
-	printf("LDS record count: %d\n", recordCount);
 
     UA_ServerOnNetwork** filtered = NULL;
     if (recordCount > 0) {
@@ -607,12 +600,9 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
             UA_UInt32 filteredCount = 0;
             serverOnNetwork_list_entry* current;
             LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
-
-				printf("LDS found: %.*s\n", (int)current->serverOnNetwork.serverName.length, current->serverOnNetwork.serverName.data);
                 if (current->serverOnNetwork.recordId < request->startingRecordId)
                     continue;
                 filtered[filteredCount++] = &current->serverOnNetwork;
-				printf("LDS add: %.*s\n", (int)current->serverOnNetwork.serverName.length, current->serverOnNetwork.serverName.data);
                 if (filteredCount >= recordCount)
                     break;
             }
@@ -620,8 +610,6 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         }
     }
     response->serversSize = recordCount;
-
-	printf("LDS size: %d\n", recordCount);
     if (recordCount > 0) {
         response->servers = UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
         if (!response->servers) {
@@ -1100,15 +1088,28 @@ static void UA_Discovery_multicastConflict(char *name, int type, void *arg) {
     UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS name conflict detected: '%s' for type %d", name, type);
 }
 
-static char* create_fullServiceDomain(const char* servername, const char* hostname) {
+static char* create_fullServiceDomain(const char* servername, const char* hostname, size_t maxLen) {
     size_t hostnameLen = strlen(hostname);
     size_t servernameLen = strlen(servername);
     // [servername]-[hostname]._opcua-tcp._tcp.local.
-    char *fullServiceDomain = malloc(hostnameLen + 25 + servernameLen);
+
+	if (hostnameLen+servernameLen+1 > maxLen) {
+		if (servernameLen+2 > maxLen) {
+			servernameLen = maxLen;
+			hostnameLen = 0;
+		} else {
+			hostnameLen = maxLen - servernameLen - 1;
+		}
+	}
+
+    char *fullServiceDomain = malloc(servernameLen + 1 + hostnameLen + 23);
     if (!fullServiceDomain) {
         return NULL;
     }
-    snprintf(fullServiceDomain, hostnameLen + 25 + servernameLen, "%s-%s._opcua-tcp._tcp.local.", servername, hostname);
+	if (hostnameLen > 0)
+    	snprintf(fullServiceDomain, servernameLen + 1 + hostnameLen + 23, "%.*s-%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername, (int)hostnameLen, hostname);
+	else
+		snprintf(fullServiceDomain, servernameLen + 23, "%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername);
     return fullServiceDomain;
 }
 
@@ -1186,10 +1187,14 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     size_t hostnameLen = strlen(hostname);
     size_t servernameLen = strlen(servername);
-    // use a limit for the hostname length to make sure full string fits into 256 chars
-    if (hostnameLen == 0 || hostnameLen > 150 || servernameLen == 0 || servernameLen > 150) {
+    // use a limit for the hostname length to make sure full string fits into 63 chars (limited by DNS spec)
+    if (hostnameLen == 0 || servernameLen == 0) {
         return UA_STATUSCODE_BADOUTOFRANGE;
-    }
+    } else if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Combination of hostname+servername exceeds maximum of 62 chars. It will be truncated.");
+	} else if (hostnameLen > 63) {
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Hostname length exceeds maximum of 63 chars. It will be truncated.");
+	}
 
     if (!server->mdnsMainSrvAdded) {
         mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, "_services._dns-sd._udp.local.", QTYPE_PTR, 600);
@@ -1197,9 +1202,9 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         server->mdnsMainSrvAdded = 1;
     }
 
-    // [servername].[hostname]._opcua-tcp._tcp.local.
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
-    if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
+    if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname, 63))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1209,12 +1214,6 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     }
 
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: add record for domain: %s", fullServiceDomain);
-
-	if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
-		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: register server");
-	else
-		UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: discovery server");
-
 
 
     // _services._dns-sd._udp.local. PTR _opcua-tcp._tcp.local
@@ -1235,22 +1234,17 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     if (!found) {
-		if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
-			UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: _opcua-tcp not there");
         r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
         mdnsd_set_host(server->mdnsDaemon, r, fullServiceDomain);
-    } else {
-		if (server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
-			UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: _opcua-tcp already there");
-	}
+    }
 
-    // hostname.local
-    char *localDomain = malloc(hostnameLen + 8);
+    // hostname.
+    char *localDomain = malloc(hostnameLen < 63 ? hostnameLen : 63 + 2);
     if (!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    snprintf(localDomain, hostnameLen + 8, "%s.", hostname);
+    snprintf(localDomain, hostnameLen, "%.*s.",(int)(hostnameLen < 63 ? hostnameLen : 63), hostname);
 
 
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
@@ -1478,14 +1472,16 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
                           unsigned short port, UA_Boolean removeTxt) {
     size_t hostnameLen = strlen(hostname);
     size_t servernameLen = strlen(servername);
-    // use a limit for the hostname length to make sure full string fits into 256 chars
-    if (hostnameLen == 0 || hostnameLen > 150 || servernameLen == 0 || servernameLen > 150) {
-        return UA_STATUSCODE_BADOUTOFRANGE;
-    }
+	// use a limit for the hostname length to make sure full string fits into 63 chars (limited by DNS spec)
+	if (hostnameLen == 0 || servernameLen == 0) {
+		return UA_STATUSCODE_BADOUTOFRANGE;
+	} else if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Combination of hostname+servername exceeds maximum of 62 chars. It will be truncated.");
+	}
 
     // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
-    if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
+    if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname, 63))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 

@@ -294,15 +294,6 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
 	retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork);
 	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-
-	for (size_t i=0; i<serverOnNetworkSize; i++) {
-		char* serverName = malloc(sizeof(char)*serverOnNetwork[i].serverName.length+1);
-		memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
-		serverName[serverOnNetwork[i].serverName.length] = '\0';
-		printf("Server on net: %s\n",serverName);
-		free(serverName);
-	}
-
 	// only the discovery server is expected
 	ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
 
@@ -349,10 +340,11 @@ START_TEST(Client_find_on_network_registered) {
 
 		ck_assert_uint_eq(gethostname(hostname, 255), 0);
 
-		expectedUris[0] = malloc(400);
-		snprintf(expectedUris[0], 400, "LDS_test-%s", hostname);
-		expectedUris[1] = malloc(400);
-		snprintf(expectedUris[1], 400, "Register_test-%s", hostname);
+		//DNS limits name to max 63 chars (+ \0)
+		expectedUris[0] = malloc(64);
+		snprintf(expectedUris[0], 64, "LDS_test-%s", hostname);
+		expectedUris[1] = malloc(64);
+		snprintf(expectedUris[1], 64, "Register_test-%s", hostname);
 		FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL);
 
 		free(expectedUris[0]);
@@ -375,10 +367,7 @@ START_TEST(Util_wait_timeout) {
 END_TEST
 
 START_TEST(Util_wait_mdns) {
-		printf("Waiting for 1 second for mDNS detecting register server.\n");
 		sleep(1);
-		printf("The register server should now be detected through mDNS?\n");
-
 	}
 END_TEST
 
