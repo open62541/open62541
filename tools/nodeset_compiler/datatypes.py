@@ -349,6 +349,7 @@ class NodeId(Value):
     self.ns = 0
 
     if not idstring:
+      self.i = 0
       return
 
     # The ID will encoding itself appropriatly as string. If multiple ID's

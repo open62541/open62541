@@ -18,7 +18,6 @@
 
 import logging
 import argparse
-from os.path import basename
 from nodeset import *
 from backend_open62541 import generateOpen62541Code
 
@@ -28,16 +27,24 @@ parser.add_argument('-e','--existing',
                     type=argparse.FileType('r'),
                     dest="existing",
                     action='append',
+                    default=[],
                     help='NodeSet XML files with nodes that are already present on the server.')
+
 parser.add_argument('infiles',
                     metavar="<nodeSetXML>",
-                    nargs='+',
+                    action='append',
                     type=argparse.FileType('r'),
+                    default=[],
                     help='NodeSet XML files with nodes that shall be generated.')
 
 parser.add_argument('outputFile',
                     metavar='<outputFile>',
-                    help='The basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
+                    help='The path/basename for the <output file>.c and <output file>.h files to be generated. This will also be the function name used in the header and c-file.')
+
+parser.add_argument('--generate-ns0',
+                    action='store_true',
+                    dest="generate_ns0",
+                    help='Omit some consistency checks for bootstrapping namespace 0, create references to parents and type definitions manually')
 
 parser.add_argument('-b','--blacklist',
                     metavar="<blacklistFile>",
@@ -110,5 +117,5 @@ ns.sanitize()
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes)
+generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0)
 logger.info("NodeSet generation code successfully printed")

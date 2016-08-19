@@ -109,10 +109,6 @@ def generateVariableTypeNodeCode(node):
     code.append("UA_VariableTypeAttributes_init(&attr);")
     if node.historizing:
         code.append("attr.historizing = true;")
-    code.append("attr.minimumSamplingInterval = (UA_Double)%s;" % \
-                str(node.minimumSamplingInterval))
-    code.append("attr.userAccessLevel = (UA_Int32)%s;" % str(node.userAccessLevel))
-    code.append("attr.accessLevel = (UA_Int32)%s;" % str(node.accessLevel))
     code.append("attr.valueRank = (UA_Int32)%s;" %str(node.valueRank))
     # # The variant is guaranteed to exist by SubtypeEarly()
     # code.append(getCodePrintableNodeID(node) + ".value.variant.value = *" + \
@@ -155,7 +151,7 @@ def generateViewNodeCode(node):
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
 
-def generateNodeCode(node, supressGenerationOfAttribute):
+def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0):
     code = []
     code.append("\n{")
 
@@ -163,7 +159,7 @@ def generateNodeCode(node, supressGenerationOfAttribute):
         code.extend(generateReferenceTypeNodeCode(node))
     elif isinstance(node, ObjectNode):
         code.extend(generateObjectNodeCode(node))
-    elif isinstance(node, VariableNode):
+    elif isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
         code.extend(generateVariableNodeCode(node))
     elif isinstance(node, VariableTypeNode):
         code.extend(generateVariableTypeNodeCode(node))
@@ -181,14 +177,17 @@ def generateNodeCode(node, supressGenerationOfAttribute):
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
     
-    (parentNode, parentRef) = extractNodeParent(node)
+    if not generate_ns0:
+        (parentNode, parentRef) = extractNodeParent(node)
+    else:
+        (parentNode, parentRef) = (NodeId(), NodeId())
 
     code.append("UA_Server_add%s(server," % node.__class__.__name__)
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName) + ",")
-    if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
+    if (isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode)) or isinstance(node, ObjectNode):
         code.append("UA_NODEID_NUMERIC(0,0),") # parent
     code.append("attr,")
     if isinstance(node, MethodNode):
