@@ -88,6 +88,7 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
+	struct PeriodicServerRegisterJob *periodicServerRegisterJob;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
     int mdnsSocket;
@@ -171,6 +172,8 @@ typedef enum {
     UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
+
+UA_StatusCode UA_Discovery_multicastQuery(UA_Server* server);
 
 UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, const char* path,
 									 const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize);

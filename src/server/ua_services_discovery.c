@@ -19,12 +19,15 @@
 #  ifdef _WIN32
 #   define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
 #   include <winsock2.h>
+#   include <iphlpapi.h>
 #   include <ws2tcpip.h>
 #   define CLOSESOCKET(S) closesocket((SOCKET)S)
 #  else
 #   define CLOSESOCKET(S) close(S)
 #   include <sys/time.h> // for struct timeval
 #   include <netinet/in.h> // for struct ip_mreq
+#   include <ifaddrs.h>
+#   include <net/if.h> /* for IFF_RUNNING */
 #  endif
 # endif
 #endif
@@ -445,7 +448,7 @@ static void mdns_append_path_to_url(UA_String* url, const char* path) {
 static void mdns_record_received(const struct resource* r, void* data) {
     UA_Server *server = (UA_Server *) data;
     // we only need SRV and TXT records
-    if ((r->class != QCLASS_IN && r->class != QCLASS_IN +  + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+    if ((r->class != QCLASS_IN && r->class != QCLASS_IN + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
         return;
 
     // we only handle '_opcua-tcp._tcp.' records
@@ -475,13 +478,13 @@ static void mdns_record_received(const struct resource* r, void* data) {
         return;
     }
 
-    entry->lastSeen = UA_DateTime_now();
+    entry->lastSeen = UA_DateTime_nowMonotonic();
 
     if (entry->txtSet && entry->srvSet)
         return;
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
-    // TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+    // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if (r->type == QTYPE_TXT && !entry->txtSet) {
         entry->txtSet = UA_TRUE;
 
@@ -807,7 +810,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_now();
+    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
 
     responseHeader->serviceResult = retval;
 }
@@ -870,12 +873,9 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
                             (int)current->registeredServer.semaphoreFilePath.length, current->registeredServer.semaphoreFilePath.data);
             } else {
                 // cppcheck-suppress unreadVariable
-                UA_String lastStr = UA_DateTime_toString(current->lastSeen);
                 UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Registration of server with URI %.*s has timed out and is removed. Last seen: %.*s",
-                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data,
-                            (int)lastStr.length, lastStr.data);
-                UA_free(lastStr.data);
+                             "Registration of server with URI %.*s has timed out and is removed.",
+                            (int)current->registeredServer.serverUri.length, current->registeredServer.serverUri.data);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_deleteMembers(&current->registeredServer);
@@ -942,7 +942,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
             nextInterval = retryJob->this_interval*2;
         }
 
-        // as long as next retry is smaller than 10 minutes, retry
+        // as long as next retry is smaller than default interval, retry
         if (nextInterval < retryJob->default_interval) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
             struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
@@ -972,28 +972,32 @@ static void periodicServerRegister(UA_Server *server, void *data) {
 UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs,
                                                      const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
 
+	if (server->periodicServerRegisterJob != NULL) {
+		return UA_STATUSCODE_BADNOTIMPLEMENTED;
+	}
+
     // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
 
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
             .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
 
-    struct PeriodicServerRegisterJob defaultJob = {
-            .job = &job,
-            .this_interval = 0,
-            .is_main_job = UA_TRUE,
-            .default_interval = intervalMs
-    };
-    job.job.methodCall.data = &defaultJob;
+	server->periodicServerRegisterJob = UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+	server->periodicServerRegisterJob->job = &job;
+	server->periodicServerRegisterJob->this_interval = 0;
+	server->periodicServerRegisterJob->is_main_job = UA_TRUE;
+	server->periodicServerRegisterJob->default_interval = intervalMs;
+    job.job.methodCall.data = server->periodicServerRegisterJob;
 
 
-    if (periodicJobId)
-        *periodicJobId = defaultJob.job_id;
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *defaultJob.job, intervalMs, &defaultJob.job_id);
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, *server->periodicServerRegisterJob->job, intervalMs, &server->periodicServerRegisterJob->job_id);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode 0x%08x", retval);
         return retval;
     }
+	if (periodicJobId) {
+		UA_Guid_copy(&server->periodicServerRegisterJob->job_id, periodicJobId);
+	}
 
     if (delayFirstRegisterMs>0) {
         // Register the server with the discovery server.
@@ -1087,12 +1091,12 @@ static void UA_Discovery_multicastConflict(char *name, int type, void *arg) {
 static char* create_fullServiceDomain(const char* servername, const char* hostname) {
     size_t hostnameLen = strlen(hostname);
     size_t servernameLen = strlen(servername);
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain = malloc(hostnameLen + 25 + servernameLen);
     if (!fullServiceDomain) {
         return NULL;
     }
-    snprintf(fullServiceDomain, hostnameLen + hostnameLen + 25 + servernameLen, "%s._opcua-tcp._tcp.%s.", servername, hostname);
+    snprintf(fullServiceDomain, hostnameLen + 25 + servernameLen, "%s-%s._opcua-tcp._tcp.local.", servername, hostname);
     return fullServiceDomain;
 }
 
@@ -1106,22 +1110,58 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
  */
 static UA_StatusCode
 UA_Discovery_recordExists(UA_Server* server, const char* fullServiceDomain,
-                          unsigned short port, const UA_DiscoveryProtocol protocol) {
-    unsigned short found = 0;
+						  unsigned short port, const UA_DiscoveryProtocol protocol) {
+	unsigned short found = 0;
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
-    mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
-    if (r) {
-        while (r) {
-            const mdns_answer_t *data = mdnsd_record_data(r);
-            if (data->type == QTYPE_SRV && data->srv.port == port) {
-                found = 1;
-                break;
-            }
-            r = mdnsd_record_next(r);
-        }
-    }
-    return found ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
+	// [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
+	mdns_record_t *r  = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
+	if (r) {
+		while (r) {
+			const mdns_answer_t *data = mdnsd_record_data(r);
+			if (data->type == QTYPE_SRV && (port == 0 || data->srv.port == port)) {
+				found = 1;
+				break;
+			}
+			r = mdnsd_record_next(r);
+		}
+	}
+	return found ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
+}
+
+static int discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
+	UA_Server *server = (UA_Server*) arg;
+	if (a->type != QTYPE_PTR)
+		return 0;
+
+	if (a->rdname == NULL)
+		return 0;
+
+	if (UA_Discovery_recordExists(server, a->rdname, 0, UA_DISCOVERY_TCP) == UA_STATUSCODE_GOOD) {
+		// we already know about this server. So skip.
+		return 0;
+	}
+
+	if (mdnsd_has_query(server->mdnsDaemon, a->rdname))
+		return 0;
+
+	UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "mDNS send query for: %s SRV&TXT %s", a->name, a->rdname);
+
+	mdnsd_query(server->mdnsDaemon, a->rdname,QTYPE_SRV,discovery_multicastQueryAnswer, server);
+	mdnsd_query(server->mdnsDaemon, a->rdname,QTYPE_TXT,discovery_multicastQueryAnswer, server);
+
+	return 0;
+}
+
+/**
+ * Send a multicast probe to find any other OPC UA server on the network through mDNS.
+ *
+ * @param server
+ * @return
+ */
+UA_StatusCode
+UA_Discovery_multicastQuery(UA_Server* server) {
+    mdnsd_query(server->mdnsDaemon, "_opcua-tcp._tcp.local.",QTYPE_PTR,discovery_multicastQueryAnswer, server);
+	return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -1145,7 +1185,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         server->mdnsMainSrvAdded = 1;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername].[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
     if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1175,7 +1215,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         r = mdnsd_record_next(r);
     }
 
-    // _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     if (!found) {
         r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
         mdnsd_set_host(server->mdnsDaemon, r, fullServiceDomain);
@@ -1190,12 +1230,172 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     snprintf(localDomain, hostnameLen + 8, "%s.", hostname);
 
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port [hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600, UA_Discovery_multicastConflict, server);
     // r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600);
     mdnsd_set_srv(server->mdnsDaemon, r, 0, 0, port, localDomain);
 
-    // TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+	// A/AAAA record for all ip addresses.
+	// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+	// [hostname]. A [ip].
+#ifdef _WIN32
+	// see http://stackoverflow.com/a/10838854/869402
+	IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
+	IP_ADAPTER_ADDRESSES* adapter = NULL;
+
+	// Start with a 16 KB buffer and resize if needed -
+	// multiple attempts in case interfaces change while
+	// we are in the middle of querying them.
+	DWORD adapter_addresses_buffer_size = 16 * 1024;
+	for (int attempts = 0; attempts != 3; ++attempts)
+	{
+		adapter_addresses = (IP_ADAPTER_ADDRESSES*)malloc(adapter_addresses_buffer_size);
+		assert(adapter_addresses);
+
+		DWORD error = GetAdaptersAddresses(
+			AF_UNSPEC, 
+			GAA_FLAG_SKIP_ANYCAST |
+				GAA_FLAG_SKIP_DNS_SERVER |
+				GAA_FLAG_SKIP_FRIENDLY_NAME, 
+			NULL, 
+			adapter_addresses,
+			&adapter_addresses_buffer_size);
+
+		if (ERROR_SUCCESS == error)
+		{
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,"GetAdaptersAddresses returned an error. Not setting mDNS A records.");
+			adapter_addresses = NULL;
+			break;
+		}
+		else if (ERROR_BUFFER_OVERFLOW == error)
+		{
+			// Try again with the new size
+			free(adapter_addresses);
+			adapter_addresses = NULL;
+
+			continue;
+		}
+		else
+		{
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,"GetAdaptersAddresses returned an unexpected error. Not setting mDNS A records.");
+			// Unexpected error code - log and throw
+			free(adapter_addresses);
+			adapter_addresses = NULL;
+
+			break;
+		}
+	}
+
+	// Iterate through all of the adapters
+	for (adapter = adapter_addresses; NULL != adapter; adapter = adapter->Next)
+	{
+		// Skip loopback adapters
+		if (IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
+		{
+			continue;
+		}
+
+		// Parse all IPv4 and IPv6 addresses
+		for (
+			IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; 
+			NULL != address;
+			address = address->Next)
+		{
+			int family = address->Address.lpSockaddr->sa_family;
+			if (AF_INET == family)
+			{
+				// IPv4
+				SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr);
+
+
+				// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+				r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
+
+				// [hostname]. A [ip].
+				r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
+			}
+			/*else if (AF_INET6 == family)
+			{
+				// IPv6
+				SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
+
+				char str_buffer[INET6_ADDRSTRLEN] = {0};
+				inet_ntop(AF_INET6, &(ipv6->sin6_addr), str_buffer, INET6_ADDRSTRLEN);
+
+				std::string ipv6_str(str_buffer);
+
+				// Detect and skip non-external addresses
+				bool is_link_local(false);
+				bool is_special_use(false);
+
+				if (0 == ipv6_str.find("fe"))
+				{
+					char c = ipv6_str[2];
+					if (c == '8' || c == '9' || c == 'a' || c == 'b')
+					{
+						is_link_local = true;
+					}
+				}
+				else if (0 == ipv6_str.find("2001:0:"))
+				{
+					is_special_use = true;
+				}
+
+				if (! (is_link_local || is_special_use))
+				{
+					ipAddrs.mIpv6.push_back(ipv6_str);
+				}
+			}*/
+			else
+			{
+				// Skip all other types of addresses
+				continue;
+			}
+		}
+	}
+
+	// Cleanup
+	free(adapter_addresses);
+	adapter_addresses = NULL;
+#else
+	{
+		struct ifaddrs *ifaddr, *ifa;
+		if (getifaddrs(&ifaddr) == -1) {
+			UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,"getifaddrs returned an unexpected error. Not setting mDNS A records.");
+		} else {
+			/* Walk through linked list, maintaining head pointer so we can free list later */
+			int n;
+			for (ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+				if (ifa->ifa_addr == NULL)
+					continue;
+
+				if ((strcmp("lo", ifa->ifa_name) == 0) ||
+					!(ifa->ifa_flags & (IFF_RUNNING))||
+					!(ifa->ifa_flags & (IFF_MULTICAST)))
+					continue;
+
+				if (ifa->ifa_addr->sa_family == AF_INET) {
+					struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
+					// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+					r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+					mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+					// [hostname]. A [ip].
+					r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
+					mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+				} /*else if (ifa->ifa_addr->sa_family == AF_INET6) {
+					// IPv6 not implemented yet
+				}*/
+			}
+
+			freeifaddrs(ifaddr);
+		}
+
+	}
+#endif
+
+    // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if (createTxt) {
         r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_TXT, 600, UA_Discovery_multicastConflict, server);
         xht_t* h = xht_new(11);
@@ -1260,7 +1460,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         return UA_STATUSCODE_BADOUTOFRANGE;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname].
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
     if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1272,7 +1472,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     // it does not represent the total number, but the minimum value.
     // if the number is 1, then also delete the main PTR record
     unsigned int recordMinCount = 0;
-    // _opcua-tcp._tcp.local. PTR [servername]._opcua-tcp._tcp.[hostname].
+    // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     mdns_record_t *r = mdnsd_get_published(server->mdnsDaemon, "_opcua-tcp._tcp.local.");
     if (r) {
         while (r) {
@@ -1294,17 +1494,18 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    // [servername]._opcua-tcp._tcp.[hostname]. 86400 IN SRV 0 5 port hostname.local.
-    // and TXT record: [servername]._opcua-tcp._tcp.[hostname]. TXT path=/ caps=NA,DA,...
+    // looks for [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port hostname.local.
+    // and TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
+    // and A record: [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]
     r = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
     if (r) {
         while (r) {
             const mdns_answer_t *data = mdnsd_record_data(r);
-            if ((removeTxt && data->type == QTYPE_TXT) || data->srv.port == port) {
+			mdns_record_t *next = mdnsd_record_next(r);
+			if ((removeTxt && data->type == QTYPE_TXT) || (removeTxt && data->type == QTYPE_A) || data->srv.port == port) {
                 mdnsd_done(server->mdnsDaemon,r);
-                break;
             }
-            r = mdnsd_record_next(r);
+            r = next;
         }
     } else {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,

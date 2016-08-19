@@ -1,3 +1,16 @@
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 500
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+
+// On older systems we need to define _BSD_SOURCE
+// _DEFAULT_SOURCE is an alias for that
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -5,7 +18,6 @@
 #include <ua_util.h>
 #include <ua_types_generated.h>
 #include <server/ua_server_internal.h>
-#include <unistd.h>
 
 #include "ua_client.h"
 #include "ua_config_standard.h"
@@ -50,6 +62,8 @@ static void setup_lds(void) {
 	server_lds = UA_Server_new(config_lds);
 	UA_Server_run_startup(server_lds);
 	pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
+	// wait until LDS started
+	sleep(1);
 }
 
 static void teardown_lds(void) {
@@ -80,7 +94,7 @@ static void * serverloop_register(void *_) {
 }
 
 static void setup_register(void) {
-	// start LDS server
+	// start register server
 	running_register = UA_Boolean_new();
 	*running_register = true;
 	UA_ServerConfig config_register = UA_ServerConfig_standard;
@@ -268,7 +282,7 @@ static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t
 	return (int) UA_STATUSCODE_GOOD;
 }
 
-static void FindOnNetworkAndCheck(const char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale) {
+static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 	UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
@@ -321,8 +335,20 @@ END_TEST
 
 // Test if registered server is returned from LDS using FindServersOnNetwork
 START_TEST(Client_find_on_network_registered) {
-		const char* expectedUris[] ={"LDS_test", "Register_test"};
+		char *expectedUris[2];
+		char hostname[256];
+
+		ck_assert_uint_eq(gethostname(hostname, 255), 0);
+
+		expectedUris[0] = malloc(400);
+		snprintf(expectedUris[0], 400, "LDS_test-%s", hostname);
+		expectedUris[1] = malloc(400);
+		snprintf(expectedUris[1], 400, "Register_test-%s", hostname);
 		FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL);
+
+		free(expectedUris[0]);
+		free(expectedUris[1]);
+
 	}
 END_TEST
 
@@ -340,8 +366,10 @@ START_TEST(Util_wait_timeout) {
 END_TEST
 
 START_TEST(Util_wait_mdns) {
-		// wait until server received mdns package
-		sleep(2);
+		printf("Waiting for 1 second for mDNS detecting register server.\n");
+		sleep(1);
+		printf("The register server should now be detected through mDNS?\n");
+
 	}
 END_TEST
 

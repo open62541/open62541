@@ -280,6 +280,9 @@ void UA_Server_delete(UA_Server *server) {
 			UA_free(current);
 		}
 	}
+    if (server->periodicServerRegisterJob) {
+        UA_free(server->periodicServerRegisterJob);
+    }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
@@ -605,6 +608,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     // Discovery service
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
+    server->periodicServerRegisterJob = NULL;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
