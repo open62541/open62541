@@ -18,7 +18,7 @@ env:
   matrix:
     # Do both, compile with static code analysis and without
     - ANALYZE=false
-    #- ANALYZE=true
+    - ANALYZE=true
 
 matrix:
   exclude:
