@@ -246,7 +246,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
         *outNewNodeId = result.addedNodeId;
     else
-        UA_AddNodesResult_deleteMembers(&result);
+        UA_NodeId_deleteMembers(&result.addedNodeId);
     return result.statusCode;
 }
 
