@@ -611,12 +611,6 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
               node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_VARIANT);
 
-    UA_Variant *oldV = &node->value.variant.value;
-    /* Don't run NodeId_equal on a NULL pointer (happens if the variable never
-       held a variant) */
-    if(!oldV->type)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     /* Parse the range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
@@ -630,9 +624,10 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
 
     /* The nodeid on the wire may be != the nodeid in the node: opaque types,
        enums and bytestrings. nodeV contains the correct type definition. */
+    UA_Variant *oldV = &node->value.variant.value;
     const UA_Variant *newV = &wvalue->value.value;
     UA_Variant cast_v;
-    if(!UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
+    if(oldV->type && !UA_NodeId_equal(&oldV->type->typeId, &newV->type->typeId)) {
         cast_v = wvalue->value.value;
         newV = &cast_v;
         enum type_equivalence te1 = typeEquivalence(oldV->type);
