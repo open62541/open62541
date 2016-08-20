@@ -45,8 +45,8 @@ extern "C" {
  *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
  * ``void T_deleteMembers(T *ptr)``
- *   Delete the dynamically allocated content of the data type, but not the data
- *   type itself.
+ *   Delete the dynamically allocated content of the data type and perform a
+ *   ``T_init`` to reset the type.
  * ``void T_delete(T *ptr)``
  *   Delete the content of the data type and the memory for the data type itself.
  *
