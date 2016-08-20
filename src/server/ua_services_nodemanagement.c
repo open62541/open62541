@@ -124,6 +124,11 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
 /* Add Node */
 /************/
 
+static void
+Service_AddNodes_single(UA_Server *server, UA_Session *session,
+                        const UA_AddNodesItem *item, UA_AddNodesResult *result,
+                        UA_InstantiationCallback *instantiationCallback);
+
 static UA_StatusCode
 instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                         const UA_NodeId *typeId, UA_InstantiationCallback *instantiationCallback);
@@ -663,9 +668,10 @@ dataTypeNodeFromAttributes(const UA_AddNodesItem *item,
     return (UA_Node*)dtnode;
 }
 
-void Service_AddNodes_single(UA_Server *server, UA_Session *session,
-                             const UA_AddNodesItem *item, UA_AddNodesResult *result,
-                             UA_InstantiationCallback *instantiationCallback) {
+static void
+Service_AddNodes_single(UA_Server *server, UA_Session *session,
+                        const UA_AddNodesItem *item, UA_AddNodesResult *result,
+                        UA_InstantiationCallback *instantiationCallback) {
     if(item->nodeAttributes.encoding < UA_EXTENSIONOBJECT_DECODED ||
        !item->nodeAttributes.content.decoded.type) {
         result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -796,6 +802,41 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
             Service_AddNodes_single(server, session, &request->nodesToAdd[i],
                                     &response->results[i], NULL);
     }
+}
+
+UA_StatusCode
+__UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
+                    const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+                    const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+                    const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                    const UA_DataType *attributeType,
+                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
+    /* prepare the item */
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.parentNodeId.nodeId = parentNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
+    item.browseName = browseName;
+    item.nodeClass = nodeClass;
+    item.typeDefinition.nodeId = typeDefinition;
+    item.nodeAttributes = (UA_ExtensionObject){
+        .encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
+        .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
+
+    /* run the service */
+    UA_AddNodesResult result;
+    UA_AddNodesResult_init(&result);
+    UA_RCU_LOCK();
+    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback);
+    UA_RCU_UNLOCK();
+
+    /* prepare the output */
+    if(outNewNodeId && result.statusCode == UA_STATUSCODE_GOOD)
+        *outNewNodeId = result.addedNodeId;
+    else
+        UA_NodeId_deleteMembers(&result.addedNodeId);
+    return result.statusCode;
 }
 
 /**************************************************/
@@ -1262,3 +1303,99 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
         response->results[i] =
             Service_DeleteReferences_single(server, session, &request->referencesToDelete[i]);
 }
+
+/***********************/
+/* Edit Node Callbacks */
+/***********************/
+
+static UA_StatusCode
+setValueCallback(UA_Server *server, UA_Session *session,
+                 UA_VariableNode *node, UA_ValueCallback *callback) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->value.variant.callback = *callback;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                                        const UA_ValueCallback callback) {
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setValueCallback, &callback);
+    UA_RCU_UNLOCK();
+    return retval;
+}
+
+static UA_StatusCode
+setDataSource(UA_Server *server, UA_Session *session,
+              UA_VariableNode* node, UA_DataSource *dataSource) {
+    if(node->nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    if(node->valueSource == UA_VALUESOURCE_VARIANT)
+        UA_Variant_deleteMembers(&node->value.variant.value);
+    node->value.dataSource = *dataSource;
+    node->valueSource = UA_VALUESOURCE_DATASOURCE;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
+                                     const UA_DataSource dataSource) {
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setDataSource, &dataSource);
+    UA_RCU_UNLOCK();
+    return retval;
+}
+
+static UA_StatusCode
+setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session,
+                                 UA_ObjectTypeNode* node,
+                                 UA_ObjectLifecycleManagement *olm) {
+    if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->lifecycleManagement = *olm;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
+                                                UA_ObjectLifecycleManagement olm) {
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
+                                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
+    UA_RCU_UNLOCK();
+    return retval;
+}
+
+#ifdef UA_ENABLE_METHODCALLS
+
+struct addMethodCallback {
+    UA_MethodCallback callback;
+    void *handle;
+};
+
+static UA_StatusCode
+editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
+    if(node->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    const struct addMethodCallback *newCallback = handle;
+    UA_MethodNode *mnode = (UA_MethodNode*) node;
+    mnode->attachedMethod = newCallback->callback;
+    mnode->methodHandle   = newCallback->handle;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
+                                 UA_MethodCallback method, void *handle) {
+    struct addMethodCallback cb = { method, handle };
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_Server_editNode(server, &adminSession,
+                                              &methodNodeId, editMethodCallback, &cb);
+    UA_RCU_UNLOCK();
+    return retval;
+}
+
+#endif

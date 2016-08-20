@@ -56,7 +56,8 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         /* alloc dimensions */
         if(idx >= dimensionsMax) {
             struct UA_NumericRangeDimension *newds;
-            newds = UA_realloc(dimensions, sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2));
+            size_t newdssize = sizeof(struct UA_NumericRangeDimension) * (dimensionsMax + 2);
+            newds = UA_realloc(dimensions, newdssize);
             if(!newds) {
                 retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 break;
@@ -66,7 +67,8 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         }
 
         /* read the dimension */
-        size_t progress = readDimension(&str->data[offset], str->length - offset, &dimensions[idx]);
+        size_t progress = readDimension(&str->data[offset], str->length - offset,
+                                        &dimensions[idx]);
         if(progress == 0) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
@@ -100,15 +102,19 @@ UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
         break;                                                  \
     }
 
-static void handleServerTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
-    if(v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER || timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
+static void
+handleServerTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
+    if(v && (timestamps == UA_TIMESTAMPSTORETURN_SERVER ||
+             timestamps == UA_TIMESTAMPSTORETURN_BOTH)) {
         v->hasServerTimestamp = true;
         v->serverTimestamp = UA_DateTime_now();
     }
 }
 
-static void handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
-    if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE || timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+static void
+handleSourceTimestamps(UA_TimestampsToReturn timestamps, UA_DataValue* v) {
+    if(timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
+       timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
         v->hasSourceTimestamp = true;
         v->sourceTimestamp = UA_DateTime_now();
     }
@@ -123,8 +129,10 @@ static void forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataTyp
 }
 
 static UA_StatusCode
-getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNode *vn,
-                     const UA_TimestampsToReturn timestamps, const UA_ReadValueId *id, UA_DataValue *v) {
+getVariableNodeValue(UA_Server *server, UA_Session *session,
+                     const UA_VariableNode *vn,
+                     const UA_TimestampsToReturn timestamps,
+                     const UA_ReadValueId *id, UA_DataValue *v) {
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -148,7 +156,8 @@ getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNo
             handleSourceTimestamps(timestamps, v);
     } else {
         if(!vn->value.dataSource.read) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "DataSource cannot be read in ReadRequest");
             retval = UA_STATUSCODE_BADINTERNALERROR;
         } else {
             UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
@@ -169,7 +178,8 @@ getVariableNodeDataType(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
         if(vn->value.variant.value.type) {
-            forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+            forceVariantSetScalar(&v->value, &vn->value.variant.value.type->typeId,
+                                  &UA_TYPES[UA_TYPES_NODEID]);
         } else {
             UA_NodeId nullid;
             UA_NodeId_init(&nullid);
@@ -178,17 +188,20 @@ getVariableNodeDataType(UA_Server *server, UA_Session *session,
     } else {
         /* Read from the datasource to see the data type */
         if(!vn->value.dataSource.read) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "DataSource cannot be read in ReadRequest");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         UA_DataValue val;
         UA_DataValue_init(&val);
         val.hasValue = false; // always assume we are not given a value by userspace
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, false, NULL, &val);
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle,
+                                           vn->nodeId, false, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(val.hasValue && val.value.type)
-          retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+          retval = UA_Variant_setScalarCopy(&v->value, &val.value.type->typeId,
+                                            &UA_TYPES[UA_TYPES_NODEID]);
         UA_DataValue_deleteMembers(&val);
     }
     return retval;
@@ -200,21 +213,25 @@ getVariableNodeArrayDimensions(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(vn->valueSource == UA_VALUESOURCE_VARIANT) {
         UA_Variant_setArray(&v->value, vn->value.variant.value.arrayDimensions,
-                            vn->value.variant.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                            vn->value.variant.value.arrayDimensionsSize,
+                            &UA_TYPES[UA_TYPES_INT32]);
         v->value.storageType = UA_VARIANT_DATA_NODELETE;
     } else {
         if(!vn->value.dataSource.read) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "DataSource cannot be read in ReadRequest");
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "DataSource cannot be read in ReadRequest");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         /* Read the datasource to see the array dimensions */
         UA_DataValue val;
         UA_DataValue_init(&val);
-        retval = vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId, false, NULL, &val);
+        retval = vn->value.dataSource.read(vn->value.dataSource.handle,
+                                           vn->nodeId, false, NULL, &val);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         retval = UA_Variant_setArrayCopy(&v->value, val.value.arrayDimensions,
-                                         val.value.arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                                         val.value.arrayDimensionsSize,
+                                         &UA_TYPES[UA_TYPES_INT32]);
         UA_DataValue_deleteMembers(&val);
     }
     return retval;
@@ -228,7 +245,8 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          const UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Read the attribute %i", id->attributeId);
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Read the attribute %i", id->attributeId);
     if(id->dataEncoding.name.length > 0 &&
        !UA_String_equal(&binEncoding, &id->dataEncoding.name)) {
            v->hasStatus = true;
@@ -250,7 +268,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* When setting the value fails in the switch, we get an error code and set hasValue to false */
+    /* When setting the value fails in the switch, we get an error code and set
+       hasValue to false */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     v->hasValue = true;
     switch(id->attributeId) {
@@ -407,7 +426,8 @@ void Service_Read(UA_Server *server, UA_Session *session,
             continue;
         UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
         ens->readNodes(ens->ensHandle, &request->requestHeader, request->nodesToRead,
-                       indices, (UA_UInt32)indexSize, response->results, false, response->diagnosticInfos);
+                       indices, (UA_UInt32)indexSize, response->results, false,
+                       response->diagnosticInfos);
     }
 #endif
 
@@ -433,20 +453,24 @@ void Service_Read(UA_Server *server, UA_Session *session,
         UA_Variant_init(&variant);
 
         UA_DateTime* expireArray = NULL;
-        expireArray = UA_Array_new(request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
+        expireArray = UA_Array_new(request->nodesToReadSize,
+                                   &UA_TYPES[UA_TYPES_DATETIME]);
         variant.data = expireArray;
 
         /* expires in 20 seconds */
         for(UA_UInt32 i = 0;i < response->resultsSize;i++) {
             expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
         }
-        UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
+        UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize,
+                            &UA_TYPES[UA_TYPES_DATETIME]);
 
         size_t offset = 0;
         UA_ByteString str;
-        UA_ByteString_allocBuffer(&str, UA_calcSizeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT]));
+        size_t strlength = UA_calcSizeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_ByteString_allocBuffer(&str, strlength);
         /* No chunking callback for the encoding */
-        UA_StatusCode retval = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL, &str, &offset);
+        UA_StatusCode retval = UA_encodeBinary(&variant, &UA_TYPES[UA_TYPES_VARIANT],
+                                               NULL, NULL, &str, &offset);
         UA_Array_delete(expireArray, request->nodesToReadSize, &UA_TYPES[UA_TYPES_DATETIME]);
         if(retval == UA_STATUSCODE_GOOD){
             additionalHeader.content.encoded.body.data = str.data;
@@ -457,12 +481,47 @@ void Service_Read(UA_Server *server, UA_Session *session,
 #endif
 }
 
+UA_StatusCode
+__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+                 const UA_AttributeId attributeId, void *v) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = *nodeId;
+    item.attributeId = attributeId;
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_RCU_LOCK();
+    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER,
+                        &item, &dv);
+    UA_RCU_UNLOCK();
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(dv.hasStatus)
+        retval = dv.hasStatus;
+    else if(!dv.hasValue)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_DataValue_deleteMembers(&dv);
+        return retval;
+    }
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
+        memcpy(v, &dv.value, sizeof(UA_Variant));
+    else {
+        memcpy(v, dv.value.data, dv.value.type->memSize);
+        dv.value.data = NULL;
+        dv.value.arrayLength = 0;
+        UA_Variant_deleteMembers(&dv.value);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /*******************/
 /* Write Attribute */
 /*******************/
 
-UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                                 UA_EditNodeCallback callback, const void *data) {
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
+                                 const UA_NodeId *nodeId, UA_EditNodeCallback callback,
+                                 const void *data) {
     UA_StatusCode retval;
     do {
 #ifndef UA_ENABLE_MULTITHREADING
@@ -502,10 +561,12 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const U
     }
 
 static UA_StatusCode
-Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session, const UA_VariableNode *node,
-                                     const UA_WriteValue *wvalue) {
+Service_Write_single_ValueDataSource(UA_Server *server, UA_Session *session,
+                                     const UA_VariableNode *node, const UA_WriteValue *wvalue)
+{
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
-    UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
+    UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE ||
+              node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_DATASOURCE);
 
     if(node->value.dataSource.write == NULL)
@@ -546,7 +607,8 @@ static enum type_equivalence typeEquivalence(const UA_DataType *t) {
 static UA_StatusCode
 CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
     UA_assert(wvalue->attributeId == UA_ATTRIBUTEID_VALUE);
-    UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE || node->nodeClass == UA_NODECLASS_VARIABLETYPE);
+    UA_assert(node->nodeClass == UA_NODECLASS_VARIABLE ||
+              node->nodeClass == UA_NODECLASS_VARIABLETYPE);
     UA_assert(node->valueSource == UA_VALUESOURCE_VARIANT);
 
     UA_Variant *oldV = &node->value.variant.value;
@@ -597,7 +659,8 @@ CopyValueIntoNode(UA_VariableNode *node, const UA_WriteValue *wvalue) {
         UA_Variant_deleteMembers(&node->value.variant.value);
         UA_Variant_copy(newV, &node->value.variant.value);
     } else
-        retval = UA_Variant_setRangeCopy(&node->value.variant.value, newV->data, newV->arrayLength, range);
+        retval = UA_Variant_setRangeCopy(&node->value.variant.value, newV->data,
+                                         newV->arrayLength, range);
     if(node->value.variant.callback.onWrite)
         node->value.variant.callback.onWrite(node->value.variant.callback.handle, node->nodeId,
                                              &node->value.variant.value, rangeptr);
@@ -678,7 +741,9 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         if(((const UA_VariableNode*)node)->valueSource == UA_VALUESOURCE_VARIANT)
             retval = CopyValueIntoNode((UA_VariableNode*)node, wvalue);
         else
-            retval = Service_Write_single_ValueDataSource(server, session, (const UA_VariableNode*)node, wvalue);
+            retval = Service_Write_single_ValueDataSource(server, session,
+                                                          (const UA_VariableNode*)node,
+                                                          wvalue);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
@@ -721,8 +786,10 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session, const UA_WriteValue *wvalue) {
-    return UA_Server_editNode(server, session, &wvalue->nodeId, (UA_EditNodeCallback)CopyAttributeIntoNode, wvalue);
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session,
+                                   const UA_WriteValue *wvalue) {
+    return UA_Server_editNode(server, session, &wvalue->nodeId,
+                              (UA_EditNodeCallback)CopyAttributeIntoNode, wvalue);
 }
 
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
@@ -733,7 +800,8 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
         return;
     }
 
-    response->results = UA_Array_new(request->nodesToWriteSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    response->results = UA_Array_new(request->nodesToWriteSize,
+                                     &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -768,4 +836,27 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 #endif
             response->results[i] = Service_Write_single(server, session, &request->nodesToWrite[i]);
     }
+}
+
+UA_StatusCode
+__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
+                  const UA_AttributeId attributeId, const UA_DataType *attr_type,
+                  const void *value) {
+    UA_WriteValue wvalue;
+    UA_WriteValue_init(&wvalue);
+    wvalue.nodeId = *nodeId;
+    wvalue.attributeId = attributeId;
+    if(attributeId != UA_ATTRIBUTEID_VALUE)
+        /* hacked cast. the target WriteValue is used as const anyway */
+        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, attr_type);
+    else {
+        if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        wvalue.value.value = *(const UA_Variant*)value;
+    }
+    wvalue.value.hasValue = true;
+    UA_RCU_LOCK();
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
+    UA_RCU_UNLOCK();
+    return retval;
 }
