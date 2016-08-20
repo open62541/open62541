@@ -54,7 +54,7 @@ START_TEST(AddComplexTypeWithInheritance) {
   UA_QualifiedName myObjectName = UA_QUALIFIEDNAME(1, "the.fake.Server.Struct");
   UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
   UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-  UA_Int32 handleCalled;
+  UA_Int32 handleCalled = 0;
   UA_InstantiationCallback iCallback = {.method=instantiationMethod, .handle = (void *) &handleCalled};
     
   UA_StatusCode res = UA_Server_addObjectNode(server, myObjectNodeId, parentNodeId, parentReferenceNodeId,

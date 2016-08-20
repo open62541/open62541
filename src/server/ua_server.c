@@ -11,42 +11,14 @@
 #include "ua_subscription.h"
 #endif
 
+#include <stdio.h>
+
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
 #endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
-#endif
-
-static const UA_NodeId nodeIdHasSubType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASSUBTYPE};
-static const UA_NodeId nodeIdHasTypeDefinition = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
-static const UA_NodeId nodeIdHasComponent = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASCOMPONENT};
-static const UA_NodeId nodeIdHasProperty = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASPROPERTY};
-static const UA_NodeId nodeIdOrganizes = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_ORGANIZES};
-static const UA_NodeId nodeIdFolderType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_FOLDERTYPE};
-
-static const UA_ExpandedNodeId expandedNodeIdBaseDataVariabletype = {
-    .nodeId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-               .identifier.numeric = UA_NS0ID_BASEDATAVARIABLETYPE},
-    .namespaceUri = {.length = 0, .data = NULL}, .serverIndex = 0};
-
-#ifndef UA_ENABLE_GENERATE_NAMESPACE0
-static const UA_NodeId nodeIdNonHierarchicalReferences = {
-        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-        .identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES};
 #endif
 
 /**********************/
@@ -95,7 +67,8 @@ static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
 
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
-                               UA_ExternalNodeStore *nodeStore, UA_UInt16 *assignedNamespaceIndex) {
+                               UA_ExternalNodeStore *nodeStore,
+                               UA_UInt16 *assignedNamespaceIndex) {
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
@@ -120,30 +93,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 UA_StatusCode
-UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
-                          UA_Boolean isForward, const UA_ExpandedNodeId targetNodeId,
-                          UA_Boolean deleteBidirectional) {
-    UA_DeleteReferencesItem item;
-    item.sourceNodeId = sourceNodeId;
-    item.referenceTypeId = referenceTypeId;
-    item.isForward = isForward;
-    item.targetNodeId = targetNodeId;
-    item.deleteBidirectional = deleteBidirectional;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_DeleteReferences_single(server, &adminSession, &item);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -160,55 +109,6 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     }
     UA_RCU_UNLOCK();
     return retval;
-}
-
-UA_StatusCode
-UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
-                       const UA_NodeId refTypeId, const UA_ExpandedNodeId targetId,
-                       UA_Boolean isForward) {
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = sourceId;
-    item.referenceTypeId = refTypeId;
-    item.isForward = isForward;
-    item.targetNodeId = targetId;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_AddReferences_single(server, &adminSession, &item);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
-__UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
-                    const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-                    const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-                    const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                    const UA_DataType *attributeType,
-                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
-    UA_AddNodesItem item;
-    UA_AddNodesItem_init(&item);
-    item.parentNodeId.nodeId = parentNodeId;
-    item.referenceTypeId = referenceTypeId;
-    item.requestedNewNodeId.nodeId = requestedNewNodeId;
-    item.browseName = browseName;
-    item.nodeClass = nodeClass;
-    item.typeDefinition.nodeId = typeDefinition;
-    item.nodeAttributes = (UA_ExtensionObject){.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
-                                               .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
-    UA_AddNodesResult result;
-    UA_AddNodesResult_init(&result);
-    UA_RCU_LOCK();
-    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback);
-    UA_RCU_UNLOCK();
-
-    if(result.statusCode != UA_STATUSCODE_GOOD)
-        return result.statusCode;
-
-    if(outNewNodeId)
-        *outNewNodeId = result.addedNodeId;
-    else
-        UA_NodeId_deleteMembers(&result.addedNodeId);
-    return UA_STATUSCODE_GOOD;
 }
 
 /**********/
@@ -356,7 +256,8 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
         return UA_STATUSCODE_GOOD;
     }
     UA_DateTime currentTime = UA_DateTime_now();
-    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime,
+                                                    &UA_TYPES[UA_TYPES_DATETIME]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     value->hasValue = true;
@@ -438,17 +339,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
 
-    /* UA_VariableNode *namespaceArray = UA_NodeStore_newVariableNode(); */
-    /* copyNames((UA_Node*)namespaceArray, "NamespaceArray"); */
-    /* namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY; */
-    /* namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE; */
-    /* namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces, */
-    /*                                                     .write = NULL}; */
-    /* namespaceArray->valueRank = 1; */
-    /* namespaceArray->minimumSamplingInterval = 1.0; */
-    /* addNodeInternal(server, (UA_Node*)namespaceArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasProperty); */
-    /* addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), */
-    /*                      nodeIdHasTypeDefinition, UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), true); */
+    UA_DataSource namespaceDataSource = (UA_DataSource){
+        .handle = server, .read = readNamespaces,
+        .write = NULL};
+    UA_Server_setVariableNode_dataSource(server,
+          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), namespaceDataSource);
 
     /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
     server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
@@ -468,7 +363,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         if(server->config.enableUsernamePasswordLogin)
             policies++;
         endpoint->userIdentityTokensSize = policies;
-        endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        endpoint->userIdentityTokens =
+            UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
         size_t currentIndex = 0;
         if(server->config.enableAnonymousLogin) {
@@ -492,6 +388,16 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         /* copy the discovery url only once the networlayer has been started */
         // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
     }
+
+    UA_Variant serverarray;
+    UA_Variant_init(&serverarray);
+    UA_Variant_setArray(&serverarray,
+                        &server->config.applicationDescription.applicationUri,
+                        1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode retval = UA_Server_writeValue(server, UA_NODEID_NUMERIC(0,UA_NS0ID_SERVER_SERVERARRAY), serverarray);
+    printf("0x%8x", retval);
+    assert(retval == 0);
+
 
     UA_VariableNode *serverArray = UA_NodeStore_newVariableNode();
     //copyNames((UA_Node*)serverArray, "ServerArray");
@@ -828,181 +734,3 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     return server;
 }
-
-UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId, const UA_DataType *attr_type,
-                  const void *value) {
-    UA_WriteValue wvalue;
-    UA_WriteValue_init(&wvalue);
-    wvalue.nodeId = *nodeId;
-    wvalue.attributeId = attributeId;
-    if(attributeId != UA_ATTRIBUTEID_VALUE)
-        /* hacked cast. the target WriteValue is used as const anyway */
-        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, attr_type);
-    else {
-        if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        wvalue.value.value = *(const UA_Variant*)value;
-    }
-    wvalue.value.hasValue = true;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-static UA_StatusCode
-setValueCallback(UA_Server *server, UA_Session *session, UA_VariableNode *node, UA_ValueCallback *callback) {
-    if(node->nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->value.variant.callback = *callback;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_EXPORT
-UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
-                                        const UA_ValueCallback callback) {
-    UA_RCU_LOCK();
-    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
-                                              (UA_EditNodeCallback)setValueCallback, &callback);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-static UA_StatusCode
-setDataSource(UA_Server *server, UA_Session *session,
-              UA_VariableNode* node, UA_DataSource *dataSource) {
-    if(node->nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    if(node->valueSource == UA_VALUESOURCE_VARIANT)
-        UA_Variant_deleteMembers(&node->value.variant.value);
-    node->value.dataSource = *dataSource;
-    node->valueSource = UA_VALUESOURCE_DATASOURCE;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                                     const UA_DataSource dataSource) {
-    UA_RCU_LOCK();
-    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
-                                              (UA_EditNodeCallback)setDataSource, &dataSource);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-static UA_StatusCode
-setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session, UA_ObjectTypeNode* node,
-                                 UA_ObjectLifecycleManagement *olm) {
-    if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->lifecycleManagement = *olm;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
-                                                UA_ObjectLifecycleManagement olm) {
-    UA_RCU_LOCK();
-    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
-                                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-#ifdef UA_ENABLE_METHODCALLS
-
-struct addMethodCallback {
-    UA_MethodCallback callback;
-    void *handle;
-};
-
-static UA_StatusCode
-editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
-    if(node->nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    const struct addMethodCallback *newCallback = handle;
-    UA_MethodNode *mnode = (UA_MethodNode*) node;
-    mnode->attachedMethod = newCallback->callback;
-    mnode->methodHandle   = newCallback->handle;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode UA_EXPORT
-UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
-                                 UA_MethodCallback method, void *handle) {
-    struct addMethodCallback cb = { method, handle };
-    UA_RCU_LOCK();
-    UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &methodNodeId, editMethodCallback, &cb);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-#endif
-
-UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId, const UA_AttributeId attributeId, void *v) {
-    UA_ReadValueId item;
-    UA_ReadValueId_init(&item);
-    item.nodeId = *nodeId;
-    item.attributeId = attributeId;
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-    UA_RCU_LOCK();
-    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER,
-                        &item, &dv);
-    UA_RCU_UNLOCK();
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(dv.hasStatus)
-        retval = dv.hasStatus;
-    else if(!dv.hasValue)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_DataValue_deleteMembers(&dv);
-        return retval;
-    }
-    if(attributeId == UA_ATTRIBUTEID_VALUE ||
-       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
-        memcpy(v, &dv.value, sizeof(UA_Variant));
-    else {
-        memcpy(v, dv.value.data, dv.value.type->memSize);
-        dv.value.data = NULL;
-        dv.value.arrayLength = 0;
-        UA_Variant_deleteMembers(&dv.value);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_BrowseResult
-UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
-    UA_BrowseResult result;
-    UA_BrowseResult_init(&result);
-    UA_RCU_LOCK();
-    Service_Browse_single(server, &adminSession, NULL, descr, maxrefs, &result);
-    UA_RCU_UNLOCK();
-    return result;
-}
-
-UA_BrowseResult
-UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
-                     const UA_ByteString *continuationPoint) {
-    UA_BrowseResult result;
-    UA_BrowseResult_init(&result);
-    UA_RCU_LOCK();
-    UA_Server_browseNext_single(server, &adminSession, releaseContinuationPoint,
-                                continuationPoint, &result);
-    UA_RCU_UNLOCK();
-    return result;
-}
-
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
-    UA_CallMethodResult result;
-    UA_CallMethodResult_init(&result);
-    UA_RCU_LOCK();
-    Service_Call_single(server, &adminSession, request, &result);
-    UA_RCU_UNLOCK();
-    return result;
-}
-#endif
