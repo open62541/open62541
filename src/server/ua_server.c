@@ -98,7 +98,8 @@ static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
 
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
-                               UA_ExternalNodeStore *nodeStore, UA_UInt16 *assignedNamespaceIndex) {
+                               UA_ExternalNodeStore *nodeStore,
+                               UA_UInt16 *assignedNamespaceIndex) {
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
@@ -123,30 +124,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 UA_StatusCode
-UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_DeleteNodes_single(server, &adminSession, &nodeId, deleteReferences);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
-                          UA_Boolean isForward, const UA_ExpandedNodeId targetNodeId,
-                          UA_Boolean deleteBidirectional) {
-    UA_DeleteReferencesItem item;
-    item.sourceNodeId = sourceNodeId;
-    item.referenceTypeId = referenceTypeId;
-    item.isForward = isForward;
-    item.targetNodeId = targetNodeId;
-    item.deleteBidirectional = deleteBidirectional;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_DeleteReferences_single(server, &adminSession, &item);
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -161,22 +138,6 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
-    UA_RCU_UNLOCK();
-    return retval;
-}
-
-UA_StatusCode
-UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
-                       const UA_NodeId refTypeId, const UA_ExpandedNodeId targetId,
-                       UA_Boolean isForward) {
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = sourceId;
-    item.referenceTypeId = refTypeId;
-    item.isForward = isForward;
-    item.targetNodeId = targetId;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_AddReferences_single(server, &adminSession, &item);
     UA_RCU_UNLOCK();
     return retval;
 }
