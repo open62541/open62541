@@ -506,7 +506,10 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
     if(attributeId == UA_ATTRIBUTEID_VALUE ||
        attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
         memcpy(v, &dv.value, sizeof(UA_Variant));
-    else {
+    else if(attributeId == UA_ATTRIBUTEID_DATATYPE) {
+        UA_copy(dv.value.data, v, dv.value.type);
+        UA_DataValue_deleteMembers(&dv);
+    } else {
         memcpy(v, dv.value.data, dv.value.type->memSize);
         dv.value.data = NULL;
         dv.value.arrayLength = 0;
