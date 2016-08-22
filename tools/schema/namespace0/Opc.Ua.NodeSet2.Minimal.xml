@@ -580,9 +580,7 @@
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=62</Reference>
     </References>
-  </UAVariableType>
-  
-  
+  </UAVariableType> 
   <UAObject NodeId="i=2253" BrowseName="Server" EventNotifier="1">
     <DisplayName>Server</DisplayName>
     <References>
@@ -621,6 +619,14 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
     </References>
   </UAObject>
+  <UAVariable NodeId="i=2269" BrowseName="ServerProfileArray" ParentNodeId="i=2268" DataType="String" ValueRank="1">
+    <DisplayName>ServerProfileArray</DisplayName>
+    <Description>A list of profiles supported by the server.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
+    </References>
+  </UAVariable>
   <UAVariable NodeId="i=2271" BrowseName="LocaleIdArray" ParentNodeId="i=2268" DataType="i=295" ValueRank="1">
     <DisplayName>LocaleIdArray</DisplayName>
     <Description>A list of locales supported by the server.</Description>
@@ -632,6 +638,22 @@
   <UAVariable NodeId="i=2735" BrowseName="MaxBrowseContinuationPoints" ParentNodeId="i=2268" DataType="UInt16">
     <DisplayName>MaxBrowseContinuationPoints</DisplayName>
     <Description>The maximum number of continuation points for Browse operations per session.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2736" BrowseName="MaxQueryContinuationPoints" ParentNodeId="i=2268" DataType="UInt16">
+    <DisplayName>MaxQueryContinuationPoints</DisplayName>
+    <Description>The maximum number of continuation points for Query operations per session.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2737" BrowseName="MaxHistoryContinuationPoints" ParentNodeId="i=2268" DataType="UInt16">
+    <DisplayName>MaxHistoryContinuationPoints</DisplayName>
+    <Description>The maximum number of continuation points for ReadHistory operations per session.</Description>
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
@@ -756,6 +778,45 @@
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2256</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2267" BrowseName="ServiceLevel" ParentNodeId="i=2253" DataType="Byte" MinimumSamplingInterval="1000">
+    <DisplayName>ServiceLevel</DisplayName>
+    <Description>A value indicating the level of service the server can provide. 255 indicates the best.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2253</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=2994" BrowseName="Auditing" ParentNodeId="i=2253" DataType="Boolean" MinimumSamplingInterval="1000">
+    <DisplayName>Auditing</DisplayName>
+    <Description>A flag indicating whether the server is currently generating audit events.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2253</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="i=2295" BrowseName="VendorServerInfo" ParentNodeId="i=2253">
+    <DisplayName>VendorServerInfo</DisplayName>
+    <Description>Server information provided by the vendor.</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="i=2296" BrowseName="ServerRedundancy" ParentNodeId="i=2253">
+    <DisplayName>ServerRedundancy</DisplayName>
+    <Description>Describes the redundancy capabilities of the server.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">i=3709</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=3709" BrowseName="RedundancySupport" ParentNodeId="i=2296" DataType="i=851">
+    <DisplayName>RedundancySupport</DisplayName>
+    <Description>Indicates what style of redundancy is supported by the server.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2296</Reference>
     </References>
   </UAVariable>
 </UANodeSet>
