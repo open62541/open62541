@@ -6,16 +6,18 @@ clone_folder: c:\projects\open62541
 clone_depth: 20
 
 environment:
-    global:
-        CYG_ARCH: x86
-        CYG_ROOT: C:/cygwin
-        CYG_SETUP_URL: http://cygwin.com/setup-x86.exe
-        CYG_MIRROR: http://cygwin.mirror.constant.com
-        CYG_CACHE: C:\cygwin\var\cache\setup
-        CYG_BASH: C:/cygwin/bin/bash
-
-cache:
-  - '%CYG_CACHE%'
+  matrix:
+  - Compiler: msvc
+    Arch: x86
+  - Compiler: msvc
+    Arch: x64
+  - Compiler: mingw
+    Arch: x86
+  - Compiler: mingw
+    Arch: x64
+#    cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
+#  - Compiler: cygwin
+#    Arch: x86
 
 #
 # Initialisation prior to pulling the Mono repository
@@ -29,64 +31,72 @@ init:
 # Install needed build dependencies
 #
 install:
-  - if not exist "%CYG_ROOT%" mkdir "%CYG_ROOT%"
-  - ps:  echo "Installing Cygwin from $env:CYG_SETUP_URL to $env:CYG_ROOT/setup-x86.exe"
-  - appveyor DownloadFile %CYG_SETUP_URL% -FileName %CYG_ROOT%/setup-x86.exe
-  - ps:  echo "Downloaded. Now ready to install."
-  - cmd: '"%CYG_ROOT%/setup-x86.exe" --quiet-mode --no-shortcuts --only-site -R "%CYG_ROOT%" -s "%CYG_MIRROR%" -l "%CYG_CACHE%" --packages cmake,gcc-core,make,python'
-  - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
-
+  - git submodule update --init --recursive
 
 before_build:
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  - set PATH=C:\MinGW\bin;%PATH%
 
 build_script:
-  - cd c:\projects\open62541
-  - md build
-  - cd build
-  # cygwin cmake stopped working on 05.07.2016 -- commented out until a fix appears
-  #- echo "Testing cygwin"
-  #- '%CYG_BASH% --login -lc "/usr/bin/cmake.exe --version"'
-  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" .."'
-  #- '%CYG_BASH% --login -lc "cd /cygdrive/c/projects/open62541/build; make -j"'
-  - cd ..
-  - rd /s /q build
-  - md build
-  - cd build
-  - echo "Testing MinGW32"
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -G"MinGW Makefiles" ..
-  - mingw32-make
-  - cd ..
-  - rd /s /q build
-  - md build
-  - cd build
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
-  - msbuild open62541.sln /m
-  - echo "Testing amalgamation"
-  - cd ..
-  - rd /s /q build
-  - md build
-  - cd build
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
-  - msbuild open62541.sln /m
-  - copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
-  - copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
-  - copy C:\projects\open62541\build\examples\server_cert.der C:\projects\open62541\build\Debug\server_cert.der
-  - cd ..
-  - echo "Win 64 build"
-  - md build64
-  - cd build64
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
-  - msbuild open62541.sln /m
-  - copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
-  - copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
-  - copy C:\projects\open62541\build64\examples\server_cert.der C:\projects\open62541\build64\Debug\server_cert.der
-  - cd ..
+  - ps: |
+        cd c:\projects\open62541
+        md build
+        cd build
+        if ($env:Compiler -eq "mingw") {
+          if ($env:Arch -eq "x64") {
+            echo "Testing MinGW64"
+            $env:Path = "C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;" + $env:Path
+          } else {
+            echo "Testing MinGW32"
+            $env:Path = "C:\MinGW\bin;" + $env:Path
+          }
+          cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"MinGW Makefiles" ..
+          mingw32-make -j4
+        } elseif ($env:Compiler -eq "cygwin") {
+          echo "Testing cygwin"
+          $env:Path = "C:\cygwin\bin;" + $env:Path
+          C:\cygwin\bin\bash -lc "cygcheck -dc cygwin"
+          C:\cygwin\bin\bash --login -lc "cmake.exe --version"
+          C:\cygwin\bin\bash --login -lc "cd /cygdrive/c/projects/open62541/build; cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G\"Unix Makefiles\" .."
+          C:\cygwin\bin\bash --login -lc "cd /cygdrive/c/projects/open62541/build; make -j"
+        } else {
+          if ($env:Arch -eq "x64") {
+            echo "Testing MSVC with amalgamation (x64)"
+            cd ..
+            md build64
+            cd build64
+            cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013 Win64" ..
+            msbuild open62541.sln /m
+            copy C:\projects\open62541\build64\open62541.c C:\projects\open62541\build64\Debug\open62541.c
+            copy C:\projects\open62541\build64\open62541.h C:\projects\open62541\build64\Debug\open62541.h
+            copy C:\projects\open62541\build64\examples\server_cert.der C:\projects\open62541\build64\Debug\server_cert.der
+          } else {
+            echo "Testing MSVC without amalgamation (x86)"
+            cmake -DUA_BUILD_EXAMPLES:BOOL=ON -G"Visual Studio 12 2013" ..
+            msbuild open62541.sln /m
+            cd ..
+            Remove-Item .\build -Force -Recurse
+            md build
+            cd build
+
+            echo "Testing MSVC with amalgamation (x86)"
+            cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -G"Visual Studio 12 2013" ..
+            msbuild open62541.sln /m
+            copy C:\projects\open62541\build\open62541.c C:\projects\open62541\build\Debug\open62541.c
+            copy C:\projects\open62541\build\open62541.h C:\projects\open62541\build\Debug\open62541.h
+            copy C:\projects\open62541\build\examples\server_cert.der C:\projects\open62541\build\Debug\server_cert.der
+          }
+        }
+        echo "Build done"
 
 after_build:
-  - 7z a open62541-win32.zip %APPVEYOR_BUILD_FOLDER%\build\Debug\* %APPVEYOR_BUILD_FOLDER%\build\examples\Debug\*
-  - 7z a open62541-win64.zip %APPVEYOR_BUILD_FOLDER%\build64\Debug\* %APPVEYOR_BUILD_FOLDER%\build64\examples\Debug\*
-  - appveyor PushArtifact open62541-win32.zip
-  - appveyor PushArtifact open62541-win64.zip
+  - ps: |
+        if ($env:Compiler -eq "msvc") {
+          if ($env:Arch -eq "x64") {
+            7z a open62541-win64.zip C:\projects\open62541\build64\Debug\*
+            appveyor PushArtifact open62541-win64.zip
+          } else {
+            7z a open62541-win32.zip C:\projects\open62541\build\Debug\*
+            appveyor PushArtifact open62541-win32.zip
+          }
+        }
