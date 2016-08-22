@@ -1,6 +1,26 @@
 #include "ua_util.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
+
+/* There is no robust way to detect float endianness in clang. This warning can
+ * be removed if the target is known to be little endian with floats in the IEEE
+ * 754 format. */
+#if defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic warning "-W#warnings"
+#endif
+
+#ifndef UA_BINARY_OVERLAYABLE_INTEGER
+# warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
+#endif
+#ifndef UA_BINARY_OVERLAYABLE_FLOAT
+# warning Float endianness could not be detected to be little endian in the IEEE 754 format. Use slow generic encoding.
+#endif
+
+#if defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
 
 /* Jumptables for de-/encoding and computing the buffer length */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);
@@ -601,8 +621,6 @@ NodeId_decodeBinary(UA_NodeId *dst, const UA_DataType *_) {
         retval |= UA_STATUSCODE_BADINTERNALERROR; // the client sends an encodingByte we do not recognize
         break;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_NodeId_deleteMembers(dst);
     return retval;
 }
 
@@ -640,8 +658,6 @@ ExpandedNodeId_decodeBinary(UA_ExpandedNodeId *dst, const UA_DataType *_) {
     }
     if(encodingByte & UA_EXPANDEDNODEID_SERVERINDEX_FLAG)
         retval |= UInt32_decodeBinary(&dst->serverIndex, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_ExpandedNodeId_deleteMembers(dst);
     return retval;
 }
 
@@ -672,8 +688,6 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
         retval |= String_decodeBinary(&dst->locale, NULL);
     if(encodingMask & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
         retval |= String_decodeBinary(&dst->text, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LocalizedText_deleteMembers(dst);
     return retval;
 }
 
@@ -776,8 +790,6 @@ ExtensionObject_decodeBinary(UA_ExtensionObject *dst, const UA_DataType *_) {
             dst->content.encoded.typeId = typeId;
         }
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_ExtensionObject_deleteMembers(dst);
     return retval;
 }
 
@@ -938,8 +950,6 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
                                         &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
     }
 
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Variant_deleteMembers(dst);
     return retval;
 }
 
@@ -1001,8 +1011,6 @@ DataValue_decodeBinary(UA_DataValue *dst, const UA_DataType *_) {
         if(dst->serverPicoseconds > MAX_PICO_SECONDS)
             dst->serverPicoseconds = MAX_PICO_SECONDS;
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_DataValue_deleteMembers(dst);
     return retval;
 }
 
@@ -1071,8 +1079,6 @@ DiagnosticInfo_decodeBinary(UA_DiagnosticInfo *dst, const UA_DataType *_) {
             retval |= UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_DiagnosticInfo_deleteMembers(dst);
     return retval;
 }
 
@@ -1182,8 +1188,10 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
             ptr += sizeof(void*);
         }
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_deleteMembers(dst, type);
+    /* deleteMembers is executed only at the highest level in UA_decodeBinary to
+       avoid duplicate work */
+    /* if(retval != UA_STATUSCODE_GOOD) */
+    /*     UA_deleteMembers(dst, type); */
     return retval;
 }
 
@@ -1222,7 +1230,10 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst, const UA_Da
     pos = &src->data[*offset];
     end = &src->data[src->length];
     UA_StatusCode retval = UA_decodeBinaryInternal(dst, type);
-    *offset = (size_t)(pos - src->data) / sizeof(UA_Byte);
+    if(retval == UA_STATUSCODE_GOOD)
+        *offset = (size_t)(pos - src->data) / sizeof(UA_Byte);
+    else
+        UA_deleteMembers(dst, type);
     return retval;
 }
 

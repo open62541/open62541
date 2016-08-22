@@ -3,6 +3,7 @@ include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
+include_directories(${CHECK_INCLUDE_DIRS})
 
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)

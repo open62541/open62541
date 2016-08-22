@@ -2,6 +2,7 @@
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
+#include "ua_types_generated_handling.h"
 #include "ua_securechannel.h"
 
 void UA_Connection_init(UA_Connection *connection) {

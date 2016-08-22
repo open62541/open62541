@@ -10,16 +10,21 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 if(GIT_FOUND)
-  execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags
+  execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
                   RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+  execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=0 --always --tags
+                  RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_REL_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     if(NOT ${res_var} EQUAL 0)
-        set(GIT_COMMIT_ID "unknown--git-commit-id-unknown")
+        set(GIT_COMMIT_ID "commit id unknown")
+        set(GIT_RELEASE_ID "release unknown")
         message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
     else()
         string(REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
+        string(REPLACE "\n" "" GIT_RELEASE_ID ${GIT_REL_ID} )
     endif()
 else()
-    set(GIT_COMMIT_ID "unknown--no-git-found")
+    set(GIT_COMMIT_ID "commit id unknown")
+    set(GIT_RELEASE_ID "release unknown")
     message(STATUS "Git not found. Build will not contain git revision info." )
 endif()
 message(STATUS "Git version: "  ${GIT_COMMIT_ID})
@@ -43,6 +48,8 @@ option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
+option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -158,6 +165,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                      ${PROJECT_SOURCE_DIR}/include/ua_connection.h
                      ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
@@ -175,6 +183,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
@@ -244,6 +253,7 @@ endif()
 # standard data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
@@ -258,6 +268,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
 # transport data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py

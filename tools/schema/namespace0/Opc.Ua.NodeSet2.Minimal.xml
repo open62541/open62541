@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Version="1.02" LastModified="2013-03-06T05:36:44.0862658Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
   <Aliases>
     <Alias Alias="Boolean">i=1</Alias>
@@ -268,17 +268,6 @@
     <DisplayName>ServerType</DisplayName>
     <Description>Specifies the current status and capabilities of the server.</Description>
     <References>
-      <Reference ReferenceType="HasProperty">i=2005</Reference>
-      <Reference ReferenceType="HasProperty">i=2006</Reference>
-      <Reference ReferenceType="HasComponent">i=2007</Reference>
-      <Reference ReferenceType="HasProperty">i=2008</Reference>
-      <Reference ReferenceType="HasProperty">i=2742</Reference>
-      <Reference ReferenceType="HasComponent">i=2009</Reference>
-      <Reference ReferenceType="HasComponent">i=2010</Reference>
-      <Reference ReferenceType="HasComponent">i=2011</Reference>
-      <Reference ReferenceType="HasComponent">i=2012</Reference>
-      <Reference ReferenceType="HasComponent">i=11527</Reference>
-      <Reference ReferenceType="HasComponent">i=11489</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
@@ -286,11 +275,6 @@
     <DisplayName>ServerDiagnosticsType</DisplayName>
     <Description>The diagnostics information for a server.</Description>
     <References>
-      <Reference ReferenceType="HasComponent">i=2021</Reference>
-      <Reference ReferenceType="HasComponent">i=2022</Reference>
-      <Reference ReferenceType="HasComponent">i=2023</Reference>
-      <Reference ReferenceType="HasComponent">i=2744</Reference>
-      <Reference ReferenceType="HasProperty">i=2025</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
@@ -298,43 +282,18 @@
     <DisplayName>ServerCapabilitiesType</DisplayName>
     <Description>Describes the capabilities supported by the server.</Description>
     <References>
-      <Reference ReferenceType="HasProperty">i=2014</Reference>
-      <Reference ReferenceType="HasProperty">i=2016</Reference>
-      <Reference ReferenceType="HasProperty">i=2017</Reference>
-      <Reference ReferenceType="HasProperty">i=2732</Reference>
-      <Reference ReferenceType="HasProperty">i=2733</Reference>
-      <Reference ReferenceType="HasProperty">i=2734</Reference>
-      <Reference ReferenceType="HasProperty">i=3049</Reference>
-      <Reference ReferenceType="HasProperty">i=11549</Reference>
-      <Reference ReferenceType="HasProperty">i=11550</Reference>
-      <Reference ReferenceType="HasComponent">i=11551</Reference>
-      <Reference ReferenceType="HasComponent">i=2019</Reference>
-      <Reference ReferenceType="HasComponent">i=2754</Reference>
-      <Reference ReferenceType="HasComponent">i=11562</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
   <UAVariableType NodeId="i=2138" BrowseName="ServerStatusType" DataType="i=862">
     <DisplayName>ServerStatusType</DisplayName>
     <References>
-      <Reference ReferenceType="HasComponent">i=2139</Reference>
-      <Reference ReferenceType="HasComponent">i=2140</Reference>
-      <Reference ReferenceType="HasComponent">i=2141</Reference>
-      <Reference ReferenceType="HasComponent">i=2142</Reference>
-      <Reference ReferenceType="HasComponent">i=2752</Reference>
-      <Reference ReferenceType="HasComponent">i=2753</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
     </References>
   </UAVariableType>
   <UAVariableType NodeId="i=3051" BrowseName="BuildInfoType" DataType="i=338">
     <DisplayName>BuildInfoType</DisplayName>
     <References>
-      <Reference ReferenceType="HasComponent">i=3052</Reference>
-      <Reference ReferenceType="HasComponent">i=3053</Reference>
-      <Reference ReferenceType="HasComponent">i=3054</Reference>
-      <Reference ReferenceType="HasComponent">i=3055</Reference>
-      <Reference ReferenceType="HasComponent">i=3056</Reference>
-      <Reference ReferenceType="HasComponent">i=3057</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=63</Reference>
     </References>
   </UAVariableType>
@@ -581,7 +540,6 @@
   <UADataType NodeId="i=852" BrowseName="ServerState">
     <DisplayName>ServerState</DisplayName>
     <References>
-      <Reference ReferenceType="HasProperty">i=7612</Reference>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
     </References>
     <Definition Name="ServerState">
@@ -631,14 +589,8 @@
       <Reference ReferenceType="HasProperty">i=2254</Reference>
       <Reference ReferenceType="HasProperty">i=2255</Reference>
       <Reference ReferenceType="HasComponent">i=2256</Reference>
-      <Reference ReferenceType="HasProperty">i=2267</Reference>
-      <Reference ReferenceType="HasProperty">i=2994</Reference>
       <Reference ReferenceType="HasComponent">i=2268</Reference>
       <Reference ReferenceType="HasComponent">i=2274</Reference>
-      <Reference ReferenceType="HasComponent">i=2295</Reference>
-      <Reference ReferenceType="HasComponent">i=2296</Reference>
-      <Reference ReferenceType="HasComponent">i=11715</Reference>
-      <Reference ReferenceType="HasComponent">i=11492</Reference>
       <Reference ReferenceType="Organizes" IsForward="false">i=85</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2004</Reference>
     </References>
@@ -663,18 +615,8 @@
     <DisplayName>ServerCapabilities</DisplayName>
     <Description>Describes capabilities supported by the server.</Description>
     <References>
-      <Reference ReferenceType="HasProperty">i=2269</Reference>
       <Reference ReferenceType="HasProperty">i=2271</Reference>
-      <Reference ReferenceType="HasProperty">i=2272</Reference>
       <Reference ReferenceType="HasProperty">i=2735</Reference>
-      <Reference ReferenceType="HasProperty">i=2736</Reference>
-      <Reference ReferenceType="HasProperty">i=2737</Reference>
-      <Reference ReferenceType="HasProperty">i=3704</Reference>
-      <Reference ReferenceType="HasProperty">i=11702</Reference>
-      <Reference ReferenceType="HasProperty">i=11703</Reference>
-      <Reference ReferenceType="HasComponent">i=11704</Reference>
-      <Reference ReferenceType="HasComponent">i=2996</Reference>
-      <Reference ReferenceType="HasComponent">i=2997</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2013</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
     </References>
@@ -699,10 +641,6 @@
     <DisplayName>ServerDiagnostics</DisplayName>
     <Description>Reports diagnostics about the server.</Description>
     <References>
-      <Reference ReferenceType="HasComponent">i=2275</Reference>
-      <Reference ReferenceType="HasComponent">i=2289</Reference>
-      <Reference ReferenceType="HasComponent">i=2290</Reference>
-      <Reference ReferenceType="HasComponent">i=3706</Reference>
       <Reference ReferenceType="HasProperty">i=2294</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=2020</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>

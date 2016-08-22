@@ -4,10 +4,11 @@
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_generated.h"
-#include "ua_nodeids.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_transport_generated.h"
 #include "ua_types_generated_encoding_binary.h"
+#include "ua_nodeids.h"
+#include "ua_transport_generated.h"
+#include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 
 /*********************/
@@ -59,6 +60,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
+    UA_NodeId_deleteMembers(&client->authenticationToken);
     if(client->username.data)
         UA_String_deleteMembers(&client->username);
     if(client->password.data)
@@ -339,7 +341,6 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     UA_ActivateSessionRequest_init(&request);
 
     request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 600000;
 
@@ -384,7 +385,6 @@ static UA_StatusCode
 GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl; // assume the endpointurl outlives the service call
@@ -468,8 +468,6 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 
-    // todo: is this needed for all requests?
-    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     UA_ByteString_copy(&client->channel->clientNonce, &request.clientNonce);
@@ -495,7 +493,6 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = true;
-    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
@@ -512,7 +509,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.requestHeader.authenticationToken = client->authenticationToken;
+    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
 
     UA_SecureConversationMessageHeader msgHeader;
     msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_CLO + UA_CHUNKTYPE_FINAL;
@@ -530,8 +527,10 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     UA_ByteString message;
     UA_Connection *c = client->connection;
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_CloseSecureChannelRequest_deleteMembers(&request);
         return retval;
+    }
 
     size_t offset = 12;
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
@@ -551,6 +550,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
         client->connection->releaseSendBuffer(client->connection, &message);
     }
     client->connection->close(client->connection);
+    UA_CloseSecureChannelRequest_deleteMembers(&request);
     return retval;
 }
 
@@ -688,6 +688,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     }
 
     /* handling request parameters */
+    //here const *r is 'violated'
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
     request->timestamp = UA_DateTime_now();
     request->requestHandle = ++client->requestHandle;
@@ -717,6 +718,8 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
             client->state = UA_CLIENTSTATE_ERRORED;
+            //free token
+            UA_NodeId_deleteMembers(&request->authenticationToken);
             return;
         }
     } while(!reply.data);
@@ -776,6 +779,8 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     } else {
       client->state = UA_CLIENTSTATE_CONNECTED;
     }
+    //free token
+    UA_NodeId_deleteMembers(&request->authenticationToken);
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Received a response of type %i", responseId.identifier.numeric);
 }

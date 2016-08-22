@@ -1,20 +1,83 @@
 4. Generating an OPC UA Information Model from XML Descriptions
 ===============================================================
 
-In the past tutorials you have learned to compile the stack in various configurations, create/delete nodes and manage variables. The core of OPC UA is its data modelling capabilities, and you will invariably find yourself confronted to investigate these relations during runtime. This tutorial will show you how to interact with object and type hierarchies and how to create your own.
+This tutorial will show you how to interact with objects and object types, and how to create a server from an information model defined in the OPC UA Nodeset XML schema.
 
 Compile XML Namespaces
 ----------------------
 
-So far we have made due with the hardcoded mini-namespace in the server stack. When writing an application, it is more then likely that you will want to create your own data models using some comfortable GUI based tools like UA Modeler. Most tools can export data to the OPC UA XML specification. open62541 contains a python based namespace compiler that can embed datamodels contained in XML files into the server stack.
+When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
 
-Note beforehand that the pyUANamespace compiler you can find in the *tools* subfolder is *not* a XML transformation tool but a compiler. That means that it will create an internal representation (dAST) when parsing the XML files and attempt to understand this representation in order to generate C Code. In consequence, the compiler will refuse to print any inconsistencies or invalid nodes.
+Note that the namespace compiler you can find in the *tools* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
 
-As an example, we will create a simple object model using UA Modeler and embed this into the servers nodeset, which is exported to the following XML file:
+We take the following information model snippet as the starting point of the following tutorial.
+
+.. graphviz::
+
+    digraph tree {
+
+    fixedsize=true;
+    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+
+    node_root [label="<<ObjectType>>\nFieldDevice"]
+
+    { rank=same
+      point_1 [shape=point]
+      node_1 [label="<<Variable>>\nManufacturerName"] }
+    node_root -> point_1 [arrowhead=none]
+    point_1 -> node_1 [label="hasComponent"]
+
+    { rank=same
+      point_2 [shape=point]
+      node_2 [label="<<Variable>>\nModelName"] }
+    point_1 -> point_2 [arrowhead=none]
+    point_2 -> node_2 [label="hasComponent"]
+
+    {  rank=same
+       point_3 [shape=point]
+       node_3 [label="<<ObjectType>>\nPump"] }
+    point_2 -> point_3 [arrowhead=none]
+    point_3 -> node_3 [label="hasSubtype"]
+
+    {  rank=same
+       point_4 [shape=point]
+       node_4 [label="<<Variable>>\nMotorRPM"] }
+    node_3 -> point_4 [arrowhead=none]
+    point_4 -> node_4 [label="hasComponent"]
+
+    {  rank=same
+       point_5 [shape=point]
+       node_5 [label="<<Variable>>\nisOn"] }
+    point_4 -> point_5 [arrowhead=none]
+    point_5 -> node_5 [label="hasComponent"]
+
+    {  rank=same
+       point_6 [shape=point]
+       node_6 [label="<<Method>>\nstartPump"]
+       node_8 [label="<<Variable>>\nOutputArguments"] }
+    point_5 -> point_6 [arrowhead=none]
+    point_6 -> node_6 [label="hasComponent"]
+    node_6 -> node_8 [label="hasProperty"]
+
+    {  rank=same
+       point_7 [shape=point]
+       node_7 [label="<<Method>>\nstopPump"]
+       node_9 [label="<<Variable>>\nOutputArguments"] }
+    point_6 -> point_7 [arrowhead=none]
+    point_7 -> node_7 [label="hasComponent"]
+    node_7 -> node_9 [label="hasProperty"]
+
+    }
+
+This information model is represented in XML as follows:
 
 .. code-block:: xml
 
-    <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:s1="http://yourorganisation.org/example_nodeset/" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+               xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+               xmlns:s1="http://yourorganisation.org/example_nodeset/"
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema">
         <NamespaceUris>
             <Uri>http://yourorganisation.org/example_nodeset/</Uri>
         </NamespaceUris>
@@ -31,38 +94,52 @@ As an example, we will create a simple object model using UA Modeler and embed t
         </Aliases>
         <Extensions>
             <Extension>
-                <ModelInfo Tool="UaModeler" Hash="Zs8w1AQI71W8P/GOk3k/xQ==" Version="1.3.4"/>
+                <ModelInfo Tool="UaModeler" Hash="Zs8w1AQI71W8P/GOk3k/xQ=="
+                           Version="1.3.4"/>
             </Extension>
         </Extensions>
         <UAReferenceType NodeId="ns=1;i=4001" BrowseName="1:providesInputTo">
             <DisplayName>providesInputTo</DisplayName>
             <References>
-                <Reference ReferenceType="HasSubtype" IsForward="false">i=33</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    i=33
+                </Reference>
             </References>
             <InverseName Locale="en_US">inputProcidedBy</InverseName>
         </UAReferenceType>
-        <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001" BrowseName="1:FieldDevice">
+        <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001"
+                      BrowseName="1:FieldDevice">
             <DisplayName>FieldDevice</DisplayName>
             <References>
-                <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    i=58
+                </Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6001</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6001" BrowseName="1:ManufacturerName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001"
+                    NodeId="ns=1;i=6001" BrowseName="1:ManufacturerName"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ManufacturerName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001" NodeId="ns=1;i=6002" BrowseName="1:ModelName" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="String" ParentNodeId="ns=1;i=1001"
+                    NodeId="ns=1;i=6002" BrowseName="1:ModelName"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>ModelName</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
             </References>
         </UAVariable>
         <UAObjectType NodeId="ns=1;i=1002" BrowseName="1:Pump">
@@ -70,40 +147,56 @@ As an example, we will create a simple object model using UA Modeler and embed t
             <References>
                 <Reference ReferenceType="HasComponent">ns=1;i=6003</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=6004</Reference>
-                <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=1001</Reference>
+                <Reference ReferenceType="HasSubtype" IsForward="false">
+                    ns=1;i=1001
+                </Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=7001</Reference>
                 <Reference ReferenceType="HasComponent">ns=1;i=7002</Reference>
             </References>
         </UAObjectType>
-        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6003" BrowseName="1:isOn" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="Boolean" ParentNodeId="ns=1;i=1002"
+                    NodeId="ns=1;i=6003" BrowseName="1:isOn" UserAccessLevel="3"
+                    AccessLevel="3">
             <DisplayName>isOn</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAVariable>
-        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=6004" BrowseName="1:MotorRPM" UserAccessLevel="3" AccessLevel="3">
+        <UAVariable DataType="UInt32" ParentNodeId="ns=1;i=1002"
+                    NodeId="ns=1;i=6004" BrowseName="1:MotorRPM"
+                    UserAccessLevel="3" AccessLevel="3">
             <DisplayName>MotorRPM</DisplayName>
             <References>
                 <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAVariable>
-        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7001" BrowseName="1:startPump">
+        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7001"
+                  BrowseName="1:startPump">
             <DisplayName>startPump</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
                 <Reference ReferenceType="HasProperty">ns=1;i=6005</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent" IsForward="false">
+                    ns=1;i=1002
+                </Reference>
             </References>
         </UAMethod>
-        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1" NodeId="ns=1;i=6005" ArrayDimensions="1" BrowseName="OutputArguments">
+        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7001" ValueRank="1"
+                    NodeId="ns=1;i=6005" ArrayDimensions="1"
+                    BrowseName="OutputArguments">
             <DisplayName>OutputArguments</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7001</Reference>
+                <Reference ReferenceType="HasProperty"
+                           IsForward="false">ns=1;i=7001</Reference>
                 <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             </References>
             <Value>
@@ -127,19 +220,25 @@ As an example, we will create a simple object model using UA Modeler and embed t
                 </ListOfExtensionObject>
             </Value>
         </UAVariable>
-        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7002" BrowseName="1:stopPump">
+        <UAMethod ParentNodeId="ns=1;i=1002" NodeId="ns=1;i=7002"
+                  BrowseName="1:stopPump">
             <DisplayName>stopPump</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
                 <Reference ReferenceType="HasProperty">ns=1;i=6006</Reference>
-                <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1002</Reference>
+                <Reference ReferenceType="HasComponent"
+                           IsForward="false">ns=1;i=1002</Reference>
             </References>
         </UAMethod>
-        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1" NodeId="ns=1;i=6006" ArrayDimensions="1" BrowseName="OutputArguments">
+        <UAVariable DataType="Argument" ParentNodeId="ns=1;i=7002" ValueRank="1"
+                    NodeId="ns=1;i=6006" ArrayDimensions="1"
+                    BrowseName="OutputArguments">
             <DisplayName>OutputArguments</DisplayName>
             <References>
                 <Reference ReferenceType="HasModellingRule">i=78</Reference>
-                <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=7002</Reference>
+                <Reference ReferenceType="HasProperty" IsForward="false">
+                    ns=1;i=7002
+                </Reference>
                 <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
             </References>
             <Value>
@@ -165,51 +264,15 @@ As an example, we will create a simple object model using UA Modeler and embed t
         </UAVariable>
     </UANodeSet>
 
-Or, more consiscly, this::
+**TODO** Some modelers prepends the namespace qualifier "uax:" to some fields - this is not supported by the namespace compiler, who has strict aliasing rules concerning field names. If a datatype defines a field called "Argument", the compiler expects to find "<Argument>" tags, not "<uax:Argument>".
 
-   +------------------+
-   |  <<ObjectType>>  |
-   |   FieldDevice    |
-   +------------------+
-             |              +------------------+
-             |              |   <<Variable>>   |
-             |------------->| ManufacturerName |
-             | hasComponent +------------------+
-             |              +------------------+
-             |              |   <<Variable>>   |
-             |------------->|    ModelName     |
-             | hasComponent +------------------+
-             |              +----------------+
-             |              | <<ObjectType>> |
-             '------------->|      Pump      |
-                hasSubtype  +----------------+
-                                     |
-                                     |
-                                     |                +------------------+
-                                     |                |   <<Variable>>   |
-                                     |--------------->|     MotorRPM     |
-                                     |  hasComponent  +------------------+
-                                     |                +------------------+
-                                     |                |   <<Variable>>   |
-                                     |--------------->|       isOn       |
-                                     |  hasComponent  +------------------+
-                                     |                +------------------+    +------------------+
-                                     |                |    <<Method>>    |    |   <<Variable>>   |
-                                     |--------------->|    startPump     |--->| outputArguments  |
-                                     |  hasProperty   +------------------+    +------------------+
-                                     |                +------------------+    +------------------+
-                                     |                |    <<Method>>    |    |   <<Variable>>   |
-                                     '--------------->|     stopPump     |--->| outputArguments  |
-                                        hasProperty   +------------------+    +------------------+
+In its simplest form, an invokation of the namespace compiler will look like this:
 
-                 
-UA Modeler prepends the namespace qualifier "uax:" to some fields - this is not supported by the namespace compiler, who has strict aliasing rules concerning field names. If a datatype defines a field called "Argument", the compiler expects to find "<Argument>" tags, not "<uax:Argument>". Remove/Substitute such fields to remove namespace qualifiers.
+.. code-block:: bash
 
-The namespace compiler can be invoked manually and has numerous options. In its simplest form, an invokation will look like this::
+    python ./generate_open62541CCode.py <Opc.Ua.NodeSet2.xml> myNS.xml myNS
 
-    python ./generate_open62541CCode.py ../schema/namespace0/Opc.Ua.NodeSet2.xml <path>/<to>/<more>/<files>.xml <path>/<to>/<evenmore>/<files>.xml myNamespace
-
-The above call first parses Namespace 0, which provides all dataTypes, referenceTypes, etc.. An arbitrary amount of further xml files can be passed as options, whose nodes will be added to the abstract syntax tree. The script will then create the files ``myNamespace.c`` and ``myNamespace.h`` containing the C code necessary to instantiate those namespaces.
+The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides defintions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
 
 Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``DENABLE_GENERATE_NAMESPACE0`` will execute the following command::
 
@@ -340,10 +403,11 @@ Let's look at an example that will create a pump instance given the newly define
       running = 0;
     }
 
-    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle);
-    UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle) {
-      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n", objectId.namespaceIndex, objectId.identifier.numeric,
-              definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
+    static UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId,
+                                                   void *handle) {
+      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n",
+             objectId.namespaceIndex, objectId.identifier.numeric,
+             definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
       return UA_STATUSCODE_GOOD;
     }
 
@@ -391,37 +455,58 @@ As you can see instantiating an object is not much different from creating an ob
     Created new node ns=1;i=1512 according to template ns=1;i=6003 (handle was 42)
     Created new node ns=1;i=1513 according to template ns=1;i=6004 (handle was 42)
 
-If you start the server and inspect the nodes with UA Expert, you will find two pumps in the objects folder, which look like this::
+If you start the server and inspect the nodes with UA Expert, you will find two pumps in the objects folder, which look like this:
 
-       +------------+
-       | <<Object>> |
-       |   Pump1    |
-       +------------+
-              |
-              |  +------------------+
-              |->|   <<Variable>>   |
-              |  | ManufacturerName |
-              |  +------------------+
-              |  +------------------+
-              |  |   <<Variable>>   |
-              |->|    ModelName     |
-              |  +------------------+
-              |  +------------------+
-              |  |   <<Variable>>   |
-              |->|     MotorRPM     |
-              |  +------------------+
-              |  +------------------+
-              |  |   <<Variable>>   |
-              |->|       isOn       |
-              |  +------------------+
-              |  +------------------+    +------------------+
-              |  |    <<Method>>    |    |   <<Variable>>   |
-              |->|    startPump     |--->| outputArguments  |
-              |  +------------------+    +------------------+
-              |  +------------------+    +------------------+
-              |  |    <<Method>>    |    |   <<Variable>>   |
-              '->|     stopPump     |--->| outputArguments  |
-                 +------------------+    +------------------+
+.. graphviz::
+
+    digraph tree {
+
+    fixedsize=true;
+    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+
+    node_root [label="<<Object>>\nPump"]
+
+    { rank=same
+      point_1 [shape=point]
+      node_1 [label="<<Variable>>\nManufacturerName"] }
+    node_root -> point_1 [arrowhead=none]
+    point_1 -> node_1 [label="hasComponent"]
+
+    { rank=same
+      point_2 [shape=point]
+      node_2 [label="<<Variable>>\nModelName"] }
+    point_1 -> point_2 [arrowhead=none]
+    point_2 -> node_2 [label="hasComponent"]
+
+    {  rank=same
+       point_4 [shape=point]
+       node_4 [label="<<Variable>>\nMotorRPM"] }
+    point_2 -> point_4 [arrowhead=none]
+    point_4 -> node_4 [label="hasComponent"]
+
+    {  rank=same
+       point_5 [shape=point]
+       node_5 [label="<<Variable>>\nisOn"] }
+    point_4 -> point_5 [arrowhead=none]
+    point_5 -> node_5 [label="hasComponent"]
+
+    {  rank=same
+       point_6 [shape=point]
+       node_6 [label="<<Method>>\nstartPump"]
+       node_8 [label="<<Variable>>\nOutputArguments"] }
+    point_5 -> point_6 [arrowhead=none]
+    point_6 -> node_6 [label="hasComponent"]
+    node_6 -> node_8 [label="hasProperty"]
+
+    {  rank=same
+       point_7 [shape=point]
+       node_7 [label="<<Method>>\nstopPump"]
+       node_9 [label="<<Variable>>\nOutputArguments"] }
+    point_6 -> point_7 [arrowhead=none]
+    point_7 -> node_7 [label="hasComponent"]
+    node_7 -> node_9 [label="hasProperty"]
+
+    }
 
 As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). You may also notice that the callback was not called for the methods, even though they are obviously where they are supposed to be. Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
 
@@ -447,8 +532,8 @@ Since searching in nodes is a common operation, the high-level branch provides a
     #include "logger_stdout.h"
     #include "networklayer_tcp.h"
 
-    UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle);
-    UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {  
+    static UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse,
+                                  UA_NodeId referenceTypeId, void *handle) {  
       struct {
         UA_Client *client;
         UA_Boolean isAPump;

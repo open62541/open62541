@@ -118,7 +118,7 @@ else
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
     if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && ([ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] || [ "${TRAVIS_REPO_SLUG}" = "Pro/open62541" ]); then
         echo "  Building coveralls for ${TRAVIS_REPO_SLUG}"
-        coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../
+        coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result
     else
         echo "  Skipping coveralls since not gcc and/or ${TRAVIS_REPO_SLUG} is not the main repo"
     fi
