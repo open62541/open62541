@@ -493,7 +493,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
         char* path = (char*)xht_get(x, "path");
         char* caps = (char*)xht_get(x, "caps");
 
-        if (strlen(path) > 1) {
+        if (path && strlen(path) > 1) {
             if (!entry->srvSet) {
                 // txt arrived before SRV, thus cache path entry
                 entry->pathTmp = STRDUP(path);
@@ -503,7 +503,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
             }
         }
 
-        if (strlen(caps) > 0) {
+        if (caps && strlen(caps) > 0) {
             size_t capsCount = 1;
             // count comma in caps
             for (size_t i=0; caps[i]; i++) {
