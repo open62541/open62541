@@ -3,6 +3,25 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 
+/* There is no robust way to detect float endianness in clang. This warning can
+ * be removed if the target is known to be little endian with floats in the IEEE
+ * 754 format. */
+#if defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic warning "-W#warnings"
+#endif
+
+#ifndef UA_BINARY_OVERLAYABLE_INTEGER
+# warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
+#endif
+#ifndef UA_BINARY_OVERLAYABLE_FLOAT
+# warning Float endianness could not be detected to be little endian in the IEEE 754 format. Use slow generic encoding.
+#endif
+
+#if defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
+
 /* Jumptables for de-/encoding and computing the buffer length */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);
 static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
