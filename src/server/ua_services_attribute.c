@@ -481,19 +481,28 @@ void Service_Read(UA_Server *server, UA_Session *session,
 #endif
 }
 
+UA_DataValue
+UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps) {
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_RCU_LOCK();
+    Service_Read_single(server, &adminSession, timestamps, item, &dv);
+    UA_RCU_UNLOCK();
+    return dv;
+}
+
 UA_StatusCode
 __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  const UA_AttributeId attributeId, void *v) {
+    /* Call the read service */
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
     item.attributeId = attributeId;
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-    UA_RCU_LOCK();
-    Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER,
-                        &item, &dv);
-    UA_RCU_UNLOCK();
+    UA_DataValue dv = UA_Server_read(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dv.hasStatus)
         retval = dv.hasStatus;
@@ -503,19 +512,28 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
         UA_DataValue_deleteMembers(&dv);
         return retval;
     }
-    if(attributeId == UA_ATTRIBUTEID_VALUE ||
-       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS)
-        memcpy(v, &dv.value, sizeof(UA_Variant));
-    else if(attributeId == UA_ATTRIBUTEID_DATATYPE) {
-        UA_copy(dv.value.data, v, dv.value.type);
-        UA_DataValue_deleteMembers(&dv);
-    } else {
-        memcpy(v, dv.value.data, dv.value.type->memSize);
-        dv.value.data = NULL;
-        dv.value.arrayLength = 0;
-        UA_Variant_deleteMembers(&dv.value);
+
+    /* Prepare the result */
+     if(attributeId == UA_ATTRIBUTEID_VALUE ||
+        attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
+         /* Return the entire variant */
+         if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
+             retval = UA_Variant_copy(dv.value.data, v);
+         } else { /* storageType is UA_VARIANT_DATA */
+             memcpy(v, &dv.value, sizeof(UA_Variant));
+         }
+     }  else {
+         /* Return the variant content only */
+         if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
+             retval = UA_copy(dv.value.data, v, dv.value.type);
+         } else { /* storageType is UA_VARIANT_DATA */
+             /* Copy the content of the type (including pointers and all)*/
+             memcpy(v, dv.value.data, dv.value.type->memSize);
+             /* Delete the "carrier" in the variant */
+             UA_free(dv.value.data);
+         }
     }
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /*******************/
@@ -836,6 +854,12 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
     }
 }
 
+UA_StatusCode UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
+    UA_RCU_LOCK();
+    return Service_Write_single(server, &adminSession, value);
+    UA_RCU_UNLOCK();
+}
+
 UA_StatusCode
 __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, const UA_DataType *attr_type,
@@ -853,8 +877,6 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
         wvalue.value.value = *(const UA_Variant*)value;
     }
     wvalue.value.hasValue = true;
-    UA_RCU_LOCK();
-    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wvalue);
-    UA_RCU_UNLOCK();
+    UA_StatusCode retval = UA_Server_write(server, &wvalue);
     return retval;
 }
