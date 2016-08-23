@@ -1487,20 +1487,13 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
 
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: remove record for domain: %s", fullServiceDomain);
 
-    // count the number of records stil there for the given hostname, but a different port.
-    // it does not represent the total number, but the minimum value.
-    // if the number is 1, then also delete the main PTR record
-    unsigned int recordMinCount = 0;
     // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     mdns_record_t *r = mdnsd_get_published(server->mdnsDaemon, "_opcua-tcp._tcp.local.");
     if (r) {
         while (r) {
-            recordMinCount++;
             const mdns_answer_t *data = mdnsd_record_data(r);
             if (data->type == QTYPE_PTR && strcmp(data->rdname, fullServiceDomain)==0) {
                 mdnsd_done(server->mdnsDaemon,r);
-                if (mdnsd_record_next(r))
-                    recordMinCount++; // there may still be more records, but we don't care how much
                 break;
             }
             r = mdnsd_record_next(r);
@@ -1532,21 +1525,6 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
                        fullServiceDomain);
         free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    if (recordMinCount <= 1) {
-        // _services._dns-sd._udp.local. PTR "_opcua-tcp._tcp.local."
-        r = mdnsd_get_published(server->mdnsDaemon, "_services._dns-sd._udp.local.");
-        // search for the record with the correct ptr hostname
-        while (r) {
-            const mdns_answer_t *data = mdnsd_record_data(r);
-            if (data->type == QTYPE_PTR && strcmp(data->rdname, "_opcua-tcp._tcp.local.")==0) {
-                mdnsd_done(server->mdnsDaemon,r);
-                break;
-            }
-            r = mdnsd_record_next(r);
-        }
-        server->mdnsMainSrvAdded = 0;
     }
 
     free(fullServiceDomain);
