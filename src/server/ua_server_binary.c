@@ -90,11 +90,13 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_RegisterServer;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE];
+        *requiresSession = false;
         break;
     case UA_NS0ID_REGISTERSERVER2REQUEST:
         *service = (UA_Service)Service_RegisterServer2;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
+        *requiresSession = false;
         break;
 #endif
     case UA_NS0ID_CREATESESSIONREQUEST:
