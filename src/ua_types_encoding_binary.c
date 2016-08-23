@@ -425,9 +425,15 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
 }
 
 static UA_StatusCode
-Array_decodeBinary(UA_Int32 signed_length, void *UA_RESTRICT *UA_RESTRICT dst,
-                   size_t *out_length, const UA_DataType *type) {
-    *out_length = 0;
+Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
+                   const UA_DataType *type) {
+    /* decode the length */
+    UA_Int32 signed_length;
+    UA_StatusCode retval = Int32_decodeBinary(&signed_length);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* check the length */
     if(signed_length <= 0) {
         *dst = NULL;
         if(signed_length == 0)
@@ -441,29 +447,33 @@ Array_decodeBinary(UA_Int32 signed_length, void *UA_RESTRICT *UA_RESTRICT dst,
     if(pos + ((type->memSize * length) / 32) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* allocate memory */
     *dst = UA_calloc(1, type->memSize * length);
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(type->overlayable) {
-        if(end < pos + (type->memSize * length))
+        /* memcpy overlayable array */
+        if(end < pos + (type->memSize * length)) {
+            UA_free(*dst);
+            *dst = NULL;
             return UA_STATUSCODE_BADDECODINGERROR;
+        }
         memcpy(*dst, pos, type->memSize * length);
         pos += type->memSize * length;
-        *out_length = length;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    uintptr_t ptr = (uintptr_t)*dst;
-    size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    for(size_t i = 0; i < length; i++) {
-        UA_StatusCode retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(*dst, i, type);
-            *dst = NULL;
-            return retval;
+    } else {
+        /* Decode array members */
+        uintptr_t ptr = (uintptr_t)*dst;
+        size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        for(size_t i = 0; i < length; i++) {
+            UA_StatusCode retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_Array_delete(*dst, i, type);
+                *dst = NULL;
+                return retval;
+            }
+            ptr += type->memSize;
         }
-        ptr += type->memSize;
     }
     *out_length = length;
     return UA_STATUSCODE_GOOD;
@@ -480,11 +490,7 @@ String_encodeBinary(UA_String const *src, const UA_DataType *_) {
 
 static UA_StatusCode
 String_decodeBinary(UA_String *dst, const UA_DataType *_) {
-    UA_Int32 signed_length;
-    UA_StatusCode retval = Int32_decodeBinary(&signed_length);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    return Array_decodeBinary(signed_length, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
+    return Array_decodeBinary((void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
@@ -886,20 +892,20 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
 
     if(isArray) {
         /* an array */
-        dst->type = &UA_TYPES[typeIndex];
-        UA_Int32 signedLength = 0;
-        retval |= Int32_decodeBinary(&signedLength);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        retval = Array_decodeBinary(signedLength, &dst->data, &dst->arrayLength, dst->type);
+        dst->type = &UA_TYPES[typeIndex]; /* Arrays of non-builtin types contain only ExtensionObjects */
+        retval = Array_decodeBinary(&dst->data, &dst->arrayLength, dst->type);
     } else if (typeIndex != UA_TYPES_EXTENSIONOBJECT) {
         /* a builtin type */
         dst->type = &UA_TYPES[typeIndex];
-        retval = Array_decodeBinary(1, &dst->data, &dst->arrayLength, dst->type);
-        dst->arrayLength = 0;
+        dst->data = UA_calloc(1, dst->type->memSize);
+        if(!dst->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        retval = decodeBinaryJumpTable[decode_index](dst->data, dst->type);
+        // dst->arrayLength = 0; /* is null already in an initialized type */
     } else {
         /* a single extensionobject */
-        UA_Byte *old_pos = pos;
+        UA_Byte *old_pos = pos; /* save the beginning of the extensionobject */
         UA_NodeId typeId;
         UA_NodeId_init(&typeId);
         retval = NodeId_decodeBinary(&typeId, NULL);
@@ -925,30 +931,25 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
                 pos = old_pos; /* jump back and decode as extensionobject */
         } else {
             pos = old_pos; /* jump back and decode as extensionobject */
-            UA_NodeId_deleteMembers(&typeId);
+            UA_NodeId_deleteMembers(&typeId); /* found nodeids are always numerical */
         }
 
         /* decode the type */
         dst->data = UA_calloc(1, dst->type->memSize);
-        if(dst->data) {
-            size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-            retval = decodeBinaryJumpTable[decode_index](dst->data, dst->type);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_free(dst->data);
-                dst->data = NULL;
-            }
-        } else
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        if(!dst->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        retval = decodeBinaryJumpTable[decode_index](dst->data, dst->type);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_free(dst->data);
+            dst->data = NULL;
+        }
     }
 
     /* array dimensions */
-    if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS)) {
-        UA_Int32 signed_length = 0;
-        retval |= Int32_decodeBinary(&signed_length);
-        if(retval == UA_STATUSCODE_GOOD)
-            retval = Array_decodeBinary(signed_length, (void**)&dst->arrayDimensions,
-                                        &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
-    }
+    if(isArray && (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS))
+        retval |= Array_decodeBinary((void**)&dst->arrayDimensions,
+                                     &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
 
     return retval;
 }
@@ -1069,15 +1070,12 @@ DiagnosticInfo_decodeBinary(UA_DiagnosticInfo *dst, const UA_DataType *_) {
         retval |= StatusCode_decodeBinary(&dst->innerStatusCode);
     }
     if(encodingMask & 0x40) {
-        dst->hasInnerDiagnosticInfo = true;
         /* innerDiagnosticInfo is a pointer to struct, therefore allocate */
         dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
-        if(dst->innerDiagnosticInfo)
-            retval |= DiagnosticInfo_decodeBinary(dst->innerDiagnosticInfo, NULL);
-        else {
-            dst->hasInnerDiagnosticInfo = false;
-            retval |= UA_STATUSCODE_BADOUTOFMEMORY;
-        }
+        if(!dst->innerDiagnosticInfo)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        dst->hasInnerDiagnosticInfo = true;
+        retval |= DiagnosticInfo_decodeBinary(dst->innerDiagnosticInfo, NULL);
     }
     return retval;
 }
@@ -1182,9 +1180,7 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
             ptr += member->padding;
             size_t *length = (size_t*)ptr;
             ptr += sizeof(size_t);
-            UA_Int32 slength = -1;
-            retval |= Int32_decodeBinary(&slength);
-            retval |= Array_decodeBinary(slength, (void *UA_RESTRICT *UA_RESTRICT)ptr, length, membertype);
+            retval |= Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, membertype);
             ptr += sizeof(void*);
         }
     }
