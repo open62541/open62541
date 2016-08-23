@@ -62,19 +62,6 @@ add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-ob
 target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 target_link_libraries(server_readspeed ${LIBS})
 
-if(UA_ENABLE_DISCOVERY)
-
-    add_executable(discovery_server_discovery discovery/server_discovery.c)
-    target_link_libraries(discovery_server_discovery ${LIBS})
-
-    # can currently only be build on linux, because windows is missing pthread support
-    add_executable(discovery_server_register discovery/server_register.c)
-    target_link_libraries(discovery_server_register ${LIBS})
-
-    add_executable(discovery_client_find_servers discovery/client_find_servers.c)
-    target_link_libraries(discovery_client_find_servers ${LIBS})
-endif()
-
 if(UA_ENABLE_METHODCALLS)
   add_executable(server_method server_method.c $<TARGET_OBJECTS:open62541-object>)
   target_link_libraries(server_method ${LIBS})

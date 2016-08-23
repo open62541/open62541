@@ -124,7 +124,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
 /* Add Node */
 /************/
 
-static void
+void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         UA_InstantiationCallback *instantiationCallback);
@@ -668,7 +668,7 @@ dataTypeNodeFromAttributes(const UA_AddNodesItem *item,
     return (UA_Node*)dtnode;
 }
 
-static void
+void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         UA_InstantiationCallback *instantiationCallback) {
