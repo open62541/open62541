@@ -45,7 +45,6 @@ class CodeGenerator():
         header.append('#include "ua_server.h"')
         header.append('#else')
         header.append('#include "open62541.h"')
-        header.append('#define NULL ((void *)0)')
         header.append('#endif')
     
         code.append("#include \"%s.h\"" % name)
