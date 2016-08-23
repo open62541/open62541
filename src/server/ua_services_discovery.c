@@ -1107,9 +1107,9 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
         return NULL;
     }
     if (hostnameLen > 0)
-        snprintf(fullServiceDomain, servernameLen + 1 + hostnameLen + 23, "%.*s-%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername, (int)hostnameLen, hostname);
+        snprintf(fullServiceDomain, servernameLen + 1 + hostnameLen + 23 + 1, "%.*s-%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername, (int)hostnameLen, hostname);
     else
-        snprintf(fullServiceDomain, servernameLen + 23, "%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername);
+        snprintf(fullServiceDomain, servernameLen + 23 + 1, "%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername);
     return fullServiceDomain;
 }
 
@@ -1204,7 +1204,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     // [servername]-[hostname]._opcua-tcp._tcp.local.
     char *fullServiceDomain;
-    if (!(fullServiceDomain = create_fullServiceDomain(servername, hostname, 63))) {
+    if (!(fullServiceDomain = create_fullServiceDomain("asdfas saf sa fsdafwefwergt wg weg wegw3 we 34 w4 t34 eswgweg  0,65 s123456789", hostname, 63))) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1239,12 +1239,13 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     }
 
     // hostname.
-    char *localDomain = malloc(hostnameLen < 63 ? hostnameLen : 63 + 2);
+    size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
+    char *localDomain = malloc(maxHostnameLen+1);
     if (!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    snprintf(localDomain, hostnameLen, "%.*s.",(int)(hostnameLen < 63 ? hostnameLen : 63), hostname);
+    snprintf(localDomain, maxHostnameLen+1, "%.*s.",(int)(maxHostnameLen), hostname);
 
 
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
