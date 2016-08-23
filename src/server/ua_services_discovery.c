@@ -1107,9 +1107,9 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
         return NULL;
     }
     if (hostnameLen > 0)
-        snprintf(fullServiceDomain, servernameLen + 1 + hostnameLen + 23 + 1, "%.*s-%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername, (int)hostnameLen, hostname);
+        sprintf(fullServiceDomain, "%.*s-%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername, (int)hostnameLen, hostname);
     else
-        snprintf(fullServiceDomain, servernameLen + 23 + 1, "%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername);
+        sprintf(fullServiceDomain, "%.*s._opcua-tcp._tcp.local.", (int)servernameLen, servername);
     return fullServiceDomain;
 }
 
@@ -1240,12 +1240,12 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     // hostname.
     size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
-    char *localDomain = malloc(maxHostnameLen+1);
+    char *localDomain = malloc(maxHostnameLen+2);
     if (!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    snprintf(localDomain, maxHostnameLen+1, "%.*s.",(int)(maxHostnameLen), hostname);
+    sprintf(localDomain, "%.*s.",(int)(maxHostnameLen), hostname);
 
 
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
