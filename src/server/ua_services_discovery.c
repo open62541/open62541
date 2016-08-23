@@ -1102,7 +1102,7 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
         }
     }
 
-    char *fullServiceDomain = malloc(servernameLen + 1 + hostnameLen + 23);
+    char *fullServiceDomain = malloc(servernameLen + 1 + hostnameLen + 23 + 2);
     if (!fullServiceDomain) {
         return NULL;
     }
