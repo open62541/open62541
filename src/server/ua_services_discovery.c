@@ -1239,13 +1239,13 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     }
 
     // hostname.
-	size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
+    size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
     char *localDomain = malloc(maxHostnameLen+1);
     if (!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    snprintf(localDomain, maxHostnameLen+2, "%.*s.",(int)(maxHostnameLen), hostname);
+    snprintf(localDomain, maxHostnameLen+1, "%.*s.",(int)(maxHostnameLen), hostname);
 
 
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
