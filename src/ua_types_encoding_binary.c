@@ -466,7 +466,7 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
         uintptr_t ptr = (uintptr_t)*dst;
         size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         for(size_t i = 0; i < length; i++) {
-            UA_StatusCode retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
+            retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_Array_delete(*dst, i, type);
                 *dst = NULL;
