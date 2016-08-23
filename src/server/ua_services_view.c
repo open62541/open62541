@@ -423,7 +423,7 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescriptio
     return result;
 }
 
-static void
+void
 UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
                             const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;

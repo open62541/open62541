@@ -36,10 +36,24 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                           UA_GetEndpointsResponse *response);
 
 #ifdef UA_ENABLE_DISCOVERY
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
+								  const UA_FindServersOnNetworkRequest *request,
+								  UA_FindServersOnNetworkResponse *response);
+# endif
+
 /* Registers a remote server in the local discovery service. */
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
-                            const UA_RegisterServerRequest *request,
-                            UA_RegisterServerResponse *response);
+							const UA_RegisterServerRequest *request,
+							UA_RegisterServerResponse *response);
+
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+
+/* Registers a remote server in the local discovery service. */
+void Service_RegisterServer2(UA_Server *server, UA_Session *session,
+                            const UA_RegisterServer2Request *request,
+                            UA_RegisterServer2Response *response);
 #endif
 
 /**
@@ -103,6 +117,11 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
 
+void Service_AddNodes_single(UA_Server *server, UA_Session *session,
+                             const UA_AddNodesItem *item,
+                             UA_AddNodesResult *result,
+                             UA_InstantiationCallback *instantiationCallback);
+
 /* Add an existing node. The node is assumed to be "finished", i.e. no
  * instantiation from inheritance is necessary */
 void
@@ -165,6 +184,11 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
 void Service_BrowseNext(UA_Server *server, UA_Session *session,
                         const UA_BrowseNextRequest *request,
                         UA_BrowseNextResponse *response);
+
+void UA_Server_browseNext_single(UA_Server *server, UA_Session *session,
+                                 UA_Boolean releaseContinuationPoint,
+                                 const UA_ByteString *continuationPoint,
+                                 UA_BrowseResult *result);
 
 /* Used to translate textual node paths to their respective ids. */
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
