@@ -371,3 +371,19 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_custom_target(generate_informationmodel ALL
                     DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
 endif()
+
+
+##########################
+# Installation           #
+##########################
+
+install(TARGETS open62541
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+if(UA_ENABLE_AMALGAMATION)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.c DESTINATION src)
+else()
+    install(FILES ${exported_headers} DESTINATION include)
+endif()
