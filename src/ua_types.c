@@ -593,8 +593,6 @@ DiagnosticInfo_deleteMembers(UA_DiagnosticInfo *p, const UA_DataType *_) {
     if(p->hasInnerDiagnosticInfo && p->innerDiagnosticInfo) {
         DiagnosticInfo_deleteMembers(p->innerDiagnosticInfo, NULL);
         UA_free(p->innerDiagnosticInfo);
-        p->innerDiagnosticInfo = NULL;
-        p->hasInnerDiagnosticInfo = false;
     }
 }
 
