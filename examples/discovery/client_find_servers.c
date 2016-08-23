@@ -181,7 +181,7 @@ int main(void) {
             printf("\n\n");
         }
 
-		UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+        UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
     }
 
     /*
