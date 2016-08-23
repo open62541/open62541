@@ -881,18 +881,18 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, cons
     if(port && portpos < urlLength - 1)
         *port = &endpointUrl[portpos + 1];
 
-	if (path) {
-		size_t pathpos = portpos < urlLength - 1 ? portpos + 1 : 10;
-		for(; pathpos < urlLength; pathpos++) {
-			if(endpointUrl[pathpos] == '/')
-				break;
-		}
-		if (pathpos < urlLength)
-			*path = &endpointUrl[pathpos];
-		else
-			*path = NULL;
-	}
+    if(path) {
+        size_t pathpos = portpos < urlLength - 1 ? portpos + 1 : 10;
+        for(; pathpos < urlLength; pathpos++) {
+            if(endpointUrl[pathpos] == '/')
+                break;
+        }
+        if (pathpos < urlLength)
+            *path = &endpointUrl[pathpos];
+        else
+            *path = NULL;
+    }
 
-	return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 

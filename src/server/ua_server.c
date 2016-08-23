@@ -225,25 +225,25 @@ void UA_Server_delete(UA_Server *server) {
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
     	UA_Discovery_multicastDestroy(server);
 
-	{
-		serverOnNetwork_list_entry* current, * temp;
-		LIST_FOREACH_SAFE(current, &server->serverOnNetwork, pointers, temp) {
-			LIST_REMOVE(current, pointers);
-			UA_ServerOnNetwork_deleteMembers(&current->serverOnNetwork);
-			if (current->pathTmp)
-				free(current->pathTmp);
-			UA_free(current);
-		}
+    {
+        serverOnNetwork_list_entry* current, * temp;
+        LIST_FOREACH_SAFE(current, &server->serverOnNetwork, pointers, temp) {
+            LIST_REMOVE(current, pointers);
+            UA_ServerOnNetwork_deleteMembers(&current->serverOnNetwork);
+            if (current->pathTmp)
+                free(current->pathTmp);
+            UA_free(current);
+        }
 
-		for (size_t i=0; i<SERVER_ON_NETWORK_HASH_PRIME; i++) {
-			serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
-			while (currHash) {
-				serverOnNetwork_hash_entry* nextHash = currHash->next;
-				free(currHash);
-				currHash = nextHash;
-			}
-		}
-	}
+        for (size_t i=0; i<SERVER_ON_NETWORK_HASH_PRIME; i++) {
+            serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
+            while (currHash) {
+                serverOnNetwork_hash_entry* nextHash = currHash->next;
+                free(currHash);
+                currHash = nextHash;
+            }
+        }
+    }
 # endif
 
 #endif
