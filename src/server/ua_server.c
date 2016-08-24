@@ -1324,7 +1324,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;

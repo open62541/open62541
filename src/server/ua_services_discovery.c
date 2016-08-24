@@ -897,6 +897,7 @@ struct PeriodicServerRegisterJob {
     UA_Guid job_id;
     UA_Job *job;
     UA_UInt32 this_interval;
+    const char* discovery_server_url;
 };
 
 /**
@@ -925,8 +926,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
         UA_Server_removeRepeatedJob(server, retryJob->job_id);
     }
 
-
-    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", NULL);
+    UA_StatusCode retval = UA_Server_register_discovery(server, retryJob->discovery_server_url != NULL ? retryJob->discovery_server_url : "opc.tcp://localhost:4840", NULL);
     // You can also use a semaphore file. That file must exist. When the file is deleted, the server is automatically unregistered.
     // The semaphore file has to be accessible by the discovery server
     // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", "/path/to/some/file");
@@ -950,6 +950,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
             newRetryJob->default_interval = retryJob->default_interval;
             newRetryJob->is_main_job = UA_FALSE;
             newRetryJob->this_interval = nextInterval;
+            newRetryJob->discovery_server_url = retryJob->discovery_server_url;
 
             newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
             newRetryJob->job->job.methodCall.method = periodicServerRegister;
@@ -969,7 +970,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
 
 }
 
-UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs,
+UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs,
                                                      const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
 
     if (server->periodicServerRegisterJob != NULL) {
@@ -986,6 +987,7 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
     server->periodicServerRegisterJob->this_interval = 0;
     server->periodicServerRegisterJob->is_main_job = UA_TRUE;
     server->periodicServerRegisterJob->default_interval = intervalMs;
+    server->periodicServerRegisterJob->discovery_server_url = discoveryServerUrl;
     job.job.methodCall.data = server->periodicServerRegisterJob;
 
 
@@ -1011,6 +1013,7 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
         newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
         newRetryJob->job->job.methodCall.method = periodicServerRegister;
         newRetryJob->job->job.methodCall.data = newRetryJob;
+        newRetryJob->discovery_server_url = discoveryServerUrl;
         retval = UA_Server_addRepeatedJob(server, *newRetryJob->job, delayFirstRegisterMs, &newRetryJob->job_id);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,

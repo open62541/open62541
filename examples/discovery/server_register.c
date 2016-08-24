@@ -93,7 +93,8 @@ int main(int argc, char** argv) {
 
 
     // periodic server register after 10 Minutes, delay first register for 500ms
-    UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, 10*60*1000, 500, NULL);
+    UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, NULL, 10*60*1000, 500, NULL);
+    //UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode 0x%08x", retval);
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
@@ -112,7 +113,8 @@ int main(int argc, char** argv) {
     }
 
     // UNregister the server from the discovery server.
-    retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
+    retval = UA_Server_unregister_discovery(server, NULL );
+    //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not unregister server from discovery server. StatusCode 0x%08x", retval);
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
