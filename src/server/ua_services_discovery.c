@@ -736,7 +736,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
             if (!requestServer->isOnline) {
                 if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Could not reomve mDNS record for hostname %s.%s", mdnsServer);
+                                   "Could not remove mDNS record for hostname %s.%s", mdnsServer);
                 }
             }
             else {
