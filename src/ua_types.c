@@ -857,9 +857,9 @@ void UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
 
-UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, const char ** port, const char **path) {
+UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char **path) {
     size_t urlLength = strlen(endpointUrl);
-    if(urlLength < 11 || urlLength >= 512) {
+    if(urlLength < 11 || urlLength >= 256) {
         return UA_STATUSCODE_BADOUTOFRANGE;
     }
     if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
@@ -894,3 +894,38 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, cons
     return UA_STATUSCODE_GOOD;
 }
 
+
+UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_UInt16 * port, char * path) {
+    UA_StatusCode retval;
+    const char* portTmp = NULL;
+    const char* pathTmp = NULL;
+    if ((retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
+        hostname[0] = '\0';
+        return retval;
+    }
+	if (!port && !path) {
+		return UA_STATUSCODE_GOOD;
+	}
+
+    char portStr[10];
+	portStr[0] = '\0';
+    if (!portTmp)
+        portTmp = "0";
+    if (pathTmp) {
+        strncpy(portStr, portTmp, (size_t)(pathTmp-portTmp));
+		portStr[(size_t)(pathTmp-portTmp)]='\0';
+		if (path) {
+			strncpy(path, pathTmp, strlen(pathTmp));
+			path[strlen(pathTmp)]='\0';
+		}
+    } else {
+        strncpy(portStr, portTmp, strlen(portTmp));
+		portStr[strlen(portTmp)]='\0';
+		if (path) {
+			path[0] = '\0';
+		}
+    }
+	if (port)
+    	*port = (UA_UInt16)atoi(portStr);
+    return UA_STATUSCODE_GOOD;
+}

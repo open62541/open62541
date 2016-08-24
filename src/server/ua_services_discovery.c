@@ -707,40 +707,26 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         mdnsServer[mdnsServerName->length] = '\0';
 
         for (size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
-            char port[10] = "\0";
-            char hostname[256];
-            char path[256];
+            UA_UInt16 port = 0;
+            char hostname[256]; hostname[0] = '\0';
+            char path[256]; path[0] = '\0';
             {
                 char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
                 strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
                 uri[requestServer->discoveryUrls[i].length] = '\0';
                 UA_StatusCode retval;
-                const char* portTmp = NULL;
-                const char* pathTmp = NULL;
-                if ((retval = UA_EndpointUrl_split(uri, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
+                if ((retval = UA_EndpointUrl_split(uri, hostname, &port, path)) != UA_STATUSCODE_GOOD) {
                     hostname[0] = '\0';
                     if (retval == UA_STATUSCODE_BADOUTOFRANGE)
                         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
                     else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
                         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
                 }
-                if (!portTmp)
-                    portTmp = "0";
-                if (pathTmp) {
-                    strncpy(port, portTmp, (size_t)(pathTmp-portTmp));
-                    port[(size_t)(pathTmp-portTmp)]='\0';
-                    strncpy(path, pathTmp, strlen(pathTmp));
-                    path[strlen(pathTmp)]='\0';
-                } else {
-                    strncpy(port, portTmp, strlen(portTmp));
-                    port[strlen(portTmp)]='\0';
-                    path[0]='\0';
-                }
                 free(uri);
             }
 
             if (!requestServer->isOnline) {
-                if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
+                if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) port, i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                                    "Could not remove mDNS record for hostname %s.%s", mdnsServer);
                 }
@@ -752,7 +738,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
                     capabilities = mdnsConfig->serverCapabilities;
                     capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
                 }
-                if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
+                if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) port, path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                                    "Could not add mDNS record for hostname %s.%s", mdnsServer);
                 }
