@@ -546,6 +546,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
     server->periodicServerRegisterJob = NULL;
+	server->registerServerCallback = NULL;
+	server->registerServerCallbackData = NULL;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
@@ -559,6 +561,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 	server->serverOnNetworkRecordIdCounter = 0;
 	server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 	memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+
+	server->serverOnNetworkCallback = NULL;
+	server->serverOnNetworkCallbackData = NULL;
 # endif
 #endif
 

@@ -580,6 +580,47 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   */
  UA_StatusCode UA_EXPORT
          UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+
+ /* Callback for RegisterServer. Data is passed from the register call */
+ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);
+
+/**
+ * Set the callback which is called if another server registeres or unregisteres with this instance.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+		 UA_Server_setRegisterServerCallback(UA_Server *server,
+											 UA_Server_registerServerCallback cb,
+											 void* data);
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+/**
+ * Callback for server detected through mDNS. Data is passed from the register call
+ * @param isServerAnnounce indicates if the server has just been detected. If set to false, this means the server is shutting down.
+ **/
+typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, void* data);
+
+/**
+ * Set the callback which is called if another server is found through mDNS or deleted.
+ * It will be called for any mDNS message from the remote server, thus it may be called multiple times for the same instance.
+ * Also the SRV and TXT records may arrive later, therefore for the first call the server capabilities may not be set yet.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+		UA_Server_setServerOnNetworkCallback(UA_Server *server,
+											 UA_Server_serverOnNetworkCallback cb,
+											 void* data);
+#endif
+
 #endif
 
 /**

@@ -89,6 +89,8 @@ struct UA_Server {
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
 	struct PeriodicServerRegisterJob *periodicServerRegisterJob;
+	UA_Server_registerServerCallback registerServerCallback;
+	void* registerServerCallbackData;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
     int mdnsSocket;
@@ -104,6 +106,9 @@ struct UA_Server {
 	UA_DateTime serverOnNetworkRecordIdLastReset;
 	// hash mapping domain name to serverOnNetwork list entry
 	struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+
+	UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
+	void* serverOnNetworkCallbackData;
 
 # endif
 #endif

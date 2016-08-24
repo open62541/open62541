@@ -415,6 +415,10 @@ static void mdns_record_remove(UA_Server *server, const char* record,
     }
     free(hash_entry);
 
+	if (server->serverOnNetworkCallback) {
+		server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE, server->serverOnNetworkCallbackData);
+	}
+
     // remove from list
 
     LIST_REMOVE(entry, pointers);
@@ -547,13 +551,15 @@ static void mdns_record_received(const struct resource* r, void* data) {
         }
 
     }
+
+	if (entry->srvSet && server->serverOnNetworkCallback) {
+		server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE, server->serverOnNetworkCallbackData);
+	}
 }
 
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersOnNetworkRequest");
-
     UA_UInt32 recordCount;
     if (request->startingRecordId < server->serverOnNetworkRecordIdCounter)
         recordCount = server->serverOnNetworkRecordIdCounter - request->maxRecordsToReturn;
@@ -768,6 +774,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
             return;
         }
 
+		if (server->registerServerCallback) {
+			server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
+		}
+
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
@@ -804,7 +814,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
 #endif
 
-    } else {
+		if (server->registerServerCallback) {
+			server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
+		}
+
+	} else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
     }
 
@@ -1024,7 +1038,18 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const ch
     return UA_STATUSCODE_GOOD;
 }
 
+void UA_Server_setRegisterServerCallback(UA_Server *server,	UA_Server_registerServerCallback cb, void* data) {
+	server->registerServerCallback = cb;
+	server->registerServerCallbackData = data;
+}
+
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+void UA_Server_setServerOnNetworkCallback(UA_Server *server,	UA_Server_serverOnNetworkCallback cb, void* data) {
+	server->serverOnNetworkCallback = cb;
+	server->serverOnNetworkCallbackData = data;
+}
+
 
 static void socket_mdns_set_nonblocking(int sockfd) {
 #ifdef _WIN32
