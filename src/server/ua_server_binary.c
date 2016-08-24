@@ -441,7 +441,8 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {
-            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to activate a session that is not known in the server");
+            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                                 "Trying to activate a session that is not known in the server");
             sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
             return;
@@ -465,6 +466,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
         anonymousSession.channel = channel;
         session = &anonymousSession;
     }
+    UA_assert(session != NULL);
 
     /* Trying to use a non-activated session? */
     if(!session->activated && sessionRequired) {
@@ -503,17 +505,18 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     /* Send the response */
     init_response_header(request, response);
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
-    if(retval != UA_STATUSCODE_GOOD)
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* See if we need to return publish requests without a subscription */
+        if(responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
+            UA_Session_answerPublishRequestsWithoutSubscription(session);
+    } else
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
                              "the SecureChannel with error code 0x%08x", retval);
 
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
-
-    /* See if we need to return publish requests without a subscription */
-    if(responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
-        UA_Session_answerPublishRequestsWithoutSubscription(session);
 }
 
 /* MSG -> Normal request */
