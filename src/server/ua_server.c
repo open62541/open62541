@@ -209,21 +209,21 @@ void UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
-	{
-		registeredServer_list_entry* current, * temp;
-		LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-			LIST_REMOVE(current, pointers);
-			UA_RegisteredServer_deleteMembers(&current->registeredServer);
-			UA_free(current);
-		}
-	}
+    {
+        registeredServer_list_entry* current, * temp;
+        LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+            LIST_REMOVE(current, pointers);
+            UA_RegisteredServer_deleteMembers(&current->registeredServer);
+            UA_free(current);
+        }
+    }
     if (server->periodicServerRegisterJob) {
         UA_free(server->periodicServerRegisterJob);
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-    	UA_Discovery_multicastDestroy(server);
+        UA_Discovery_multicastDestroy(server);
 
     {
         serverOnNetwork_list_entry* current, * temp;
@@ -546,24 +546,24 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
     server->periodicServerRegisterJob = NULL;
-	server->registerServerCallback = NULL;
-	server->registerServerCallbackData = NULL;
+    server->registerServerCallback = NULL;
+    server->registerServerCallbackData = NULL;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
-	server->mdnsMainSrvAdded = 0;
-	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-		UA_Discovery_multicastInit(server);
-	}
+    server->mdnsMainSrvAdded = 0;
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_Discovery_multicastInit(server);
+    }
 
-	LIST_INIT(&server->serverOnNetwork);
-	server->serverOnNetworkSize = 0;
-	server->serverOnNetworkRecordIdCounter = 0;
-	server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-	memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+    LIST_INIT(&server->serverOnNetwork);
+    server->serverOnNetworkSize = 0;
+    server->serverOnNetworkRecordIdCounter = 0;
+    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
 
-	server->serverOnNetworkCallback = NULL;
-	server->serverOnNetworkCallbackData = NULL;
+    server->serverOnNetworkCallback = NULL;
+    server->serverOnNetworkCallbackData = NULL;
 # endif
 #endif
 

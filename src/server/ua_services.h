@@ -39,14 +39,14 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
-								  const UA_FindServersOnNetworkRequest *request,
-								  UA_FindServersOnNetworkResponse *response);
+                                  const UA_FindServersOnNetworkRequest *request,
+                                  UA_FindServersOnNetworkResponse *response);
 # endif
 
 /* Registers a remote server in the local discovery service. */
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
-							const UA_RegisterServerRequest *request,
-							UA_RegisterServerResponse *response);
+                            const UA_RegisterServerRequest *request,
+                            UA_RegisterServerResponse *response);
 
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
 

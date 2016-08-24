@@ -614,13 +614,13 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         strncpy(portNum, "4840", 4);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
     } else {
-		if (path) {
-			strncpy(portNum, port, (size_t)(path-port));
-			portNum[(size_t)(path-port)]='\0';
-		} else {
-			strncpy(portNum, port, strlen(port));
-			portNum[strlen(port)]='\0';
-		}
+        if (path) {
+            strncpy(portNum, port, (size_t)(path-port));
+            portNum[(size_t)(path-port)]='\0';
+        } else {
+            strncpy(portNum, port, strlen(port));
+            portNum[strlen(port)]='\0';
+        }
     }
 
     struct addrinfo hints, *server;

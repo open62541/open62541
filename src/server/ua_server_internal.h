@@ -52,20 +52,20 @@ typedef struct registeredServer_list_entry {
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 typedef struct serverOnNetwork_list_entry {
-	LIST_ENTRY(serverOnNetwork_list_entry) pointers;
-	UA_ServerOnNetwork serverOnNetwork;
-	UA_DateTime created;
-	UA_DateTime lastSeen;
-	UA_Boolean txtSet;
-	UA_Boolean srvSet;
-	char* pathTmp;
+    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+    UA_ServerOnNetwork serverOnNetwork;
+    UA_DateTime created;
+    UA_DateTime lastSeen;
+    UA_Boolean txtSet;
+    UA_Boolean srvSet;
+    char* pathTmp;
 } serverOnNetwork_list_entry;
 
 
 #define SERVER_ON_NETWORK_HASH_PRIME 1009
 typedef struct serverOnNetwork_hash_entry {
-	serverOnNetwork_list_entry* entry;
-	struct serverOnNetwork_hash_entry* next;
+    serverOnNetwork_list_entry* entry;
+    struct serverOnNetwork_hash_entry* next;
 } serverOnNetwork_hash_entry;
 #endif
 
@@ -88,27 +88,27 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
-	struct PeriodicServerRegisterJob *periodicServerRegisterJob;
-	UA_Server_registerServerCallback registerServerCallback;
-	void* registerServerCallbackData;
+    struct PeriodicServerRegisterJob *periodicServerRegisterJob;
+    UA_Server_registerServerCallback registerServerCallback;
+    void* registerServerCallbackData;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
     int mdnsSocket;
-	unsigned short mdnsMainSrvAdded;
+    unsigned short mdnsMainSrvAdded;
 #  ifdef UA_ENABLE_MULTITHREADING
-	pthread_t mdnsThread;
-	UA_Boolean mdnsRunning;
+    pthread_t mdnsThread;
+    UA_Boolean mdnsRunning;
 #  endif
 
-	LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
-	size_t serverOnNetworkSize;
-	UA_UInt32 serverOnNetworkRecordIdCounter;
-	UA_DateTime serverOnNetworkRecordIdLastReset;
-	// hash mapping domain name to serverOnNetwork list entry
-	struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+    LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
+    size_t serverOnNetworkSize;
+    UA_UInt32 serverOnNetworkRecordIdCounter;
+    UA_DateTime serverOnNetworkRecordIdLastReset;
+    // hash mapping domain name to serverOnNetwork list entry
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
 
-	UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
-	void* serverOnNetworkCallbackData;
+    UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
+    void* serverOnNetworkCallbackData;
 
 # endif
 #endif
@@ -181,7 +181,7 @@ typedef enum {
 UA_StatusCode UA_Discovery_multicastQuery(UA_Server* server);
 
 UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, const char* path,
-									 const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize);
+                                     const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize);
 UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, UA_Boolean removeTxt);
 
 #  ifdef UA_ENABLE_MULTITHREADING
