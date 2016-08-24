@@ -510,6 +510,10 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
+
+    /* See if we need to return publish requests without a subscription */
+    if(responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
+        UA_Session_answerPublishRequestsWithoutSubscription(session);
 }
 
 /* MSG -> Normal request */
