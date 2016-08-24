@@ -331,7 +331,13 @@ static void initNamespace0(UA_Server *server) {
     writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
                      &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_UINT16]);
 
-    /* EnabledFlag */
+    /* ServerDiagnostics - ServerDiagnosticsSummary */
+    UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
+    UA_ServerDiagnosticsSummaryDataType_init(&serverDiagnosticsSummary);
+    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
+                     &serverDiagnosticsSummary, &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
+
+    /* ServerDiagnostics - EnabledFlag */
     UA_Boolean enabledFlag = false;
     writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
                      &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);

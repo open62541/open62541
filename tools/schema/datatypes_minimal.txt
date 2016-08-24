@@ -158,3 +158,8 @@ MonitoredItemModifyResult
 ModifyMonitoredItemsResponse
 SetMonitoringModeRequest
 SetMonitoringModeResponse
+ServerDiagnosticsSummaryDataType
+SubscriptionDiagnosticsDataType
+SessionDiagnosticsDataType
+ServiceCounterDataType
+SessionSecurityDiagnosticsDataType
