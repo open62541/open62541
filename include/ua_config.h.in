@@ -108,8 +108,15 @@ extern "C" {
 #endif
 
 /**
+ * Binary Encoding Overlays
+ * ------------------------
+ * Integers and floating point numbers are transmitted in little-endian (IEE 754
+ * for floating point) encoding. If the target architecture uses the same
+ * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
+ * This speeds up encoding.
+ *
  * Integer Endianness
- * ------------------ */
+ * ^^^^^^^^^^^^^^^^^^ */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
                         (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)) /* little endian detected */
 # define UA_BINARY_OVERLAYABLE_INTEGER true
@@ -148,9 +155,13 @@ extern "C" {
 # endif
 #endif
 
+#ifndef UA_BINARY_OVERLAYABLE_INTEGER
+# define UA_BINARY_OVERLAYABLE_INTEGER false
+#endif
+
 /**
  * Float Endianness
- * ---------------- */
+ * ^^^^^^^^^^^^^^^^ */
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT true
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
@@ -161,34 +172,8 @@ extern "C" {
 # define UA_BINARY_OVERLAYABLE_FLOAT true
 #endif
 
-/**
- * Binary Encoding Overlays
- * ------------------------
- * Some data types have the same layout in memory as on the binary data stream.
- * This can be used to speed up the decoding. If we could not detect
- * little-endianness of integers and floats, this is not possible for types that
- * contain integers or floats respectively. See the definition of the
- * overlayable flag defined in `UA_DataType`. */
-
-/* Demote error to a warning on clang. There is no robust way to detect float
- * endianness here. On x86/x86-64, floats are always in the right IEEE 754
- * format. So floats are overlayable is the architecture is little-endian. */
-#if defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic warning "-W#warnings"
-#endif
-
-#ifndef UA_BINARY_OVERLAYABLE_INTEGER
-# define UA_BINARY_OVERLAYABLE_INTEGER false
-# warning Slow Integer Encoding. This warning can be removed safely. It is only an indicator that integer endianness could not be detected.
-#endif
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT false
-# warning Slow Float Encoding. This warning can be removed safely. It is only an indicator that the float encoding could not be detected.
-#endif
-
-#if defined(__clang__)
-# pragma GCC diagnostic pop
 #endif
 
 /**
