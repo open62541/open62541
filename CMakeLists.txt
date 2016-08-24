@@ -299,16 +299,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers}
-                           ${internal_headers})
+                           ${exported_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers}
                            ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                           ${internal_headers}
+                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
+                           ${lib_sources})
 
 # example information model from nodeset xml
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
@@ -335,7 +336,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
 else()
-    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
+    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers} open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src
                                                         ${PROJECT_SOURCE_DIR}/plugins ${PROJECT_SOURCE_DIR}/deps)
 endif()
@@ -377,13 +378,30 @@ endif()
 # Installation           #
 ##########################
 
+# export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
     )
-if(UA_ENABLE_AMALGAMATION)
-    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
-    install(FILES ${PROJECT_BINARY_DIR}/open62541.c DESTINATION src)
-else()
-    install(FILES ${exported_headers} DESTINATION include)
-endif()
+# export amalgamated heder open62541.h which is generated due to build of open62541-object
+install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+
+
+
+##########################
+# Packaging (DEB/RPM)    #
+##########################
+# invoke via `make package`
+
+SET(CPACK_GENERATOR "TGZ;DEB;RPM")
+SET(CPACK_PACKAGE_VENDOR "open62541 team")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
+SET(CPACK_PACKAGE_DESCRIPTION "open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
+SET(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+SET(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+SET(CPACK_PACKAGE_VERSION_MAJOR "0")
+SET(CPACK_PACKAGE_VERSION_MINOR "2")
+SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
+
+INCLUDE(CPack)
