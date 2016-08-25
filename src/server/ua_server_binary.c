@@ -470,10 +470,13 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
 
     /* Trying to use a non-activated session? */
     if(!session->activated && sessionRequired) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "Calling service %i on a non-activated session",
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "Calling service %i on a non-activated session",
                             requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
-        sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        sendError(channel, msg, requestPos, responseType,
+                  requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &session->authenticationToken);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -506,13 +509,13 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     init_response_header(request, response);
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        /* See if we need to return publish requests without a subscription */
-        if(responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
-            UA_Session_answerPublishRequestsWithoutSubscription(session);
-    } else
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
                              "the SecureChannel with error code 0x%08x", retval);
+
+    /* See if we need to return publish requests without a subscription */
+    if(session && responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
+        UA_Session_answerPublishRequestsWithoutSubscription(session);
 
     /* Clean up */
     UA_deleteMembers(request, requestType);
