@@ -1361,7 +1361,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     // TODO where do we get the discoveryProfileUri for application data?
 
     request.server.discoveryUrls = UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
-    if (!request.server.serverNames) {
+    if (!request.server.discoveryUrls) {
         UA_RegisteredServer_deleteMembers(&request.server);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
