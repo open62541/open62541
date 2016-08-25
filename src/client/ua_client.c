@@ -473,6 +473,7 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     UA_ByteString_copy(&client->channel->clientNonce, &request.clientNonce);
     request.requestedSessionTimeout = 1200000;
     request.maxResponseMessageSize = UA_INT32_MAX;
+    UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
     UA_CreateSessionResponse response;
     UA_CreateSessionResponse_init(&response);
