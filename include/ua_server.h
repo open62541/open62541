@@ -507,7 +507,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
  * differently) */
 typedef UA_StatusCode
 (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-						   UA_NodeId referenceTypeId, void *handle);
+                           UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
