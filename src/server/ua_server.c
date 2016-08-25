@@ -1445,22 +1445,24 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                          "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+            UA_StatusCode serviceResult = response.responseHeader.serviceResult;
             UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
             UA_RegisterServer2Response_deleteMembers(&response);
             UA_RegisterServerResponse_deleteMembers(&response_fallback);
             UA_Client_disconnect(client);
             UA_Client_delete(client);
-            return response.responseHeader.serviceResult;
+            return serviceResult;
         }
     } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer2 failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+        UA_StatusCode serviceResult = response.responseHeader.serviceResult;
         UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
         UA_RegisterServer2Request_deleteMembers(&request);
         UA_RegisterServer2Response_deleteMembers(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
+        return serviceResult;
     }
 
     UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
