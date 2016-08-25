@@ -384,8 +384,16 @@ target_link_libraries(open62541 ${open62541_LIBRARIES})
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
+if (UA_ENABLE_DISCOVERY_MULTICAST)
+    target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+endif()
+
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
+    if (UA_ENABLE_DISCOVERY_MULTICAST)
+        target_link_libraries(open62541 iphlpapi) # for GetAdaptersAddresses
+    endif()
 endif()
 
 ##########################
