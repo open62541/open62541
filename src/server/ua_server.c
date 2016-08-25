@@ -72,7 +72,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
             return i;
     }
 
-    /* Add a new namespace to the namsepace array */
+    /* Add a new namespace to the namespace array */
     server->namespaces = UA_realloc(server->namespaces,
                                     sizeof(UA_String) * (server->namespacesSize + 1));
     UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
@@ -109,10 +109,10 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     char urlString[256];
-    if(url.length >= 256)
+    if(url->length >= 256)
         return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url.data, url.length);
-    urlString[url.length] = 0;
+    memcpy(urlString, url->data, url->length);
+    urlString[url->length] = 0;
 
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
@@ -122,7 +122,7 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
     server->externalNamespacesSize++;
-    addNamespaceInternal(server, urlString);
+    UA_Server_addNamespace(server, urlString);
 
     return UA_STATUSCODE_GOOD;
 }
