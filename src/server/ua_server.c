@@ -1423,7 +1423,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
-    if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED) {
+    if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || response.responseHeader.serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
         // try RegisterServer
         UA_RegisterServerResponse response_fallback;
         UA_RegisterServerResponse_init(&response_fallback);
