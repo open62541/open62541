@@ -602,8 +602,9 @@ void UA_EXPORT
 /**
  * Callback for server detected through mDNS. Data is passed from the register call
  * @param isServerAnnounce indicates if the server has just been detected. If set to false, this means the server is shutting down.
+ * @param isTxtReceived indicates if we already received the corresponding TXT record with the path and caps data
  **/
-typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, void* data);
+typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, UA_Boolean isTxtReceived, void* data);
 
 /**
  * Set the callback which is called if another server is found through mDNS or deleted.

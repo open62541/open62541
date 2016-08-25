@@ -416,7 +416,7 @@ static void mdns_record_remove(UA_Server *server, const char* record,
     free(hash_entry);
 
     if (server->serverOnNetworkCallback) {
-        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE, server->serverOnNetworkCallbackData);
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE, entry->txtSet, server->serverOnNetworkCallbackData);
     }
 
     // remove from list
@@ -553,7 +553,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
     }
 
     if (entry->srvSet && server->serverOnNetworkCallback) {
-        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE, server->serverOnNetworkCallbackData);
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE, entry->txtSet, server->serverOnNetworkCallbackData);
     }
 }
 
