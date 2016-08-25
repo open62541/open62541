@@ -18,7 +18,8 @@ static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r
 }
 
 static void
-sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t offset, const UA_DataType *responseType,
+sendError(UA_SecureChannel *channel, const UA_ByteString *msg,
+          size_t offset, const UA_DataType *responseType,
           UA_UInt32 requestId, UA_StatusCode error) {
     UA_RequestHeader requestHeader;
     UA_StatusCode retval = UA_RequestHeader_decodeBinary(msg, &offset, &requestHeader);
@@ -36,10 +37,11 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg, size_t offset, co
 
 /* Returns a complete decoded request (without securechannel headers + padding)
    or UA_BYTESTRING_NULL */
-static UA_ByteString processChunk(UA_SecureChannel *channel, UA_Server *server,
-                                  const UA_TcpMessageHeader *messageHeader, UA_UInt32 requestId,
-                                  const UA_ByteString *msg, size_t offset, size_t chunksize,
-                                  UA_Boolean *deleteRequest) {
+static UA_ByteString
+processChunk(UA_SecureChannel *channel, UA_Server *server,
+             const UA_TcpMessageHeader *messageHeader, UA_UInt32 requestId,
+             const UA_ByteString *msg, size_t offset, size_t chunksize,
+             UA_Boolean *deleteRequest) {
     UA_ByteString bytes = UA_BYTESTRING_NULL;
     switch(messageHeader->messageTypeAndChunkType & 0xff000000) {
     case UA_CHUNKTYPE_INTERMEDIATE:
@@ -48,7 +50,8 @@ static UA_ByteString processChunk(UA_SecureChannel *channel, UA_Server *server,
         break;
     case UA_CHUNKTYPE_FINAL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Final chunk message");
-        bytes = UA_SecureChannel_finalizeChunk(channel, requestId, msg, offset, chunksize, deleteRequest);
+        bytes = UA_SecureChannel_finalizeChunk(channel, requestId, msg, offset,
+                                               chunksize, deleteRequest);
         break;
     case UA_CHUNKTYPE_ABORT:
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Chunk aborted");
@@ -229,8 +232,9 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         return;
     }
 
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* may be zero -> unlimited */
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* may be zero -> unlimited */
+    /* Parameterize the connection */
+    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* zero -> unlimited */
+    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* zero -> unlimited */
     connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
     connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
     if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
@@ -253,11 +257,15 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
+    /* Get the send buffer from the network layer */
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
-    if(connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &ack_msg) != UA_STATUSCODE_GOOD)
+    UA_StatusCode retval =
+        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &ack_msg);
+    if(retval != UA_STATUSCODE_GOOD)
         return;
 
+    /* Encode and send the response */
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
@@ -266,7 +274,9 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 }
 
 /* OPN -> Open up/renew the securechannel */
-static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *offset) {
+static void
+processOPN(UA_Connection *connection, UA_Server *server,
+           const UA_ByteString *msg, size_t *offset) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         connection->close(connection);
         return;
@@ -294,6 +304,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     UA_OpenSecureChannelRequest r;
     retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, offset, &r);
 
+    /* Could not decode or wrong service type */
     if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
@@ -302,6 +313,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         return;
     }
 
+    /* Call the service */
     UA_OpenSecureChannelResponse p;
     UA_OpenSecureChannelResponse_init(&p);
     Service_OpenSecureChannel(server, connection, &r, &p);
@@ -352,7 +364,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
         return;
     }
 
-    /* Encode the secureconversationmessageheader */
+    /* Encode the secureconversationmessageheader (cannot fail) and send */
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
@@ -537,7 +549,8 @@ processRequest(UA_SecureChannel *channel, UA_Server *server,
 
 /* MSG -> Normal request */
 static void
-processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHeader *messageHeader,
+processMSG(UA_Connection *connection, UA_Server *server,
+           const UA_TcpMessageHeader *messageHeader,
            const UA_ByteString *msg, size_t *offset) {
     /* Decode the header */
     UA_UInt32 channelId = 0;
@@ -612,7 +625,8 @@ processMSG(UA_Connection *connection, UA_Server *server, const UA_TcpMessageHead
 
 /* CLO -> Close the secure channel */
 static void
-processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *offset) {
+processCLO(UA_Connection *connection, UA_Server *server,
+           const UA_ByteString *msg, size_t *offset) {
     UA_UInt32 channelId;
     UA_UInt32 tokenId = 0;
     UA_SequenceHeader sequenceHeader;
@@ -636,7 +650,9 @@ processCLO(UA_Connection *connection, UA_Server *server, const UA_ByteString *ms
 /* Process binary message received from Connection dose not modify UA_ByteString
  * you have to free it youself. use of connection->getSendBuffer() and
  * connection->send() to answer Message */
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg) {
+void
+UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                               const UA_ByteString *msg) {
     size_t offset= 0;
     UA_TcpMessageHeader tcpMessageHeader;
     do {
@@ -644,13 +660,15 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         UA_StatusCode retval = UA_TcpMessageHeader_decodeBinary(msg, &offset, &tcpMessageHeader);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                        "Decoding of message header failed on Connection %i", connection->sockfd);
+                        "Decoding of message header failed on Connection %i",
+                        connection->sockfd);
             connection->close(connection);
             break;
         }
         if(tcpMessageHeader.messageSize < 16) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                        "The message is suspiciously small on Connection %i", connection->sockfd);
+                        "The message is suspiciously small on Connection %i",
+                        connection->sockfd);
             connection->close(connection);
             break;
         }
@@ -661,12 +679,14 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         /* Process the message */
         switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
         case UA_MESSAGETYPE_HEL:
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Process a HEL", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a HEL", connection->sockfd);
             processHEL(connection, msg, &offset);
             break;
 
         case UA_MESSAGETYPE_OPN:
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Process a OPN", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a OPN", connection->sockfd);
             processOPN(connection, server, msg, &offset);
             break;
 
@@ -674,29 +694,34 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 #ifndef UA_ENABLE_NONSTANDARD_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
                 UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                             "Connection %i | Received a MSG, but the connection is not established", connection->sockfd);
+                             "Connection %i | Received a MSG, but the connection " \
+                             "is not established", connection->sockfd);
                 connection->close(connection);
                 return;
             }
 #endif
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Process a MSG", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a MSG", connection->sockfd);
             processMSG(connection, server, &tcpMessageHeader, msg, &offset);
             break;
 
         case UA_MESSAGETYPE_CLO:
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Process a CLO", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process a CLO", connection->sockfd);
             processCLO(connection, server, msg, &offset);
             return;
 
         default:
-            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Unknown chunk type", connection->sockfd);
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Unknown chunk type", connection->sockfd);
         }
 
         /* Loop to process the next message in the stream */
         if(offset != targetpos) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK, "Connection %i | Message was not entirely processed. "
-                         "Skip from position %i to position %i; message length is %i", connection->sockfd, offset, targetpos,
-                         msg->length);
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Message was not entirely processed. " \
+                         "Skip from position %i to position %i; message length is %i",
+                         connection->sockfd, offset, targetpos, msg->length);
             offset = targetpos;
         }
     } while(msg->length > offset);
