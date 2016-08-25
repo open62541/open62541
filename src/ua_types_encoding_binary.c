@@ -708,7 +708,15 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
         UA_NodeId typeId = src->content.decoded.type->typeId;
         if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
             return UA_STATUSCODE_BADENCODINGERROR;
-        typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+        size_t i;
+        for (i = 0; i<UA_TYPES_COUNT; i++) {
+            if (UA_TYPES[i].typeId.identifier.numeric == typeId.identifier.numeric) {
+                typeId.identifier.numeric = UA_TYPES[i].binaryEncodingId;
+                break;
+            }
+        }
+        if (i==UA_TYPES_COUNT)
+            return UA_STATUSCODE_BADENCODINGERROR;
         encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
         retval = NodeId_encodeBinary(&typeId, NULL);
         retval |= Byte_encodeBinary(&encoding, NULL);
@@ -778,8 +786,15 @@ ExtensionObject_decodeBinary(UA_ExtensionObject *dst, const UA_DataType *_) {
         /* helping clang analyzer, typeId is numeric */
         UA_assert(typeId.identifier.byteString.data == NULL);
         UA_assert(typeId.identifier.string.data == NULL);
-        typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
-        findDataType(&typeId, &type);
+        size_t i;
+        for (i = 0; i<UA_TYPES_COUNT; i++) {
+            if (UA_TYPES[i].binaryEncodingId == typeId.identifier.numeric) {
+                typeId.identifier.numeric = UA_TYPES[i].typeId.identifier.numeric;
+                break;
+            }
+        }
+        if (i<UA_TYPES_COUNT)
+            findDataType(&typeId, &type);
         if(type) {
             pos += 4; /* jump over the length (todo: check if length matches) */
             dst->content.decoded.data = UA_new(type);
@@ -924,8 +939,14 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
         if(typeId.namespaceIndex == 0 && typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
            eo_encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
             UA_assert(typeId.identifier.byteString.data == NULL); /* for clang analyzer <= 3.7 */
-            typeId.identifier.numeric -= UA_ENCODINGOFFSET_BINARY;
-            if(findDataType(&typeId, &dst->type) == UA_STATUSCODE_GOOD)
+            size_t i;
+            for (i = 0; i<UA_TYPES_COUNT; i++) {
+                if (UA_TYPES[i].binaryEncodingId == typeId.identifier.numeric) {
+                    typeId.identifier.numeric = UA_TYPES[i].typeId.identifier.numeric;
+                    break;
+                }
+            }
+            if(i<UA_TYPES_COUNT && findDataType(&typeId, &dst->type) == UA_STATUSCODE_GOOD)
                 pos += 4; /* jump over the length (todo: check if length matches) */
             else
                 pos = old_pos; /* jump back and decode as extensionobject */
