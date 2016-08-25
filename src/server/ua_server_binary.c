@@ -368,7 +368,8 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
 }
 
 static void
-processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId, const UA_ByteString *msg) {
+processRequest(UA_SecureChannel *channel, UA_Server *server,
+               UA_UInt32 requestId, const UA_ByteString *msg) {
     /* At 0, the nodeid starts... */
     size_t ppos = 0;
     size_t *offset = &ppos;
@@ -386,8 +387,10 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
        requestTypeId.namespaceIndex != 0) {
         UA_NodeId_deleteMembers(&requestTypeId);
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Received a non-numeric message type NodeId");
-        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT], requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Received a non-numeric message type NodeId");
+        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                  requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
 
     /* Get the service pointers */
@@ -395,16 +398,19 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     const UA_DataType *requestType = NULL;
     const UA_DataType *responseType = NULL;
     UA_Boolean sessionRequired = true;
-    getServicePointers(requestTypeId.identifier.numeric, &requestType, &responseType, &service, &sessionRequired);
+    getServicePointers(requestTypeId.identifier.numeric, &requestType,
+                       &responseType, &service, &sessionRequired);
     if(!requestType) {
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-                                "Client requested a subscription, but those are not enabled in the build");
+                                "Client requested a subscription, " \
+                                "but those are not enabled in the build");
         } else {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Unknown request %i",
                                 requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
         }
-        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT], requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
+        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
+                  requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
         return;
     }
     UA_assert(responseType);
@@ -427,6 +433,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     /* Prepare the respone */
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
+    UA_Session *session = NULL; /* must be initialized before goto send_response */
 
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
@@ -435,15 +442,18 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     }
 
     /* Find the matching session */
-    UA_Session *session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
+    session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
     if(!session)
-        session = UA_SessionManager_getSession(&server->sessionManager, &requestHeader->authenticationToken);
+        session = UA_SessionManager_getSession(&server->sessionManager,
+                                               &requestHeader->authenticationToken);
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {
             UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                                 "Trying to activate a session that is not known in the server");
-            sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+                                 "Trying to activate a session that is " \
+                                 "not known in the server");
+            sendError(channel, msg, requestPos, responseType,
+                      requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
             return;
         }
@@ -455,9 +465,11 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
     UA_Session anonymousSession;
     if(!session) {
         if(sessionRequired) {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Service request %i without a valid session",
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                                "Service request %i without a valid session",
                                 requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
-            sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
+            sendError(channel, msg, requestPos, responseType,
+                      requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
             return;
         }
@@ -466,10 +478,9 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
         anonymousSession.channel = channel;
         session = &anonymousSession;
     }
-    UA_assert(session != NULL);
 
     /* Trying to use a non-activated session? */
-    if(!session->activated && sessionRequired) {
+    if(sessionRequired && !session->activated) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "Calling service %i on a non-activated session",
                             requestTypeId.identifier.numeric - UA_ENCODINGOFFSET_BINARY);
@@ -483,8 +494,10 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
 
     /* The session is bound to another channel */
     if(session->channel != channel) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Client tries to use an obsolete securechannel");
-        sendError(channel, msg, requestPos, responseType, requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Client tries to use an obsolete securechannel");
+        sendError(channel, msg, requestPos, responseType,
+                  requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -514,7 +527,7 @@ processRequest(UA_SecureChannel *channel, UA_Server *server, UA_UInt32 requestId
                              "the SecureChannel with error code 0x%08x", retval);
 
     /* See if we need to return publish requests without a subscription */
-    if(session && responseType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE])
+    if(session && requestType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST])
         UA_Session_answerPublishRequestsWithoutSubscription(session);
 
     /* Clean up */
