@@ -1442,10 +1442,10 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
 
         UA_RegisterServerRequest_deleteMembers(&request_fallback);
 
-        if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-            UA_StatusCode serviceResult = response.responseHeader.serviceResult;
+                         "RegisterServer failed with statuscode 0x%08x", response_fallback.responseHeader.serviceResult);
+            UA_StatusCode serviceResult = response_fallback.responseHeader.serviceResult;
             UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
             UA_RegisterServer2Response_deleteMembers(&response);
             UA_RegisterServerResponse_deleteMembers(&response_fallback);
