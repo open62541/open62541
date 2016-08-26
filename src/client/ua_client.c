@@ -212,7 +212,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     asymHeader.securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     /* id of opensecurechannelrequest */
-    UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId);
 
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -277,8 +277,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
     UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId_decodeBinary(&reply, &offset, &requestType);
-    UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
-                                                  UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     if(!UA_NodeId_equal(&requestType, &expectedRequest)) {
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -522,7 +521,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId);
 
     UA_ByteString message;
     UA_Connection *c = client->connection;
@@ -733,8 +732,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     retval |= UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId responseId;
     retval |= UA_NodeId_decodeBinary(&reply, &offset, &responseId);
-    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
-                                                 UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
 
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;
@@ -750,7 +748,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
 
     /* Todo: we need to demux responses since a publish responses may come at any time */
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
-        if(responseId.identifier.numeric != UA_NS0ID_SERVICEFAULT + UA_ENCODINGOFFSET_BINARY) {
+        if(responseId.identifier.numeric != UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId) {
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i. But retrieved ns=%i,i=%i",
                          expectedNodeId.namespaceIndex, expectedNodeId.identifier.numeric,
