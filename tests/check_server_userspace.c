@@ -23,27 +23,27 @@ START_TEST(Server_addNamespace_ShallWork)
 END_TEST
 
 static Suite* testSuite_ServerUserspace(void) {
-	Suite *s = suite_create("ServerUserspace");
-	TCase *tc_core = tcase_create("Core");
-	tcase_add_test(tc_core, Server_addNamespace_ShallWork);
+    Suite *s = suite_create("ServerUserspace");
+    TCase *tc_core = tcase_create("Core");
+    tcase_add_test(tc_core, Server_addNamespace_ShallWork);
 
-	suite_add_tcase(s,tc_core);
-	return s;
+    suite_add_tcase(s,tc_core);
+    return s;
 }
 
 int main(void) {
-	int number_failed = 0;
+    int number_failed = 0;
 
-	Suite *s;
-	SRunner *sr;
+    Suite *s;
+    SRunner *sr;
 
-	s = testSuite_ServerUserspace();
-	sr = srunner_create(s);
-	srunner_run_all(sr,CK_NORMAL);
-	number_failed += srunner_ntests_failed(sr);
-	srunner_free(sr);
+    s = testSuite_ServerUserspace();
+    sr = srunner_create(s);
+    srunner_run_all(sr,CK_NORMAL);
+    number_failed += srunner_ntests_failed(sr);
+    srunner_free(sr);
 
-	return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 

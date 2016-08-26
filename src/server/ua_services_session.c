@@ -44,7 +44,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
          return;
     }
     UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " UA_PRINTF_GUID_FORMAT " created",
-                         UA_PRINTF_GUID_DATA(newSession->sessionId));
+                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
 void

@@ -81,17 +81,17 @@ typedef UA_StatusCode (*UA_ExternalNodeStore_delete)(void *ensHandle);
 
 typedef struct UA_ExternalNodeStore {
     void *ensHandle;
-	UA_ExternalNodeStore_addNodes addNodes;
-	UA_ExternalNodeStore_deleteNodes deleteNodes;
-	UA_ExternalNodeStore_writeNodes writeNodes;
-	UA_ExternalNodeStore_readNodes readNodes;
-	UA_ExternalNodeStore_browseNodes browseNodes;
-	UA_ExternalNodeStore_translateBrowsePathsToNodeIds translateBrowsePathsToNodeIds;
-	UA_ExternalNodeStore_addReferences addReferences;
-	UA_ExternalNodeStore_deleteReferences deleteReferences;
-	UA_ExternalNodeStore_call call;
-	UA_ExternalNodeStore_addOneWayReference addOneWayReference;
-	UA_ExternalNodeStore_delete destroy;
+    UA_ExternalNodeStore_addNodes addNodes;
+    UA_ExternalNodeStore_deleteNodes deleteNodes;
+    UA_ExternalNodeStore_writeNodes writeNodes;
+    UA_ExternalNodeStore_readNodes readNodes;
+    UA_ExternalNodeStore_browseNodes browseNodes;
+    UA_ExternalNodeStore_translateBrowsePathsToNodeIds translateBrowsePathsToNodeIds;
+    UA_ExternalNodeStore_addReferences addReferences;
+    UA_ExternalNodeStore_deleteReferences deleteReferences;
+    UA_ExternalNodeStore_call call;
+    UA_ExternalNodeStore_addOneWayReference addOneWayReference;
+    UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
 UA_StatusCode UA_EXPORT

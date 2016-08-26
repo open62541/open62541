@@ -160,11 +160,11 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     for(size_t i=0;i<methodCalled->referencesSize;i++){
         if (methodCalled->references[i].isInverse && UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId,&withObject->nodeId)){
             //TODO adjust maxDepth to needed tree depth (define a variable in config?)
-    	    isNodeInTree(server->nodestore, &methodCalled->references[i].referenceTypeId, &hasComponentNodeId,
-    	         &hasSubTypeNodeId, 1, 1, &found);
+            isNodeInTree(server->nodestore, &methodCalled->references[i].referenceTypeId, &hasComponentNodeId,
+                 &hasSubTypeNodeId, 1, 1, &found);
             if(found){
                 break;
-    	    }
+            }
         }
     }
     if(!found)
@@ -250,13 +250,13 @@ void Service_Call(UA_Server *server, UA_Session *session, const UA_CallRequest *
                        indices, (UA_UInt32)indexSize, response->results);
     }
 #endif
-	
+    
     for(size_t i = 0; i < request->methodsToCallSize;i++){
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif    
-			Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
-	}
+            Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
+    }
 }
 
 #endif /* UA_ENABLE_METHODCALLS */

@@ -23,8 +23,6 @@ def useNodeId(row):
         return False
     if "Type_" in row[0]:
         return False
-    if "_Encoding_Default" in row[0]:
-        return False
     return True
 
 f = open(args.nodeids)
