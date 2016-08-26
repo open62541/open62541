@@ -178,7 +178,7 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
     /* the interval needs to be at least 5ms */
     if(intervalMs < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt64 interval = intervalMs * (UA_UInt32)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
+    UA_UInt64 interval = (UA_UInt64)intervalMs * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
     struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
