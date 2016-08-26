@@ -122,7 +122,7 @@ struct UA_Server {
 #endif
 
     /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJobs) repeatedJobs;
+    LIST_HEAD(RepeatedJobsList, RepeatedJob) repeatedJobs;
 
 #ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */

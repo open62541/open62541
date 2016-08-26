@@ -15,8 +15,16 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
                         UA_UInt32 requestedMaxKeepAliveCount,
-                        UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
-    Subscription_unregisterPublishJob(server, subscription);
+                        UA_UInt32 maxNotificationsPerPublish, UA_Byte priority)
+{
+    /* deregister the job if required */
+    UA_StatusCode retval = Subscription_unregisterPublishJob(server, subscription);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session, "Subscription %u | "
+                             "Could not unregister publish job with error code 0x%08x",
+                             subscription->subscriptionID, retval);
+
+    /* re-parameterize the subscription */
     subscription->publishingInterval = requestedPublishingInterval;
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
                                requestedPublishingInterval, subscription->publishingInterval);
@@ -34,30 +42,45 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
        maxNotificationsPerPublish > server->config.maxNotificationsPerPublish)
         subscription->notificationsPerPublish = server->config.maxNotificationsPerPublish;
     subscription->priority = priority;
-    Subscription_registerPublishJob(server, subscription);
+
+    retval = Subscription_registerPublishJob(server, subscription);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session, "Subscription %u | "
+                             "Could not register publish job with error code 0x%08x",
+                             subscription->subscriptionID, retval);
 }
 
-void Service_CreateSubscription(UA_Server *server, UA_Session *session,
-                                const UA_CreateSubscriptionRequest *request,
-                                UA_CreateSubscriptionResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateSubscriptionRequest");
-    response->subscriptionId = UA_Session_getUniqueSubscriptionID(session);
+void
+Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                           const UA_CreateSubscriptionRequest *request,
+                           UA_CreateSubscriptionResponse *response)
+{
+    /* Create the subscription */
     UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
     if(!newSubscription) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CreateSubscriptionRequest failed");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-
+    newSubscription->subscriptionID = UA_Session_getUniqueSubscriptionID(session);
     UA_Session_addSubscription(session, newSubscription);
+
+    /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
+    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount;
     setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    /* immediately send the first response */
-    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount;
+
+    /* Prepare the response */
+    response->subscriptionId = newSubscription->subscriptionID;
     response->revisedPublishingInterval = newSubscription->publishingInterval;
     response->revisedLifetimeCount = newSubscription->lifeTimeCount;
     response->revisedMaxKeepAliveCount = newSubscription->maxKeepAliveCount;
+
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "CreateSubscriptionRequest: Created Subscription %u "
+                         "with a publishing interval of %f ms", response->subscriptionId,
+                         newSubscription->publishingInterval);
 }
 
 void Service_ModifySubscription(UA_Server *server, UA_Session *session,
@@ -103,8 +126,14 @@ void Service_SetPublishingMode(UA_Server *server, UA_Session *session,
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             continue;
         }
-        sub->publishingEnabled = request->publishingEnabled;
-        sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+        if(sub->publishingEnabled != request->publishingEnabled) {
+            sub->publishingEnabled = request->publishingEnabled;
+            sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+            if(sub->publishingEnabled)
+                Subscription_registerPublishJob(server, sub);
+            else
+                Subscription_unregisterPublishJob(server, sub);
+        }
     }
 }
 
@@ -290,7 +319,8 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     response->resultsSize = request->itemsToModifySize;
 
     for(size_t i = 0; i < request->itemsToModifySize; i++)
-        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i], &response->results[i]);
+        Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
+                                            &response->results[i]);
 
 }
 
@@ -407,7 +437,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_Subscription *immediate;
     LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
         if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Response on a late subscription",
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
+                                 "Response on a late subscription", immediate->subscriptionID,
                                  session->authenticationToken.identifier.numeric);
             UA_Subscription_publishCallback(server, immediate);
             return;
@@ -415,9 +446,10 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 }
 
-void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
-                                 const UA_DeleteSubscriptionsRequest *request,
-                                 UA_DeleteSubscriptionsResponse *response) {
+void
+Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                            const UA_DeleteSubscriptionsRequest *request,
+                            UA_DeleteSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteSubscriptionsRequest");
 
     if(request->subscriptionIdsSize == 0){
@@ -432,14 +464,24 @@ void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
 
-    for(size_t i = 0; i < request->subscriptionIdsSize; i++)
+    for(size_t i = 0; i < request->subscriptionIdsSize; i++) {
         response->results[i] = UA_Session_deleteSubscription(server, session, request->subscriptionIds[i]);
+        if(response->results[i] == UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
+                                "Subscription deleted", request->subscriptionIds[i]);
+        } else {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Deleting Subscription with Id "
+                                 "%u failed with error code 0x%08x", request->subscriptionIds[i],
+                                 response->results[i]);
+        }
+    }
 }
 
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteMonitoredItemsRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing DeleteMonitoredItemsRequest");
 
     if(request->monitoredItemIdsSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
