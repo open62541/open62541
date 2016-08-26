@@ -150,7 +150,7 @@ emptyDispatchQueue(UA_Server *server) {
 struct RepeatedJob {
     LIST_ENTRY(RepeatedJob) next;  /* Next element in the list */
     UA_DateTime nextTime;          /* The next time when the jobs are to be executed */
-    UA_UInt32 interval;            /* Interval in 100ns resolution */
+    UA_UInt64 interval;            /* Interval in 100ns resolution */
     UA_Guid id;                    /* Id of the repeated job */
     UA_Job job;                    /* The job description itself */
 };
@@ -178,17 +178,17 @@ addRepeatedJob(UA_Server *server, struct RepeatedJob * UA_RESTRICT rj)
 
 UA_StatusCode
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 interval, UA_Guid *jobId) {
+                         UA_UInt32 intervalMs, UA_Guid *jobId) {
     /* the interval needs to be at least 5ms */
-    if(interval < 5)
+    if(intervalMs < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    interval *= (UA_UInt32)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
+    UA_UInt64 interval = intervalMs * (UA_UInt32)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
     struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rj->nextTime = UA_DateTime_nowMonotonic() + interval;
+    rj->nextTime = UA_DateTime_nowMonotonic() + (UA_Int64) interval;
     rj->interval = interval;
     rj->id = UA_Guid_random();
     rj->job = job;
@@ -226,11 +226,20 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
 #ifdef UA_ENABLE_MULTITHREADING
         dispatchJob(server, &rj->job);
 #else
+        struct RepeatedJob **previousNext = rj->next.le_prev;
         processJob(server, &rj->job);
+        /* See if the current job was deleted during processJob. That means the
+           le_next field of the previous repeated job (could also be the list
+           head) does no longer point to the current repeated job */
+        if((void*)*previousNext != (void*)rj) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current repeated job removed itself");
+            continue;
+        }
 #endif
 
         /* Set the time for the next execution */
-        rj->nextTime += rj->interval;
+        rj->nextTime += (UA_Int64)rj->interval;
         if(rj->nextTime < current)
             rj->nextTime = current;
 
