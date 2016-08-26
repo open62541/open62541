@@ -697,16 +697,6 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
     return retval;
 }
 
-static UA_StatusCode findDataType(const UA_NodeId *typeId, const UA_DataType **findtype) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
-        if(UA_NodeId_equal(typeId, &UA_TYPES[i].typeId)) {
-            *findtype = &UA_TYPES[i];
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADNODEIDUNKNOWN;
-}
-
 static UA_StatusCode findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
     for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
         if (UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric) {
@@ -728,19 +718,13 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
         UA_NodeId typeId = src->content.decoded.type->typeId;
         if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
             return UA_STATUSCODE_BADENCODINGERROR;
-        const UA_DataType *type = NULL;
-        /* helping clang analyzer, typeId is numeric */
-        UA_assert(typeId.identifier.byteString.data == NULL);
-        UA_assert(typeId.identifier.string.data == NULL);
-        if (findDataType(&typeId, &type)!= UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADENCODINGERROR;
-        typeId.identifier.numeric= type->binaryEncodingId;
+        typeId.identifier.numeric= src->content.decoded.type->binaryEncodingId;
         encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
         retval = NodeId_encodeBinary(&typeId, NULL);
         retval |= Byte_encodeBinary(&encoding, NULL);
         UA_Byte *old_pos = pos; /* save the position to encode the length afterwards */
         pos += 4; /* jump over the length field */
-        type = src->content.decoded.type;
+        const UA_DataType *type = src->content.decoded.type;
         size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
         retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, type);
         /* jump back, encode the length, jump back forward */
