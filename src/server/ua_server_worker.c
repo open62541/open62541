@@ -222,7 +222,16 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
 #ifdef UA_ENABLE_MULTITHREADING
         dispatchJob(server, &rj->job);
 #else
+        struct RepeatedJob **previousNext = rj->next.le_prev;
         processJob(server, &rj->job);
+        /* See if the current job was deleted during processJob. That means the
+           le_next field of the previous repeated job (could also be the list
+           header) does no longer point to the current repeated job */
+        if((void*)*previousNext != (void*)rj) {
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current repeated job removed itself");
+            continue;
+        }
 #endif
 
         /* Set the time for the next execution */

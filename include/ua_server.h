@@ -192,8 +192,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
                          UA_UInt32 interval, UA_Guid *jobId);
 
-/* Remove repeated job. The entry will be removed asynchronously during the next
- * iteration of the server main loop.
+/* Remove repeated job.
  *
  * @param server The server object.
  * @param jobId The id of the job that shall be removed.
