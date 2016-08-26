@@ -91,10 +91,10 @@ class Type(object):
             ",\n  .builtin = " + self.builtin + \
             ",\n  .fixedSize = " + self.fixed_size + \
             ",\n  .overlayable = " + self.overlayable + \
-            ",\n  .xmlEncodingId = " + xmlEncodingId + \
             ",\n  .binaryEncodingId = " + binaryEncodingId + \
             ",\n  .membersSize = " + str(len(self.members)) + \
             ",\n  .members = %s_members" % self.name + " }"
+            #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
 
     def members_c(self):
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
