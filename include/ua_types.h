@@ -745,8 +745,8 @@ struct UA_DataType {
                                     pointers */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
-    UA_UInt32  xmlEncodingId;    /* NodeId of datatype when encoded as XML */
-    UA_UInt32  binaryEncodingId;    /* NodeId of datatype when encoded as binary */
+    //UA_UInt16  xmlEncodingId;    /* NodeId of datatype when encoded as XML */
+    UA_UInt16  binaryEncodingId;    /* NodeId of datatype when encoded as binary */
     UA_DataTypeMember *members;
 };
 
