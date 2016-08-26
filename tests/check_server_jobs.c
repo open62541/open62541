@@ -20,7 +20,7 @@ static void teardown(void) {
 UA_Boolean *executed;
 
 static void
-dummyJob(UA_Server *server, void *data) {
+dummyJob(UA_Server *serverPtr, void *data) {
     *executed = true;
 }
 
@@ -46,8 +46,8 @@ END_TEST
 UA_Guid *jobId;
 
 static void
-removeItselfJob(UA_Server *server, void *data) {
-    UA_Server_removeRepeatedJob(server, *jobId);
+removeItselfJob(UA_Server *serverPtr, void *data) {
+    UA_Server_removeRepeatedJob(serverPtr, *jobId);
 }
 
 START_TEST(Server_repeatedJobRemoveItself) {
