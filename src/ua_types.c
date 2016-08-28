@@ -351,17 +351,62 @@ Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-/**
- * Test if a range is compatible with a variant. If yes, the following values are set:
+void
+UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p,
+                     const UA_DataType *type) {
+    UA_Variant_init(v);
+    v->type = type;
+    v->arrayLength = 0;
+    v->data = p;
+}
+
+UA_StatusCode
+UA_Variant_setScalarCopy(UA_Variant *v, const void *p,
+                         const UA_DataType *type) {
+    void *new = UA_malloc(type->memSize);
+    if(!new)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_copy(p, new, type);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(new);
+        //cppcheck-suppress memleak
+        return retval;
+    }
+    UA_Variant_setScalar(v, new, type);
+    //cppcheck-suppress memleak
+    return UA_STATUSCODE_GOOD;
+}
+
+void UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
+                         size_t arraySize, const UA_DataType *type) {
+    UA_Variant_init(v);
+    v->data = array;
+    v->arrayLength = arraySize;
+    v->type = type;
+}
+
+UA_StatusCode
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
+                        size_t arraySize, const UA_DataType *type) {
+    UA_Variant_init(v);
+    UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    v->arrayLength = arraySize;
+    v->type = type;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Range-wise access to Variants */
+
+/* Test if a range is compatible with a variant. If yes, the following values are set:
  * - total: how many elements are in the range
  * - block: how big is each contiguous block of elements in the variant that maps into the range
  * - stride: how many elements are between the blocks (beginning to beginning)
- * - first: where does the first block begin
- */
+ * - first: where does the first block begin */
 static UA_StatusCode
-processRangeDefinition(const UA_Variant *v, const UA_NumericRange range,
-                       size_t *total, size_t *block, size_t *stride,
-                       size_t *first) {
+computeStrides(const UA_Variant *v, const UA_NumericRange range,
+               size_t *total, size_t *block, size_t *stride, size_t *first) {
     /* Test the integrity of the source variant dimensions */
     size_t dims_count = 1;
     UA_UInt32 elements = 1;
@@ -418,14 +463,76 @@ processRangeDefinition(const UA_Variant *v, const UA_NumericRange range,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
-                     const UA_NumericRange range) {
-    size_t count, block, stride, first;
-    UA_StatusCode retval = processRangeDefinition(src, range, &count, &block,
-                                                  &stride, &first);
+/* Is the type string-like? */
+static UA_Boolean
+isStringLike(const UA_DataType *type) {
+    if(type->membersSize == 1 && type->members[0].isArray &&
+       type->members[0].namespaceZero &&
+       type->members[0].memberTypeIndex == UA_TYPES_BYTE)
+        return true;
+    return false;
+}
+
+static UA_StatusCode
+copySubString(const UA_String *src, UA_String *dst,
+              const UA_NumericRangeDimension *dim) {
+    if(dim->min > dim->max)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+    if(dim->max >= src->length)
+        return UA_STATUSCODE_BADINDEXRANGENODATA;
+
+    size_t length = dim->max - dim->min + 1;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(dst, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    memcpy(dst->data, &src->data[dim->min], length);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
+                     const UA_NumericRange range) {
+    UA_Boolean isScalar = UA_Variant_isScalar(orig_src);
+    UA_Boolean stringLike = isStringLike(orig_src->type);
+    const UA_Variant *src = orig_src;
+    UA_Variant arraySrc;
+
+    /* Extract the range for copying at this level. The remaining range is dealt
+     * with in the "scalar" type that may define an array by itself (string,
+     * variant, ...). */
+    UA_NumericRange thisrange, nextrange;
+    UA_NumericRangeDimension scalarThisDimension = (UA_NumericRangeDimension){
+        .min = 0, .max = 0}; /* a single entry */
+    if(isScalar) {
+        /* Replace scalar src with array of length 1 */
+        arraySrc = *src;
+        arraySrc.arrayLength = 1;
+        src = &arraySrc;
+        /* Deal with all range dimensions within the scalar */
+        thisrange.dimensions = &scalarThisDimension;
+        thisrange.dimensionsSize = 1;
+        nextrange = range;
+    } else {
+        /* Deal with as many range dimensions as possible right now */
+        size_t dims = src->arrayDimensionsSize;
+        if(dims == 0)
+            dims = 1;
+        if(dims > range.dimensionsSize)
+            return UA_STATUSCODE_BADINDEXRANGEINVALID;
+       thisrange = range;
+       thisrange.dimensionsSize = dims;
+       nextrange.dimensions = &range.dimensions[dims];
+       nextrange.dimensionsSize = range.dimensionsSize - dims;
+    }
+        
+    /* Compute the strides */
+    size_t count, block, stride, first;
+    UA_StatusCode retval = computeStrides(src, thisrange, &count, &block, &stride, &first);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Allocate the array */
     UA_Variant_init(dst);
     size_t elem_size = src->type->memSize;
     dst->data = UA_malloc(elem_size * count);
@@ -436,94 +543,98 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
     size_t block_count = count / block;
     uintptr_t nextdst = (uintptr_t)dst->data;
     uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
-    if(src->type->fixedSize) {
-        for(size_t i = 0; i < block_count; i++) {
-            memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
-            nextdst += block * elem_size;
-            nextsrc += stride * elem_size;
+    if(nextrange.dimensionsSize == 0) {
+        /* no nextrange */
+        if(src->type->fixedSize) {
+            for(size_t i = 0; i < block_count; i++) {
+                memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
+                nextdst += block * elem_size;
+                nextsrc += stride * elem_size;
+            }
+        } else {
+            for(size_t i = 0; i < block_count; i++) {
+                for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; j++) {
+                    retval = UA_copy((const void*)nextsrc, (void*)nextdst, src->type);
+                    nextdst += elem_size;
+                    nextsrc += elem_size;
+                }
+                nextsrc += (stride - block) * elem_size;
+            }
         }
     } else {
+        /* nextrange can only be used for variants and stringlike with remaining
+         * range of dimension 1 */
+        if(src->type != &UA_TYPES[UA_TYPES_VARIANT]) {
+            if(!stringLike)
+                retval = UA_STATUSCODE_BADINDEXRANGENODATA;
+            if(nextrange.dimensionsSize != 1)
+                retval = UA_STATUSCODE_BADINDEXRANGENODATA;
+        }
+
+        /* copy the content */
         for(size_t i = 0; i < block_count; i++) {
             for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; j++) {
-                retval = UA_copy((const void*)nextsrc, (void*)nextdst, src->type);
+                if(stringLike)
+                    retval = copySubString((const UA_String*)nextsrc,
+                                           (UA_String*)nextdst, nextrange.dimensions);
+                else
+                    retval = UA_Variant_copyRange((const UA_Variant*)nextsrc,
+                                                  (UA_Variant*)nextdst, nextrange);
                 nextdst += elem_size;
                 nextsrc += elem_size;
             }
             nextsrc += (stride - block) * elem_size;
         }
-        if(retval != UA_STATUSCODE_GOOD) {
-            size_t copied = ((nextdst - elem_size) - (uintptr_t)dst->data) / elem_size;
-            UA_Array_delete(dst->data, copied, src->type);
-            dst->data = NULL;
-            return retval;
-        }
     }
-    dst->arrayLength = count;
-    dst->type = src->type;
 
-    /* Copy the range dimensions */
+    /* Clean up if copying failed */
+    if(retval != UA_STATUSCODE_GOOD) {
+        size_t copied = ((nextdst - elem_size) - (uintptr_t)dst->data) / elem_size;
+        UA_Array_delete(dst->data, copied, src->type);
+        dst->data = NULL;
+        return retval;
+    }
+
+    /* Done if scalar */
+    dst->type = src->type;
+    if(isScalar)
+        return retval;
+
+    /* Finish the array */
+    dst->arrayLength = count;
     if(src->arrayDimensionsSize > 0) {
-        dst->arrayDimensions = UA_Array_new(src->arrayDimensionsSize,
-                                            &UA_TYPES[UA_TYPES_UINT32]);
+        dst->arrayDimensions = UA_Array_new(thisrange.dimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
         if(!dst->arrayDimensions) {
             Variant_deletemembers(dst, NULL);
-            memset(dst, 0, sizeof(UA_Variant)); /* init */
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        dst->arrayDimensionsSize = src->arrayDimensionsSize;
-        for(size_t k = 0; k < src->arrayDimensionsSize; k++)
+        dst->arrayDimensionsSize = thisrange.dimensionsSize;
+        for(size_t k = 0; k < thisrange.dimensionsSize; k++)
             dst->arrayDimensions[k] =
-                (UA_Int32)(range.dimensions[k].max - range.dimensions[k].min + 1);
+                (UA_Int32)(thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1);
     }
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize,
-                    const UA_NumericRange range) {
+/* TODO: Allow ranges to reach inside a scalars that are array-like, e.g.
+   variant and strings. This is already possible for reading... */
+static UA_StatusCode
+Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
+                 const UA_NumericRange range, UA_Boolean copy) {
+    /* Compute the strides */
     size_t count, block, stride, first;
-    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block,
-                                                  &stride, &first);
+    UA_StatusCode retval = computeStrides(v, range, &count, &block, &stride, &first);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(count != arraySize)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
+    /* Transfer the content */
     size_t block_count = count / block;
     size_t elem_size = v->type->memSize;
     uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)array;
-    for(size_t i = 0; i < block_count; i++) {
-        if(!v->type->fixedSize) {
-            for(size_t j = 0; j < block; j++) {
-                UA_deleteMembers_noInit((void*)nextdst, v->type);
-                nextdst += elem_size;
-            }
-            nextdst -= block * elem_size;
-        }
-        memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
-        nextsrc += block * elem_size;
-        nextdst += stride * elem_size;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize,
-                        const UA_NumericRange range) {
-    size_t count, block, stride, first;
-    UA_StatusCode retval = processRangeDefinition(v, range, &count, &block,
-                                                  &stride, &first);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    if(count != arraySize)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
-
-    size_t block_count = count / block;
-    size_t elem_size = v->type->memSize;
-    uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
-    uintptr_t nextsrc = (uintptr_t)array;
-    if(v->type->fixedSize) {
+    if(v->type->fixedSize || !copy) {
         for(size_t i = 0; i < block_count; i++) {
             memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
             nextsrc += block * elem_size;
@@ -540,53 +651,25 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize,
             nextdst += (stride - block) * elem_size;
         }
     }
+
+    /* If pointers were transferred, initialize original array to prevent
+     * reuse */
+    if(!copy && !v->type->fixedSize)
+        memset(array, 0, sizeof(elem_size)*arraySize);
+
     return retval;
 }
 
-void
-UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p,
-                     const UA_DataType *type) {
-    UA_Variant_init(v);
-    v->type = type;
-    v->arrayLength = 0;
-    v->data = p;
+UA_StatusCode
+UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array, size_t arraySize,
+                    const UA_NumericRange range) {
+    return Variant_setRange(v, array, arraySize, range, false);
 }
 
 UA_StatusCode
-UA_Variant_setScalarCopy(UA_Variant *v, const void *p,
-                         const UA_DataType *type) {
-    void *new = UA_malloc(type->memSize);
-    if(!new)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode retval = UA_copy(p, new, type);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(new);
-        //cppcheck-suppress memleak
-        return retval;
-    }
-    UA_Variant_setScalar(v, new, type);
-    //cppcheck-suppress memleak
-    return UA_STATUSCODE_GOOD;
-}
-
-void UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
-                         size_t arraySize, const UA_DataType *type) {
-    UA_Variant_init(v);
-    v->data = array;
-    v->arrayLength = arraySize;
-    v->type = type;
-}
-
-UA_StatusCode
-UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
-                        size_t arraySize, const UA_DataType *type) {
-    UA_Variant_init(v);
-    UA_StatusCode retval = UA_Array_copy(array, arraySize, &v->data, type);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    v->arrayLength = arraySize;
-    v->type = type;
-    return UA_STATUSCODE_GOOD;
+UA_Variant_setRangeCopy(UA_Variant *v, const void *array, size_t arraySize,
+                        const UA_NumericRange range) {
+    return Variant_setRange(v, (void*)(uintptr_t)array, arraySize, range, true);
 }
 
 /* LocalizedText */
