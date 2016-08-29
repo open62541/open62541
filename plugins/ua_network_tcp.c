@@ -600,7 +600,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
 
     {
         UA_StatusCode retval;
-        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
+        if ((retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
             if (retval == UA_STATUSCODE_BADOUTOFRANGE)
                 UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
             else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
@@ -614,13 +614,13 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
         strncpy(portNum, "4840", 4);
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
     } else {
-		if (path) {
-			strncpy(portNum, port, (size_t)(path-port));
-			portNum[(size_t)(path-port)]='\0';
-		} else {
-			strncpy(portNum, port, strlen(port));
-			portNum[strlen(port)]='\0';
-		}
+        if (path) {
+            strncpy(portNum, port, (size_t)(path-port));
+            portNum[(size_t)(path-port)]='\0';
+        } else {
+            strncpy(portNum, port, strlen(port));
+            portNum[strlen(port)]='\0';
+        }
     }
 
     struct addrinfo hints, *server;

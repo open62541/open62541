@@ -136,7 +136,7 @@ END_TEST
 
 START_TEST(Server_register_periodic) {
         // periodic register every minute, first register immediately
-        UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server_register, 60*1000, 100, &periodicRegisterJobId);
+        UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server_register, NULL, 60*1000, 100, &periodicRegisterJobId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 END_TEST
@@ -145,7 +145,7 @@ START_TEST(Server_unregister_periodic) {
         // wait for first register delay
         sleep(1);
         UA_Server_removeRepeatedJob(server_register, periodicRegisterJobId);
-        UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+        UA_StatusCode retval = UA_Server_unregister_discovery(server_register, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 END_TEST

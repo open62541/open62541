@@ -415,6 +415,10 @@ static void mdns_record_remove(UA_Server *server, const char* record,
     }
     free(hash_entry);
 
+    if (server->serverOnNetworkCallback) {
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE, entry->txtSet, server->serverOnNetworkCallbackData);
+    }
+
     // remove from list
 
     LIST_REMOVE(entry, pointers);
@@ -547,13 +551,15 @@ static void mdns_record_received(const struct resource* r, void* data) {
         }
 
     }
+
+    if (entry->srvSet && server->serverOnNetworkCallback) {
+        server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_TRUE, entry->txtSet, server->serverOnNetworkCallbackData);
+    }
 }
 
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersOnNetworkRequest");
-
     UA_UInt32 recordCount;
     if (request->startingRecordId < server->serverOnNetworkRecordIdCounter)
         recordCount = server->serverOnNetworkRecordIdCounter - request->maxRecordsToReturn;
@@ -701,42 +707,28 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         mdnsServer[mdnsServerName->length] = '\0';
 
         for (size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
-            char port[10] = "\0";
-            char hostname[256];
-            char path[256];
+            UA_UInt16 port = 0;
+            char hostname[256]; hostname[0] = '\0';
+            char path[256]; path[0] = '\0';
             {
                 char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
                 strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
                 uri[requestServer->discoveryUrls[i].length] = '\0';
                 UA_StatusCode retval;
-                const char* portTmp = NULL;
-                const char* pathTmp = NULL;
-                if ((retval = UA_EndpointUrl_split(uri, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
+                if ((retval = UA_EndpointUrl_split(uri, hostname, &port, path)) != UA_STATUSCODE_GOOD) {
                     hostname[0] = '\0';
                     if (retval == UA_STATUSCODE_BADOUTOFRANGE)
                         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
                     else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
                         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
                 }
-                if (!portTmp)
-                    portTmp = "0";
-                if (pathTmp) {
-                    strncpy(port, portTmp, (size_t)(pathTmp-portTmp));
-                    port[(size_t)(pathTmp-portTmp)]='\0';
-                    strncpy(path, pathTmp, strlen(pathTmp));
-                    path[strlen(pathTmp)]='\0';
-                } else {
-                    strncpy(port, portTmp, strlen(portTmp));
-                    port[strlen(portTmp)]='\0';
-                    path[0]='\0';
-                }
                 free(uri);
             }
 
             if (!requestServer->isOnline) {
-                if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
+                if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) port, i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Could not reomve mDNS record for hostname %s.%s", mdnsServer);
+                                   "Could not remove mDNS record for hostname %s.%s", mdnsServer);
                 }
             }
             else {
@@ -746,7 +738,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
                     capabilities = mdnsConfig->serverCapabilities;
                     capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
                 }
-                if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) atoi(port), path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
+                if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) port, path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                                    "Could not add mDNS record for hostname %s.%s", mdnsServer);
                 }
@@ -766,6 +758,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTFOUND;
             return;
+        }
+
+        if (server->registerServerCallback) {
+            server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
         }
 
         // server found, remove from list
@@ -803,6 +799,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
 #else
         server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, 1);
 #endif
+
+        if (server->registerServerCallback) {
+            server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
+        }
 
     } else {
         UA_RegisteredServer_deleteMembers(&registeredServer_entry->registeredServer);
@@ -897,6 +897,7 @@ struct PeriodicServerRegisterJob {
     UA_Guid job_id;
     UA_Job *job;
     UA_UInt32 this_interval;
+    const char* discovery_server_url;
 };
 
 /**
@@ -925,8 +926,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
         UA_Server_removeRepeatedJob(server, retryJob->job_id);
     }
 
-
-    UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", NULL);
+    UA_StatusCode retval = UA_Server_register_discovery(server, retryJob->discovery_server_url != NULL ? retryJob->discovery_server_url : "opc.tcp://localhost:4840", NULL);
     // You can also use a semaphore file. That file must exist. When the file is deleted, the server is automatically unregistered.
     // The semaphore file has to be accessible by the discovery server
     // UA_StatusCode retval = UA_Server_register_discovery(server, "opc.tcp://localhost:4840", "/path/to/some/file");
@@ -950,6 +950,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
             newRetryJob->default_interval = retryJob->default_interval;
             newRetryJob->is_main_job = UA_FALSE;
             newRetryJob->this_interval = nextInterval;
+            newRetryJob->discovery_server_url = retryJob->discovery_server_url;
 
             newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
             newRetryJob->job->job.methodCall.method = periodicServerRegister;
@@ -969,7 +970,7 @@ static void periodicServerRegister(UA_Server *server, void *data) {
 
 }
 
-UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs,
+UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs,
                                                      const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId) {
 
     if (server->periodicServerRegisterJob != NULL) {
@@ -986,6 +987,7 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
     server->periodicServerRegisterJob->this_interval = 0;
     server->periodicServerRegisterJob->is_main_job = UA_TRUE;
     server->periodicServerRegisterJob->default_interval = intervalMs;
+    server->periodicServerRegisterJob->discovery_server_url = discoveryServerUrl;
     job.job.methodCall.data = server->periodicServerRegisterJob;
 
 
@@ -1011,6 +1013,7 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
         newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
         newRetryJob->job->job.methodCall.method = periodicServerRegister;
         newRetryJob->job->job.methodCall.data = newRetryJob;
+        newRetryJob->discovery_server_url = discoveryServerUrl;
         retval = UA_Server_addRepeatedJob(server, *newRetryJob->job, delayFirstRegisterMs, &newRetryJob->job_id);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1021,7 +1024,18 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA
     return UA_STATUSCODE_GOOD;
 }
 
+void UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerCallback cb, void* data) {
+    server->registerServerCallback = cb;
+    server->registerServerCallbackData = data;
+}
+
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+void UA_Server_setServerOnNetworkCallback(UA_Server *server,    UA_Server_serverOnNetworkCallback cb, void* data) {
+    server->serverOnNetworkCallback = cb;
+    server->serverOnNetworkCallbackData = data;
+}
+
 
 static void socket_mdns_set_nonblocking(int sockfd) {
 #ifdef _WIN32

@@ -268,6 +268,11 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
     set(lib_sources ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
 endif()
 
+
+if(UA_ENABLE_EXTERNAL_NAMESPACES)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
+endif()
+
 #########################
 # Generate source files #
 #########################

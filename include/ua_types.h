@@ -209,12 +209,15 @@ void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
  * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
  * separates min/max index and the comma separates dimensions. A single value
  * indicates a range with a single element (min==max). */
+
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_NumericRangeDimension;
+    
 typedef struct {
     size_t dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
+    UA_NumericRangeDimension *dimensions;
 } UA_NumericRange;
 
 /**
@@ -222,14 +225,23 @@ typedef struct {
  */
 
 /**
- * Split the given endpoint url into hostname and port
+ * Split the given endpoint url into hostname and port. Some of the chunks are returned as pointer.
  * @param endpointUrl The endpoint URL to split up
- * @param hostname the target array for hostname. Has to be at least 512 size.
+ * @param hostname the target array for hostname. Has to be at least 256 size.
  * @param port if url contains port, it will point to the beginning of port. NULL otherwise. It may also include the path part, thus stop at position of path pointer, if it is not NULL.
  * @param path points to the first occurance of '/' after the port or NULL if no path in url
  * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
  */
-UA_StatusCode UA_EXPORT UA_EndpointUrl_split(const char *endpointUrl, char *hostname, const char ** port, const char ** path);
+UA_StatusCode UA_EXPORT UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char ** path);
+/**
+ * Split the given endpoint url into hostname and port
+ * @param endpointUrl The endpoint URL to split up
+ * @param hostname the target array for hostname. Has to be at least 256 size.
+ * @param port set to the port of the url or 0
+ * @param path the target array for path, including first slash. Has to be at least 256 size.
+ * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_UInt16 * port, char * path);
 
 /**
  * Builtin Types, Part 2
@@ -759,6 +771,8 @@ struct UA_DataType {
                                     pointers */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
+    //UA_UInt16  xmlEncodingId;    /* NodeId of datatype when encoded as XML */
+    UA_UInt16  binaryEncodingId;    /* NodeId of datatype when encoded as binary */
     UA_DataTypeMember *members;
 };
 

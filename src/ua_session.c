@@ -70,7 +70,8 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
 }
 
 void UA_Session_updateLifetime(UA_Session *session) {
-    session->validTill = UA_DateTime_nowMonotonic() + (UA_DateTime)(session->timeout * UA_MSEC_TO_DATETIME);
+    session->validTill = UA_DateTime_nowMonotonic() +
+        (UA_DateTime)(session->timeout * UA_MSEC_TO_DATETIME);
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -80,7 +81,8 @@ void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscri
 }
 
 UA_StatusCode
-UA_Session_deleteSubscription(UA_Server *server, UA_Session *session, UA_UInt32 subscriptionID) {
+UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
+                              UA_UInt32 subscriptionID) {
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, subscriptionID);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -104,5 +106,23 @@ UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
     return ++(session->lastSubscriptionID);
 }
 
+void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session) {
+    /* Do we have publish requests but no subscriptions? */
+    if(LIST_FIRST(&session->serverSubscriptions))
+        return;
+
+    /* Send a response for every queued request */
+    UA_PublishResponseEntry *pre;
+    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
+        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+        UA_PublishResponse *response = &pre->response;
+        UA_UInt32 requestId = pre->requestId;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
+                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_free(pre);
+    }
+}
 
 #endif

@@ -72,7 +72,7 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
             return i;
     }
 
-    /* Add a new namespace to the namsepace array */
+    /* Add a new namespace to the namespace array */
     server->namespaces = UA_realloc(server->namespaces,
                                     sizeof(UA_String) * (server->namespacesSize + 1));
     UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
@@ -109,10 +109,10 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     char urlString[256];
-    if(url.length >= 256)
+    if(url->length >= 256)
         return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url.data, url.length);
-    urlString[url.length] = 0;
+    memcpy(urlString, url->data, url->length);
+    urlString[url->length] = 0;
 
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
@@ -122,7 +122,7 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
     server->externalNamespacesSize++;
-    addNamespaceInternal(server, urlString);
+    UA_Server_addNamespace(server, urlString);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -209,21 +209,21 @@ void UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
-	{
-		registeredServer_list_entry* current, * temp;
-		LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-			LIST_REMOVE(current, pointers);
-			UA_RegisteredServer_deleteMembers(&current->registeredServer);
-			UA_free(current);
-		}
-	}
+    {
+        registeredServer_list_entry* current, * temp;
+        LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+            LIST_REMOVE(current, pointers);
+            UA_RegisteredServer_deleteMembers(&current->registeredServer);
+            UA_free(current);
+        }
+    }
     if (server->periodicServerRegisterJob) {
         UA_free(server->periodicServerRegisterJob);
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-    	UA_Discovery_multicastDestroy(server);
+        UA_Discovery_multicastDestroy(server);
 
     {
         serverOnNetwork_list_entry* current, * temp;
@@ -546,19 +546,24 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
     server->periodicServerRegisterJob = NULL;
+    server->registerServerCallback = NULL;
+    server->registerServerCallbackData = NULL;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
-	server->mdnsMainSrvAdded = 0;
-	if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-		UA_Discovery_multicastInit(server);
-	}
+    server->mdnsMainSrvAdded = 0;
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_Discovery_multicastInit(server);
+    }
 
-	LIST_INIT(&server->serverOnNetwork);
-	server->serverOnNetworkSize = 0;
-	server->serverOnNetworkRecordIdCounter = 0;
-	server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-	memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+    LIST_INIT(&server->serverOnNetwork);
+    server->serverOnNetworkSize = 0;
+    server->serverOnNetworkRecordIdCounter = 0;
+    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+
+    server->serverOnNetworkCallback = NULL;
+    server->serverOnNetworkCallbackData = NULL;
 # endif
 #endif
 
@@ -1324,7 +1329,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
@@ -1356,7 +1361,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     // TODO where do we get the discoveryProfileUri for application data?
 
     request.server.discoveryUrls = UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
-    if (!request.server.serverNames) {
+    if (!request.server.discoveryUrls) {
         UA_RegisteredServer_deleteMembers(&request.server);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -1418,7 +1423,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
-    if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED) {
+    if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || response.responseHeader.serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
         // try RegisterServer
         UA_RegisterServerResponse response_fallback;
         UA_RegisterServerResponse_init(&response_fallback);
@@ -1437,25 +1442,27 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
 
         UA_RegisterServerRequest_deleteMembers(&request_fallback);
 
-        if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+                         "RegisterServer failed with statuscode 0x%08x", response_fallback.responseHeader.serviceResult);
+            UA_StatusCode serviceResult = response_fallback.responseHeader.serviceResult;
             UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
             UA_RegisterServer2Response_deleteMembers(&response);
             UA_RegisterServerResponse_deleteMembers(&response_fallback);
             UA_Client_disconnect(client);
             UA_Client_delete(client);
-            return response.responseHeader.serviceResult;
+            return serviceResult;
         }
     } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer2 failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+        UA_StatusCode serviceResult = response.responseHeader.serviceResult;
         UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
         UA_RegisterServer2Request_deleteMembers(&request);
         UA_RegisterServer2Response_deleteMembers(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
+        return serviceResult;
     }
 
     UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);

@@ -208,8 +208,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
                          UA_UInt32 interval, UA_Guid *jobId);
 
-/* Remove repeated job. The entry will be removed asynchronously during the next
- * iteration of the server main loop.
+/* Remove repeated job.
  *
  * @param server The server object.
  * @param jobId The id of the job that shall be removed.
@@ -523,7 +522,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
  * differently) */
 typedef UA_StatusCode
 (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-						   UA_NodeId referenceTypeId, void *handle);
+                           UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
@@ -535,7 +534,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  * Discovery
  * --------- */
 
- /*
+ /**
   * Register the given server instance at the discovery server.
   * This should be called periodically.
   * The semaphoreFilePath is optional. If the given file is deleted,
@@ -543,6 +542,10 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   * for example a pid file which is deleted if the server crashes.
   *
   * When the server shuts down you need to call unregister.
+  *
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param semaphoreFilePath optional parameter pointing to semaphore file.
   */
  UA_StatusCode UA_EXPORT
  UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath);
@@ -550,6 +553,8 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  /**
   * Unregister the given server instance from the discovery server.
   * This should only be called when the server is shutting down.
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
   */
  UA_StatusCode UA_EXPORT
  UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
@@ -565,9 +570,57 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   *
   * When you manually unregister the server, you also need to cancel the periodic job,
   * otherwise it will be automatically be registered again.
+  *
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param intervalMs
+  * @param delayFirstRegisterMs
+  * @param periodicJobId
   */
  UA_StatusCode UA_EXPORT
-         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+
+ /* Callback for RegisterServer. Data is passed from the register call */
+ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);
+
+/**
+ * Set the callback which is called if another server registeres or unregisteres with this instance.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+         UA_Server_setRegisterServerCallback(UA_Server *server,
+                                             UA_Server_registerServerCallback cb,
+                                             void* data);
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+/**
+ * Callback for server detected through mDNS. Data is passed from the register call
+ * @param isServerAnnounce indicates if the server has just been detected. If set to false, this means the server is shutting down.
+ * @param isTxtReceived indicates if we already received the corresponding TXT record with the path and caps data
+ **/
+typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, UA_Boolean isTxtReceived, void* data);
+
+/**
+ * Set the callback which is called if another server is found through mDNS or deleted.
+ * It will be called for any mDNS message from the remote server, thus it may be called multiple times for the same instance.
+ * Also the SRV and TXT records may arrive later, therefore for the first call the server capabilities may not be set yet.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+        UA_Server_setServerOnNetworkCallback(UA_Server *server,
+                                             UA_Server_serverOnNetworkCallback cb,
+                                             void* data);
+#endif
+
 #endif
 
 /**

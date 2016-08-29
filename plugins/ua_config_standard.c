@@ -57,9 +57,9 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrlsSize = 0,
         .discoveryUrls = NULL },
 #ifdef UA_ENABLE_DISCOVERY
-		.serverCapabilities = NULL,
-		.serverCapabilitiesSize = 0,
-		.mdnsServerName = UA_STRING_STATIC_NULL,
+        .serverCapabilities = NULL,
+        .serverCapabilitiesSize = 0,
+        .mdnsServerName = UA_STRING_STATIC_NULL,
 #endif
     .serverCertificate = UA_STRING_STATIC_NULL,
 
@@ -92,7 +92,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .queueSizeLimits = { .max = 100, .min = 1 }
 
 #ifdef UA_ENABLE_DISCOVERY
-	,.discoveryCleanupTimeout = 60*60
+    ,.discoveryCleanupTimeout = 60*60
 #endif
 };
 
