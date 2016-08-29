@@ -209,12 +209,15 @@ void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
  * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
  * separates min/max index and the comma separates dimensions. A single value
  * indicates a range with a single element (min==max). */
+
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_NumericRangeDimension;
+    
 typedef struct {
     size_t dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
+    UA_NumericRangeDimension *dimensions;
 } UA_NumericRange;
 
 /**
