@@ -709,13 +709,13 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         for (size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
             UA_UInt16 port = 0;
             char hostname[256]; hostname[0] = '\0';
-            char path[256]; path[0] = '\0';
+            const char *path;
             {
                 char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
                 strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
                 uri[requestServer->discoveryUrls[i].length] = '\0';
                 UA_StatusCode retval;
-                if ((retval = UA_EndpointUrl_split(uri, hostname, &port, path)) != UA_STATUSCODE_GOOD) {
+                if ((retval = UA_EndpointUrl_split(uri, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
                     hostname[0] = '\0';
                     if (retval == UA_STATUSCODE_BADOUTOFRANGE)
                         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
@@ -1432,7 +1432,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_TXT, 600, UA_Discovery_multicastConflict, server);
         xht_t* h = xht_new(11);
         char* allocPath = NULL;
-        if (strlen(path) == 0)
+        if (!path || strlen(path) == 0)
             xht_set(h, "path", "/");
         else {
             allocPath = STRDUP(path);

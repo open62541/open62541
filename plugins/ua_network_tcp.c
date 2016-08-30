@@ -1,6 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include "ua_connection_internal.h"
+
 #if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
 /* Assume the target is newer than Windows XP */
 # undef WINVER

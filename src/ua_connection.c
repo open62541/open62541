@@ -161,3 +161,73 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChann
 #if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
 #pragma GCC diagnostic pop
 #endif
+
+UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char **path) {
+    size_t urlLength = strlen(endpointUrl);
+    if(urlLength < 11 || urlLength >= 256) {
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
+    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
+        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+    }
+
+    /* where does the port begin? */
+    size_t portpos = 10;
+    for(; portpos < urlLength-1; portpos++) {
+        if(endpointUrl[portpos] == ':')
+            break;
+    }
+
+    memcpy(hostname, &endpointUrl[10], portpos - 10);
+    hostname[portpos-10] = 0;
+
+    if(port && portpos < urlLength - 1)
+        *port = &endpointUrl[portpos + 1];
+
+    if(path) {
+        size_t pathpos = portpos < urlLength - 1 ? portpos + 1 : 10;
+        for(; pathpos < urlLength; pathpos++) {
+            if(endpointUrl[pathpos] == '/')
+                break;
+        }
+        if (pathpos < urlLength)
+            *path = &endpointUrl[pathpos];
+        else
+            *path = NULL;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
+UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_UInt16 * port, const char ** path) {
+    UA_StatusCode retval;
+    const char* portTmp = NULL;
+    const char* pathTmp = NULL;
+    if ((retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
+        hostname[0] = '\0';
+        return retval;
+    }
+    if (!port && !path) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    char portStr[10];
+    portStr[0] = '\0';
+    if (!portTmp)
+        portTmp = "0";
+    if (pathTmp) {
+        strncpy(portStr, portTmp, (size_t)(pathTmp-portTmp));
+        portStr[(size_t)(pathTmp-portTmp)]='\0';
+    } else {
+        size_t maxLen = strlen(portTmp);
+        maxLen = maxLen > 9 ? 9 : maxLen;
+        strncpy(portStr, portTmp, maxLen);
+        portStr[maxLen]='\0';
+    }
+    if (port)
+        *port = (UA_UInt16)atoi(portStr);
+    if (path)
+        *path = pathTmp;
+    return UA_STATUSCODE_GOOD;
+}
