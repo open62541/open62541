@@ -92,7 +92,8 @@ satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *ar
         if(arg->arrayDimensionsSize != varDimsSize)
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         for(size_t i = 0; i < varDimsSize; i++) {
-            if((UA_Int32)arg->arrayDimensions[i] != varDims[i])
+            // A value of 0 for an individual dimension indicates that the dimension has a variable	length.
+            if((UA_Int32)arg->arrayDimensions[i]!=0 && (UA_Int32)arg->arrayDimensions[i] != varDims[i])
                 return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
     }
