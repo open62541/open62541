@@ -117,6 +117,21 @@ struct UA_Connection {
 void UA_EXPORT UA_Connection_init(UA_Connection *connection);
 void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
+
+/**
+ * EndpointURL helper
+ */
+
+/**
+ * Split the given endpoint url into hostname and port
+ * @param endpointUrl The endpoint URL to split up
+ * @param hostname the target array for hostname. Has to be at least 256 size.
+ * @param port set to the port of the url or 0
+ * @param path pointing to the end of given endpointUrl or to NULL if no path given. The starting '/' is included in path
+ * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_UInt16 * port, const char ** path);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
