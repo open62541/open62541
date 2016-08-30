@@ -25,6 +25,7 @@ readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourc
 
 static UA_Server* makeTestSequence(void) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */
     UA_VariableAttributes vattr;
@@ -38,9 +39,10 @@ static UA_Server* makeTestSequence(void) {
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                              parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL, NULL);
+    retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                       parentReferenceNodeId, myIntegerName,
+                                       UA_NODEID_NULL, vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
@@ -48,22 +50,25 @@ static UA_Server* makeTestSequence(void) {
                                            .handle = NULL, .read = NULL, .write = NULL};
     vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
     vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
-    UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        UA_QUALIFIEDNAME(1, "cpu temperature"),
-                                        UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
+    retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                 UA_QUALIFIEDNAME(1, "cpu temperature"),
+                                                 UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* DataSource Variable returning no value */
     UA_DataSource temperatureDataSource1 = (UA_DataSource) {
                                             .handle = NULL, .read = readCPUTemperature_broken, .write = NULL};
     vattr.description = UA_LOCALIZEDTEXT("en_US","temperature1");
     vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature1");
-    UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature1"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        UA_QUALIFIEDNAME(1, "cpu temperature bogus"),
-                                        UA_NODEID_NULL, vattr, temperatureDataSource1, NULL);
+    retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature1"),
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                 UA_QUALIFIEDNAME(1, "cpu temperature bogus"),
+                                                 UA_NODEID_NULL, vattr, temperatureDataSource1, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     /* VariableNode with array */
     UA_VariableAttributes_init(&vattr);
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
@@ -76,31 +81,34 @@ static UA_Server* makeTestSequence(void) {
     myIntegerNodeId = UA_NODEID_STRING(1, "myarray");
     parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                              parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, vattr, NULL, NULL);
+    retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                       parentReferenceNodeId, myIntegerName,
+                                       UA_NODEID_NULL, vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr;
     UA_ObjectAttributes_init(&obj_attr);
     obj_attr.description = UA_LOCALIZEDTEXT("en_US","Demo");
     obj_attr.displayName = UA_LOCALIZEDTEXT("en_US","Demo");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "Demo"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
-                            obj_attr, NULL, NULL);
+    retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_QUALIFIEDNAME(1, "Demo"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
+                                     obj_attr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* ViewNode */
     UA_ViewAttributes view_attr;
     UA_ViewAttributes_init(&view_attr);
     view_attr.description = UA_LOCALIZEDTEXT("en_US", "Viewtest");
     view_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Viewtest");
-    UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
-                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                          UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
+    retval = UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
+                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                   UA_QUALIFIEDNAME(0, "Viewtest"), view_attr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
 #ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
@@ -108,11 +116,12 @@ static UA_Server* makeTestSequence(void) {
     UA_MethodAttributes_init(&ma);
     ma.description = UA_LOCALIZEDTEXT("en_US", "Methodtest");
     ma.displayName = UA_LOCALIZEDTEXT("en_US", "Methodtest");
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
-                            UA_NODEID_NUMERIC(0, 3),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
-                            NULL, NULL, 0, NULL, 0, NULL, NULL);
+    retval = UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
+                                     UA_NODEID_NUMERIC(0, 3),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                     UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
+                                     NULL, NULL, 0, NULL, 0, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 #endif
 
     return server;
@@ -122,7 +131,8 @@ static UA_VariableNode* makeCompareSequence(void) {
     UA_VariableNode *node = UA_NodeStore_newVariableNode();
 
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&node->value.variant.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    node->value.data.value.hasValue = true;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_QualifiedName_copy(&myIntegerName,&node->browseName);
@@ -435,11 +445,13 @@ START_TEST(ReadSingleAttributeDataTypeWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    UA_NodeId* respval = (UA_NodeId*) resp.value.data;
     ck_assert_int_eq(0, resp.value.arrayLength);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
+    ck_assert_int_eq(true, resp.hasValue);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_NODEID], resp.value.type);
+    UA_NodeId* respval = (UA_NodeId*)resp.value.data;
     ck_assert_int_eq(respval->namespaceIndex,0);
-    ck_assert_int_eq(respval->identifier.numeric,UA_NS0ID_INT32);
+    ck_assert_int_eq(respval->identifier.numeric, UA_NS0ID_BASEDATATYPE);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
@@ -860,6 +872,7 @@ START_TEST(WriteSingleAttributeValue) {
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_DataValue resp;
     UA_DataValue_init(&resp);
@@ -869,7 +882,7 @@ START_TEST(WriteSingleAttributeValue) {
     id.attributeId = UA_ATTRIBUTEID_VALUE;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &id, &resp);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert(wValue.value.hasValue);
+    ck_assert(resp.hasValue);
     ck_assert_int_eq(20, *(UA_Int32*)resp.value.data);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);

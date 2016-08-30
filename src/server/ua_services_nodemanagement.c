@@ -244,7 +244,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                 result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             if(result->statusCode != UA_STATUSCODE_GOOD) {
                 UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                     "AddNodes: The variable if not derived from BaseVariableType");
+                                     "AddNodes: The variable is not derived from BaseVariableType");
                 goto remove_node;
             }
         }
@@ -287,7 +287,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     attr.writeMask = node->writeMask;
     attr.userWriteMask = node->userWriteMask;
     // todo: handle data sources!!!!
-    UA_Variant_copy(&node->value.variant.value, &attr.value);
+    UA_Variant_copy(&node->value.data.value.value, &attr.value);
     // datatype is taken from the value
     // valuerank is taken from the value
     // array dimensions are taken from the value
@@ -543,26 +543,74 @@ copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
     return retval;
 }
 
+static UA_StatusCode
+copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
+                             const UA_AddNodesItem *item,
+                             const UA_VariableAttributes *attr) {
+
+    /* Use datatype of the typedefiniton or BaseDataType */
+    UA_NodeId dataType = attr->dataType;
+    if(UA_NodeId_isNull(&dataType)) {
+        const UA_DataType *found = findDataType(&item->typeDefinition.nodeId);
+        if(found)
+            dataType = found->typeId;
+        dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    }
+    
+    // todo: test if the type / valueRank / value attributes are consistent
+    UA_StatusCode retval = UA_Array_copy(attr->arrayDimensions, attr->arrayDimensionsSize,
+                                         (void**)&node->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    node->arrayDimensionsSize = attr->arrayDimensionsSize;
+    retval = UA_NodeId_copy(&dataType, &node->dataType);
+    node->valueRank = attr->valueRank;
+
+    /* Set the value */
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    value.value = attr->value;
+    value.hasValue = true;
+    retval = CopyIntoValueAttribute(server, node, &value, NULL);
+    return retval;
+}
+
 static UA_Node *
-variableNodeFromAttributes(const UA_AddNodesItem *item,
+variableNodeFromAttributes(UA_Server *server, const UA_AddNodesItem *item,
                            const UA_VariableAttributes *attr) {
     UA_VariableNode *vnode = UA_NodeStore_newVariableNode();
     if(!vnode)
         return NULL;
     UA_StatusCode retval = copyStandardAttributes((UA_Node*)vnode, item,
                                                   (const UA_NodeAttributes*)attr);
-    // todo: test if the type / valueRank / value attributes are consistent
+    retval |= copyCommonVariableAttributes(server, vnode, item, attr);
     vnode->accessLevel = attr->accessLevel;
     vnode->userAccessLevel = attr->userAccessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
-    vnode->valueRank = attr->valueRank;
-    retval |= UA_Variant_copy(&attr->value, &vnode->value.variant.value);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeStore_deleteNode((UA_Node*)vnode);
         return NULL;
     }
     return (UA_Node*)vnode;
+}
+
+static UA_Node *
+variableTypeNodeFromAttributes(UA_Server *server, const UA_AddNodesItem *item,
+                               const UA_VariableTypeAttributes *attr) {
+    UA_VariableTypeNode *vtnode = UA_NodeStore_newVariableTypeNode();
+    if(!vtnode)
+        return NULL;
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)vtnode, item,
+                                                  (const UA_NodeAttributes*)attr);
+    retval |= copyCommonVariableAttributes(server, (UA_VariableNode*)vtnode, item,
+                                           (const UA_VariableAttributes*)attr);
+    vtnode->isAbstract = attr->isAbstract;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodeStore_deleteNode((UA_Node*)vtnode);
+        return NULL;
+    }
+    return (UA_Node*)vtnode;
 }
 
 static UA_Node *
@@ -613,26 +661,6 @@ objectTypeNodeFromAttributes(const UA_AddNodesItem *item,
         return NULL;
     }
     return (UA_Node*)otnode;
-}
-
-static UA_Node *
-variableTypeNodeFromAttributes(const UA_AddNodesItem *item,
-                               const UA_VariableTypeAttributes *attr) {
-    UA_VariableTypeNode *vtnode = UA_NodeStore_newVariableTypeNode();
-    if(!vtnode)
-        return NULL;
-    UA_StatusCode retval = copyStandardAttributes((UA_Node*)vtnode, item,
-                                                  (const UA_NodeAttributes*)attr);
-    UA_Variant_copy(&attr->value, &vtnode->value.variant.value);
-    // datatype is taken from the value
-    vtnode->valueRank = attr->valueRank;
-    // array dimensions are taken from the value
-    vtnode->isAbstract = attr->isAbstract;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_NodeStore_deleteNode((UA_Node*)vtnode);
-        return NULL;
-    }
-    return (UA_Node*)vtnode;
 }
 
 static UA_Node *
@@ -693,7 +721,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
-        node = variableNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
+        node = variableNodeFromAttributes(server, item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_OBJECTTYPE:
         if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]) {
@@ -707,7 +735,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
             result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
             return;
         }
-        node = variableTypeNodeFromAttributes(item, item->nodeAttributes.content.decoded.data);
+        node = variableTypeNodeFromAttributes(server, item, item->nodeAttributes.content.decoded.data);
         break;
     case UA_NODECLASS_REFERENCETYPE:
         if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]) {
@@ -971,8 +999,9 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
            result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
             inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
         }
-        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.variant.value, inputArguments,
+        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.data.value.value, inputArguments,
                                 inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        inputArgumentsVariableNode->value.data.value.hasValue = true;
         UA_AddNodesResult inputAddRes;
         UA_RCU_LOCK();
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
@@ -996,8 +1025,9 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
            result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS){
             outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
         }
-        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.variant.value, outputArguments,
+        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.data.value.value, outputArguments,
                                 outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        outputArgumentsVariableNode->value.data.value.hasValue = true;
         UA_AddNodesResult outputAddRes;
         UA_RCU_LOCK();
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
@@ -1356,7 +1386,7 @@ setValueCallback(UA_Server *server, UA_Session *session,
                  UA_VariableNode *node, UA_ValueCallback *callback) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->value.variant.callback = *callback;
+    node->value.data.callback = *callback;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1375,8 +1405,8 @@ setDataSource(UA_Server *server, UA_Session *session,
               UA_VariableNode* node, UA_DataSource *dataSource) {
     if(node->nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    if(node->valueSource == UA_VALUESOURCE_VARIANT)
-        UA_Variant_deleteMembers(&node->value.variant.value);
+    if(node->valueSource == UA_VALUESOURCE_DATA)
+        UA_DataValue_deleteMembers(&node->value.data.value);
     node->value.dataSource = *dataSource;
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     return UA_STATUSCODE_GOOD;

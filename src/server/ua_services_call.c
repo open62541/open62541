@@ -102,13 +102,13 @@ satisfySignature(UA_Server *server, const UA_Variant *var, const UA_Argument *ar
 
 static UA_StatusCode
 argConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequirements, size_t argsSize, const UA_Variant *args) {
-    if(argRequirements->value.variant.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
+    if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.variant.value.data;
-    size_t argReqsSize = argRequirements->value.variant.value.arrayLength;
-    if(argRequirements->valueSource != UA_VALUESOURCE_VARIANT)
+    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    size_t argReqsSize = argRequirements->value.data.value.value.arrayLength;
+    if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(UA_Variant_isScalar(&argRequirements->value.variant.value))
+    if(UA_Variant_isScalar(&argRequirements->value.data.value.value))
         argReqsSize = 1;
     if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
@@ -193,12 +193,12 @@ Service_Call_single(UA_Server *server, UA_Session *session, const UA_CallMethodR
     if(!outputArguments) {
         result->outputArgumentsSize=0;
     }else{
-        result->outputArguments = UA_Array_new(outputArguments->value.variant.value.arrayLength, &UA_TYPES[UA_TYPES_VARIANT]);
+        result->outputArguments = UA_Array_new(outputArguments->value.data.value.value.arrayLength, &UA_TYPES[UA_TYPES_VARIANT]);
         if(!result->outputArguments) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
-        result->outputArgumentsSize = outputArguments->value.variant.value.arrayLength;
+        result->outputArgumentsSize = outputArguments->value.data.value.value.arrayLength;
     }
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)

@@ -103,4 +103,12 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
              size_t maxDepth, UA_Boolean *found);
 
+/* find a datatype from the nodeid */
+const UA_DataType * findDataType(const UA_NodeId *typeId);
+
+/* Set the value attribute inside a node */
+UA_StatusCode
+CopyIntoValueAttribute(UA_Server *server, UA_VariableNode *node,
+                       const UA_DataValue *value, const UA_String *indexRange);
+
 #endif /* UA_SERVER_INTERNAL_H_ */

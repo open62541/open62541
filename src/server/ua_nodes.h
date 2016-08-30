@@ -2,14 +2,6 @@
 #define UA_NODES_H_
 
 #include "ua_server.h"
-#include "ua_types_generated.h"
-#include "ua_types_encoding_binary.h"
-
-/*
- * Most APIs take and return UA_EditNode and UA_ConstNode. By looking up the
- * nodeclass, nodes can be cast to their "true" class, i.e. UA_VariableNode,
- * UA_ObjectNode, and so on.
- */
 
 #define UA_STANDARD_NODEMEMBERS                 \
     UA_NodeId nodeId;                           \
@@ -21,6 +13,36 @@
     UA_UInt32 userWriteMask;                    \
     size_t referencesSize;                      \
     UA_ReferenceNode *references;
+
+typedef enum {
+    UA_VALUESOURCE_DATA,
+    UA_VALUESOURCE_DATASOURCE
+} UA_ValueSource;
+
+#define UA_VARIABLE_NODEMEMBERS                                         \
+    /* Constraints on possible values */                                \
+    UA_NodeId dataType;                                                 \
+    UA_Int32 valueRank; /* n >= 1: the value is an array with the specified number of dimensions. */       \
+                        /* n =  0: the value is an array with one or more dimensions. */                   \
+                        /* n = -1: the value is a scalar. */                                               \
+                        /* n = -2: the value can be a scalar or an array with any number of dimensions. */ \
+                        /* n = -3:  the value can be a scalar or a one dimensional array. */               \
+    size_t arrayDimensionsSize;                                         \
+    UA_Int32 *arrayDimensions;                                          \
+                                                                        \
+    /* The current value */                                             \
+    UA_ValueSource valueSource;                                         \
+    union {                                                             \
+        struct {                                                        \
+            UA_DataValue value;                                         \
+            UA_ValueCallback callback;                                  \
+        } data;                                                         \
+        UA_DataSource dataSource;                                       \
+    } value;
+
+/****************/
+/* Generic Node */
+/****************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
@@ -49,31 +71,13 @@ typedef struct {
     UA_ObjectLifecycleManagement lifecycleManagement;
 } UA_ObjectTypeNode;
 
-typedef enum {
-    UA_VALUESOURCE_CONTAINED,
-    UA_VALUESOURCE_DATASOURCE
-} UA_ValueSource;
-
 /****************/
 /* VariableNode */
 /****************/
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Int32 valueRank; /**< n >= 1: the value is an array with the specified number of dimensions.
-                             n = 0: the value is an array with one or more dimensions.
-                             n = -1: the value is a scalar.
-                             n = -2: the value can be a scalar or an array with any number of dimensions.
-                             n = -3:  the value can be a scalar or a one dimensional array. */
-    UA_ValueSource valueSource;
-    union {
-        struct {
-            UA_DataValue value;
-            UA_ValueCallback callback;
-        } contained;
-        UA_DataSource dataSource;
-    } value;
-    /* <--- similar to variabletypenodes up to there--->*/
+    UA_VARIABLE_NODEMEMBERS
     UA_Byte accessLevel;
     UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
@@ -86,16 +90,7 @@ typedef struct {
 
 typedef struct {
     UA_STANDARD_NODEMEMBERS
-    UA_Int32 valueRank;
-    UA_ValueSource valueSource;
-    union {
-        struct {
-            UA_DataValue value;
-            UA_ValueCallback callback;
-        } contained;
-        UA_DataSource dataSource;
-    } value;
-    /* <--- similar to variablenodes up to there--->*/
+    UA_VARIABLE_NODEMEMBERS
     UA_Boolean isAbstract;
 } UA_VariableTypeNode;
 
