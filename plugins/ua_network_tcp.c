@@ -618,11 +618,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
-    char portStr[10];
+    char portStr[6];
     #ifndef _MSC_VER
-    snprintf(portStr, 10, "%d", port);
+    snprintf(portStr, 6, "%d", port);
     #else
-    _snprintf_s(portStr, 10, _TRUNCATE, "%d", port);
+    _snprintf_s(portStr, 6, _TRUNCATE, "%d", port);
     #endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
