@@ -6,24 +6,8 @@
 /******************/
 
 static size_t
-readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
-    UA_UInt32 n = 0;
-    size_t progress = 0;
-    /* read numbers until the end or a non-number character appears */
-    while(progress < buflen) {
-        UA_Byte c = buf[progress];
-        if('0' > c || '9' < c)
-            break;
-        n = (n*10) + (UA_UInt32)(c-'0');
-        progress++;
-    }
-    *number = n;
-    return progress;
-}
-
-static size_t
 readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
-    size_t progress = readNumber(buf, buflen, &dim->min);
+    size_t progress = UA_readNumber(buf, buflen, &dim->min);
     if(progress == 0)
         return 0;
     if(buflen <= progress + 1 || buf[progress] != ':') {
@@ -32,12 +16,12 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     }
 
     progress++;
-    size_t progress2 = readNumber(&buf[progress], buflen - progress, &dim->max);
+    size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
 
     /* invalid range */
-    if(dim->min >= dim->max)
+    if(dim->min > dim->max)
         return 0;
     
     return progress + progress2;

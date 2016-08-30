@@ -598,20 +598,21 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     UA_UInt16 port = 0;
     const char *path = NULL;
 
-    {
-        UA_StatusCode retval;
-        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
-            if (retval == UA_STATUSCODE_BADOUTOFRANGE)
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid: %s", endpointUrl);
-            else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with 'opc.tcp://'  '%s'", endpointUrl);
-            return connection;
-        }
+    UA_StatusCode parse_retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path);
+    if(parse_retval != UA_STATUSCODE_GOOD) {
+        if(parse_retval == UA_STATUSCODE_BADOUTOFRANGE)
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url is invalid: %s", endpointUrl);
+        else if(parse_retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url does not begin with 'opc.tcp://'  '%s'", endpointUrl);
+        return connection;
     }
 
-    if (port == 0) {
+    if(port == 0) {
         port = 4840;
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %d", port);
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+                    "No port defined, using standard port %d", port);
     }
 
     struct addrinfo hints, *server;
@@ -626,7 +627,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     #endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "DNS lookup of %s failed with error %s",
+                       hostname, gai_strerror(error));
         return connection;
     }
 

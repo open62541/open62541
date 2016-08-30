@@ -162,16 +162,18 @@ void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChann
 #pragma GCC diagnostic pop
 #endif
 
-UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char **path) {
+UA_StatusCode
+UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
+                         const char ** port, const char **path) {
     if (!endpointUrl || !hostname)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     size_t urlLength = strlen(endpointUrl);
-    if(urlLength < 10 || urlLength >= 256) {
+    if(urlLength < 10 || urlLength >= 256)
         return UA_STATUSCODE_BADOUTOFRANGE;
-    }
-    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
+
+    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0)
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-    }
 
     if (urlLength == 10) {
         hostname[0] = '\0';
@@ -181,7 +183,16 @@ UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, 
 
     /* where does the port begin? */
     size_t portpos = 10;
+    // opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path
+    // if ip6, then end not found, otherwise we are fine
+    UA_Boolean ip6_end_found = endpointUrl[portpos] != '[';
     for(; portpos < urlLength; portpos++) {
+        if (!ip6_end_found) {
+            if (endpointUrl[portpos] == ']')
+                ip6_end_found = UA_TRUE;
+            continue;
+        }
+
         if(endpointUrl[portpos] == ':' || endpointUrl[portpos] == '/')
             break;
     }
@@ -206,8 +217,8 @@ UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, 
             if(endpointUrl[pathpos] == '/')
                 break;
         }
-        if (pathpos < urlLength)
-            *path = &endpointUrl[pathpos];
+        if (pathpos < urlLength-1)
+            *path = &endpointUrl[pathpos+1]; // do not include slash in path
         else
             *path = NULL;
     }
@@ -216,46 +227,45 @@ UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, 
 }
 
 
-UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_UInt16 * port, const char ** path) {
-    UA_StatusCode retval;
+UA_StatusCode
+UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
+                     UA_UInt16 * port, const char ** path) {
     const char* portTmp = NULL;
     const char* pathTmp = NULL;
-    if ((retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &portTmp, &pathTmp)) != UA_STATUSCODE_GOOD) {
-        if (hostname)
+    UA_StatusCode retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &portTmp, &pathTmp);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(hostname)
             hostname[0] = '\0';
         return retval;
     }
-    if (!port && !path) {
+    if(!port && !path)
         return UA_STATUSCODE_GOOD;
-    }
 
     char portStr[6];
     portStr[0] = '\0';
-    if (portTmp)
-    {
-        if (pathTmp) {
-            size_t portLen = (size_t)(pathTmp-portTmp);
-            if (portLen > 5) // max is 65535
-                return UA_STATUSCODE_BADOUTOFRANGE;
-			#ifdef _MSC_VER
-			strncpy_s(portStr, 6, portTmp, portLen);
-			#else
-            strncpy(portStr, portTmp, portLen);
-			#endif
-            portStr[(size_t)(pathTmp-portTmp)]='\0';
-        } else {
-            size_t portLen = strlen(portTmp);
-            if (portLen > 5) // max is 65535
-                return UA_STATUSCODE_BADOUTOFRANGE;
-			#ifdef _MSC_VER
-            strncpy_s(portStr, 6, portTmp, portLen);
-			#else
-			strncpy(portStr, portTmp, portLen);
-			#endif
-            portStr[portLen]='\0';
-        }
-        if (port) {
-            int p = atoi(portStr);
+    if(portTmp) {
+        size_t portLen;
+        if (pathTmp)
+            portLen = (size_t)(pathTmp-portTmp-1);
+        else
+            portLen = strlen(portTmp);
+
+        if (portLen > 5) // max is 65535
+            return UA_STATUSCODE_BADOUTOFRANGE;
+
+        memcpy(portStr, portTmp, portLen);
+        portStr[portLen]='\0';
+
+        if(port) {
+            for (size_t i=0; i<6; i++) {
+                if (portStr[i] == 0)
+                    break;
+                if (portStr[i] < '0' || portStr[i] > '9')
+                    return UA_STATUSCODE_BADOUTOFRANGE;
+            }
+
+            UA_UInt32 p;
+            UA_readNumber((UA_Byte*)portStr, 6, &p);
             if (p>65535)
                 return UA_STATUSCODE_BADOUTOFRANGE;
             *port = (UA_UInt16)p;
@@ -267,4 +277,22 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_U
     if (path)
         *path = pathTmp;
     return UA_STATUSCODE_GOOD;
+}
+
+
+size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
+    if (!buf)
+        return 0;
+    UA_UInt32 n = 0;
+    size_t progress = 0;
+    /* read numbers until the end or a non-number character appears */
+    while(progress < buflen) {
+        UA_Byte c = buf[progress];
+        if('0' > c || '9' < c)
+            break;
+        n = (n*10) + (UA_UInt32)(c-'0');
+        progress++;
+    }
+    *number = n;
+    return progress;
 }
