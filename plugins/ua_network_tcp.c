@@ -594,40 +594,42 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
     connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
 
-    size_t urlLength = strlen(endpointUrl);
-    if(urlLength < 11 || urlLength >= 512) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
-        return connection;
-    }
-    if(strncmp(endpointUrl, "opc.tcp://", 10) != 0) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
-        return connection;
-    }
-
-    /* where does the port begin? */
-    size_t portpos = 10;
-    for(; portpos < urlLength-1; portpos++) {
-        if(endpointUrl[portpos] == ':')
-            break;
-    }
-
     char hostname[512];
-    memcpy(hostname, &endpointUrl[10], portpos - 10);
-    hostname[portpos-10] = 0;
+    UA_UInt16 port = 0;
+    const char *path = NULL;
 
-    const char *port = "4840";
-    if(portpos < urlLength - 1)
-        port = &endpointUrl[portpos + 1];
-    else
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
+    UA_StatusCode parse_retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path);
+    if(parse_retval != UA_STATUSCODE_GOOD) {
+        if(parse_retval == UA_STATUSCODE_BADOUTOFRANGE)
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url is invalid: %s", endpointUrl);
+        else if(parse_retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url does not begin with 'opc.tcp://'  '%s'", endpointUrl);
+        return connection;
+    }
+
+    if(port == 0) {
+        port = 4840;
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+                    "No port defined, using standard port %d", port);
+    }
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
-    int error = getaddrinfo(hostname, port, &hints, &server);
+    char portStr[6];
+    #ifndef _MSC_VER
+    snprintf(portStr, 6, "%d", port);
+    #else
+    _snprintf_s(portStr, 6, _TRUNCATE, "%d", port);
+    #endif
+    int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "DNS lookup of %s failed with error %s",
+                       hostname, gai_strerror(error));
         return connection;
     }
 
