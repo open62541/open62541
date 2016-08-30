@@ -1435,7 +1435,15 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         if (!path || strlen(path) == 0)
             xht_set(h, "path", "/");
         else {
-            allocPath = STRDUP(path);
+            // path does not contain slash, so add it here
+            if (path[0]=='/')
+                allocPath = STRDUP(path);
+            else {
+                allocPath = malloc(strlen(path)+2);
+                allocPath[0] = '/';
+                memcpy(allocPath+1, path, strlen(path));
+                allocPath[strlen(path)+1] = '\0';
+            }
             xht_set(h, "path", allocPath);
         }
 

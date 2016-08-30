@@ -521,7 +521,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
                 }
                 free(uri);
             }
-            UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "/", UA_DISCOVERY_TCP, UA_TRUE,
+            UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
                                    server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
 
         }
