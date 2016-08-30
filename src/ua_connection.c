@@ -206,8 +206,8 @@ UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, 
             if(endpointUrl[pathpos] == '/')
                 break;
         }
-        if (pathpos < urlLength)
-            *path = &endpointUrl[pathpos];
+        if (pathpos < urlLength-1)
+            *path = &endpointUrl[pathpos+1]; // do not include slash in path
         else
             *path = NULL;
     }
@@ -233,29 +233,28 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_U
     portStr[0] = '\0';
     if (portTmp)
     {
+        size_t portLen;
         if (pathTmp) {
-            size_t portLen = (size_t)(pathTmp-portTmp);
-            if (portLen > 5) // max is 65535
-                return UA_STATUSCODE_BADOUTOFRANGE;
-			#ifdef _MSC_VER
-			strncpy_s(portStr, 6, portTmp, portLen);
-			#else
-            strncpy(portStr, portTmp, portLen);
-			#endif
-            portStr[(size_t)(pathTmp-portTmp)]='\0';
+            portLen = (size_t)(pathTmp-portTmp-1);
         } else {
-            size_t portLen = strlen(portTmp);
-            if (portLen > 5) // max is 65535
-                return UA_STATUSCODE_BADOUTOFRANGE;
-			#ifdef _MSC_VER
-            strncpy_s(portStr, 6, portTmp, portLen);
-			#else
-			strncpy(portStr, portTmp, portLen);
-			#endif
-            portStr[portLen]='\0';
+            portLen = strlen(portTmp);
         }
+        if (portLen > 5) // max is 65535
+            return UA_STATUSCODE_BADOUTOFRANGE;
+
+        memcpy(portStr, portTmp, portLen);
+        portStr[portLen]='\0';
+
         if (port) {
-            int p = atoi(portStr);
+			for (size_t i=0; i<6; i++) {
+				if (portStr[i] == 0)
+					break;
+				if (portStr[i] < '0' || portStr[i] > '9')
+					return UA_STATUSCODE_BADOUTOFRANGE;
+			}
+
+            UA_UInt32 p;
+            UA_readNumber((UA_Byte*)portStr, 6, &p);
             if (p>65535)
                 return UA_STATUSCODE_BADOUTOFRANGE;
             *port = (UA_UInt16)p;
@@ -267,4 +266,22 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_U
     if (path)
         *path = pathTmp;
     return UA_STATUSCODE_GOOD;
+}
+
+
+size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
+    if (!buf)
+        return 0;
+	UA_UInt32 n = 0;
+	size_t progress = 0;
+	/* read numbers until the end or a non-number character appears */
+	while(progress < buflen) {
+		UA_Byte c = buf[progress];
+		if('0' > c || '9' < c)
+			break;
+		n = (n*10) + (UA_UInt32)(c-'0');
+		progress++;
+	}
+	*number = n;
+	return progress;
 }
