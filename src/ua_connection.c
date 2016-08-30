@@ -237,13 +237,21 @@ UA_StatusCode UA_EndpointUrl_split(const char *endpointUrl, char *hostname, UA_U
             size_t portLen = (size_t)(pathTmp-portTmp);
             if (portLen > 5) // max is 65535
                 return UA_STATUSCODE_BADOUTOFRANGE;
+			#ifdef _MSC_VER
+			strncpy_s(portStr, 6, portTmp, portLen);
+			#else
             strncpy(portStr, portTmp, portLen);
+			#endif
             portStr[(size_t)(pathTmp-portTmp)]='\0';
         } else {
             size_t portLen = strlen(portTmp);
             if (portLen > 5) // max is 65535
                 return UA_STATUSCODE_BADOUTOFRANGE;
-            strncpy(portStr, portTmp, portLen);
+			#ifdef _MSC_VER
+            strncpy_s(portStr, 6, portTmp, portLen);
+			#else
+			strncpy(portStr, portTmp, portLen);
+			#endif
             portStr[portLen]='\0';
         }
         if (port) {
