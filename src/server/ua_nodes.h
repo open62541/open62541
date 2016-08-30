@@ -50,7 +50,7 @@ typedef struct {
 } UA_ObjectTypeNode;
 
 typedef enum {
-    UA_VALUESOURCE_VARIANT,
+    UA_VALUESOURCE_CONTAINED,
     UA_VALUESOURCE_DATASOURCE
 } UA_ValueSource;
 
@@ -68,9 +68,9 @@ typedef struct {
     UA_ValueSource valueSource;
     union {
         struct {
-        UA_Variant value;
-        UA_ValueCallback callback;
-        } variant;
+            UA_DataValue value;
+            UA_ValueCallback callback;
+        } contained;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variabletypenodes up to there--->*/
@@ -90,9 +90,9 @@ typedef struct {
     UA_ValueSource valueSource;
     union {
         struct {
-            UA_Variant value;
+            UA_DataValue value;
             UA_ValueCallback callback;
-        } variant;
+        } contained;
         UA_DataSource dataSource;
     } value;
     /* <--- similar to variablenodes up to there--->*/

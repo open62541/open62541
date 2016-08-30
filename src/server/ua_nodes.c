@@ -22,8 +22,9 @@ void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
     case UA_NODECLASS_VARIABLE:
     case UA_NODECLASS_VARIABLETYPE: {
         UA_VariableNode *p = (UA_VariableNode*)node;
-        if(p->valueSource == UA_VALUESOURCE_VARIANT)
-            UA_Variant_deleteMembers(&p->value.variant.value);
+        if(p->valueSource == UA_VALUESOURCE_CONTAINED &&
+           p->value.contained.value.hasValue)
+            UA_Variant_deleteMembers(&p->value.contained.value.value);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
@@ -51,8 +52,8 @@ static UA_StatusCode
 UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->valueRank = src->valueRank;
     dst->valueSource = src->valueSource;
-    if(src->valueSource == UA_VALUESOURCE_VARIANT) {
-        UA_StatusCode retval = UA_Variant_copy(&src->value.variant.value, &dst->value.variant.value);
+    if(src->valueSource == UA_VALUESOURCE_CONTAINED) {
+        UA_StatusCode retval = UA_DataValue_copy(&src->value.contained.value, &dst->value.contained.value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         dst->value.variant.callback = src->value.variant.callback;
@@ -85,8 +86,8 @@ static UA_StatusCode
 UA_VariableTypeNode_copy(const UA_VariableTypeNode *src, UA_VariableTypeNode *dst) {
     dst->valueRank = src->valueRank;
     dst->valueSource = src->valueSource;
-    if(src->valueSource == UA_VALUESOURCE_VARIANT){
-        UA_StatusCode retval = UA_Variant_copy(&src->value.variant.value, &dst->value.variant.value);
+    if(src->valueSource == UA_VALUESOURCE_CONTAINED) {
+        UA_StatusCode retval = UA_DataValue_copy(&src->value.contained.value, &dst->value.contained.value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         dst->value.variant.callback = src->value.variant.callback;
