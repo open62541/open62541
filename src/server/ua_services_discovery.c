@@ -709,7 +709,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         for (size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
             UA_UInt16 port = 0;
             char hostname[256]; hostname[0] = '\0';
-            const char *path;
+            const char *path = NULL;
             {
                 char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
                 strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
