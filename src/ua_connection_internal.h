@@ -28,7 +28,6 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
 void UA_EXPORT UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
 
-
 /**
  * EndpointURL helper
  */

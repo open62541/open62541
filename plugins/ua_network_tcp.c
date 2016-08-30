@@ -1,8 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "ua_connection_internal.h"
-
 #if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
 /* Assume the target is newer than Windows XP */
 # undef WINVER
@@ -597,39 +595,36 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl, U
     connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
 
     char hostname[512];
-    const char *port = NULL;
+    UA_UInt16 port = 0;
     const char *path = NULL;
 
     {
         UA_StatusCode retval;
-        if ((retval = UA_EndpointUrl_split_ptr(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
+        if ((retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
             if (retval == UA_STATUSCODE_BADOUTOFRANGE)
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url size invalid");
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid: %s", endpointUrl);
             else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with opc.tcp://");
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Server url does not begin with 'opc.tcp://'  '%s'", endpointUrl);
             return connection;
         }
     }
 
-    char portNum[6];
-    if (port == NULL) {
-        strncpy(portNum, "4840", 4);
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %s", port);
-    } else {
-        if (path) {
-            strncpy(portNum, port, (size_t)(path-port));
-            portNum[(size_t)(path-port)]='\0';
-        } else {
-            strncpy(portNum, port, strlen(port));
-            portNum[strlen(port)]='\0';
-        }
+    if (port == 0) {
+        port = 4840;
+        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK, "No port defined, using standard port %d", port);
     }
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
-    int error = getaddrinfo(hostname, portNum, &hints, &server);
+    char portStr[10];
+    #ifndef _MSC_VER
+    snprintf(portStr, 10, "%d", port);
+    #else
+    _snprintf_s(portStr, 10, _TRUNCATE, "%d", port);
+    #endif
+    int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "DNS lookup of %s failed with error %s", hostname, gai_strerror(error));
         return connection;
