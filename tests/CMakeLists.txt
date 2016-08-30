@@ -28,13 +28,17 @@ endif()
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
-add_executable(check_builtin check_builtin.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(check_builtin ${LIBS})
-add_test(builtin ${CMAKE_CURRENT_BINARY_DIR}/check_builtin)
+add_executable(check_types_builtin check_types_builtin.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_types_builtin ${LIBS})
+add_test(types_builtin ${CMAKE_CURRENT_BINARY_DIR}/check_types_builtin)
 
-add_executable(check_memory check_memory.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(check_memory ${LIBS})
-add_test(memory ${CMAKE_CURRENT_BINARY_DIR}/check_memory)
+add_executable(check_types_memory check_types_memory.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_types_memory ${LIBS})
+add_test(types_memory ${CMAKE_CURRENT_BINARY_DIR}/check_types_memory)
+
+add_executable(check_types_range check_types_range.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_types_range ${LIBS})
+add_test(types_range ${CMAKE_CURRENT_BINARY_DIR}/check_types_range)
 
 add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_chunking ${LIBS})
