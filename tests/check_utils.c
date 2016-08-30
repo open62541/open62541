@@ -47,6 +47,12 @@ START_TEST(EndpointUrl_split) {
 	ck_assert_uint_eq(port, 1234);
 	ck_assert_ptr_eq(path, NULL);
 
+	// IPv6
+	ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path", hostname, &port, &path), UA_STATUSCODE_GOOD);
+	ck_assert_str_eq(hostname,"[2001:0db8:85a3::8a2e:0370:7334]");
+	ck_assert_uint_eq(port, 1234);
+	ck_assert_str_eq(path, "path");
+
 	// empty hostname
 	ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://:", hostname, &port, &path), UA_STATUSCODE_GOOD);
 	ck_assert_uint_eq(strlen(hostname),0);

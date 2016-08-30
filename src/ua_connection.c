@@ -181,7 +181,16 @@ UA_StatusCode UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, 
 
     /* where does the port begin? */
     size_t portpos = 10;
+    // opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path
+    // if ip6, then end not found, otherwise we are fine
+    UA_Boolean ip6_end_found = endpointUrl[portpos] != '[';
     for(; portpos < urlLength; portpos++) {
+        if (!ip6_end_found) {
+            if (endpointUrl[portpos] == ']')
+                ip6_end_found = UA_TRUE;
+            continue;
+        }
+
         if(endpointUrl[portpos] == ':' || endpointUrl[portpos] == '/')
             break;
     }
