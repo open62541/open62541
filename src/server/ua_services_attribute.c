@@ -493,20 +493,6 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-#define CHECK_DATATYPE(EXP_DT)                                          \
-    if(!wvalue->value.hasValue ||                                       \
-       &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||      \
-       !UA_Variant_isScalar(&wvalue->value.value)) {                    \
-        retval = UA_STATUSCODE_BADTYPEMISMATCH;                         \
-        break;                                                          \
-    }
-
-#define CHECK_NODECLASS_WRITE(CLASS)                                    \
-    if((node->nodeClass & (CLASS)) == 0) {                              \
-        retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
-        break;                                                          \
-    }
-
 static UA_StatusCode
 WriteToDataSource(UA_Server *server, UA_Session *session,
                   const UA_VariableNode *node, const UA_WriteValue *wvalue) {
@@ -585,8 +571,7 @@ CopyIntoValueAttribute(UA_Server *server, UA_VariableNode *node,
      * the node for opaque types, enums and bytestrings. value contains the
      * correct type definition after the following paragraph */
     UA_DataValue cast_v;
-    if(!UA_NodeId_isNull(&node->dataType) &&
-       !UA_NodeId_equal(&node->dataType, &value->value.type->typeId)) {
+    if(!UA_NodeId_equal(&node->dataType, &value->value.type->typeId)) {
         cast_v = *value;
         value = &cast_v;
         const UA_DataType *nodeDataType = findDataType(&node->dataType);
@@ -692,6 +677,20 @@ CopyIsAbstractIntoNode(UA_Node *node, UA_Boolean value) {
     }
     return UA_STATUSCODE_GOOD;
 }
+
+#define CHECK_DATATYPE(EXP_DT)                                          \
+    if(!wvalue->value.hasValue ||                                       \
+       &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||      \
+       !UA_Variant_isScalar(&wvalue->value.value)) {                    \
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;                         \
+        break;                                                          \
+    }
+
+#define CHECK_NODECLASS_WRITE(CLASS)                                    \
+    if((node->nodeClass & (CLASS)) == 0) {                              \
+        retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
+        break;                                                          \
+    }
 
 /* this function implements the main part of the write service */
 static UA_StatusCode
