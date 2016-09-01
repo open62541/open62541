@@ -571,7 +571,7 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     UA_DataValue_init(&value);
     value.value = attr->value;
     value.hasValue = true;
-    retval = CopyIntoValueAttribute(server, node, &value, NULL);
+    retval = writeValueAttribute(server, node, &value, NULL);
     return retval;
 }
 

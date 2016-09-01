@@ -22,11 +22,11 @@ typedef enum {
 #define UA_VARIABLE_NODEMEMBERS                                         \
     /* Constraints on possible values */                                \
     UA_NodeId dataType;                                                 \
-    UA_Int32 valueRank; /* n >= 1: the value is an array with the specified number of dimensions. */       \
-                        /* n =  0: the value is an array with one or more dimensions. */                   \
-                        /* n = -1: the value is a scalar. */                                               \
-                        /* n = -2: the value can be a scalar or an array with any number of dimensions. */ \
-                        /* n = -3:  the value can be a scalar or a one dimensional array. */               \
+    UA_Int32 valueRank; /* n >= 1: the value is an array with the specified number of dimensions */       \
+                        /* n =  0: the value is an array with one or more dimensions */                   \
+                        /* n = -1: the value is a scalar  */                                              \
+                        /* n = -2: the value can be a scalar or an array with any number of dimensions */ \
+                        /* n = -3: the value can be a scalar or a one dimensional array */                \
     size_t arrayDimensionsSize;                                         \
     UA_Int32 *arrayDimensions;                                          \
                                                                         \

@@ -108,7 +108,7 @@ const UA_DataType * findDataType(const UA_NodeId *typeId);
 
 /* Set the value attribute inside a node */
 UA_StatusCode
-CopyIntoValueAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_DataValue *value, const UA_String *indexRange);
+writeValueAttribute(UA_Server *server, UA_VariableNode *node,
+                    const UA_DataValue *value, const UA_String *indexRange);
 
 #endif /* UA_SERVER_INTERNAL_H_ */
