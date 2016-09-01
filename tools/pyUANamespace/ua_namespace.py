@@ -653,6 +653,9 @@ class opcua_namespace():
     header.append('#include "open62541.h"')
     header.append('#define NULL ((void *)0)')
     header.append('#endif')
+    header.append('#ifndef UA_ENCODINGOFFSET_BINARY')
+    header.append('#define UA_ENCODINGOFFSET_BINARY 2')
+    header.append('#endif')
 
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
