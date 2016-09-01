@@ -193,7 +193,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     if(_i == UA_TYPES_VARIANT ||
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
        _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
-	   _i == UA_TYPES_DISCOVERYCONFIGURATION)
+       _i == UA_TYPES_DISCOVERYCONFIGURATION)
         return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);

@@ -18,7 +18,7 @@ START_TEST(Server_addNamespace_ShallWork)
     ck_assert_uint_eq(a,b);
     ck_assert_uint_ne(a,c);
 
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 }
 END_TEST
 

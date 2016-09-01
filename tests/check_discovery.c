@@ -146,20 +146,20 @@ END_TEST
 
 
 START_TEST(Server_register_semaphore) {
-		// create the semaphore
-		int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-		ck_assert_int_ne(fd, -1);
-		close(fd);
+        // create the semaphore
+        int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+        ck_assert_int_ne(fd, -1);
+        close(fd);
 
-		UA_StatusCode retval = UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", "/tmp/open62541-unit-test-semaphore");
-		ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-	}
+        UA_StatusCode retval = UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", "/tmp/open62541-unit-test-semaphore");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
 END_TEST
 
 START_TEST(Server_unregister_semaphore) {
-		// delete the semaphore, this should remove the registration automatically on next check
-		ck_assert_int_eq(remove("/tmp/open62541-unit-test-semaphore"), 0);
-	}
+        // delete the semaphore, this should remove the registration automatically on next check
+        ck_assert_int_eq(remove("/tmp/open62541-unit-test-semaphore"), 0);
+    }
 END_TEST
 
 START_TEST(Server_register_periodic) {
@@ -276,7 +276,7 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
 
 
 static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize, UA_ServerOnNetwork** serverOnNetwork,
-										  const char** filterCapabilities, size_t filterCapabilitiesSize
+                                          const char** filterCapabilities, size_t filterCapabilitiesSize
 ) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
@@ -292,23 +292,23 @@ static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t
     request.startingRecordId = 0;
     request.maxRecordsToReturn = 0; // get all
 
-	if (filterCapabilitiesSize) {
+    if (filterCapabilitiesSize) {
 
-		request.serverCapabilityFilterSize = filterCapabilitiesSize;
-		request.serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
-		for (size_t i=0; i<filterCapabilitiesSize; i++) {
-			request.serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
-		}
-	}
+        request.serverCapabilityFilterSize = filterCapabilitiesSize;
+        request.serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
+        for (size_t i=0; i<filterCapabilitiesSize; i++) {
+            request.serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
+        }
+    }
     // now send the request
     UA_FindServersOnNetworkResponse response;
     UA_FindServersOnNetworkResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
 
-	if (request.serverCapabilityFilterSize) {
-		UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
-	}
+    if (request.serverCapabilityFilterSize) {
+        UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
+    }
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_FindServersOnNetworkResponse_deleteMembers(&response);
@@ -329,7 +329,7 @@ static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t
 }
 
 static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale,
-								  const char** filterCapabilities, size_t filterCapabilitiesSize) {
+                                  const char** filterCapabilities, size_t filterCapabilitiesSize) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
@@ -359,7 +359,7 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
 }
 
 static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions,
-								  const char* filterTransportProfileUri
+                                  const char* filterTransportProfileUri
 ) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
@@ -367,20 +367,20 @@ static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUr
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = *endpointUrl; // assume the endpointurl outlives the service call
-	if (filterTransportProfileUri) {
-		request.profileUrisSize = 1;
-		request.profileUris = UA_malloc(sizeof(UA_String));
-		request.profileUris[0] = UA_String_fromChars(filterTransportProfileUri);
-	}
+    if (filterTransportProfileUri) {
+        request.profileUrisSize = 1;
+        request.profileUris = UA_malloc(sizeof(UA_String));
+        request.profileUris[0] = UA_String_fromChars(filterTransportProfileUri);
+    }
 
     UA_GetEndpointsResponse response;
     UA_GetEndpointsResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 
-	if (filterTransportProfileUri) {
-		UA_Array_delete(request.profileUris, request.profileUrisSize, &UA_TYPES[UA_TYPES_STRING]);
-	}
+    if (filterTransportProfileUri) {
+        UA_Array_delete(request.profileUris, request.profileUrisSize, &UA_TYPES[UA_TYPES_STRING]);
+    }
 
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
@@ -406,7 +406,7 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
     UA_String discoveryUrlUA = UA_String_fromChars(discoveryUrl);
     UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize, &endpointArray, filterTransportProfileUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-	UA_String_deleteMembers(&discoveryUrlUA);
+    UA_String_deleteMembers(&discoveryUrlUA);
 
     ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
 
@@ -418,7 +418,7 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
     }
 
     UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-	UA_Client_delete(client);
+    UA_Client_delete(client);
 }
 
 // Test if discovery server lists himself as registered server, before any other registration.
@@ -468,17 +468,17 @@ START_TEST(Client_find_on_network_registered) {
         FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
 
 
-		// filter by Capabilities
-		const char* capsLDS[] ={"LDS"};
-		const char* capsNA[] ={"NA"};
-		const char* capsMultiple[] ={"LDS", "NA"};
+        // filter by Capabilities
+        const char* capsLDS[] ={"LDS"};
+        const char* capsNA[] ={"NA"};
+        const char* capsMultiple[] ={"LDS", "NA"};
 
-		// only LDS expected
-		FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
-		// only register server expected
-		FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
-		// no server expected
-		FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultiple, 2);
+        // only LDS expected
+        FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
+        // only register server expected
+        FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
+        // no server expected
+        FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultiple, 2);
 
         free(expectedUris[0]);
         free(expectedUris[1]);
@@ -497,22 +497,22 @@ END_TEST
 START_TEST(Client_get_endpoints) {
         const char* expectedEndpoints[] ={"opc.tcp://localhost:4840"};
         // general check if expected endpoints are returned
-		GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
-		// check if filtering transport profile still returns the endpoint
+        GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
+        // check if filtering transport profile still returns the endpoint
         GetEndpointsAndCheck("opc.tcp://localhost:4840", "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", expectedEndpoints, 1);
-		// filter transport profily by HTTPS, which should return no endpoint
+        // filter transport profily by HTTPS, which should return no endpoint
         GetEndpointsAndCheck("opc.tcp://localhost:4840", "http://opcfoundation.org/UA-Profile/Transport/https-uabinary", NULL, 0);
     }
 END_TEST
 
 START_TEST(Util_start_lds) {
-		setup_lds();
-	}
+        setup_lds();
+    }
 END_TEST
 
 START_TEST(Util_stop_lds) {
-		teardown_lds();
-	}
+        teardown_lds();
+    }
 END_TEST
 
 START_TEST(Util_wait_timeout) {
@@ -532,7 +532,7 @@ START_TEST(Util_wait_startup) {
 END_TEST
 
 START_TEST(Util_wait_retry) {
-		// first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
+        // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
         sleep(3);
     }
 END_TEST
@@ -553,16 +553,16 @@ static Suite* testSuite_Client(void) {
     TCase *tc_register_retry = tcase_create("RegisterServer Retry");
     //tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register_retry, setup_register, teardown_register);
-	tcase_add_test(tc_register_retry, Server_register_periodic);
-	tcase_add_test(tc_register_retry, Util_wait_startup); // wait a bit to let first try run through
-	// now start LDS
-	tcase_add_test(tc_register_retry, Util_start_lds);
+    tcase_add_test(tc_register_retry, Server_register_periodic);
+    tcase_add_test(tc_register_retry, Util_wait_startup); // wait a bit to let first try run through
+    // now start LDS
+    tcase_add_test(tc_register_retry, Util_start_lds);
     tcase_add_test(tc_register_retry, Util_wait_retry);
-	// check if there
-	tcase_add_test(tc_register_retry, Client_find_registered);
-	tcase_add_test(tc_register_retry, Server_unregister_periodic);
-	tcase_add_test(tc_register_retry, Client_find_discovery);
-	tcase_add_test(tc_register_retry, Util_stop_lds);
+    // check if there
+    tcase_add_test(tc_register_retry, Client_find_registered);
+    tcase_add_test(tc_register_retry, Server_unregister_periodic);
+    tcase_add_test(tc_register_retry, Client_find_discovery);
+    tcase_add_test(tc_register_retry, Util_stop_lds);
 
     suite_add_tcase(s,tc_register_retry);
 
@@ -591,12 +591,12 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_timeout, Client_find_registered);
     tcase_add_test(tc_register_timeout, Util_wait_timeout);
     tcase_add_test(tc_register_timeout, Client_find_discovery);
-	// now check if semaphore file works
-	tcase_add_test(tc_register_timeout, Server_register_semaphore);
-	tcase_add_test(tc_register_timeout, Client_find_registered);
-	tcase_add_test(tc_register_timeout, Server_unregister_semaphore);
-	tcase_add_test(tc_register_timeout, Util_wait_timeout);
-	tcase_add_test(tc_register_timeout, Client_find_discovery);
+    // now check if semaphore file works
+    tcase_add_test(tc_register_timeout, Server_register_semaphore);
+    tcase_add_test(tc_register_timeout, Client_find_registered);
+    tcase_add_test(tc_register_timeout, Server_unregister_semaphore);
+    tcase_add_test(tc_register_timeout, Util_wait_timeout);
+    tcase_add_test(tc_register_timeout, Client_find_discovery);
     suite_add_tcase(s,tc_register_timeout);
     return s;
 }

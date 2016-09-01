@@ -69,10 +69,10 @@ copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *reques
                 }
             }
         }
-		if (!appNameFound && registeredServer->serverNamesSize) {
-			// server does not have the requested local, therefore we can select the most suitable one
-			retval |= UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
-		}
+        if (!appNameFound && registeredServer->serverNamesSize) {
+            // server does not have the requested local, therefore we can select the most suitable one
+            retval |= UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
+        }
     } else if (registeredServer->serverNamesSize){
         // just take the first name
         retval |= UA_LocalizedText_copy(&registeredServer->serverNames[0], &target->applicationName);
