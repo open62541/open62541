@@ -158,6 +158,7 @@ class NodeSet(object):
 
     if node and hidden:
         node.hidden = True
+        # References from an existing nodeset are all suppressed
         for ref in node.references:
             ref.hidden = True
         for ref in node.inverseReferences:
@@ -207,11 +208,11 @@ class NodeSet(object):
     for node in newnodes:
         for ref in node.references:
             newsource = self.nodes[ref.target]
-            hide = node.hidden and newsource.hidden
+            hide = ref.hidden or (node.hidden and newsource.hidden)
             newref = Reference(newsource.id, ref.referenceType, ref.source, False, hide)
             newsource.inverseReferences.add(newref)
         for ref in node.inverseReferences:
             newsource = self.nodes[ref.target]
-            hide = node.hidden and newsource.hidden
+            hide = ref.hidden or (node.hidden and newsource.hidden)
             newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide)
             newsource.references.add(newref)
