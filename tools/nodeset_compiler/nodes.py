@@ -138,40 +138,44 @@ class Node(object):
   def replaceAliases(self, aliases):
     if str(self.id) in aliases:
       self.id = NodeId(aliases[self.id])
+    new_refs = set()
     for ref in self.references:
-      self.references.remove(ref)
       if str(ref.source) in aliases:
         ref.source = NodeId(aliases[ref.source])
       if str(ref.target) in aliases:
         ref.target = NodeId(aliases[ref.target])
       if str(ref.referenceType) in aliases:
         ref.referenceType = NodeId(aliases[ref.referenceType])
-      self.references.add(ref)
+      new_refs.add(ref)
+    self.references = new_refs
+    new_inv_refs = set()
     for ref in self.inverseReferences:
-      self.inverseReferences.remove(ref)
       if str(ref.source) in aliases:
         ref.source = NodeId(aliases[ref.source])
       if str(ref.target) in aliases:
         ref.target = NodeId(aliases[ref.target])
       if str(ref.referenceType) in aliases:
         ref.referenceType = NodeId(aliases[ref.referenceType])
-      self.inverseReferences.add(ref)
+      new_inv_refs.add(ref)
+    self.inverseReferences = new_inv_refs
 
   def replaceNamespaces(self, nsMapping):
     self.id.ns = nsMapping[self.id.ns]
     self.browseName.ns = nsMapping[self.browseName.ns]
+    new_refs = set()
     for ref in self.references:
-      self.references.remove(ref)
       ref.source.ns = nsMapping[ref.source.ns]
       ref.target.ns = nsMapping[ref.target.ns]
       ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-      self.references.add(ref)
+      new_refs.add(ref)
+    self.references = new_refs
+    new_inv_refs = set()
     for ref in self.inverseReferences:
-      self.inverseReferences.remove(ref)
       ref.source.ns = nsMapping[ref.source.ns]
       ref.target.ns = nsMapping[ref.target.ns]
       ref.referenceType.ns = nsMapping[ref.referenceType.ns]
-      self.inverseReferences.add(ref)
+      new_inv_refs.add(ref)
+    self.inverseReferences = new_inv_refs
 
 class ReferenceTypeNode(Node):
   def __init__(self, xmlelement = None):
