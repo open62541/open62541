@@ -23,16 +23,17 @@ from backend_open62541_datatypes import *
 # Extract References with Special Meaning #
 ###########################################
 
-def extractNodeParent(node):
+def extractNodeParent(node, parentrefs):
     """Return a tuple of the most likely (parent, parentReference). The
     parentReference is removed form the inverse references list of the node.
 
     """
-    # TODO What a parent is depends on the node type
     for ref in node.inverseReferences:
-        node.inverseReferences.remove(ref)
-        return (ref.target, ref.referenceType)
-    return (None, None)
+        if ref.referenceType in parentrefs:
+            node.inverseReferences.remove(ref)
+            node.printRefs.remove(ref)
+            return (ref.target, ref.referenceType)
+    raise Exception("No node parent known for " + str(node))
 
 def extractNodeType(node):
     """Returns the most likely type of the variable- or objecttype node. The
@@ -151,9 +152,9 @@ def generateViewNodeCode(node):
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
 
-def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0):
+def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs):
     code = []
-    code.append("\n{")
+    code.append("{")
 
     if isinstance(node, ReferenceTypeNode):
         code.extend(generateReferenceTypeNodeCode(node))
@@ -178,7 +179,7 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0):
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
     
     if not generate_ns0:
-        (parentNode, parentRef) = extractNodeParent(node)
+        (parentNode, parentRef) = extractNodeParent(node, parentrefs)
     else:
         (parentNode, parentRef) = (NodeId(), NodeId())
 
@@ -194,5 +195,5 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0):
         code.append("NULL, NULL, 0, NULL, 0, NULL, NULL);")
     else:
         code.append("NULL, NULL);")
-    code.append("}")
+    code.append("}\n")
     return "\n".join(code)
