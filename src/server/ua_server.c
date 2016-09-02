@@ -440,15 +440,10 @@ static void initNamespace0(UA_Server *server) {
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME(0, "GetMonitoredItems"), addmethodattributes,
-                            readMonitoredItems, /* callback of the method node */
-                            NULL, /* handle passed with the callback */
-                            1, &inputArguments,
-                            2, outputArguments,
-                            NULL);
+    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+                                     readMonitoredItems, /* callback of the method node */
+                                     NULL /* handle passed with the callback */
+                                     );
 #endif
 }
 
