@@ -192,8 +192,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
                          UA_UInt32 interval, UA_Guid *jobId);
 
-/* Remove repeated job. The entry will be removed asynchronously during the next
- * iteration of the server main loop.
+/* Remove repeated job.
  *
  * @param server The server object.
  * @param jobId The id of the job that shall be removed.
@@ -507,7 +506,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
  * differently) */
 typedef UA_StatusCode
 (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-						   UA_NodeId referenceTypeId, void *handle);
+                           UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
