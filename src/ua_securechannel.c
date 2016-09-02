@@ -219,7 +219,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     /* Encode the message type */
     size_t messagePos = 0;
     UA_NodeId typeId = contentType->typeId; /* always numeric */
-    typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+    typeId.identifier.numeric = contentType->binaryEncodingId;
     UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
 
     /* Encode with the chunking callback */

@@ -96,14 +96,6 @@ typedef enum {
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE       1<<21
 
 /**
- * Encoding Offsets
- * ----------------
- * Subtract from the typeid of the encoding nodeids to get to the type
- * definition. */
-#define UA_ENCODINGOFFSET_XML 1
-#define UA_ENCODINGOFFSET_BINARY 2
-
-/**
  * .. _statuscodes:
  *
  * StatusCodes
