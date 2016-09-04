@@ -21,6 +21,8 @@ import sys
 from time import struct_time, strftime, strptime, mktime
 from struct import pack as structpack
 
+from collections import deque
+
 import logging
 from ua_builtin_types import *;
 from ua_node_types import *;
@@ -135,31 +137,13 @@ class opcua_namespace():
   def getNodeByBrowseName(self, idstring):
     """ Returns the first node in the nodelist whose browseName matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.browseName()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.browseName())), None)
 
   def getNodeByIDString(self, idstring):
     """ Returns the first node in the nodelist whose id string representation
         matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.id()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.id())), None)
 
   def createNode(self, ndtype, xmlelement):
     """ createNode is instantiates a node described by xmlelement, its type being
@@ -527,85 +511,54 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def __reorder_getMinWeightNode__(self, nmatrix):
-    rcind = -1
-    rind = -1
-    minweight = -1
-    minweightnd = None
-    for row in nmatrix:
-      rcind += 1
-      if row[0] == None:
-        continue
-      w = sum(row[1:])
-      if minweight < 0:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-      elif w < minweight:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-    return (rind, minweightnd, minweight)
+  def getSubTypesOf2(self, node):
+    re = [node]
+    for ref in node.getReferences(): 
+      if isinstance(ref.target(), opcua_node_t):
+        if ref.referenceType().displayName() == "HasSubtype" and ref.isForward():
+          re = re + self.getSubTypesOf2(ref.target())
+    return re
 
-  def reorderNodesMinDependencies(self):
-    # create a matrix represtantion of all node
-    #
-    nmatrix = []
-    for n in range(0,len(self.nodes)):
-      nmatrix.append([None] + [0]*len(self.nodes))
+  def reorderNodesMinDependencies(self, printedExternally):
+    #Kahn's algorithm
+    #https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
+    
+    relevant_types = ["HierarchicalReferences", "HasComponent"]
+    
+    temp = []
+    for t in relevant_types:
+        temp = temp + self.getSubTypesOf2(self.getNodeByBrowseName(t))
+    relevant_types = temp
 
-    typeRefs = []
-    tn = self.getNodeByBrowseName("HasTypeDefinition")
-    if tn != None:
-      typeRefs.append(tn)
-      typeRefs = typeRefs + self.getSubTypesOf(currentNode=tn)
-    subTypeRefs = []
-    tn = self.getNodeByBrowseName("HasSubtype")
-    if tn  != None:
-      subTypeRefs.append(tn)
-      subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
-
-    logger.debug("Building connectivity matrix for node order optimization.")
-    # Set column 0 to contain the node
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      nmatrix[nind][0] = node
-
-    # Determine the dependencies of all nodes
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      #print "Examining node " + str(nind) + " " + str(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          # Typedefinition of this node has precedence over this node
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # isSubTypeOf/typeDefinition of this node has precedence over this node
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 1
-          # Else the target depends on us
-          elif ref.isForward():
-            nmatrix[tind][nind+1] += 1
-
-    logger.debug("Using Djikstra topological sorting to determine printing order.")
-    reorder = []
-    while len(reorder) < len(self.nodes):
-      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
-      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
-      reorder.append(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 1
-          elif ref.isForward():
-            nmatrix[tind][nind+1] -= 1
-      nmatrix[nind][0] = None
-    self.nodes = reorder
-    logger.debug("Nodes reordered.")
+    in_degree = { u : 0 for u in self.nodes }     # determine in-degree
+    for u in self.nodes: # of each node
+      if u not in printedExternally:
+        for ref in u.getReferences():
+         if isinstance(ref.target(), opcua_node_t):
+           if(ref.referenceType() in relevant_types and ref.isForward()):
+             in_degree[ref.target()] += 1
+    
+    Q = deque()                 # collect nodes with zero in-degree
+    for u in in_degree:
+      if in_degree[u] == 0:
+        Q.appendleft(u)
+ 
+    L = []     # list for order of nodes
+    
+    while Q:
+      u = Q.pop()          # choose node of zero in-degree
+      L.append(u)          # and 'remove' it from graph
+      for ref in u.getReferences():
+       if isinstance(ref.target(), opcua_node_t):
+         if(ref.referenceType() in relevant_types and ref.isForward()):
+           in_degree[ref.target()] -= 1
+           if in_degree[ref.target()] == 0:
+             Q.appendleft(ref.target())
+    if len(L) == len(self.nodes):
+        self.nodes = L
+    else:                    # if there is a cycle,  
+        logger.error("Node graph is circular on the specified references")
+        self.nodes = L + [x for x in self.nodes if x not in L]
     return
 
   def printOpen62541Header(self, printedExternally=[], supressGenerationOfAttribute=[], outfilename=""):
@@ -616,7 +569,7 @@ class opcua_namespace():
 
     # Reorder our nodes to produce a bare minimum of bootstrapping dependencies
     logger.debug("Reordering nodes for minimal dependencies during printing.")
-    self.reorderNodesMinDependencies()
+    self.reorderNodesMinDependencies(printedExternally)
 
     # Some macros (UA_EXPANDEDNODEID_MACRO()...) are easily created, but
     # bulky. This class will help to offload some code.
