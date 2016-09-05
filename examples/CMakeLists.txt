@@ -59,7 +59,7 @@ add_executable(client_firstSteps client_firstSteps.c $<TARGET_OBJECTS:open62541-
 target_link_libraries(client_firstSteps ${LIBS})
 
 add_executable(server_instantiation server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(client_firstSteps ${LIBS})
+target_link_libraries(server_instantiation ${LIBS})
 
 add_executable(server_repeated_job server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_repeated_job ${LIBS})
