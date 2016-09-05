@@ -462,12 +462,14 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     }
     
     // Instantiate supertype attributes if a supertype is available
+    UA_BrowseResult_deleteMembers(&browseResult);
+    UA_BrowseResult_init(&browseResult);
+    browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     browseChildren.includeSubtypes = false;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_INVERSE; // isSubtypeOf
     browseChildren.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
     browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
-    UA_BrowseResult_init(&browseResult);
     // todo: continuation points if there are too many results
     Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
     
@@ -478,6 +480,7 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
       instantiateObjectNode(server, session, nodeId, &rd->nodeId.nodeId, instantiationCallback);
     }
     
+    UA_BrowseResult_deleteMembers(&browseResult);
     
     /* add a hastypedefinition reference */
     UA_AddReferencesItem addref;
