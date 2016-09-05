@@ -103,8 +103,11 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeT
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
              size_t maxDepth, UA_Boolean *found);
 
-/* find a datatype from the nodeid */
-const UA_DataType * findDataType(const UA_NodeId *typeId);
+UA_StatusCode
+UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
+                                   UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
+                                   const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
+                                   const UA_NumericRange *range, UA_Variant *equivalent);
 
 /* Set the value attribute inside a node */
 UA_StatusCode

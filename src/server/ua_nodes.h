@@ -28,7 +28,7 @@ typedef enum {
                         /* n = -2: the value can be a scalar or an array with any number of dimensions */ \
                         /* n = -3: the value can be a scalar or a one dimensional array */                \
     size_t arrayDimensionsSize;                                         \
-    UA_Int32 *arrayDimensions;                                          \
+    UA_UInt32 *arrayDimensions;                                         \
                                                                         \
     /* The current value */                                             \
     UA_ValueSource valueSource;                                         \

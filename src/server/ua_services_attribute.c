@@ -567,7 +567,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
     return UA_STATUSCODE_GOOD; 
 }
 
-const UA_DataType *
+static const UA_DataType *
 findDataType(const UA_NodeId *typeId) {
     for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
         if (UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
@@ -586,54 +586,58 @@ static enum type_equivalence typeEquivalence(const UA_DataType *t) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
-/* Tests whether the value can be written into a node. Sometimes it can be
- * necessary to transform the content of the value, e.g. byte array to
- * bytestring or uint32 to some enum. If successful the equivalent variant
- * contains the correct definition (NODELETE, pointing to the members of the
- * original value, so do not delete) */
-static UA_StatusCode
-matchValueWithNodeDefinition(UA_Server *server, const UA_VariableNode *node,
-                             const UA_Variant *value, const UA_NumericRange *range,
-                             UA_Variant *equivalent) {
+/* Tests whether the value matches a variable definition given by
+ * - datatype
+ * - valueranke
+ * - array dimensions.
+ * Sometimes it can be necessary to transform the content of the value, e.g.
+ * byte array to bytestring or uint32 to some enum. If successful the equivalent
+ * variant contains the possibly corrected definition (NODELETE, pointing to the
+ * members of the original value, so do not delete) */
+UA_StatusCode
+UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
+                                   UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
+                                   const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
+                                   const UA_NumericRange *range, UA_Variant *equivalent) {
     /* Prepare the output variant */
-    *equivalent = *value;
-    equivalent->storageType = UA_VARIANT_DATA_NODELETE;
+    if(equivalent) {
+        *equivalent = *value;
+        equivalent->storageType = UA_VARIANT_DATA_NODELETE;
+    }
 
     /* No content is only allowed for BaseDataType */
-    const UA_NodeId *dataType;
+    const UA_NodeId *valueDataTypeId;
     UA_NodeId basedatatype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     if(value->type)
-        dataType = &value->type->typeId;
+        valueDataTypeId = &value->type->typeId;
     else
-        dataType = &basedatatype;
+        valueDataTypeId = &basedatatype;
     
     /* See if the types match. The nodeid on the wire may be != the nodeid in
      * the node for opaque types, enums and bytestrings. value contains the
      * correct type definition after the following paragraph */
-    if(!UA_NodeId_equal(&node->dataType, dataType)) {
+    if(!UA_NodeId_equal(valueDataTypeId, variableDataTypeId)) {
 
         /* is this a subtype? */
         UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
-        UA_StatusCode retval = isNodeInTree(server->nodestore, dataType,
-                                            &node->dataType, &subtypeId,
-                                            1, 10, &found);
+        UA_StatusCode retval = isNodeInTree(server->nodestore, valueDataTypeId,
+                                            variableDataTypeId, &subtypeId, 1, 10, &found);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(found)
             goto check_array;
 
-        /* compare the datatypes for equivalence */
-        const UA_DataType *nodeDataType = findDataType(&node->dataType);
-        const UA_DataType *valueDataType = value->type;
-        if(!nodeDataType || !valueDataType)
+        const UA_DataType *variableDataType = findDataType(variableDataTypeId);
+        const UA_DataType *valueDataType = findDataType(valueDataTypeId);
+        if(!equivalent || !variableDataType || !valueDataType)
             return UA_STATUSCODE_BADTYPEMISMATCH;
 
-        /* a string is written to a byte array */
-        if(nodeDataType == &UA_TYPES[UA_TYPES_BYTE] &&
+        /* a string is written to a byte array. the valuerank and array
+           dimensions are checked later */
+        if(variableDataType == &UA_TYPES[UA_TYPES_BYTE] &&
            valueDataType == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-           !UA_Variant_isScalar(&node->value.data.value.value) &&
-           UA_Variant_isScalar(value)) {
+           !range && !UA_Variant_isScalar(value)) {
             UA_ByteString *str = (UA_ByteString*)value->data;
             equivalent->type = &UA_TYPES[UA_TYPES_BYTE];
             equivalent->arrayLength = str->length;
@@ -643,10 +647,10 @@ matchValueWithNodeDefinition(UA_Server *server, const UA_VariableNode *node,
 
         /* An enum was sent as an int32, or an opaque type as a bytestring. This
          * is detected with the typeIndex indicating the "true" datatype. */
-        enum type_equivalence te1 = typeEquivalence(nodeDataType);
+        enum type_equivalence te1 = typeEquivalence(variableDataType);
         enum type_equivalence te2 = typeEquivalence(valueDataType);
         if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
-            equivalent->type = nodeDataType;
+            equivalent->type = variableDataType;
             goto check_array;
         }
 
@@ -656,7 +660,7 @@ matchValueWithNodeDefinition(UA_Server *server, const UA_VariableNode *node,
 
  check_array:
     /* Check if the valuerank allows for the value dimension */
-    switch(node->valueRank) {
+    switch(variableValueRank) {
     case -3: /* the value can be a scalar or a one dimensional array */
         if(value->arrayDimensionsSize > 1)
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -671,7 +675,7 @@ matchValueWithNodeDefinition(UA_Server *server, const UA_VariableNode *node,
             return UA_STATUSCODE_BADTYPEMISMATCH;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
-        if(value->arrayDimensionsSize != (size_t)node->valueRank)
+        if(value->arrayDimensionsSize != (size_t)variableValueRank)
             return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
@@ -680,13 +684,13 @@ matchValueWithNodeDefinition(UA_Server *server, const UA_VariableNode *node,
         return UA_STATUSCODE_GOOD;
 
     /* See if the array dimensions match */
-    if(node->arrayDimensions) {
-        if(value->arrayDimensionsSize != node->arrayDimensionsSize)
+    if(variableArrayDimensions) {
+        if(value->arrayDimensionsSize != variableArrayDimensionsSize)
             return UA_STATUSCODE_BADTYPEMISMATCH;
         /* dimension size zero in the node definition: this value dimension can be any size */
-        for(size_t i = 0; i < node->arrayDimensionsSize; i++) {
-            if(node->arrayDimensions[i] != value->arrayDimensions[i] &&
-               node->arrayDimensions[i] != 0)
+        for(size_t i = 0; i < variableArrayDimensionsSize; i++) {
+            if(variableArrayDimensions[i] != value->arrayDimensions[i] &&
+               variableArrayDimensions[i] != 0)
                 return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
@@ -714,8 +718,9 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     UA_DataValue equivValue;
     if(value->hasValue) {
         equivValue = *value;
-        retval = matchValueWithNodeDefinition(server, node, &value->value,
-                                              rangeptr, &equivValue.value);
+        retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
+                                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                                    &value->value, rangeptr, &equivValue.value);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
         value = &equivValue;
@@ -850,8 +855,8 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_DATATYPE(NODEID);
-        /* TODO: Check if the current value remains valid */
-        retval = writeDataTypeAttribute(server, (UA_VariableNode*)node, (const UA_NodeId*)value);
+        /* TODO */
+        retval = UA_STATUSCODE_BADNOTWRITABLE;
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
@@ -976,11 +981,11 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
-    if(attributeId != UA_ATTRIBUTEID_VALUE)
+    if(attributeId != UA_ATTRIBUTEID_VALUE) {
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value,
                              attr_type);
-    else {
+    } else {
         if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
             return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;

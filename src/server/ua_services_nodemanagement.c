@@ -568,26 +568,16 @@ static UA_StatusCode
 copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
                              const UA_AddNodesItem *item,
                              const UA_VariableAttributes *attr) {
-
-    /* Use datatype of the typedefiniton or BaseDataType */
-    UA_NodeId dataType = attr->dataType;
-    if(UA_NodeId_isNull(&dataType)) {
-        const UA_DataType *found = findDataType(&item->typeDefinition.nodeId);
-        if(found)
-            dataType = found->typeId;
-        dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-    }
-    
-    // todo: test if the type / valueRank / value attributes are consistent
+    /* Set the constraints */
     UA_StatusCode retval = UA_Array_copy(attr->arrayDimensions, attr->arrayDimensionsSize,
                                          (void**)&node->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     node->arrayDimensionsSize = attr->arrayDimensionsSize;
-    retval = UA_NodeId_copy(&dataType, &node->dataType);
+    retval = UA_NodeId_copy(&attr->dataType, &node->dataType);
     node->valueRank = attr->valueRank;
 
-    /* Set the value */
+    /* Set the value with the write service. This also checks the constraints. */
     UA_DataValue value;
     UA_DataValue_init(&value);
     value.value = attr->value;

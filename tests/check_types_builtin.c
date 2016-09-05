@@ -1322,7 +1322,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     srcArray[1] = UA_STRING_ALLOC("_62541");
     srcArray[2] = UA_STRING_ALLOC("opc ua");
 
-    UA_Int32 *dimensions;
+    UA_UInt32 *dimensions;
     dimensions = UA_malloc(sizeof(UA_Int32));
     dimensions[0] = 3;
 
@@ -1373,9 +1373,9 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
     srcArray[4] = 4;
     srcArray[5] = 5;
 
-    UA_Int32 *dimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Int32 dim1 = 3;
-    UA_Int32 dim2 = 2;
+    UA_UInt32 *dimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_UInt32 dim1 = 3;
+    UA_UInt32 dim2 = 2;
     dimensions[0] = dim1;
     dimensions[1] = dim2;
 

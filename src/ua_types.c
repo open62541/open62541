@@ -419,12 +419,8 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = (UA_UInt32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; i++) {
-            /* dimensions can have negative size similar to array lengths */
-            if(v->arrayDimensions[i] < 0)
-                return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        for(size_t i = 0; i < dims_count; i++)
             elements *= dims[i];
-        }
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -611,7 +607,7 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
         dst->arrayDimensionsSize = thisrange.dimensionsSize;
         for(size_t k = 0; k < thisrange.dimensionsSize; k++)
             dst->arrayDimensions[k] =
-                (UA_Int32)(thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1);
+                thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1;
     }
     return UA_STATUSCODE_GOOD;
 }
