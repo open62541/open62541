@@ -460,7 +460,25 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
           copyExistingObject(server, session, &rd->nodeId.nodeId,
                              &rd->referenceTypeId, nodeId, instantiationCallback);
     }
-
+    
+    // Instantiate supertype attributes if a supertype is available
+    browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    browseChildren.includeSubtypes = false;
+    browseChildren.browseDirection = UA_BROWSEDIRECTION_INVERSE; // isSubtypeOf
+    browseChildren.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
+    browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
+    UA_BrowseResult_init(&browseResult);
+    // todo: continuation points if there are too many results
+    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
+    
+    for(size_t i = 0; i < browseResult.referencesSize; i++) { // UA Spec forbids multiple inheritance, but we can easily support it...
+      UA_ReferenceDescription *rd = &browseResult.references[i];
+      if(rd->nodeClass != UA_NODECLASS_OBJECTTYPE)
+        break;
+      instantiateObjectNode(server, session, nodeId, &rd->nodeId.nodeId, instantiationCallback);
+    }
+    
+    
     /* add a hastypedefinition reference */
     UA_AddReferencesItem addref;
     UA_AddReferencesItem_init(&addref);
