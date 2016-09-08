@@ -91,10 +91,10 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
     for(size_t i = 0; i < methodCalled->referencesSize; i++) {
         if(methodCalled->references[i].isInverse &&
-           UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId,&withObject->nodeId)) {
+           UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId, &withObject->nodeId)) {
             //TODO adjust maxDepth to needed tree depth (define a variable in config?)
             isNodeInTree(server->nodestore, &methodCalled->references[i].referenceTypeId,
-                         &hasComponentNodeId, &hasSubTypeNodeId, 1, 1, &found);
+                         &hasComponentNodeId, &hasSubTypeNodeId, 1, &found);
             if(found)
                 break;
         }

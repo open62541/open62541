@@ -151,17 +151,13 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
-             size_t maxDepth, UA_Boolean *found) {
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize, UA_Boolean *found) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(UA_NodeId_equal(leafNode, nodeToFind)) {
         *found = true;
         return UA_STATUSCODE_GOOD;
     }
 
-    if(maxDepth == 0)
-        return UA_STATUSCODE_GOOD;
-    
     const UA_Node *node = UA_NodeStore_get(ns,leafNode);
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -176,7 +172,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
             if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]))
                 continue;
             retval = isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
-                                  referenceTypeIds, referenceTypeIdsSize, maxDepth-1, found);
+                                  referenceTypeIds, referenceTypeIdsSize, found);
             if(*found || retval != UA_STATUSCODE_GOOD)
                 return retval;
             break;
@@ -248,7 +244,7 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
         UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
         UA_StatusCode retval = isNodeInTree(server->nodestore, valueDataTypeId,
-                                            variableDataTypeId, &subtypeId, 1, 10, &found);
+                                            variableDataTypeId, &subtypeId, 1, &found);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(found)

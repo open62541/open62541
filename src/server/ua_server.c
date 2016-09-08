@@ -163,8 +163,9 @@ addNodeInternal(UA_Server *server, UA_Node *node, const UA_NodeId parentNodeId,
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
     UA_RCU_LOCK();
-    Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
-                              &referenceTypeId, &UA_NODEID_NULL, NULL, &res);
+    res.statusCode = Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
+                                               &referenceTypeId, &UA_NODEID_NULL,
+                                               NULL, &res.addedNodeId);
     UA_RCU_UNLOCK();
     return res;
 }
@@ -175,8 +176,9 @@ addNodeInternalWithType(UA_Server *server, UA_Node *node, const UA_NodeId parent
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
     UA_RCU_LOCK();
-    Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
-                              &referenceTypeId, &typeIdentifier, NULL, &res);
+    res.statusCode = Service_AddNodes_existing(server, &adminSession, node, &parentNodeId,
+                                               &referenceTypeId, &typeIdentifier,
+                                               NULL, &res.addedNodeId);
     UA_RCU_UNLOCK();
     return res;
 }

@@ -98,16 +98,6 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
                       UA_AddNodesResponse *response);
 
-/* Add an existing node. The node is assumed to be "finished", i.e. no
- * instantiation from inheritance is necessary */
-void
-Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId,
-                          const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_AddNodesResult *result);
-
 /* Used to add one or more References to one or more Nodes. */
 void Service_AddReferences(UA_Server *server, UA_Session *session,
                            const UA_AddReferencesRequest *request,

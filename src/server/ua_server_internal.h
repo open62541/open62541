@@ -95,13 +95,23 @@ void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 #endif
 
+/* Add an existing node. The node is assumed to be "finished", i.e. no
+ * instantiation from inheritance is necessary. Instantiationcallback and
+ * addedNodeId may be NULL. */
+UA_StatusCode
+Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
+                          const UA_NodeId *parentNodeId,
+                          const UA_NodeId *referenceTypeId,
+                          const UA_NodeId *typeDefinition,
+                          UA_InstantiationCallback *instantiationCallback,
+                          UA_NodeId *addedNodeId);
+
 UA_StatusCode
 getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count);
 
 UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
-             size_t maxDepth, UA_Boolean *found);
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize, UA_Boolean *found);
 
 UA_StatusCode
 UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
