@@ -177,7 +177,7 @@ expand(UA_NodeStore *ns) {
 
 UA_NodeStore *
 UA_NodeStore_new(void) {
-    UA_NodeStore *ns = ns = UA_malloc(sizeof(UA_NodeStore));
+    UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
     if(!ns)
         return NULL;
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
