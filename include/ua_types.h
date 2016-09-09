@@ -45,8 +45,8 @@ extern "C" {
  *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
  * ``void T_deleteMembers(T *ptr)``
- *   Delete the dynamically allocated content of the data type, but not the data
- *   type itself.
+ *   Delete the dynamically allocated content of the data type and perform a
+ *   ``T_init`` to reset the type.
  * ``void T_delete(T *ptr)``
  *   Delete the content of the data type and the memory for the data type itself.
  *
@@ -197,6 +197,28 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * @param size The size of the array
  * @param type The datatype of the array members */
 void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+
+/**
+ * .. _numericrange:
+ *
+ * NumericRange
+ * ^^^^^^^^^^^^
+ *
+ * NumericRanges are used to indicate subsets of a (multidimensional) variant
+ * array. NumericRange has no official type structure in the standard. On the
+ * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
+ * separates min/max index and the comma separates dimensions. A single value
+ * indicates a range with a single element (min==max). */
+
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_NumericRangeDimension;
+    
+typedef struct {
+    size_t dimensionsSize;
+    UA_NumericRangeDimension *dimensions;
+} UA_NumericRange;
 
 /**
  * Builtin Types, Part 2
@@ -607,20 +629,6 @@ UA_StatusCode UA_EXPORT
 UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_DataType *type);
 
-/**
- * NumericRanges are used to indicate subsets of a (multidimensional) variant
- * array. NumericRange has no official type structure in the standard. On the
- * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
- * separates min/max index and the comma separates dimensions. A single value
- * indicates a range with a single element (min==max). */
-typedef struct {
-    size_t dimensionsSize;
-    struct UA_NumericRangeDimension {
-        UA_UInt32 min;
-        UA_UInt32 max;
-    } *dimensions;
-} UA_NumericRange;
-
 /* Copy the variant, but use only a subset of the (multidimensional) array into
  * a variant. Returns an error code if the variant is not an array or if the
  * indicated range does not fit.
@@ -740,6 +748,8 @@ struct UA_DataType {
                                     pointers */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
+    //UA_UInt16  xmlEncodingId;    /* NodeId of datatype when encoded as XML */
+    UA_UInt16  binaryEncodingId;    /* NodeId of datatype when encoded as binary */
     UA_DataTypeMember *members;
 };
 

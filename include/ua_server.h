@@ -129,7 +129,8 @@ typedef struct {
      * @param username The username to check.
      * @param password The password to check.
      * @return Return true, if the provided credentials are valid, false if not. */
-    UA_Boolean (*authCallback)(const UA_String* username, const UA_String* password, struct sockaddr_in* endpoint);
+    UA_Boolean (*authCallback)(void* handle, const UA_String* username, const UA_String* password, struct sockaddr_in* endpoint);
+	void* authCallbackHandle;
 
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
@@ -207,8 +208,7 @@ UA_StatusCode UA_EXPORT
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
                          UA_UInt32 interval, UA_Guid *jobId);
 
-/* Remove repeated job. The entry will be removed asynchronously during the next
- * iteration of the server main loop.
+/* Remove repeated job.
  *
  * @param server The server object.
  * @param jobId The id of the job that shall be removed.
@@ -229,6 +229,21 @@ UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable */
+/* Read an attribute of a node. The specialized functions below provide a more
+ * concise syntax.
+ *
+ * @param server The server object.
+ * @param item ReadValueIds contain the NodeId of the target node, the id of the
+ *             attribute to read and (optionally) an index range to read parts
+ *             of an array only. See the section on NumericRange for the format
+ *             used for array ranges.
+ * @param timestamps Which timestamps to return for the attribute.
+ * @return Returns a DataValue that contains either an error code, or a variant
+ *         with the attribute value and the timestamps. */
+UA_DataValue UA_EXPORT
+UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps);
+    
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
 UA_StatusCode UA_EXPORT
@@ -391,6 +406,19 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - ArrayDimensions
  *
  * Historizing is currently unsupported */
+/* Overwrite an attribute of a node. The specialized functions below provide a
+ * more concise syntax.
+ *
+ * @param server The server object.
+ * @param value WriteValues contain the NodeId of the target node, the id of the
+ *              attribute to overwritten, the actual value and (optionally) an
+ *              index range to replace parts of an array only. of an array only.
+ *              See the section on NumericRange for the format used for array
+ *              ranges.
+ * @return Returns a status code. */
+UA_StatusCode UA_EXPORT
+UA_Server_write(UA_Server *server, const UA_WriteValue *value);
+
 /* Don't use this function. There are typed versions with no additional
  * overhead. */
 UA_StatusCode UA_EXPORT
@@ -494,7 +522,7 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
  * differently) */
 typedef UA_StatusCode
 (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
-						   UA_NodeId referenceTypeId, void *handle);
+                           UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT

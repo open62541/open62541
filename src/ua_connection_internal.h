@@ -28,4 +28,18 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
 void UA_EXPORT UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
 
+/**
+ * EndpointURL helper
+ */
+
+/**
+ * Split the given endpoint url into hostname and port. Some of the chunks are returned as pointer.
+ * @param endpointUrl The endpoint URL to split up
+ * @param hostname the target array for hostname. Has to be at least 256 size.
+ * @param port if url contains port, it will point to the beginning of port. NULL otherwise. It may also include the path part, thus stop at position of path pointer, if it is not NULL.
+ * @param path points to the first occurance of '/' after the port or NULL if no path in url
+ * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
+ */
+UA_StatusCode UA_EXPORT UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char ** path);
+
 #endif /* UA_CONNECTION_INTERNAL_H_ */

@@ -110,12 +110,8 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     void *obj2 = UA_new(&UA_TYPES[_i]);
     msg1.length = pos / 2;
     pos = 0;
-    //fprintf(stderr,"testing %s with half buffer\n",UA_TYPES[_i].name);
     retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
-    //then
-    // finally
-    //fprintf(stderr,"delete %s with half buffer\n",UA_TYPES[_i].name);
     UA_delete(obj2, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg1);
 }

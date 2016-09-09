@@ -16,9 +16,6 @@
 #include <urcu.h>
 #endif
 
-/* copied definition */
-UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
-
 static UA_StatusCode
 readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *dataValue) {
@@ -1021,99 +1018,80 @@ START_TEST(WriteSingleDataSourceAttributeValue) {
     UA_Server_delete(server);
 } END_TEST
 
-START_TEST(numericRange) {
-    UA_NumericRange range;
-    const UA_String str = (UA_String){9, (UA_Byte*)"1:2,0:3,5"};
-    UA_StatusCode retval = parse_numericrange(&str, &range);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(range.dimensionsSize,3);
-    ck_assert_int_eq(range.dimensions[0].min,1);
-    ck_assert_int_eq(range.dimensions[0].max,2);
-    ck_assert_int_eq(range.dimensions[1].min,0);
-    ck_assert_int_eq(range.dimensions[1].max,3);
-    ck_assert_int_eq(range.dimensions[2].min,5);
-    ck_assert_int_eq(range.dimensions[2].max,5);
-    UA_free(range.dimensions);
-} END_TEST
-
 static Suite * testSuite_services_attributes(void) {
-	Suite *s = suite_create("services_attributes_read");
+    Suite *s = suite_create("services_attributes_read");
 
-	TCase *tc_readSingleAttributes = tcase_create("readSingleAttributes");
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeBrowseNameWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDisplayNameWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDescriptionWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeWriteMaskWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserWriteMaskWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeIsAbstractWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeSymmetricWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeInverseNameWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeContainsNoLoopsWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeEventNotifierWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRankWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeArrayDimensionsWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeAccessLevelWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserAccessLevelWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeHistorizingWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
-        tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestampFromBrokenSource);
-        tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
-	tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
+    TCase *tc_readSingleAttributes = tcase_create("readSingleAttributes");
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRangeWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeIdWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeNodeClassWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeBrowseNameWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDisplayNameWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDescriptionWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeWriteMaskWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserWriteMaskWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeIsAbstractWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeSymmetricWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeInverseNameWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeContainsNoLoopsWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeEventNotifierWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRankWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeArrayDimensionsWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeAccessLevelWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserAccessLevelWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeHistorizingWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestampFromBrokenSource);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 
-	suite_add_tcase(s, tc_readSingleAttributes);
+    suite_add_tcase(s, tc_readSingleAttributes);
 
-	TCase *tc_writeSingleAttributes = tcase_create("writeSingleAttributes");
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNodeId);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNodeclass);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeBrowseName);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDisplayName);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDescription);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeWriteMask);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserWriteMask);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeIsAbstract);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeSymmetric);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeInverseName);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeContainsNoLoops);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserAccessLevel);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeMinimumSamplingInterval);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
-	tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
+    TCase *tc_writeSingleAttributes = tcase_create("writeSingleAttributes");
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNodeId);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeNodeclass);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeBrowseName);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDisplayName);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDescription);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeWriteMask);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserWriteMask);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeIsAbstract);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeSymmetric);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeInverseName);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeContainsNoLoops);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserAccessLevel);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeMinimumSamplingInterval);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
 
-	suite_add_tcase(s, tc_writeSingleAttributes);
+    suite_add_tcase(s, tc_writeSingleAttributes);
 
-	TCase *tc_parseNumericRange = tcase_create("parseNumericRange");
-	tcase_add_test(tc_parseNumericRange, numericRange);
-	suite_add_tcase(s, tc_parseNumericRange);
-
-	return s;
+    return s;
 }
 
 int main(void) {
 
-	int number_failed = 0;
-	Suite *s;
-	s = testSuite_services_attributes();
-	SRunner *sr = srunner_create(s);
-	srunner_set_fork_status(sr, CK_NOFORK);
-	srunner_run_all(sr, CK_NORMAL);
+    int number_failed = 0;
+    Suite *s;
+    s = testSuite_services_attributes();
+    SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
+    srunner_run_all(sr, CK_NORMAL);
 
-	number_failed += srunner_ntests_failed(sr);
-	srunner_free(sr);
-	return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+    number_failed += srunner_ntests_failed(sr);
+    srunner_free(sr);
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

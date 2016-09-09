@@ -46,7 +46,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
             if(UA_DateTime_nowMonotonic() > current->session.validTill) {
                 UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                              "Try to use Session with token " UA_PRINTF_GUID_FORMAT ", but has timed out",
-                             UA_PRINTF_GUID_DATA((*token)));
+                             UA_PRINTF_GUID_DATA(token->identifier.guid));
                 return NULL;
             }
             return &current->session;
@@ -54,7 +54,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     }
     UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                  "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
-                 UA_PRINTF_GUID_DATA((*token)));
+                 UA_PRINTF_GUID_DATA(token->identifier.guid));
     return NULL;
 }
 

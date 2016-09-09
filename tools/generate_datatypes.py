@@ -75,9 +75,13 @@ class Type(object):
                 break
 
     def datatype_c(self):
+        xmlEncodingId = "0"
+        binaryEncodingId = "0"
         if self.name in typedescriptions:
             description = typedescriptions[self.name]
             typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}" % (description.namespaceid, description.nodeid)
+            xmlEncodingId = description.xmlEncodingId
+            binaryEncodingId = description.binaryEncodingId
         else:
             typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}"
         return "{ .typeId = " + typeid + \
@@ -87,8 +91,10 @@ class Type(object):
             ",\n  .builtin = " + self.builtin + \
             ",\n  .fixedSize = " + self.fixed_size + \
             ",\n  .overlayable = " + self.overlayable + \
+            ",\n  .binaryEncodingId = " + binaryEncodingId + \
             ",\n  .membersSize = " + str(len(self.members)) + \
             ",\n  .members = %s_members" % self.name + " }"
+            #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
 
     def members_c(self):
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
@@ -291,6 +297,8 @@ class TypeDescription(object):
         self.name = name
         self.nodeid = nodeid
         self.namespaceid = namespaceid
+        self.xmlEncodingId = "0"
+        self.binaryEncodingId = "0"
 
 def parseTypeDescriptions(filename, namespaceid):
     definitions = {}
@@ -300,6 +308,18 @@ def parseTypeDescriptions(filename, namespaceid):
     rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
     for index, row in enumerate(rows):
         if len(row) < 3:
+            continue
+        if row[2] == "Object":
+            # Check if node name ends with _Encoding_(DefaultXml|DefaultBinary) and store the node id in the corresponding DataType
+            m = re.match('(.*?)_Encoding_Default(Xml|Binary)$',row[0])
+            if (m):
+                baseType = m.group(1)
+                if baseType not in types:
+                    continue
+                if m.group(2) == "Xml":
+                    definitions[baseType].xmlEncodingId = row[1]
+                else:
+                    definitions[baseType].binaryEncodingId = row[1]
             continue
         if row[2] != "DataType":
             continue

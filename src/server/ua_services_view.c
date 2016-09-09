@@ -208,8 +208,9 @@ static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session) {
  * @param result The entry in the request
  */
 void
-Service_Browse_single(UA_Server *server, UA_Session *session, struct ContinuationPointEntry *cp,
-                      const UA_BrowseDescription *descr, UA_UInt32 maxrefs, UA_BrowseResult *result) { 
+Service_Browse_single(UA_Server *server, UA_Session *session,
+                      struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
+                      UA_UInt32 maxrefs, UA_BrowseResult *result) { 
     size_t referencesCount = 0;
     size_t referencesIndex = 0;
     /* set the browsedescription if a cp is given */
@@ -295,8 +296,10 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
         if(skipped < continuationIndex) {
             skipped++;
         } else {
-            retval |= fillReferenceDescription(server->nodestore, current, &node->references[referencesIndex],
-                                               descr->resultMask, &result->references[referencesCount]);
+            retval |= fillReferenceDescription(server->nodestore, current,
+                                               &node->references[referencesIndex],
+                                               descr->resultMask,
+                                               &result->references[referencesCount]);
             referencesCount++;
         }
     }
@@ -308,7 +311,8 @@ Service_Browse_single(UA_Server *server, UA_Session *session, struct Continuatio
     }
 
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(result->references, result->referencesSize, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+        UA_Array_delete(result->references, result->referencesSize,
+                        &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
         result->references = NULL;
         result->referencesSize = 0;
         result->statusCode = retval;
@@ -409,7 +413,17 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
 }
 
-void
+UA_BrowseResult
+UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs, const UA_BrowseDescription *descr) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    UA_RCU_LOCK();
+    Service_Browse_single(server, &adminSession, NULL, descr, maxrefs, &result);
+    UA_RCU_UNLOCK();
+    return result;
+}
+
+static void
 UA_Server_browseNext_single(UA_Server *server, UA_Session *session, UA_Boolean releaseContinuationPoint,
                             const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     result->statusCode = UA_STATUSCODE_BADCONTINUATIONPOINTINVALID;
@@ -444,6 +458,18 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
     for(size_t i = 0; i < size; i++)
         UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
                                     &request->continuationPoints[i], &response->results[i]);
+}
+
+UA_BrowseResult
+UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
+                     const UA_ByteString *continuationPoint) {
+    UA_BrowseResult result;
+    UA_BrowseResult_init(&result);
+    UA_RCU_LOCK();
+    UA_Server_browseNext_single(server, &adminSession, releaseContinuationPoint,
+                                continuationPoint, &result);
+    UA_RCU_UNLOCK();
+    return result;
 }
 
 /***********************/
