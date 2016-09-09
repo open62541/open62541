@@ -73,7 +73,7 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
                         &rvid, &newvalue->value);
 
     /* encode to see if the data has changed */
-    size_t binsize = UA_calcSizeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT]);
+    size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_ByteString newValueAsByteString;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -82,7 +82,7 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         return;
     }
     size_t encodingOffset = 0;
-    retval = UA_encodeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT],
+    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE],
                              NULL, NULL, &newValueAsByteString, &encodingOffset);
 
     /* error or the content has not changed */
@@ -110,9 +110,9 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
             queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
 
         if(!queueItem) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
-                                   "Cannot remove an element from the full queue. Internal error!",
-                                   sub->subscriptionID, monitoredItem->itemId);
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                   "MonitoredItem %u | Cannot remove an element from the full "
+                                   "queue. Internal error!", sub->subscriptionID, monitoredItem->itemId);
             UA_ByteString_deleteMembers(&newValueAsByteString);
             UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
@@ -140,8 +140,8 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
 }
 
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
+    UA_Job job = {.type = UA_JOBTYPE_METHODCALL, .job.methodCall = {
+            .method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
     UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
                                                     &mon->sampleJobGuid);
     if(retval == UA_STATUSCODE_GOOD)

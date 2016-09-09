@@ -399,6 +399,139 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
 /* Write Attribute */
 /*******************/
 
+enum type_equivalence {
+    TYPE_EQUIVALENCE_NONE,
+    TYPE_EQUIVALENCE_ENUM,
+    TYPE_EQUIVALENCE_OPAQUE
+};
+
+static enum type_equivalence typeEquivalence(const UA_DataType *t) {
+    if(t->membersSize != 1 || !t->members[0].namespaceZero)
+        return TYPE_EQUIVALENCE_NONE;
+    if(t->members[0].memberTypeIndex == UA_TYPES_INT32)
+        return TYPE_EQUIVALENCE_ENUM;
+    if(t->members[0].memberTypeIndex == UA_TYPES_BYTE && t->members[0].isArray)
+        return TYPE_EQUIVALENCE_OPAQUE;
+    return TYPE_EQUIVALENCE_NONE;
+}
+
+static const UA_DataType *
+findDataType(const UA_NodeId *typeId) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
+            return &UA_TYPES[i];
+    }
+    return NULL;
+}
+
+/* Tests whether the value matches a variable definition given by
+ * - datatype
+ * - valueranke
+ * - array dimensions.
+ * Sometimes it can be necessary to transform the content of the value, e.g.
+ * byte array to bytestring or uint32 to some enum. The editableValue may
+ * contain a copy of the value. If possible, this value is edited to match the
+ * datatype constraints. */
+UA_StatusCode
+UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
+                                   UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
+                                   const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
+                                   const UA_NumericRange *range, UA_Variant *editableValue) {
+    /* No content is only allowed for BaseDataType */
+    const UA_NodeId *valueDataTypeId;
+    UA_NodeId basedatatype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    if(value->type)
+        valueDataTypeId = &value->type->typeId;
+    else
+        valueDataTypeId = &basedatatype;
+    
+    /* See if the types match. The nodeid on the wire may be != the nodeid in
+     * the node for opaque types, enums and bytestrings. value contains the
+     * correct type definition after the following paragraph */
+    if(!UA_NodeId_equal(valueDataTypeId, variableDataTypeId)) {
+        /* is this a subtype? */
+        UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        UA_Boolean found = false;
+        UA_StatusCode retval = isNodeInTree(server->nodestore, valueDataTypeId,
+                                            variableDataTypeId, &subtypeId, 1, &found);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        if(found)
+            goto check_array;
+
+        const UA_DataType *variableDataType = findDataType(variableDataTypeId);
+        const UA_DataType *valueDataType = findDataType(valueDataTypeId);
+        if(!editableValue || !variableDataType || !valueDataType)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+
+        /* a string is written to a byte array. the valuerank and array
+           dimensions are checked later */
+        if(variableDataType == &UA_TYPES[UA_TYPES_BYTE] &&
+           valueDataType == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+           !range && !UA_Variant_isScalar(value)) {
+            UA_ByteString *str = (UA_ByteString*)value->data;
+            editableValue->type = &UA_TYPES[UA_TYPES_BYTE];
+            editableValue->arrayLength = str->length;
+            editableValue->data = str->data;
+            goto check_array;
+        }
+
+        /* An enum was sent as an int32, or an opaque type as a bytestring. This
+         * is detected with the typeIndex indicating the "true" datatype. */
+        enum type_equivalence te1 = typeEquivalence(variableDataType);
+        enum type_equivalence te2 = typeEquivalence(valueDataType);
+        if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+            editableValue->type = variableDataType;
+            goto check_array;
+        }
+
+        /* No more possible equivalencies */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Work only on the possibly transformed variant */
+    if(editableValue)
+        value = editableValue;
+
+ check_array:
+    /* Check if the valuerank allows for the value dimension */
+    switch(variableValueRank) {
+    case -3: /* the value can be a scalar or a one dimensional array */
+        if(value->arrayDimensionsSize > 1)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case -2: /* the value can be a scalar or an array with any number of dimensions */
+        break;
+    case -1: /* the value is a scalar */
+        if(!UA_Variant_isScalar(value))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    case 0: /* the value is an array with one or more dimensions */
+        if(UA_Variant_isScalar(value))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    default: /* >= 1: the value is an array with the specified number of dimensions */
+        if(value->arrayDimensionsSize != (size_t)variableValueRank)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Ranges are checked in detail during writing into the variant */
+    if(range)
+        return UA_STATUSCODE_GOOD;
+
+    /* See if the array dimensions match */
+    if(variableArrayDimensions) {
+        if(value->arrayDimensionsSize != variableArrayDimensionsSize)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        /* dimension size zero in the node definition: this value dimension can be any size */
+        for(size_t i = 0; i < variableArrayDimensionsSize; i++) {
+            if(variableArrayDimensions[i] != value->arrayDimensions[i] &&
+               variableArrayDimensions[i] != 0)
+                return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 static const UA_VariableTypeNode *
 getVariableType(UA_Server *server, const UA_VariableNode *node) {
     /* The reference to the parent is different for variable and variabletype */ 
@@ -445,6 +578,16 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
         return retval;
     if(!found)
         retval = UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Check if the current value would match the new type */
+    if(node->value.data.value.hasValue) {
+        retval = UA_Variant_matchVariableDefinition(server, dataType, node->valueRank,
+                                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                                    &node->value.data.value.value, NULL, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+    
     UA_NodeId dtCopy = node->dataType;
     retval = UA_NodeId_copy(dataType, &node->dataType);
     if(!retval) {
@@ -473,24 +616,43 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
 
     /* Check the type definition and use a possibly transformed variant that
      * matches the node data type */
-    UA_DataValue equivValue;
+    UA_DataValue editableValue = *value;
+    editableValue.value.storageType = UA_VARIANT_DATA_NODELETE;
+    editableValue.serverTimestamp = UA_DateTime_now();
+    editableValue.hasServerTimestamp = true;
+    editableValue.hasServerPicoseconds = false;
     if(value->hasValue) {
-        equivValue = *value;
         retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
                                                     node->arrayDimensionsSize, node->arrayDimensions,
-                                                    &value->value, rangeptr, &equivValue.value);
+                                                    &value->value, rangeptr, &editableValue.value);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        value = &equivValue;
     }
 
     /* write the value */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
         if(!rangeptr)
-            retval = UA_DataValue_copy(value, &node->value.data.value);
-        else
-            retval = UA_Variant_setRangeCopy(&node->value.data.value.value, value->value.data,
-                                             value->value.arrayLength, range);
+            retval = UA_DataValue_copy(&editableValue, &node->value.data.value);
+        else {
+            if(!node->value.data.value.hasValue || !editableValue.hasValue) {
+                retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
+                goto cleanup;
+            }
+            /* TODO: Catch error during setRangeCopy (make a copy of the value
+               in the server?) */
+            retval = UA_Variant_setRangeCopy(&node->value.data.value.value, editableValue.value.data,
+                                             editableValue.value.arrayLength, range);
+            node->value.data.value.hasStatus = editableValue.hasStatus;
+            node->value.data.value.hasSourceTimestamp = editableValue.hasSourceTimestamp;
+            node->value.data.value.hasServerTimestamp = editableValue.hasServerTimestamp;
+            node->value.data.value.hasSourcePicoseconds = editableValue.hasSourcePicoseconds;
+            node->value.data.value.hasServerPicoseconds = editableValue.hasServerPicoseconds;
+            node->value.data.value.status = editableValue.status;
+            node->value.data.value.sourceTimestamp = editableValue.sourceTimestamp;
+            node->value.data.value.sourcePicoseconds = editableValue.sourcePicoseconds;
+            node->value.data.value.serverTimestamp = editableValue.serverTimestamp;
+            node->value.data.value.serverPicoseconds = editableValue.serverPicoseconds;
+        }
         /* post-write callback */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
             node->value.data.callback.onWrite(node->value.data.callback.handle, node->nodeId,
@@ -612,8 +774,8 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_DATATYPE(NODEID);
-        /* TODO */
-        retval = UA_STATUSCODE_BADNOTWRITABLE;
+
+        retval = writeDataTypeAttribute(server, (UA_VariableNode*)node, (const UA_NodeId*)value);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
