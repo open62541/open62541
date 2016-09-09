@@ -16,10 +16,9 @@ forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
 }
 
 static UA_StatusCode
-getVariableNodeValue(UA_Server *server, UA_Session *session,
-                     const UA_VariableNode *vn,
-                     const UA_TimestampsToReturn timestamps,
-                     const UA_ReadValueId *id, UA_DataValue *v) {
+getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNode *vn,
+                     const UA_TimestampsToReturn timestamps, const UA_ReadValueId *id,
+                     UA_DataValue *v) {
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -120,7 +119,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_Node const *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
+    const UA_Node *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
     if(!node) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -532,21 +531,26 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType) {
-    /* Get the variabletype */
-    const UA_VariableNode *vt = (const UA_VariableNode*)getVariableType(server, node);
-    if(!vt)
-        return UA_STATUSCODE_BADINTERNALERROR; /* should never happen */
+UA_StatusCode
+UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
+                            const UA_VariableTypeNode *vt,
+                            const UA_NodeId *dataType) {
+    /* If this is a variabletype, there must be no instances or subtypes of it
+       when we do the change */
+    if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
+       UA_Node_hasSubTypeOrInstances((const UA_Node*)node))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Is the type abstract? */
+    if(vt->isAbstract)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Does the new type match the constraints of the variabletype? */
     const UA_NodeId *vtDataType = &vt->dataType;
     UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_Boolean found = false;
     UA_StatusCode retval = isNodeInTree(server->nodestore, dataType,
-                                        vtDataType, &subtypeId,
-                                        1, &found);
+                                        vtDataType, &subtypeId, 1, &found);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(!found)
@@ -572,8 +576,117 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
 }
 
 UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_VariableNode *node,
-                    const UA_DataValue *value, const UA_String *indexRange) {
+UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
+                             const UA_VariableTypeNode *vt,
+                             const UA_Int32 valueRank) {
+    /* If this is a variabletype, there must be no instances or subtypes of it
+       when we do the change */
+    if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
+       UA_Node_hasSubTypeOrInstances((const UA_Node*)node))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    
+    /* Check if the valuerank of the type allows the change */
+    switch(vt->valueRank) {
+    case -3: /* the value can be a scalar or a one dimensional array */
+        if(valueRank != -1 && valueRank != 1)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case -2: /* the value can be a scalar or an array with any number of dimensions */
+        return UA_STATUSCODE_GOOD;
+    case -1: /* the value is a scalar */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    case 0: /* the value is an array with one or more dimensions */
+        if(valueRank < 0)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    default: /* >= 1: the value is an array with the specified number of dimensions */
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check if the current value is compatible with the valueRank */
+    if(node->value.data.value.hasValue) {
+        UA_StatusCode retval =
+            UA_Variant_matchVariableDefinition(server, &node->dataType, valueRank,
+                                               node->arrayDimensionsSize, node->arrayDimensions,
+                                               &node->value.data.value.value, NULL, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Ok, apply */
+    node->valueRank = valueRank;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
+                                   const UA_VariableTypeNode *vt,
+                                   size_t arrayDimensionsSize, UA_UInt32 *arrayDimensions) {
+    /* If this is a variabletype, there must be no instances or subtypes of it
+     * when we do the change */
+    if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
+       UA_Node_hasSubTypeOrInstances((const UA_Node*)node))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Check if the array dimensions match with the valuerank */
+    switch(node->valueRank) {
+    case -3: /* the value can be a scalar or a one dimensional array */
+        if(arrayDimensionsSize > 1)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case -2: /* the value can be a scalar or an array with any number of dimensions */
+        break;
+    case -1: /* the value is a scalar */
+        if(arrayDimensionsSize > 0)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case 0: /* the value is an array with one or more dimensions */
+        if(arrayDimensionsSize == 0)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    default: /* >= 1: the value is an array with the specified number of dimensions */
+        if(node->valueRank < 0)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        if(arrayDimensionsSize != (size_t)node->valueRank)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    /* Check if the array dimensions match with the wildcards in the
+     * variabletype (dimension length 0) */
+    if(vt->arrayDimensions) {
+        if(vt->arrayDimensionsSize != arrayDimensionsSize)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        for(size_t i = 0; i < arrayDimensionsSize; i++) {
+            if(vt->arrayDimensions[i] != 0 &&
+               vt->arrayDimensions[i] != arrayDimensions[i])
+                return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    }
+
+    /* Check if the current value is compatible with the array dimensions */
+    UA_StatusCode retval;
+    if(node->value.data.value.hasValue) {
+        retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
+                                                    arrayDimensionsSize, arrayDimensions,
+                                                    &node->value.data.value.value, NULL, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Ok, apply */
+    UA_UInt32 *oldArrayDimensions = node->arrayDimensions;
+    retval = UA_Array_copy(arrayDimensions, arrayDimensionsSize,
+                           (void**)&node->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_free(oldArrayDimensions);
+    node->arrayDimensionsSize = arrayDimensionsSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
+                         const UA_DataValue *value, const UA_String *indexRange) {
     /* Parse the range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
@@ -742,24 +855,43 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = writeValueAttribute(server, (UA_VariableNode*)node, &wvalue->value, &wvalue->indexRange);
+        retval = UA_VariableNode_setValue(server, (UA_VariableNode*)node,
+                                          &wvalue->value, &wvalue->indexRange);
         break;
-    case UA_ATTRIBUTEID_DATATYPE:
+    case UA_ATTRIBUTEID_DATATYPE: {
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_DATATYPE(NODEID);
-
-        retval = writeDataTypeAttribute(server, (UA_VariableNode*)node, (const UA_NodeId*)value);
-        break;
-    case UA_ATTRIBUTEID_VALUERANK:
+        const UA_VariableTypeNode *vt = getVariableNodeType(server, (UA_VariableNode*)node);
+        if(vt)
+            retval = UA_VariableNode_setDataType(server, (UA_VariableNode*)node,
+                                                 vt, (const UA_NodeId*)value);
+        else
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+        break; }
+    case UA_ATTRIBUTEID_VALUERANK: {
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_DATATYPE(INT32);
-        /* TODO */
-        retval = UA_STATUSCODE_BADNOTWRITABLE;
-        break;
+        const UA_VariableTypeNode *vt = getVariableNodeType(server, (UA_VariableNode*)node);
+        if(vt)
+            retval = UA_VariableNode_setValueRank(server, (UA_VariableNode*)node,
+                                                  vt, *(const UA_Int32*)value);
+        else
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+        break; }
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        /* TODO */
-        retval = UA_STATUSCODE_BADNOTWRITABLE;
+        CHECK_DATATYPE(UINT32);
+        if(!UA_Variant_isScalar(&wvalue->value.value)) {
+            const UA_VariableTypeNode *vt = getVariableNodeType(server, (UA_VariableNode*)node);
+            if(vt)
+                retval = UA_VariableNode_setArrayDimensions(server, (UA_VariableNode*)node,
+                                                            vt, wvalue->value.value.arrayLength,
+                                                            wvalue->value.value.data);
+            else
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+        } else {
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        }
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
@@ -877,8 +1009,7 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     wvalue.attributeId = attributeId;
     if(attributeId != UA_ATTRIBUTEID_VALUE) {
         /* hacked cast. the target WriteValue is used as const anyway */
-        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value,
-                             attr_type);
+        UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, attr_type);
     } else {
         if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
             return UA_STATUSCODE_BADTYPEMISMATCH;

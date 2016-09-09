@@ -26,10 +26,8 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     return progress + progress2;
 }
 
-#ifndef UA_BUILD_UNIT_TESTS
-static
-#endif
-UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range) {
+UA_StatusCode
+parse_numericrange(const UA_String *str, UA_NumericRange *range) {
     size_t idx = 0;
     size_t dimensionsMax = 0;
     UA_NumericRangeDimension *dimensions = NULL;
@@ -184,17 +182,23 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
     return UA_STATUSCODE_GOOD;
 }
 
-const UA_VariableTypeNode *
-getVariableType(UA_Server *server, const UA_VariableNode *node) {
+static const UA_Node *
+getNodeType(UA_Server *server, const UA_Node *node) {
     /* The reference to the parent is different for variable and variabletype */ 
     UA_NodeId parentRef;
     UA_Boolean inverse;
-    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+    if(node->nodeClass == UA_NODECLASS_VARIABLE ||
+       node->nodeClass == UA_NODECLASS_OBJECT) {
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
         inverse = false;
-    } else { /* UA_NODECLASS_VARIABLETYPE */
+    } else if(node->nodeClass == UA_NODECLASS_VARIABLETYPE ||
+              /* node->nodeClass == UA_NODECLASS_OBJECTTYPE || // objecttype may have multiple parents */
+              node->nodeClass == UA_NODECLASS_REFERENCETYPE ||
+              node->nodeClass == UA_NODECLASS_DATATYPE) {
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         inverse = true;
+    } else {
+        return NULL;
     }
 
     /* stop at the first matching candidate */
@@ -207,10 +211,40 @@ getVariableType(UA_Server *server, const UA_VariableNode *node) {
         }
     }
 
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentId);
-    if(!parent || parent->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(!parentId)
         return NULL;
-    return (const UA_VariableTypeNode*)parent;
+    return UA_NodeStore_get(server->nodestore, parentId);
+}
+
+const UA_VariableTypeNode *
+getVariableNodeType(UA_Server *server, const UA_VariableNode *node) {
+    const UA_Node *type = getNodeType(server, (const UA_Node*)node);
+    if(!type || type->nodeClass != UA_NODECLASS_VARIABLETYPE)
+        return NULL;
+    return (const UA_VariableTypeNode*)type;
+}
+
+const UA_ObjectTypeNode *
+getObjectNodeType(UA_Server *server, const UA_ObjectNode *node) {
+    const UA_Node *type = getNodeType(server, (const UA_Node*)node);
+    if(type->nodeClass != UA_NODECLASS_OBJECTTYPE)
+        return NULL;
+    return (const UA_ObjectTypeNode*)type;
+}
+
+UA_Boolean
+UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
+    const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    const UA_NodeId hasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+    for(size_t i = 0; i < node->referencesSize; i++) {
+        if(node->references[i].isInverse == false &&
+           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasSubType))
+            return true;
+        if(node->references[i].isInverse == true &&
+           UA_NodeId_equal(&node->references[i].referenceTypeId, &hasTypeDefinition))
+            return true;
+    }
+    return false;
 }
 
 /* For mulithreading: make a copy of the node, edit and replace.

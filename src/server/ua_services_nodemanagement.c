@@ -428,8 +428,8 @@ instantiateVariableNode(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
                        const UA_NodeAttributes *attr) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
+    UA_StatusCode retval;
+    retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
     retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName);
     retval |= UA_LocalizedText_copy(&attr->displayName, &node->displayName);
     retval |= UA_LocalizedText_copy(&attr->description, &node->description);
@@ -441,21 +441,23 @@ copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
 static UA_StatusCode
 copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
                              const UA_VariableAttributes *attr) {
-    /* Set the constraints */
-    UA_StatusCode retval = UA_Array_copy(attr->arrayDimensions, attr->arrayDimensionsSize,
-                                         (void**)&node->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    node->arrayDimensionsSize = attr->arrayDimensionsSize;
-    retval = UA_NodeId_copy(&attr->dataType, &node->dataType);
-    node->valueRank = attr->valueRank;
+    const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
+    if(!vt)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Set the value with the write service. This also checks the constraints. */
+    /* Set the constraints */
+    UA_StatusCode retval;
+    retval  = UA_VariableNode_setDataType(server, node, vt, &attr->dataType);
+    retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
+    retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
+                                                 attr->arrayDimensionsSize,
+                                                 attr->arrayDimensions);
+    /* Set the value */
     UA_DataValue value;
     UA_DataValue_init(&value);
     value.value = attr->value;
     value.hasValue = true;
-    retval = writeValueAttribute(server, node, &value, NULL);
+    retval |= UA_VariableNode_setValue(server, node, &value, NULL);
     return retval;
 }
 
@@ -692,6 +694,18 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId) {
+    /* replace null type with basedatavariabletype */
+    UA_NodeId basevartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    const UA_NodeId *type = &typeDefinition;
+    if(UA_NodeId_isNull(&typeDefinition))
+        type = &basevartype;
+
+    /* get the datatype node */
+    const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, type);
+    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* create the new node */
     UA_VariableNode *node = UA_NodeStore_newVariableNode();
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -701,21 +715,31 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     UA_AddNodesItem_init(&item);
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
-    copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&attr);
-    node->valueSource = UA_VALUESOURCE_DATASOURCE;
-    node->value.dataSource = dataSource;
+    UA_StatusCode retval = copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&attr);
+
     node->accessLevel = attr.accessLevel;
     node->userAccessLevel = attr.userAccessLevel;
     node->historizing = attr.historizing;
     node->minimumSamplingInterval = attr.minimumSamplingInterval;
-    node->valueRank = attr.valueRank;
+    retval  = UA_VariableNode_setDataType(server, node, vt, &attr.dataType);
+    retval |= UA_VariableNode_setValueRank(server, node, vt, attr.valueRank);
+    retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
+                                                 attr.arrayDimensionsSize,
+                                                 attr.arrayDimensions);
+    node->valueSource = UA_VALUESOURCE_DATASOURCE;
+    node->value.dataSource = dataSource;
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteMembersAnyNodeClass((UA_Node*)node);
+        return retval;
+    }
 
     /* Add the node */
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
-    UA_StatusCode retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
-                                                     &referenceTypeId, &typeDefinition, NULL, outNewNodeId);
+    retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
+                                       &referenceTypeId, &typeDefinition, NULL, outNewNodeId);
     UA_RCU_UNLOCK();
     return retval;
 }
@@ -756,7 +780,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
     UA_NodeId *parent = &result.addedNodeId;
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    const UA_NodeId propertytype= UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
+    const UA_NodeId propertytype = UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
 
     if(inputArgumentsSize > 0) {
         UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
@@ -972,25 +996,16 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
 /* Delete Nodes */
 /****************/
 
-// TODO: Check consistency constraints, remove the references.
+static UA_StatusCode
+deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
+                      const UA_DeleteReferencesItem *item);
 
 UA_StatusCode
 Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
                            const UA_NodeId *nodeId, UA_Boolean deleteReferences) {
     const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
     if(!node)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    if(deleteReferences == true) {
-        UA_DeleteReferencesItem delItem;
-        UA_DeleteReferencesItem_init(&delItem);
-        delItem.deleteBidirectional = false;
-        delItem.targetNodeId.nodeId = *nodeId;
-        for(size_t i = 0; i < node->referencesSize; i++) {
-            delItem.sourceNodeId = node->references[i].targetId.nodeId;
-            delItem.isForward = node->references[i].isInverse;
-            Service_DeleteReferences_single(server, session, &delItem);
-        }
-    }
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* destroy an object before removing it */
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
@@ -1021,6 +1036,20 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
             typenode->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
         }
         UA_BrowseResult_deleteMembers(&result);
+    }
+
+    /* remove references */
+    /* TODO: check if consistency is violated */
+    if(deleteReferences == true) { 
+        for(size_t i = 0; i < node->referencesSize; i++) {
+            UA_DeleteReferencesItem item;
+            UA_DeleteReferencesItem_init(&item);
+            item.isForward = node->references[i].isInverse;
+            item.sourceNodeId = node->references[i].targetId.nodeId;
+            item.targetNodeId.nodeId = node->nodeId;
+            UA_Server_editNode(server, session, &node->references[i].targetId.nodeId,
+                               (UA_EditNodeCallback)deleteOneWayReference, &item);
+        }
     }
 
     return UA_NodeStore_remove(server->nodestore, nodeId);
@@ -1063,6 +1092,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /* Delete References */
 /*********************/
 
+// TODO: Check consistency constraints, remove the references.
 static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
@@ -1096,6 +1126,8 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
                                 const UA_DeleteReferencesItem *item) {
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                               (UA_EditNodeCallback)deleteOneWayReference, item);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
     if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
         return retval;
     UA_DeleteReferencesItem secondItem;
