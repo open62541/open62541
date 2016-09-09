@@ -160,7 +160,7 @@ expand(UA_NodeStore *ns) {
 
     /* recompute the position of every entry and insert the pointer */
     for(size_t i = 0, j = 0; i < osize && j < count; i++) {
-        if(!oentries[i])
+        if(oentries[i] <= UA_NODESTORE_TOMBSTONE)
             continue;
         UA_NodeStoreEntry **e = findSlot(ns, &oentries[i]->node.nodeId);
         *e = oentries[i];
