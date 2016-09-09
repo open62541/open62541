@@ -196,7 +196,7 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32 size = ns->size;
     UA_NodeStoreEntry **entries = ns->entries;
     for(UA_UInt32 i = 0; i < size; i++) {
-        if(entries[i])
+        if(entries[i] > UA_NODESTORE_TOMBSTONE)
             deleteEntry(entries[i]);
     }
     UA_free(ns->entries);
