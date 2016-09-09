@@ -165,7 +165,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     UA_AddNodesResult_init(&res);
     Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
 
-    // now instantiate the variable for all hastypedefinition references
+    // now instantiate the variable for its hastypedefinition references
     for(size_t i = 0; i < node->referencesSize; i++) {
         UA_ReferenceNode *rn = &node->references[i];
         if(rn->isInverse)

@@ -113,6 +113,9 @@ UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize, UA_Boolean *found);
 
+const UA_VariableTypeNode *
+getVariableType(UA_Server *server, const UA_VariableNode *node);
+
 UA_StatusCode
 UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
                                    UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,

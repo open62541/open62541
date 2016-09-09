@@ -93,7 +93,7 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /* clang complains about unused variables */
 /* static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"}; */
 
-#define CHECK_NODECLASS(CLASS) do{                              \
+#define CHECK_NODECLASS(CLASS) do {                             \
         if(!(node->nodeClass & (CLASS))) {                      \
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;       \
             break;                                              \
@@ -532,42 +532,15 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
     return UA_STATUSCODE_GOOD;
 }
 
-static const UA_VariableTypeNode *
-getVariableType(UA_Server *server, const UA_VariableNode *node) {
-    /* The reference to the parent is different for variable and variabletype */ 
-    UA_NodeId parentRef;
-    UA_Boolean inverse;
-    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-        inverse = false;
-    } else { /* UA_NODECLASS_VARIABLETYPE */
-        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-        inverse = true;
-    }
-
-    /* stop at the first matching candidate */
-    UA_NodeId *parentId = NULL;
-    for(size_t i = 0; i < node->referencesSize; i++) {
-        if(node->references[i].isInverse == inverse &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef)) {
-            parentId = &node->references[i].targetId.nodeId;
-            break;
-        }
-    }
-
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentId);
-    if(!parent || parent->nodeClass != UA_NODECLASS_VARIABLETYPE)
-        return NULL;
-    return (const UA_VariableTypeNode*)parent;
-}
-
 static UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
                        const UA_NodeId *dataType) {
+    /* Get the variabletype */
     const UA_VariableNode *vt = (const UA_VariableNode*)getVariableType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR; /* should never happen */
 
+    /* Does the new type match the constraints of the variabletype? */
     const UA_NodeId *vtDataType = &vt->dataType;
     UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_Boolean found = false;

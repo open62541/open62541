@@ -184,6 +184,35 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
     return UA_STATUSCODE_GOOD;
 }
 
+const UA_VariableTypeNode *
+getVariableType(UA_Server *server, const UA_VariableNode *node) {
+    /* The reference to the parent is different for variable and variabletype */ 
+    UA_NodeId parentRef;
+    UA_Boolean inverse;
+    if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+        inverse = false;
+    } else { /* UA_NODECLASS_VARIABLETYPE */
+        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        inverse = true;
+    }
+
+    /* stop at the first matching candidate */
+    UA_NodeId *parentId = NULL;
+    for(size_t i = 0; i < node->referencesSize; i++) {
+        if(node->references[i].isInverse == inverse &&
+           UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef)) {
+            parentId = &node->references[i].targetId.nodeId;
+            break;
+        }
+    }
+
+    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentId);
+    if(!parent || parent->nodeClass != UA_NODECLASS_VARIABLETYPE)
+        return NULL;
+    return (const UA_VariableTypeNode*)parent;
+}
+
 /* For mulithreading: make a copy of the node, edit and replace.
  * For singletrheading: edit the original */
 UA_StatusCode
