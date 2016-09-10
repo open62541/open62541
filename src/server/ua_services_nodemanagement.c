@@ -30,12 +30,14 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
 
-    /* See of the parent exists */
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
-    if(!parent) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
-        UA_NodeStore_deleteNode(node);
-        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+    /* See if the parent exists */
+    if(!server->bootstrapInformationModel) {
+        const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
+        if(!parent) {
+            UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
+            UA_NodeStore_deleteNode(node);
+            return UA_STATUSCODE_BADPARENTNODEIDINVALID;
+        }
     }
 
     /* Check the referencetype to the parent */
