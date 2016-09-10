@@ -1020,12 +1020,10 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
     UA_WriteValue_init(&wvalue);
     wvalue.nodeId = *nodeId;
     wvalue.attributeId = attributeId;
-    if(attributeId != UA_ATTRIBUTEID_VALUE) {
+    if(attr_type != &UA_TYPES[UA_TYPES_VARIANT]) {
         /* hacked cast. the target WriteValue is used as const anyway */
         UA_Variant_setScalar(&wvalue.value.value, (void*)(uintptr_t)value, attr_type);
     } else {
-        if(attr_type != &UA_TYPES[UA_TYPES_VARIANT])
-            return UA_STATUSCODE_BADTYPEMISMATCH;
         wvalue.value.value = *(const UA_Variant*)value;
     }
     wvalue.value.hasValue = true;

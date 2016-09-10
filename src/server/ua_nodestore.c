@@ -1,4 +1,5 @@
 #include "ua_nodestore.h"
+#include "ua_server_internal.h"
 #include "ua_util.h"
 
 #ifndef UA_ENABLE_MULTITHREADING /* conditional compilation */

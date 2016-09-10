@@ -24,7 +24,9 @@ standard.
    building
    tutorials
    types
-   constants
+   information_modelling
+   services
    server
    client
+   constants
    internal

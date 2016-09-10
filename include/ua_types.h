@@ -30,14 +30,14 @@ extern "C" {
  * ==========
  *
  * In open62541, all data types share the same basic API for creation, copying
- * and deletion. The header ua_types.h defines the builtin types. In addition,
- * we auto-generate ua_types_generated.h with additional types as well as the
- * following function definitions for all (builtin and generated) data types
- * ``T``.
+ * and deletion. The header ``ua_types.h`` defines the builtin data types. In
+ * addition, the auto-generated ``ua_types_generated.h`` contains additional
+ * data types making use of the builtin data types only. The following functions
+ * are defined for all (builtin and generated) data types ``T``:
  *
  * ``void T_init(T *ptr)``
  *   Initialize the data type. This is synonymous with zeroing out the memory,
- *   i.e. ``memset(dataptr, 0, sizeof(T))``.
+ *   i.e. ``memset(ptr, 0, sizeof(T))``.
  * ``T* T_new()``
  *   Allocate and return the memory for the data type. The memory is already
  *   initialized.
@@ -48,10 +48,7 @@ extern "C" {
  *   Delete the dynamically allocated content of the data type and perform a
  *   ``T_init`` to reset the type.
  * ``void T_delete(T *ptr)``
- *   Delete the content of the data type and the memory for the data type itself.
- *
- * OPC UA defines 25 builtin data types. All other data types are combinations
- * of the 25 builtin data types. */
+ *   Delete the content of the data type and the memory for the data type itself. */
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 
@@ -554,15 +551,15 @@ typedef struct {
  * Variants can contain a single scalar or an array. For details on the handling
  * of arrays, see the Section `Array Handling`_. Array variants can have an
  * additional dimensionality (matrix, 3-tensor, ...) defined in an array of
- * dimension sizes. Higher rank dimensions are serialized first.
+ * dimension sizes.
  *
  * The differentiation between variants containing a scalar, an array or no data
  * is as follows:
  *
- * - arrayLength == 0 && data == NULL: no existing data
- * - arrayLength == 0 && data == UA_EMPTY_ARRAY_SENTINEL: array of length 0
- * - arrayLength == 0 && data > UA_EMPTY_ARRAY_SENTINEL: scalar value
- * - arrayLength > 0: array of the given length */
+ * - ``arrayLength == 0 && data == NULL``: the variant is empty
+ * - ``arrayLength == 0 && data == UA_EMPTY_ARRAY_SENTINEL``: array of length 0
+ * - ``arrayLength == 0 && data > UA_EMPTY_ARRAY_SENTINEL``: scalar value
+ * - ``arrayLength > 0``: array of the given length */
 typedef struct {
     const UA_DataType *type; /* The data type description */
     enum {
@@ -668,6 +665,8 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_NumericRange range);
 
 /**
+ * .. _datavalue:
+ *
  * DataValue
  * ^^^^^^^^^
  * A data value with an associated status code and timestamps. */
@@ -807,6 +806,15 @@ void UA_EXPORT UA_random_seed(UA_UInt64 seed);
 UA_UInt32 UA_EXPORT UA_UInt32_random(void); /* no cryptographic entropy */
 UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
 
+/**
+ * Generated Data Type Definitions
+ * -------------------------------
+ *
+ * The following data types were auto-generated from a definition in XML format.
+ * Their exact definitions can be looked up here:
+ * https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml.
+ *
+ * .. include:: types_generated.rst */
 #ifdef __cplusplus
 } // extern "C"
 #endif

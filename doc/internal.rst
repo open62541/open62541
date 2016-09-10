@@ -3,7 +3,6 @@ Internals
 
 .. toctree::
 
-   services
    nodestore
    connection
    log
