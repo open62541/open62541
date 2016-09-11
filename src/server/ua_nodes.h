@@ -15,13 +15,17 @@ extern "C" {
  * semantic modelling. At the core, an OPC UA information model is a graph made
  * up of
  *
- * - Nodes: There are eight possible node types (variable, object, method, ...)
+ * - Nodes: There are eight possible Node types (variable, object, method, ...)
  * - References: Typed and directed relations between two nodes
  *
- * An example reference is a ``hasTypeDefinition`` reference between a variable
- * and its variable type. See the section on :ref:`reference types
- * <referencetypenode>` for more details about possible references and their
- * semantics.
+ * Every node is identified by a unique (within the server) :ref:`nodeid`.
+ * Reference are triples of the form ``(source-nodeid, referencetype-nodeid,
+ * target-nodeid)``. An example reference between nodes is a
+ * ``hasTypeDefinition`` reference between a Variable and its VariableType. Some
+ * ReferenceTypes are *hierarchic* and must not form *directed loops*. Every
+ * node (except ``Root``) must have at least one hierarchic reference to a
+ * parent. See the section on :ref:`ReferenceTypes <referencetypenode>` for more
+ * details on possible references and their semantics.
  *
  * The structures defined in this section are *not user-facing*. The interaction
  * with the information model is possible only via the OPC UA :ref:`services`.
@@ -31,10 +35,14 @@ extern "C" {
  * Base Node Attributes
  * --------------------
  *
- * The following attributes are common to all nodes. We use ``UA_Node`` in
- * places where the exact node type is not known or not important. The
- * ``nodeClass`` attribute is used to ensure the correctness of casting from
- * ``UA_Node`` to a specific node type. */
+ * Nodes contain attributes according to their node type. The base node
+ * attributes are common to all node types. In the OPC UA :ref:`services`,
+ * attributes are referred to via the :ref:`nodeid` of the containing node and
+ * an integer :ref:`attribute-id`.
+ *
+ * Internally, open62541 uses ``UA_Node`` in places where the exact node type is
+ * not known or not important. The ``nodeClass`` attribute is used to ensure the
+ * correctness of casting from ``UA_Node`` to a specific node type. */
 #define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -71,10 +79,10 @@ typedef struct {
  * Data Type
  * ^^^^^^^^^
  *
- * The type of the literal value is constrained to be of a specific type or one
- * of its children in the type hierarchy. The data type is given as a nodeid
- * pointing to a :ref:`datatypenode` in the type hierarchy. See the Section
- * :ref:`datatypenode` for more details.
+ * The (scalar) data type of the variable is constrained to be of a specific
+ * type or one of its children in the type hierarchy. The data type is given as
+ * a NodeId pointing to a :ref:`datatypenode` in the type hierarchy. See the
+ * Section :ref:`datatypenode` for more details.
  *
  * If the data type attribute points to ``UInt32``, then the value attribute
  * must be of that exact type since ``UInt32`` does not have children in the
@@ -154,7 +162,12 @@ typedef struct {
  * VariableTypeNode
  * ----------------
  *
- * VariableTypes are used to provide type definitions for variables. */
+ * VariableTypes are used to provide type definitions for variables.
+ * VariableTypes constrain the data type, value rank and array dimensions
+ * attributes of variable instances. Furthermore, instantiating from a specific
+ * variable type may provide semantic information. For example, an instance from
+ * ``MotorTemperatureVariableType`` is more meaningful than a float variable
+ * instantiated from ``BaseDataVariable``. */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
@@ -162,10 +175,23 @@ typedef struct {
 } UA_VariableTypeNode;
 
 /**
+ * .. _methodnode:
+ *
  * MethodNode
  * ----------
  *
- * Methods define callable functions and are invoked using the Call service. */
+ * Methods define callable functions and are invoked using the :ref:`Call
+ * <method-services>` service. MethodNodes may have special properties (variable
+ * childen with a ``hasProperty`` reference) with the :ref:`qualifiedname` ``(0,
+ * "InputArguments")`` and ``(0, "OutputArguments")``. The input and output
+ * arguments are both described via an array of ``UA_Argument``. While the Call
+ * service uses a generic array of :ref:`variant` for input and output, the
+ * actual argument values are checked to match the signature of the MethodNode.
+ *
+ * Note that the same MethodNode may be referenced from several objects (and
+ * object types). For this, the NodeId of the method *and of the object
+ * providing context* is part of a Call request message.
+ */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean executable;
@@ -228,7 +254,13 @@ typedef struct {
  * DataTypeNode
  * ------------
  *
- * The DataType Model is used to define simple and structured data types. */
+ * DataTypes represent simple and structured data types (for scalar values). In
+ * open62541, DataTypeNodes in the hierarchy are matched to `UA_DataType` type
+ * descriptions for :ref:`generic-types` via their NodeId.
+ *
+ * Abstract DataTypes (e.g. ``Number``) cannot be the type of actual values.
+ * They are used to constrain values to possible child DataTypes (e.g.
+ * ``UInt32``). */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
@@ -240,7 +272,9 @@ typedef struct {
  *
  * Each View defines a subset of the Nodes in the AddressSpace. Views can be
  * used when browsing an informatin model to focus on a subset of nodes and
- * references only. */
+ * references only. ViewNodes can be created and be interacted with. But their
+ * use in the :ref:`Browse<view-services>` service is currently unsupported in
+ * open62541. */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Byte eventNotifier;

@@ -368,27 +368,27 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
     }
 
     /* Prepare the result */
-     if(attributeId == UA_ATTRIBUTEID_VALUE ||
-        attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
-         /* Return the entire variant */
-         if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
-             retval = UA_Variant_copy(&dv.value, v);
-         } else {
-             /* storageType is UA_VARIANT_DATA. Copy the entire variant
-              * (including pointers and all) */
-             memcpy(v, &dv.value, sizeof(UA_Variant));
-         }
-     }  else {
-         /* Return the variant content only */
-         if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
-             retval = UA_copy(dv.value.data, v, dv.value.type);
-         } else {
-             /* storageType is UA_VARIANT_DATA. Copy the content of the type
-              * (including pointers and all) */
-             memcpy(v, dv.value.data, dv.value.type->memSize);
-             /* Delete the "carrier" in the variant */
-             UA_free(dv.value.data);
-         }
+    if(attributeId == UA_ATTRIBUTEID_VALUE ||
+       attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
+        /* Return the entire variant */
+        if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
+            retval = UA_Variant_copy(&dv.value, v);
+        } else {
+            /* storageType is UA_VARIANT_DATA. Copy the entire variant
+             * (including pointers and all) */
+            memcpy(v, &dv.value, sizeof(UA_Variant));
+        }
+    } else {
+        /* Return the variant content only */
+        if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
+            retval = UA_copy(dv.value.data, v, dv.value.type);
+        } else {
+            /* storageType is UA_VARIANT_DATA. Copy the content of the type
+             * (including pointers and all) */
+            memcpy(v, dv.value.data, dv.value.type->memSize);
+            /* Delete the "carrier" in the variant */
+            UA_free(dv.value.data);
+        }
     }
     return retval;
 }

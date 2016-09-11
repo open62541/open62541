@@ -26,6 +26,8 @@ extern "C" {
  * This section contains numerical and string constants that are defined in the
  * OPC UA standard.
  *
+ * .. _attribute-id:
+ *
  * Attribute Id
  * ------------
  * Every node in an OPC UA information model contains attributes depending on
