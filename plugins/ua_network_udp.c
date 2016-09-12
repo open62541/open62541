@@ -24,6 +24,9 @@
 #ifdef __QNX__
 #include <sys/socket.h>
 #endif
+#ifdef __OpenBSD__
+#include <sys/socket.h>
+#endif 
 # define CLOSESOCKET(S) close(S)
 
 #define MAXBACKLOG 100

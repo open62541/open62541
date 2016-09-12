@@ -42,6 +42,9 @@
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
+# ifdef __OpenBSD__
+#  include <sys/socket.h>
+# endif
 # ifndef __CYGWIN__
 #  include <netinet/tcp.h>
 # endif
