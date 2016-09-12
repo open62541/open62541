@@ -92,10 +92,6 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
   target_link_libraries(server_certificate ${LIBS})
 endif()
 
-add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
-target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-target_link_libraries(server_readspeed ${LIBS})
-
 if(UA_ENABLE_DISCOVERY)
 
     add_executable(discovery_server_discovery discovery/server_discovery.c)
