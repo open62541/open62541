@@ -87,6 +87,32 @@ Building on OS X
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
+Building on OpenBSD
+-------------------
+The procedure below works on OpenBSD 5.8
+
+- Install a recent gcc, python and cmake:
+
+.. code-block:: bash
+   
+   pkg_add gcc python cmake
+
+- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD): 
+
+.. code-block:: bash
+   
+   export CC=egcc CXX=eg++
+
+- Now procede as described for Ubuntu/Debian:
+
+.. code-block:: bash
+
+   cd open62541
+   mkdir build
+   cd build
+   cmake ..
+   make
+
 Build Options
 =============
 
