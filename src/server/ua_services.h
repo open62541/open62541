@@ -25,7 +25,8 @@ extern "C" {
  * The following service signatures are internal and *not visible to users*.
  * Still, we present them here for an overview of the capabilities of OPC UA.
  * Please refer to the :ref:`client` and :ref:`server` API where the services
- * are exposed to end users. */
+ * are exposed to end users. Please see part 4 of the OPC UA standard for the
+ * authoritative definition of the service and their behaviour. */
 /* Most services take as input the server, the current session and pointers to
    the request and response structures. Possible error codes are returned as
    part of the response. */
