@@ -93,10 +93,10 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /* static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"}; */
 
 #define CHECK_NODECLASS(CLASS)                                  \
-        if(!(node->nodeClass & (CLASS))) {                      \
-            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;       \
-            break;                                              \
-        }
+    if(!(node->nodeClass & (CLASS))) {                          \
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;           \
+        break;                                                  \
+    }
 
 /* Reads a single attribute from a node in the nodestore */
 void Service_Read_single(UA_Server *server, UA_Session *session,
@@ -448,7 +448,7 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
      * correct type definition after the following paragraph */
     if(!UA_NodeId_equal(valueDataTypeId, variableDataTypeId)) {
         /* is this a subtype? */
-        UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
         UA_StatusCode retval = isNodeInTree(server->nodestore, valueDataTypeId,
                                             variableDataTypeId, &subtypeId, 1, &found);

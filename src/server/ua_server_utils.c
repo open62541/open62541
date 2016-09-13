@@ -182,7 +182,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
     return UA_STATUSCODE_GOOD;
 }
 
-static const UA_Node *
+const UA_Node *
 getNodeType(UA_Server *server, const UA_Node *node) {
     /* The reference to the parent is different for variable and variabletype */ 
     UA_NodeId parentRef;
