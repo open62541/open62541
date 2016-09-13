@@ -1214,6 +1214,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < node->referencesSize; i++) {
             delItem.sourceNodeId = node->references[i].targetId.nodeId;
             delItem.isForward = node->references[i].isInverse;
+            delItem.referenceTypeId = node->references[i].referenceTypeId;
             Service_DeleteReferences_single(server, session, &delItem);
         }
     }
