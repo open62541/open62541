@@ -228,6 +228,7 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     status->currentTime = UA_DateTime_now();
     status->state = UA_SERVERSTATE_RUNNING;
     status->secondsTillShutdown = 0;
+    UA_BuildInfo_copy(&server->config.buildInfo, &status->buildInfo);
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
     value->value.arrayLength = 0;
