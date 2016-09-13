@@ -553,7 +553,7 @@ UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(!found)
-        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
     if(node->value.data.value.hasValue) {
@@ -564,9 +564,10 @@ UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
             return retval;
     }
     
+    /* replace the datatype nodeid */
     UA_NodeId dtCopy = node->dataType;
     retval = UA_NodeId_copy(dataType, &node->dataType);
-    if(!retval) {
+    if(retval != UA_STATUSCODE_GOOD) {
         node->dataType = dtCopy;
         return retval;
     }
@@ -591,7 +592,7 @@ UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
             return UA_STATUSCODE_BADTYPEMISMATCH;
         break;
     case -2: /* the value can be a scalar or an array with any number of dimensions */
-        return UA_STATUSCODE_GOOD;
+        break;
     case -1: /* the value is a scalar */
         return UA_STATUSCODE_BADTYPEMISMATCH;
     case 0: /* the value is an array with one or more dimensions */

@@ -390,18 +390,20 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponse *response = &entry->response;
     UA_PublishResponse_init(response);
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
-    response->results = UA_malloc(request->subscriptionAcknowledgementsSize * sizeof(UA_StatusCode));
-    if(!response->results) {
-        /* Respond immediately with the error code */
-        response->responseHeader.timestamp = UA_DateTime_now();
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        UA_PublishResponse_deleteMembers(response);
-        UA_free(entry);
-        return;
+    if(request->subscriptionAcknowledgementsSize > 0) {
+        response->results = UA_malloc(request->subscriptionAcknowledgementsSize * sizeof(UA_StatusCode));
+        if(!response->results) {
+            /* Respond immediately with the error code */
+            response->responseHeader.timestamp = UA_DateTime_now();
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
+                                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+            UA_PublishResponse_deleteMembers(response);
+            UA_free(entry);
+            return;
+        }
+        response->resultsSize = request->subscriptionAcknowledgementsSize;
     }
-    response->resultsSize = request->subscriptionAcknowledgementsSize;
 
     /* Delete Acknowledged Subscription Messages */
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {

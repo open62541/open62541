@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
 
         UA_VariableAttributes attr;
         UA_VariableAttributes_init(&attr);
+        attr.valueRank = -2;
         char name[15];
 #if defined(_WIN32) && !defined(__MINGW32__)
         sprintf_s(name, 15, "%02d", type);

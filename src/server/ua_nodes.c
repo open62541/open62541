@@ -1,4 +1,5 @@
 #include "ua_nodes.h"
+#include "ua_nodestore.h"
 #include "ua_util.h"
 
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
