@@ -31,13 +31,11 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     }
 
     /* See if the parent exists */
-    if(!server->bootstrapInformationModel) {
-        const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
-        if(!parent) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
-            UA_NodeStore_deleteNode(node);
-            return UA_STATUSCODE_BADPARENTNODEIDINVALID;
-        }
+    const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
+    if(!parent) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
+        UA_NodeStore_deleteNode(node);
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
     /* Check the referencetype to the parent */
@@ -379,7 +377,7 @@ instantiateVariableNode(UA_Server *server, UA_Session *session,
                                         &basevartype, &hassubtype, 1, &found);
     if(!found || retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: The object if not derived from BaseObjectType");
+                             "AddNodes: The variable is not derived from BaseVariableType");
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     }
 
@@ -771,22 +769,21 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     node->methodHandle = handle;
 
     /* Add the node */
-    UA_AddNodesResult result;
-    UA_AddNodesResult_init(&result);
+    UA_NodeId newMethodId;
+    UA_NodeId_init(&newMethodId);
     UA_RCU_LOCK();
     UA_StatusCode retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
-                                                     &referenceTypeId, &UA_NODEID_NULL, NULL, outNewNodeId);
+                                                     &referenceTypeId, &UA_NODEID_NULL, NULL, &newMethodId);
     UA_RCU_UNLOCK();
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_NodeId *parent = &result.addedNodeId;
     const UA_NodeId hasproperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     const UA_NodeId propertytype = UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
 
     if(inputArgumentsSize > 0) {
         UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
-        inputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        inputArgumentsVariableNode->nodeId.namespaceIndex = newMethodId.namespaceIndex;
         inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0, "InputArguments");
         inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
         inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
@@ -794,9 +791,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
         //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
         //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
-        if(result.addedNodeId.namespaceIndex == 0 &&
-           result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
+        if(newMethodId.namespaceIndex == 0 && newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
             inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
         }
         UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.data.value.value, inputArguments,
@@ -805,22 +801,21 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                                  parent, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
         UA_RCU_UNLOCK();
     }
 
     if(outputArgumentsSize > 0) {
         /* create OutputArguments */
         UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
-        outputArgumentsVariableNode->nodeId.namespaceIndex = result.addedNodeId.namespaceIndex;
+        outputArgumentsVariableNode->nodeId.namespaceIndex = newMethodId.namespaceIndex;
         outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0, "OutputArguments");
         outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
         outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
         outputArgumentsVariableNode->valueRank = 1;
         //FIXME: comment in line 882
-        if(result.addedNodeId.namespaceIndex == 0 &&
-           result.addedNodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           result.addedNodeId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
+        if(newMethodId.namespaceIndex == 0 && newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+           newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
             outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
         }
         UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.data.value.value, outputArguments,
@@ -829,10 +824,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                                  parent, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
         UA_RCU_UNLOCK();
     }
 
+    if(outNewNodeId)
+        *outNewNodeId = newMethodId;
+    else
+        UA_NodeId_deleteMembers(&newMethodId);
     return retval;
 }
 

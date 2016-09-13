@@ -211,6 +211,8 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_No
 /* Call */
 /********/
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode
 UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
                const UA_Variant *input, size_t *outputSize, UA_Variant **output) {
@@ -246,6 +248,8 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
     UA_CallResponse_deleteMembers(&response);
     return retval;
 }
+
+#endif
 
 /********************/
 /* Write Attributes */

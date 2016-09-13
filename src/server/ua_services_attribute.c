@@ -92,12 +92,11 @@ static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"Defa
 /* clang complains about unused variables */
 /* static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"}; */
 
-#define CHECK_NODECLASS(CLASS) do {                             \
+#define CHECK_NODECLASS(CLASS)                                  \
         if(!(node->nodeClass & (CLASS))) {                      \
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;       \
             break;                                              \
-        }                                                       \
-    }while(false)
+        }
 
 /* Reads a single attribute from a node in the nodestore */
 void Service_Read_single(UA_Server *server, UA_Session *session,
@@ -777,19 +776,19 @@ writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
     return UA_STATUSCODE_GOOD;
 }
 
-#define CHECK_DATATYPE(EXP_DT) do {                                     \
-        if(!wvalue->value.hasValue ||                                   \
-           &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||  \
-           !UA_Variant_isScalar(&wvalue->value.value)) {                \
-            retval = UA_STATUSCODE_BADTYPEMISMATCH;                     \
-            break;                                                      \
-        } }while(false)
+#define CHECK_DATATYPE(EXP_DT)                                          \
+    if(!wvalue->value.hasValue ||                                       \
+       &UA_TYPES[UA_TYPES_##EXP_DT] != wvalue->value.value.type ||      \
+       !UA_Variant_isScalar(&wvalue->value.value)) {                    \
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;                         \
+        break;                                                          \
+    }
 
-#define CHECK_NODECLASS_WRITE(CLASS) do {                               \
+#define CHECK_NODECLASS_WRITE(CLASS)                                    \
     if((node->nodeClass & (CLASS)) == 0) {                              \
         retval = UA_STATUSCODE_BADNODECLASSINVALID;                     \
         break;                                                          \
-    } }while(false)
+    }
 
 /* this function implements the main part of the write service */
 static UA_StatusCode

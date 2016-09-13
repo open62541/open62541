@@ -76,9 +76,6 @@ struct UA_Server {
     /* Config is the last element so that MSVC allows the usernamePasswordLogins
        field with zero-sized array */
     UA_ServerConfig config;
-
-    /* Disable some consistency checks when adding nodes */
-    UA_Boolean bootstrapInformationModel;
 };
 
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
