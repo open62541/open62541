@@ -495,21 +495,17 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     
     /* Set the constraints */
     UA_StatusCode retval;
-    if(!UA_NodeId_isNull(&attr->dataType)) {
+    if(!UA_NodeId_isNull(&attr->dataType))
         retval  = UA_VariableNode_setDataType(server, node, vt, &attr->dataType);
-    } else {
+    else
         /* workaround common error where the datatype is left as NA_NODEID_NULL */
-        if(attr->value.type)
-            retval = UA_VariableNode_setDataType(server, node, vt, &attr->value.type->typeId);
-        else
-            retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID; 
-    }
+        retval = UA_VariableNode_setDataType(server, node, vt, &vt->dataType);
 
     if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
         retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
     else
         /* workaround common error where the valuerank is left as 0 */
-        retval |= UA_VariableNode_setValueRank(server, node, vt, -2);
+        retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
         
     retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
                                                  attr->arrayDimensionsSize,
@@ -751,41 +747,38 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId) {
-    /* replace null type with basedatavariabletype */
-    UA_NodeId basevartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
-    const UA_NodeId *type = &typeDefinition;
-    if(UA_NodeId_isNull(&typeDefinition))
-        type = &basevartype;
-
-    /* get the datatype node */
-    const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, type);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* create the new node */
+    /* Create the new node */
     UA_VariableNode *node = UA_NodeStore_newVariableNode();
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Copy content */
+    /* Read the current value (to do typechecking) */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_VariableAttributes editAttr = attr;
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    if(dataSource.read)
+        retval = dataSource.read(dataSource.handle, requestedNewNodeId,
+                                 false, NULL, &value);
+    else
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    editAttr.value = value.value;
+
+    /* Copy attributes into node */
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
     item.browseName = browseName;
-    UA_StatusCode retval = copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&attr);
-
-    node->accessLevel = attr.accessLevel;
-    node->userAccessLevel = attr.userAccessLevel;
-    node->historizing = attr.historizing;
-    node->minimumSamplingInterval = attr.minimumSamplingInterval;
-    retval  = UA_VariableNode_setDataType(server, node, vt, &attr.dataType);
-    retval |= UA_VariableNode_setValueRank(server, node, vt, attr.valueRank);
-    retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
-                                                 attr.arrayDimensionsSize,
-                                                 attr.arrayDimensions);
+    item.typeDefinition.nodeId = typeDefinition;
+    item.parentNodeId.nodeId = parentNodeId;
+    retval |= copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&editAttr);
+    retval |= copyCommonVariableAttributes(server, node, &item, &editAttr);
+    UA_DataValue_deleteMembers(&node->value.data.value);
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;
-
+    UA_DataValue_deleteMembers(&value);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeStore_deleteNode((UA_Node*)node);
         return retval;

@@ -1323,7 +1323,7 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     srcArray[2] = UA_STRING_ALLOC("opc ua");
 
     UA_UInt32 *dimensions;
-    dimensions = UA_malloc(sizeof(UA_Int32));
+    dimensions = UA_malloc(sizeof(UA_UInt32));
     dimensions[0] = 3;
 
     UA_Variant value, copiedValue;

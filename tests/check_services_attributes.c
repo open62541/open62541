@@ -23,8 +23,18 @@ readCPUTemperature_broken(void *handle, const UA_NodeId nodeid, UA_Boolean sourc
   return UA_STATUSCODE_GOOD;
 }
 
-static UA_Server* makeTestSequence(void) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+static UA_StatusCode
+readCPUTemperature(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+                   const UA_NumericRange *range, UA_DataValue *dataValue) {
+    UA_Float temp = 20.5f;
+    UA_Variant_setScalarCopy(&dataValue->value, &temp, &UA_TYPES[UA_TYPES_FLOAT]);
+    dataValue->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_Server *
+makeTestSequence(void) {
+    UA_Server * server = UA_Server_new(UA_ServerConfig_standard);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */
@@ -46,8 +56,8 @@ static UA_Server* makeTestSequence(void) {
 
     /* DataSource VariableNode */
     UA_VariableAttributes_init(&vattr);
-    UA_DataSource temperatureDataSource = (UA_DataSource) {
-                                           .handle = NULL, .read = NULL, .write = NULL};
+    UA_DataSource temperatureDataSource =
+        (UA_DataSource) {.handle = NULL, .read = readCPUTemperature, .write = NULL};
     vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
     vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
@@ -58,8 +68,8 @@ static UA_Server* makeTestSequence(void) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* DataSource Variable returning no value */
-    UA_DataSource temperatureDataSource1 = (UA_DataSource) {
-                                            .handle = NULL, .read = readCPUTemperature_broken, .write = NULL};
+    UA_DataSource temperatureDataSource1 =
+        (UA_DataSource) {.handle = NULL, .read = readCPUTemperature_broken, .write = NULL};
     vattr.description = UA_LOCALIZEDTEXT("en_US","temperature1");
     vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature1");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature1"),
@@ -119,7 +129,7 @@ static UA_Server* makeTestSequence(void) {
     retval = UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
                                      UA_NODEID_NUMERIC(0, 3),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                     UA_QUALIFIEDNAME_ALLOC(0, "Methodtest"), ma,
+                                     UA_QUALIFIEDNAME(0, "Methodtest"), ma,
                                      NULL, NULL, 0, NULL, 0, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 #endif
@@ -647,7 +657,7 @@ START_TEST(ReadSingleDataSourceAttributeValueWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
@@ -664,7 +674,8 @@ START_TEST(ReadSingleDataSourceAttributeDataTypeWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_DATATYPE;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
+    ck_assert_int_eq(resp.hasServerTimestamp, false);
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
@@ -681,7 +692,7 @@ START_TEST (ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "cpu.temperature");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    ck_assert_int_eq(UA_STATUSCODE_BADINTERNALERROR, resp.status);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
     UA_Server_delete(server);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
@@ -899,7 +910,7 @@ START_TEST(WriteSingleAttributeDataType) {
     wValue.value.hasValue = true;
     UA_Variant_setScalar(&wValue.value.value, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
     UA_Server_delete(server);
 } END_TEST
 
@@ -914,7 +925,7 @@ START_TEST(WriteSingleAttributeValueRank) {
     wValue.value.hasValue = true;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
     // Returns attributeInvalid, since variant/value may be writable
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Server_delete(server);
 } END_TEST
 
@@ -922,14 +933,14 @@ START_TEST(WriteSingleAttributeArrayDimensions) {
     UA_Server *server = makeTestSequence();
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Int32 testValue[] = {-1,-1,-1};
-    UA_Variant_setArray(&wValue.value.value, &testValue, 3, &UA_TYPES[UA_TYPES_INT32]);
+    UA_UInt32 testValue[] = {1,1,1};
+    UA_Variant_setArray(&wValue.value.value, &testValue, 3, &UA_TYPES[UA_TYPES_UINT32]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
     wValue.value.hasValue = true;
     UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
     // Returns attributeInvalid, since variant/value may be writable
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    ck_assert_int_eq(retval, UA_STATUSCODE_BADTYPEMISMATCH);
     UA_Server_delete(server);
 } END_TEST
 
