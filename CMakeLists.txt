@@ -299,17 +299,16 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers})
+                           ${exported_headers}
+                           ${internal_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers}
                            ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${internal_headers}
-                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
-                           ${lib_sources})
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
+                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 # example information model from nodeset xml
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
@@ -336,7 +335,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
 else()
-    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers} open62541.h)
+    add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src
                                                         ${PROJECT_SOURCE_DIR}/plugins ${PROJECT_SOURCE_DIR}/deps)
 endif()
@@ -377,13 +376,16 @@ endif()
 ##########################
 # Installation           #
 ##########################
+# invoke via `make install`
+# specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
+# Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
     )
-# export amalgamated heder open62541.h which is generated due to build of open62541-object
+# export amalgamated header open62541.h which is generated due to build of open62541-object
 install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 
 
