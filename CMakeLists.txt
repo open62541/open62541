@@ -383,3 +383,39 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_custom_target(generate_informationmodel ALL
                     DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
 endif()
+
+
+##########################
+# Installation           #
+##########################
+# invoke via `make install`
+# specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
+# Enable shared library with `-DBUILD_SHARED_LIBS=ON`
+
+# export library (either static or shared depending on BUILD_SHARED_LIBS)
+install(TARGETS open62541
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+# export amalgamated header open62541.h which is generated due to build of open62541-object
+install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+
+
+
+##########################
+# Packaging (DEB/RPM)    #
+##########################
+# invoke via `make package`
+
+SET(CPACK_GENERATOR "TGZ;DEB;RPM")
+SET(CPACK_PACKAGE_VENDOR "open62541 team")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
+SET(CPACK_PACKAGE_DESCRIPTION "open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
+SET(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+SET(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+SET(CPACK_PACKAGE_VERSION_MAJOR "0")
+SET(CPACK_PACKAGE_VERSION_MINOR "2")
+SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
+
+INCLUDE(CPack)
