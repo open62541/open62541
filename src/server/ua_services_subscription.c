@@ -391,7 +391,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponse_init(response);
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     if(request->subscriptionAcknowledgementsSize > 0) {
-        response->results = UA_malloc(request->subscriptionAcknowledgementsSize * sizeof(UA_StatusCode));
+        response->results = UA_Array_new(request->subscriptionAcknowledgementsSize,
+                                         &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             /* Respond immediately with the error code */
             response->responseHeader.timestamp = UA_DateTime_now();
@@ -452,9 +453,10 @@ void
 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             const UA_DeleteSubscriptionsRequest *request,
                             UA_DeleteSubscriptionsResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing DeleteSubscriptionsRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing DeleteSubscriptionsRequest");
 
-    if(request->subscriptionIdsSize == 0){
+    if(request->subscriptionIdsSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }

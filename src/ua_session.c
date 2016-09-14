@@ -30,7 +30,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = NULL;
-    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
+    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);

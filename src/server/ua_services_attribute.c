@@ -31,8 +31,8 @@ getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNo
 
     if(vn->valueSource == UA_VALUESOURCE_DATA) {
         if(vn->value.data.callback.onRead)
-            vn->value.data.callback.onRead(vn->value.data.callback.handle, vn->nodeId,
-                                           &v->value, rangeptr);
+            vn->value.data.callback.onRead(vn->value.data.callback.handle,
+                                           vn->nodeId, &v->value, rangeptr);
         if(!rangeptr) {
             *v = vn->value.data.value;
             v->value.storageType = UA_VARIANT_DATA_NODELETE;
@@ -58,8 +58,8 @@ getVariableNodeValue(UA_Server *server, UA_Session *session, const UA_VariableNo
 
 static UA_StatusCode
 getVariableNodeArrayDimensions(const UA_VariableNode *vn, UA_DataValue *v) {
-    UA_Variant_setArray(&v->value, vn->arrayDimensions, vn->arrayDimensionsSize,
-                        &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setArray(&v->value, vn->arrayDimensions,
+                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
     v->value.storageType = UA_VARIANT_DATA_NODELETE;
     v->hasValue = true;
     return UA_STATUSCODE_GOOD;

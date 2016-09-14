@@ -6,7 +6,7 @@
 #include "ua_securechannel.h"
 #include "ua_server.h"
 
-#define MAXCONTINUATIONPOINTS 5
+#define UA_MAXCONTINUATIONPOINTS 5
 
 struct ContinuationPointEntry {
     LIST_ENTRY(ContinuationPointEntry) pointers;
