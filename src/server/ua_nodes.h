@@ -124,7 +124,7 @@ typedef struct {
  * Consistency between the array dimensions attribute in the variable and its
  * :ref:`variabletypenode` is ensured. */
 /* Indicates whether a variable contains data inline or whether it points to an
-   external data source */
+ * external data source */
 typedef enum {
     UA_VALUESOURCE_DATA,
     UA_VALUESOURCE_DATASOURCE
