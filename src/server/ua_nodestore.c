@@ -209,12 +209,14 @@ UA_NodeStore_newNode(UA_NodeClass class) {
     UA_NodeStoreEntry *entry = instantiateEntry(class);
     if(!entry)
         return NULL;
-    return (UA_Node*)&entry->node;
+    return &entry->node;
 }
 
 void
 UA_NodeStore_deleteNode(UA_Node *node) {
-    deleteEntry(container_of(node, UA_NodeStoreEntry, node));
+    UA_NodeStoreEntry *entry = container_of(node, UA_NodeStoreEntry, node);
+    UA_assert(&entry->node == node);
+    deleteEntry(entry);
 }
 
 UA_StatusCode

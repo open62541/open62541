@@ -205,26 +205,28 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                # nodestores
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
+                # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                # nodestores
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
                 # method call
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
                 # subscriptions
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                # client
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
                 ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c

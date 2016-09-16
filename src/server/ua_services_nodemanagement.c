@@ -762,9 +762,12 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                  false, NULL, &value);
     else
         retval = UA_STATUSCODE_BADTYPEMISMATCH;
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
     editAttr.value = value.value;
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodeStore_deleteNode((UA_Node*)node);
+        return retval;
+    }
 
     /* Copy attributes into node */
     UA_AddNodesItem item;
