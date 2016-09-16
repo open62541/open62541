@@ -328,7 +328,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_Attribu
     UA_DataValue *res = response.results;
     if(res->hasStatus != UA_STATUSCODE_GOOD)
         retval = res->hasStatus;
-    else if(!res->hasValue || !UA_Variant_isScalar(&res->value))
+    else if(!res->hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ReadResponse_deleteMembers(&response);
