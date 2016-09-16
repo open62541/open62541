@@ -497,19 +497,19 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     UA_StatusCode retval;
     if(!UA_NodeId_isNull(&attr->dataType))
         retval  = UA_VariableNode_setDataType(server, node, vt, &attr->dataType);
-    else
-        /* workaround common error where the datatype is left as NA_NODEID_NULL */
+    else /* workaround common error where the datatype is left as NA_NODEID_NULL */
         retval = UA_VariableNode_setDataType(server, node, vt, &vt->dataType);
-
-    if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
-        retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
-    else
-        /* workaround common error where the valuerank is left as 0 */
-        retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
         
+    node->valueRank = -2; /* allow all dimensions first */
     retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
                                                  attr->arrayDimensionsSize,
                                                  attr->arrayDimensions);
+
+    if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
+        retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
+    else /* workaround common error where the valuerank is left as 0 */
+        retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
+
     /* Set the value */
     UA_DataValue value;
     UA_DataValue_init(&value);
@@ -838,15 +838,22 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
         inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
         inputArgumentsVariableNode->valueRank = 1;
+
+        /* UAExport creates a monitoreditem on inputarguments ... */
+        inputArgumentsVariableNode->minimumSamplingInterval = 10000.0f;
+
         //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
         //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
         //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
-        if(newMethodId.namespaceIndex == 0 && newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+        if(newMethodId.namespaceIndex == 0 &&
+           newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
            newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
-            inputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
+            inputArgumentsVariableNode->nodeId =
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
         }
-        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.data.value.value, inputArguments,
-                                inputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.data.value.value,
+                                inputArguments, inputArgumentsSize,
+                                &UA_TYPES[UA_TYPES_ARGUMENT]);
         inputArgumentsVariableNode->value.data.value.hasValue = true;
         UA_RCU_LOCK();
         // todo: check if adding succeeded
@@ -864,12 +871,15 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
         outputArgumentsVariableNode->valueRank = 1;
         //FIXME: comment in line 882
-        if(newMethodId.namespaceIndex == 0 && newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+        if(newMethodId.namespaceIndex == 0 &&
+           newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
            newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
-            outputArgumentsVariableNode->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
+            outputArgumentsVariableNode->nodeId =
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
         }
-        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.data.value.value, outputArguments,
-                                outputArgumentsSize, &UA_TYPES[UA_TYPES_ARGUMENT]);
+        UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.data.value.value,
+                                outputArguments, outputArgumentsSize,
+                                &UA_TYPES[UA_TYPES_ARGUMENT]);
         outputArgumentsVariableNode->value.data.value.hasValue = true;
         UA_RCU_LOCK();
         // todo: check if adding succeeded

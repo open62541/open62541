@@ -47,17 +47,20 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
-                             "Cannot process a monitoreditem that is not a data change notification",
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | MonitoredItem %i | "
+                             "Cannot process a monitoreditem that is not "
+                             "a data change notification",
                              sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
-                               "Skipped a sample due to lack of memory", sub->subscriptionID,
-                               monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | MonitoredItem %i | "
+                               "Skipped a sample due to lack of memory",
+                               sub->subscriptionID, monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -72,7 +75,22 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn,
                         &rvid, &newvalue->value);
 
-    /* encode to see if the data has changed */
+    /* Apply Filter */
+    UA_Boolean hasValue = newvalue->value.hasValue;
+    UA_Boolean hasServerTimestamp = newvalue->value.hasServerTimestamp;
+    UA_Boolean hasServerPicoseconds = newvalue->value.hasServerPicoseconds;
+    UA_Boolean hasSourceTimestamp = newvalue->value.hasSourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = newvalue->value.hasSourcePicoseconds;
+    newvalue->value.hasServerTimestamp = false;
+    newvalue->value.hasServerPicoseconds = false;
+    if(monitoredItem->trigger == UA_DATACHANGETRIGGER_STATUS)
+        newvalue->value.hasValue = false;
+    if(monitoredItem->trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+        newvalue->value.hasSourceTimestamp = false;
+        newvalue->value.hasSourcePicoseconds = false;
+    }
+
+    /* Encode to see if the data has changed */
     size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_ByteString newValueAsByteString;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
@@ -85,20 +103,28 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE],
                              NULL, NULL, &newValueAsByteString, &encodingOffset);
 
-    /* error or the content has not changed */
+    /* Restore the booleans changed for the filter */
+    newvalue->value.hasValue = hasValue;
+    newvalue->value.hasServerTimestamp = hasServerTimestamp;
+    newvalue->value.hasServerPicoseconds = hasServerPicoseconds;
+    newvalue->value.hasSourceTimestamp = hasSourceTimestamp;
+    newvalue->value.hasSourcePicoseconds = hasSourcePicoseconds;
+
+    /* Error or the value has not changed */
     if(retval != UA_STATUSCODE_GOOD ||
        (monitoredItem->lastSampledValue.data &&
         UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue))) {
         UA_ByteString_deleteMembers(&newValueAsByteString);
         UA_DataValue_deleteMembers(&newvalue->value);
         UA_free(newvalue);
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+        UA_LOG_TRACE_SESSION(server->config.logger, sub->session, "Subscription %u | "
                              "MonitoredItem %u | Do not sample an unchanged value",
                              sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | MonitoredItem %u | "
                          "Sampling the value", sub->subscriptionID, monitoredItem->itemId);
 
     /* Do we have space in the queue? */
@@ -112,7 +138,8 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         if(!queueItem) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
                                    "MonitoredItem %u | Cannot remove an element from the full "
-                                   "queue. Internal error!", sub->subscriptionID, monitoredItem->itemId);
+                                   "queue. Internal error!", sub->subscriptionID,
+                                   monitoredItem->itemId);
             UA_ByteString_deleteMembers(&newValueAsByteString);
             UA_DataValue_deleteMembers(&newvalue->value);
             UA_free(newvalue);
@@ -126,15 +153,18 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     }
 
     /* If the read request returned a datavalue pointing into the nodestore, we
-       must make a copy to keep the datavalue across mainloop iterations */
-    if(newvalue->value.hasValue && newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
+     * must make a deep copy to keep the datavalue across mainloop iterations */
+    if(newvalue->value.hasValue &&
+       newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
         UA_Variant tempv = newvalue->value.value;
         UA_Variant_copy(&tempv, &newvalue->value.value);
     }
 
-    /* add the sample */
+    /* Replace the comparison bytestring with the current sample */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = newValueAsByteString;
+
+    /* Add the sample to the queue for publication */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newvalue, listEntry);
     monitoredItem->currentQueueSize++;
 }
@@ -142,7 +172,8 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
 UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Job job = {.type = UA_JOBTYPE_METHODCALL, .job.methodCall = {
             .method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
+                                                    (UA_UInt32)mon->samplingInterval,
                                                     &mon->sampleJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
         mon->sampleJobIsRegistered = true;

@@ -1065,6 +1065,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Variant_setScalar(&state->value.data.value.value, UA_ServerState_new(),
                          &UA_TYPES[UA_TYPES_SERVERSTATE]);
     state->value.data.value.hasValue = true;
+    state->minimumSamplingInterval = 500.0f;
     addNodeInternalWithType(server, (UA_Node*)state, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
 
