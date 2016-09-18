@@ -43,7 +43,7 @@ typedef struct UA_SecureChannel UA_SecureChannel;
  * without being aware of the underlying transport technology.
  *
  * Connection Config
- * ================= */
+ * ^^^^^^^^^^^^^^^^^ */
 typedef struct UA_ConnectionConfig {
     UA_UInt32 protocolVersion;
     UA_UInt32 sendBufferSize;
@@ -56,7 +56,7 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 
 /**
  * Connection Structure
- * ==================== */
+ * ^^^^^^^^^^^^^^^^^^^^ */
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
                                   is not done */
@@ -119,7 +119,8 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 
 /**
- * EndpointURL helper
+ * EndpointURL Helper
+ * ^^^^^^^^^^^^^^^^^^
  */
 
 /**

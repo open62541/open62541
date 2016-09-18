@@ -1,5 +1,5 @@
-1. Building a simple server
-===========================
+Building a simple server
+------------------------
 
 This series of tutorial guide you through your first steps with open62541. For
 compiling the examples, you need a compiler (MS Visual Studio 2015 or newer,
@@ -17,7 +17,7 @@ have the ``open62541.c/.h`` files in the current folder.
 
 Now create a new C source-file called ``myServer.c`` with the following content:
 
-.. literalinclude:: ../../examples/server_firstSteps.c
+.. literalinclude:: ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
    :language: c
    :linenos:
    :lines: 4,12,14-34

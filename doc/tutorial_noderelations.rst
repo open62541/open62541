@@ -1,10 +1,10 @@
-4. Generating an OPC UA Information Model from XML Descriptions
-===============================================================
+Generating an OPC UA Information Model from XML Descriptions
+------------------------------------------------------------
 
 This tutorial will show you how to interact with objects and object types, and how to create a server from an information model defined in the OPC UA Nodeset XML schema.
 
 Compile XML Namespaces
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
 
@@ -375,7 +375,7 @@ A minor list of some of the miriad things that can go wrong:
   * You get "invalid reference to addMethodNode" style errors. Make sure ``-DDENABLE_METHODCALLS=On`` is defined.
 
 Creating object instances
--------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node. 
 
@@ -390,24 +390,21 @@ Let's look at an example that will create a pump instance given the newly define
     #include <stdio.h>
     #include <signal.h>
 
-    #include "ua_types.h"
-    #include "ua_server.h"
-    #include "ua_namespaceinit_generated.h"
-    #include "logger_stdout.h"
-    #include "networklayer_tcp.h"
+    #include "open62541.h"
 
-    UA_Boolean running;
-    UA_Int32 global_accessCounter = 0;
+    UA_Boolean running = true;
 
     void stopHandler(int signal) {
-      running = 0;
+      running = false;
     }
 
-    static UA_StatusCode pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId,
-                                                   void *handle) {
-      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)\n",
-             objectId.namespaceIndex, objectId.identifier.numeric,
-             definitionId.namespaceIndex, definitionId.identifier.numeric, *((UA_Int32 *) handle));
+    static UA_StatusCode
+    pumpInstantiationCallback(UA_NodeId objectId, UA_NodeId definitionId,
+                              void *handle) {
+      printf("Created new node ns=%d;i=%d according to template ns=%d;i=%d "
+             "(handle was %d)\n", objectId.namespaceIndex,
+             objectId.identifier.numeric, definitionId.namespaceIndex,
+             definitionId.identifier.numeric, *((UA_Int32 *) handle));
       return UA_STATUSCODE_GOOD;
     }
 
@@ -415,9 +412,12 @@ Let's look at an example that will create a pump instance given the newly define
       signal(SIGINT,  stopHandler);
       signal(SIGTERM, stopHandler);
 
-      UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-      UA_Server_addNetworkLayer(server, ServerNetworkLayerTCP_new(UA_ConnectionConfig_standard, 16664));
-      running = true;
+      UA_ServerConfig config = UA_ServerConfig_standard;
+      UA_ServerNetworkLayer nl;
+      nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
+      config.networkLayers = &nl;
+      config.networkLayersSize = 1;
+      UA_Server *server = UA_Server_new(config);
 
       UA_NodeId createdNodeId;
       UA_Int32 myHandle = 42;
@@ -427,17 +427,19 @@ Let's look at an example that will create a pump instance given the newly define
       object_attr.description = UA_LOCALIZEDTEXT("en_US","A pump!");
       object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Pump1");
       
-      UA_InstantiationCallback theAnswerCallback = {.method=pumpInstantiationCallback, .handle=(void*) &myHandle};
+      UA_InstantiationCallback theAnswerCallback;
+      theAnswerCallback.method = pumpInstantiationCallback;
+      theAnswerCallback.handle = (void*) &myHandle};
       
       UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pump1"),
-                              UA_NODEID_NUMERIC(0, UA_NS1ID_PUMPTYPE), object_attr, theAnswerCallback, &createdNodeId);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_QUALIFIEDNAME(1, "Pump1"),
+                              UA_NODEID_NUMERIC(0, UA_NS1ID_PUMPTYPE),
+                              object_attr, theAnswerCallback, &createdNodeId);
                               
       UA_Server_run(server, 1, &running);
       UA_Server_delete(server);
-
-      printf("Bye\n");
       return 0;
     }
 
@@ -511,145 +513,3 @@ If you start the server and inspect the nodes with UA Expert, you will find two 
 As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). You may also notice that the callback was not called for the methods, even though they are obviously where they are supposed to be. Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
 
 For each object and variable created by the call, the callback was invoked. The callback gives you the nodeId of the new node along with the Id of the Type template used to create it. You can thereby effectively use setAttributeValue() functions (or others) to adapt the properties of these new nodes, as they can be identified by there templates.
-
-If you want to overwrite an attribute of the parent definition, you will have to delete the node instantiated by the parent's template (this as a **FIXME** for developers).
-    
-Iterating over Child nodes
---------------------------
-
-A common usecase is wanting to perform something akin to ``for each node referenced by X, call ...``; you may for example be searching for a specific browseName or instance which was created with a dynamic nodeId. There is no way of telling what you are searching for beforehand (inverse hasComponents, typedefinitions, etc.), but all usescases of "searching for" basically means iterating over each reference of a node.
-
-Since searching in nodes is a common operation, the high-level branch provides a function to help you perform this operation:  ``UA_(Server|Client)_forEachChildNodeCall();``. These functions will iterate over all references of a given node, invoking a callback (with a handle) for every found reference. Since in our last tutorial we created a server that instantiates two pumps, we are now going to build a client that will search for pumps in all object instances on the server.
-
-.. code-block:: c
-
-    #include <stdio.h>
-
-    #include "ua_types.h"
-    #include "ua_server.h"
-    #include "ua_client.h"
-    #include "ua_namespaceinit_generated.h"
-    #include "logger_stdout.h"
-    #include "networklayer_tcp.h"
-
-    static UA_StatusCode nodeIter(UA_NodeId childId, UA_Boolean isInverse,
-                                  UA_NodeId referenceTypeId, void *handle) {  
-      struct {
-        UA_Client *client;
-        UA_Boolean isAPump;
-        UA_NodeId PumpId;
-      } *nodeIterParam = handle;
-      
-      if (isInverse == true)
-        return UA_STATUSCODE_GOOD;
-      if (childId.namespaceIndex != 1)
-        return UA_STATUSCODE_GOOD;
-      if (nodeIterParam == NULL)
-        return UA_STATUSCODE_GOODNODATA;
-      
-      UA_QualifiedName *childBrowseName = NULL;
-      UA_Client_getAttributeValue(nodeIterParam->client, childId, UA_ATTRIBUTEID_BROWSENAME, (void**) &childBrowseName);
-      
-      UA_String pumpName = UA_STRING("Pump");
-      if (childBrowseName != NULL) {
-        if (childBrowseName->namespaceIndex == 1) {
-          if (!strncmp(childBrowseName->name.data, pumpName.data, pumpName.length))
-            printf("Found %s with NodeId ns=1,i=%d\n", childBrowseName->name.data, childId.identifier.numeric);
-            inodeIterParam->isAPump = true;
-            UA_NodeId_copy(&childId, &nodeIterParam->PumpId);
-        }
-      }
-      
-      UA_QualifiedName_delete(childBrowseName);
-      return UA_STATUSCODE_GOOD;
-    }
-
-    int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
-      if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-      }
-      
-      struct {
-        UA_Client *client;
-        UA_Boolean isAPump;
-        UA_NodeId PumpId;
-      } nodeIterParam;
-      nodeIterParam.client = client;
-      nodeIterParam.isAPump = false;
-      
-      UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) &nodeIterParam);
-      if (nodeIterParam.isAPump == true)
-        printf("Found at least one pump\n");
-        
-      UA_Client_disconnect(client);
-      UA_Client_delete(client);
-      return 0;
-    } 
-
-If the client is run while the example server is running in the background, it will produce the following output::
-
-    Found Pump1 with NodeId ns=1,i=1504
-    Found Pump2 with NodeId ns=1,i=1509
-
-How does it work? The nodeIter function is called by UA_Client_forEachChildNodeCall() for each reference contained in the objectsFolder. The iterator is passed the id of the target and the type of the reference, along with the references directionality. Since we are browsing the Object node, this iterator will be called mutliple times, indicating links to the root node, server, the two pump instances and the nodes type definition. 
-
-We are only interested in nodes in namespace 1 that are referenced forwardly, so the iterator returns early if these conditions are not met.
-
-We are searching the nodes by name, so we are comparing the name of the nodes to a string; We could also (in a more complicated example) repeat the node iteration inside the iterator, ie inspect the references of each node to see if it has the dataType "Pump", which would be a more reliable way to operate this sort of search. In either case we need to pass parameters to and from the iterator(s). Note the plural.
-
-You can use the handle to contain a pointer to a struct, which can hold multiple arguments as in the example above. In a more thorough example, the field PumpId could have been an array or a linked list. That struct could also be defined as a global dataType instead of using in-function definitions. Since the handle can be passed between multiple calls of iterators (or any other function that accept handles), the data contents can be communicated between different functions easily.
-    
-Examining node copies
----------------------
-
-So far we have always used the getAttribute() functions to inspect node contents. There may be isolated cases where these are insuficient because you want to examine the properties of a node "in bulk". As mentioned in the first tutorials, the user can not directly interact with the servers nodestore; but the userspace may request a copy of a node, including all its attributes and references. The following functions server the purpose of getting and getting rid of node copies.
-
-.. code-block:: c
-  
-    UA_(Server|Client)_getNodeCopy()
-    UA_(Server|Client)_destroyNodeCopy()
-
-Since you are trying to see a struct (node types) that are usually hidden from userspace, you will have to include ``include/ua_nodes.h``, ``src/ua_types_encoding_binary.h`` and ``deps/queue.h`` in addition to the previous includes (link them into the includes folder).
-
-Let's suppose we wanted to do something elaborate with our pump instance that was returned by the iterator of the previous example, or simply "print" all its fields. We could modify the above client's main function like so:
-
-.. code-block:: c
-
-    int main(void) {
-      UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
-      UA_StatusCode retval = UA_Client_connect(client, ClientNetworkLayerTCP_connect, "opc.tcp://localhost:16664");
-      if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-      }
-      
-      struct {
-        UA_Client *client;
-        UA_Boolean isAPump;
-        UA_NodeId PumpId;
-      } nodeIterParam;
-      nodeIterParam.client = client;
-      nodeIterParam.isAPump = false;
-      
-      UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, (void *) &nodeIterParam);
-      if (nodeIterParam.isAPump == true) {
-        UA_ObjectNode *aPump;
-        UA_Client_getNodeCopy(client, nodeIterParam.PumpId, (void **) &aPump);
-        printf("The pump %s with NodeId ns=1,i=%d was returned\n", aPump->browseName.name.data, aPump->nodeId.identifier.numeric);
-        UA_Client_deleteNodeCopy(client, (void **) &aPump);
-      }
-        
-      UA_Client_disconnect(client);
-      UA_Client_delete(client);
-      return 0;
-    } 
-
-**Warning** in both examples, we are printing strings contained in UA_String types. These are fundamentaly different from strings in C in that they are *not* necessarlity NULL terminated; they are exactly as long as the string length indicates. It is quite possible that printf() will keep printing trailing data after the UA_String until it finds a NULL. If you intend to really print strings in an application, use the "length" field of the UA_String struct to allocate a null-initialized buffer, then copy the string data into that buffer before printing it.
-
-Conclusion
-----------
-
-In this tutorial, you have learned how to compile your own namespaces, instantiate data and examine the relations of the new nodes. You have learned about node iterators and how to pack multiple pass-through parameters into handles; a technique that is by no means limited to iterators but can also be applied to any other callback, such as methods or value sources.

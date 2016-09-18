@@ -8,6 +8,8 @@ extern "C" {
 #include "ua_server.h"
 
 /**
+ * .. _information-modelling:
+ *
  * Information Modelling
  * =====================
  *
@@ -224,7 +226,9 @@ typedef struct {
  * ObjectTypeNode
  * --------------
  *
- * ObjectTypes provide definitions for Objects. */
+ * ObjectTypes provide definitions for Objects. Abstract objects cannot be
+ * instantiated. See :ref:`object-lifecycle` for the use of constructor and
+ * destructor callbacks. */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
@@ -254,9 +258,10 @@ typedef struct {
  * DataTypeNode
  * ------------
  *
- * DataTypes represent simple and structured data types (for scalar values). In
- * open62541, DataTypeNodes in the hierarchy are matched to `UA_DataType` type
- * descriptions for :ref:`generic-types` via their NodeId.
+ * DataTypes represent simple and structured data types. DataTypes may contain
+ * arrays. But they always describe the structure of a single instance. In
+ * open62541, DataTypeNodes in the information model hierarchy are matched to
+ * ``UA_DataType`` type descriptions for :ref:`generic-types` via their NodeId.
  *
  * Abstract DataTypes (e.g. ``Number``) cannot be the type of actual values.
  * They are used to constrain values to possible child DataTypes (e.g.

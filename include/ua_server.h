@@ -555,6 +555,8 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * - Method callbacks, where a user-defined method is exposed in the information
  *   model
  *
+ * .. _datasource:
+ *
  * Data Source Callback
  * ~~~~~~~~~~~~~~~~~~~~
  *
@@ -627,6 +629,8 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeI
                                         const UA_ValueCallback callback);
 
 /**
+ * .. _object-lifecycle:
+ *
  * Object Lifecycle Management Callbacks
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * Lifecycle management adds constructor and destructor callbacks to

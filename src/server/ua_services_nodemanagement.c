@@ -461,7 +461,6 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     return retval;
 }
 
-
 /***********************************************/
 /* Create a node from an attribute description */
 /***********************************************/

@@ -35,7 +35,7 @@ extern "C" {
  * convenience, some functionality has been wrapped in :ref:`high-level
  * abstractions <client-highlevel>`.
  *
- * **However**: At this point, the client does not yet contain its own thread or
+ * **However**: At this time, the client does not yet contain its own thread or
  * event-driven main-loop. So the client will not perform any actions
  * automatically in the background. This is especially relevant for
  * subscriptions. The user will have to periodically call

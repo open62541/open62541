@@ -8,8 +8,20 @@ set(DOC_SRC_DIR   ${PROJECT_BINARY_DIR}/doc_src)
 make_directory(${DOC_SRC_DIR})
 file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
-configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
+list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_variables.rst")
+list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_method.rst")
+list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_firstSteps.rst")
+list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst")
 file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
+configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
+configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_variables.rst"
+               "${DOC_SRC_DIR}/tutorial_server_variables.rst")
+configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_method.rst"
+               "${DOC_SRC_DIR}/tutorial_server_method.rst")
+configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_firstSteps.rst"
+               "${DOC_SRC_DIR}/tutorial_server_firstSteps.rst")
+configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst"
+               "${DOC_SRC_DIR}/tutorial_client_firstSteps.rst")
 
 function(generate_rst in out)
   add_custom_command(OUTPUT ${out} DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
@@ -36,7 +48,6 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
-
 
 add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -q "open62541.tex"
   WORKING_DIRECTORY ${DOC_LATEX_DIR}

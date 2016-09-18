@@ -28,20 +28,17 @@ extern "C" {
  * ==========
  *
  * The OPC UA protocol defines 25 builtin data types and three ways of combining
- * them into higher-order types: arrays, structures and unions. When the type of
- * a value can be decided at runtime, it is be wrapped into a :ref:`variant`
- * together with a description of the content. This metadata is used to decode
- * the value on the receiving end. In open62541, the builtin data types are
- * defined manually. Higher-order data types are generated from standard XML
- * definitions. Their exact definitions can be looked up at
- * https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml.
+ * them into higher-order types: arrays, structures and unions. In open62541,
+ * the builtin data types are defined manually. All other data types are
+ * generated from standard XML definitions. Their exact definitions can be
+ * looked up at https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml.
  *
  * Note that arrays can only be part of a scalar data type and never constitute
  * a data type on their own. Also, open62541 does not implement unions so far.
  * They are a recent addition to the protocol (since OPC UA v1.03). And so far,
  * no service definition makes of unions in the request / response message
- * definition. Instead, :ref:`Variants <variant>` are used where several member
- * value types are possible.
+ * definition. Instead, :ref:`Variants <variant>` are used when values of
+ * different types are possible.
  *
  * All data types ``T`` (builtin and generated) share the same basic API for
  * creation, copying and deletion:
@@ -49,7 +46,7 @@ extern "C" {
  * - ``void T_init(T *ptr)``: Initialize the data type. This is synonymous with
  *   zeroing out the memory, i.e. ``memset(ptr, 0, sizeof(T))``.
  * - ``T* T_new()``: Allocate and return the memory for the data type. The
- *   memory is already initialized.
+ *   value is already initialized.
  * - ``UA_StatusCode T_copy(const T *src, T *dst)``: Copy the content of the
  *   data type. Returns ``UA_STATUSCODE_GOOD`` or
  *   ``UA_STATUSCODE_BADOUTOFMEMORY``.

@@ -22,13 +22,14 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    UA_ServerNetworkLayer nl;
+    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return (int)retval;
+    return 0;
 }
