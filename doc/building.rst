@@ -11,7 +11,7 @@ Using the GCC compiler, the following calls build the examples on Linux.
 .. code-block:: bash
 
    cp /path-to/open62541.* . # copy single-file distribution to the local directory
-   cp /path-to/examples/server_variable.c . # copy the example server to the local directory
+   cp /path-to/examples/server_variable.c . # copy the example server
    gcc -std=c99 open62541.c server_variable.c -o server
 
 Building the Library
@@ -27,7 +27,7 @@ Building with CMake on Ubuntu or Debian
    # enable additional features
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
-   sudo apt-get install sphinx # for documentation generation
+   sudo apt-get install sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style
 
    cd open62541
@@ -61,7 +61,7 @@ with MinGW, just replace the compiler selection in the call to CMake.
    mkdir build
    cd build
    <path-to>\cmake.exe .. -G "Visual Studio 14 2015"
-   :: You can use use cmake-gui for a graphical user-interface to select single features
+   :: You can use use cmake-gui for a graphical user-interface to select features
 
 - Then open :file:`build\open62541.sln` in Visual Studio 2015 and build as usual
 
@@ -81,6 +81,7 @@ Building on OS X
    brew install cmake
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
+   brew install graphviz # for graphics in the documentation
    brew install check # for unit tests
    brew install userspace-rcu # for multi-threading support
 

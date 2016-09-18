@@ -4,6 +4,8 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated_encoding_binary.h"
+#include "ua_types_generated_handling.h"
+#include "ua_transport_generated_handling.h"
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
@@ -139,7 +141,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
 
-    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize && connection->remoteConf.maxChunkCount > 0)
+    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize && connection->remoteConf.maxMessageSize > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
     if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount && connection->remoteConf.maxChunkCount > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
@@ -217,7 +219,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     /* Encode the message type */
     size_t messagePos = 0;
     UA_NodeId typeId = contentType->typeId; /* always numeric */
-    typeId.identifier.numeric += UA_ENCODINGOFFSET_BINARY;
+    typeId.identifier.numeric = contentType->binaryEncodingId;
     UA_NodeId_encodeBinary(&typeId, &message, &messagePos);
 
     /* Encode with the chunking callback */

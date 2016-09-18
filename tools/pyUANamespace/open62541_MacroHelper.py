@@ -198,6 +198,10 @@ class open62541_MacroHelper():
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.displayName().replace("\"", "\\\""))
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.description().replace("\"", "\\\""))
 
+    if nodetype == "Variable":
+      code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
+      code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
+
     if nodetype in ["Variable", "VariableType"]:
       #TODO: Fix this
       pass

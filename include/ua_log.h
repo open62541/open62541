@@ -58,7 +58,8 @@ typedef enum {
  *
  * Do not use the logger directly but make use of the following macros that take
  * the minimum log-level defined in ua_config.h into account. */
-typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char *msg, ...);
+typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
+                          const char *msg, ...);
 
 #if UA_LOGLEVEL <= 100
 #define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do { \
@@ -106,12 +107,9 @@ typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category, const char
  * Convenience macros for complex types
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #define UA_PRINTF_GUID_FORMAT "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
-#define UA_PRINTF_GUID_DATA(GUID) (GUID).identifier.guid.data1, (GUID).identifier.guid.data2, \
-        (GUID).identifier.guid.data3, (GUID).identifier.guid.data4[0],  \
-        (GUID).identifier.guid.data4[1], (GUID).identifier.guid.data4[2], \
-        (GUID).identifier.guid.data4[3], (GUID).identifier.guid.data4[4], \
-        (GUID).identifier.guid.data4[5], (GUID).identifier.guid.data4[6], \
-        (GUID).identifier.guid.data4[7]
+#define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
+        (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
+        (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
 
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
 #define UA_PRINTF_STRING_DATA(STRING) (STRING).length, (STRING).data

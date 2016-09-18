@@ -6,6 +6,7 @@
 
 #include "ua_server.h"
 #include "ua_client.h"
+#include "ua_client_highlevel.h"
 
 #ifdef __cplusplus
 extern "C" {

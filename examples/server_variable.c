@@ -21,19 +21,24 @@ static void stopHandler(int sign) {
     running = false;
 }
 
-static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i", (uintptr_t)handle);
+static void onRead(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
+                   const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onRead; handle is: %i",
+                (uintptr_t)handle);
 }
 
-static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data, const UA_NumericRange *range) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle: %i", (uintptr_t)h);
+static void onWrite(void *h, const UA_NodeId nodeid, const UA_Variant *data,
+                    const UA_NumericRange *range) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "onWrite; handle: %i",
+                (uintptr_t)h);
 }
 
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    UA_ServerNetworkLayer nl;
+    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);

@@ -4,10 +4,11 @@
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
 #include "ua_types_generated.h"
-#include "ua_nodeids.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_transport_generated.h"
 #include "ua_types_generated_encoding_binary.h"
+#include "ua_nodeids.h"
+#include "ua_transport_generated.h"
+#include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 
 /*********************/
@@ -59,6 +60,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->endpointUrl.data)
         UA_String_deleteMembers(&client->endpointUrl);
     UA_UserTokenPolicy_deleteMembers(&client->token);
+    UA_NodeId_deleteMembers(&client->authenticationToken);
     if(client->username.data)
         UA_String_deleteMembers(&client->username);
     if(client->password.data)
@@ -210,7 +212,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     asymHeader.securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     /* id of opensecurechannelrequest */
-    UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId);
 
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -275,8 +277,7 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
     UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId_decodeBinary(&reply, &offset, &requestType);
-    UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE +
-                                                  UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     if(!UA_NodeId_equal(&requestType, &expectedRequest)) {
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -339,7 +340,6 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     UA_ActivateSessionRequest_init(&request);
 
     request.requestHeader.requestHandle = ++client->requestHandle;
-    request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 600000;
 
@@ -384,7 +384,6 @@ static UA_StatusCode
 GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    request.requestHeader.authenticationToken = client->authenticationToken;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->endpointUrl; // assume the endpointurl outlives the service call
@@ -468,13 +467,12 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 
-    // todo: is this needed for all requests?
-    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     UA_ByteString_copy(&client->channel->clientNonce, &request.clientNonce);
     request.requestedSessionTimeout = 1200000;
     request.maxResponseMessageSize = UA_INT32_MAX;
+    UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
     UA_CreateSessionResponse response;
     UA_CreateSessionResponse_init(&response);
@@ -495,7 +493,6 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.deleteSubscriptions = true;
-    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
     UA_CloseSessionResponse response;
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
@@ -512,7 +509,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.requestHeader.authenticationToken = client->authenticationToken;
+    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
 
     UA_SecureConversationMessageHeader msgHeader;
     msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_CLO + UA_CHUNKTYPE_FINAL;
@@ -525,13 +522,15 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CLOSESECURECHANNELREQUEST + UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId);
 
     UA_ByteString message;
     UA_Connection *c = client->connection;
     UA_StatusCode retval = c->getSendBuffer(c, c->remoteConf.recvBufferSize, &message);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_CloseSecureChannelRequest_deleteMembers(&request);
         return retval;
+    }
 
     size_t offset = 12;
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
@@ -551,6 +550,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
         client->connection->releaseSendBuffer(client->connection, &message);
     }
     client->connection->close(client->connection);
+    UA_CloseSecureChannelRequest_deleteMembers(&request);
     return retval;
 }
 
@@ -688,6 +688,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     }
 
     /* handling request parameters */
+    //here const *r is 'violated'
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
     request->timestamp = UA_DateTime_now();
     request->requestHandle = ++client->requestHandle;
@@ -717,6 +718,8 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
             client->state = UA_CLIENTSTATE_ERRORED;
+            //free token
+            UA_NodeId_deleteMembers(&request->authenticationToken);
             return;
         }
     } while(!reply.data);
@@ -730,8 +733,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     retval |= UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId responseId;
     retval |= UA_NodeId_decodeBinary(&reply, &offset, &responseId);
-    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->typeId.identifier.numeric +
-                                                 UA_ENCODINGOFFSET_BINARY);
+    UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, responseType->binaryEncodingId);
 
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;
@@ -747,7 +749,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
 
     /* Todo: we need to demux responses since a publish responses may come at any time */
     if(!UA_NodeId_equal(&responseId, &expectedNodeId) || seqHeader.requestId != requestId) {
-        if(responseId.identifier.numeric != UA_NS0ID_SERVICEFAULT + UA_ENCODINGOFFSET_BINARY) {
+        if(responseId.identifier.numeric != UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId) {
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i. But retrieved ns=%i,i=%i",
                          expectedNodeId.namespaceIndex, expectedNodeId.identifier.numeric,
@@ -776,6 +778,8 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
     } else {
       client->state = UA_CLIENTSTATE_CONNECTED;
     }
+    //free token
+    UA_NodeId_deleteMembers(&request->authenticationToken);
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Received a response of type %i", responseId.identifier.numeric);
 }

@@ -55,7 +55,8 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
         UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
-                               "Skipped a sample due to lack of memory", sub->subscriptionID, monitoredItem->itemId);
+                               "Skipped a sample due to lack of memory", sub->subscriptionID,
+                               monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
@@ -67,7 +68,8 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn, &rvid, &newvalue->value);
+    Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn,
+                        &rvid, &newvalue->value);
 
     /* encode to see if the data has changed */
     size_t binsize = UA_calcSizeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT]);
@@ -221,6 +223,9 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
 }
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                         "Publish Callback", sub->subscriptionID);
+
     /* Count the available notifications */
     size_t notifications = 0;
     UA_Boolean moreNotifications = false;
@@ -261,8 +266,8 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         } else {
             sub->currentLifetimeCount++;
             if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-                UA_LOG_INFO_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                                    "End of lifetime for subscription", sub->subscriptionID);
+                UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                     "End of lifetime for subscription", sub->subscriptionID);
                 UA_Session_deleteSubscription(server, sub->session, sub->subscriptionID);
             }
         }
@@ -315,7 +320,8 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                 mon_l++;
             }
             UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | " \
-                                 "Adding %u notifications to the publish response. %u notifications remain in the queue",
+                                 "Adding %u notifications to the publish response. " \
+                                 "%u notifications remain in the queue",
                                  sub->subscriptionID, mon->itemId, mon_l, mon->currentQueueSize);
             l += mon_l;
         }
@@ -351,7 +357,8 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                         "Sending out a publish response with %u notifications", (UA_UInt32)notifications);
+                         "Subscription %u | Sending out a publish response with %u notifications",
+                         sub->subscriptionID, (UA_UInt32)notifications);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -367,6 +374,11 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 }
 
 UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
+    if(sub->publishJobIsRegistered)
+        return UA_STATUSCODE_GOOD;
+    if(!sub->publishingEnabled)
+        return UA_STATUSCODE_GOOD;
+
     UA_Job job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
                            .job.methodCall = {.method = (UA_ServerCallback)UA_Subscription_publishCallback,
                                               .data = sub} };

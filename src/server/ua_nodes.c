@@ -122,21 +122,21 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
         return UA_STATUSCODE_BADINTERNALERROR;
     
     /* copy standard content */
-	UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
-	dst->nodeClass = src->nodeClass;
-	retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
-	retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
-	retval |= UA_LocalizedText_copy(&src->description, &dst->description);
-	dst->writeMask = src->writeMask;
-	dst->userWriteMask = src->userWriteMask;
-	if(retval != UA_STATUSCODE_GOOD) {
-    	UA_Node_deleteMembersAnyNodeClass(dst);
+    UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
+    dst->nodeClass = src->nodeClass;
+    retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
+    retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
+    retval |= UA_LocalizedText_copy(&src->description, &dst->description);
+    dst->writeMask = src->writeMask;
+    dst->userWriteMask = src->userWriteMask;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteMembersAnyNodeClass(dst);
         return retval;
     }
-	retval |= UA_Array_copy(src->references, src->referencesSize, (void**)&dst->references,
+    retval |= UA_Array_copy(src->references, src->referencesSize, (void**)&dst->references,
                             &UA_TYPES[UA_TYPES_REFERENCENODE]);
-	if(retval != UA_STATUSCODE_GOOD) {
-    	UA_Node_deleteMembersAnyNodeClass(dst);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Node_deleteMembersAnyNodeClass(dst);
         return retval;
     }
     dst->referencesSize = src->referencesSize;
@@ -170,7 +170,7 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     default:
         break;
     }
-	if(retval != UA_STATUSCODE_GOOD)
-    	UA_Node_deleteMembersAnyNodeClass(dst);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_Node_deleteMembersAnyNodeClass(dst);
     return retval;
 }

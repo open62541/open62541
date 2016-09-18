@@ -7,6 +7,8 @@ set(DOC_SRC_DIR   ${PROJECT_BINARY_DIR}/doc_src)
 
 make_directory(${DOC_SRC_DIR})
 file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
+list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
+configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 
 function(generate_rst in out)

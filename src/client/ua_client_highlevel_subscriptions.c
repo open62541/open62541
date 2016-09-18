@@ -5,15 +5,6 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
-    .requestedPublishingInterval = 500.0,
-    .requestedLifetimeCount = 10000,
-    .requestedMaxKeepAliveCount = 1,
-    .maxNotificationsPerPublish = 10,
-    .publishingEnabled = true,
-    .priority = 0
-};
-
 UA_StatusCode UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
                                           UA_UInt32 *newSubscriptionId) {
     UA_CreateSubscriptionRequest request;

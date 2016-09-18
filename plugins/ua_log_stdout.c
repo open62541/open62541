@@ -5,13 +5,14 @@
 #include <stdarg.h>
 #include "ua_log_stdout.h"
 #include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
 const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "client", "userland"};
 
-#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
 
 void UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, ...) {
@@ -25,6 +26,6 @@ void UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, 
     printf("\n");
 }
 
-#if ((__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __GNUC__ > 4 || defined(__clang__))
-#pragma GCC diagnostic pop
+#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || defined(__clang__)
+# pragma GCC diagnostic pop
 #endif
