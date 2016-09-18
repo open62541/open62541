@@ -16,10 +16,12 @@
 /* Static definition of NULL type instances */
 UA_EXPORT const UA_String UA_STRING_NULL = {.length = 0, .data = NULL };
 UA_EXPORT const UA_ByteString UA_BYTESTRING_NULL = {.length = 0, .data = NULL };
-UA_EXPORT const UA_Guid UA_GUID_NULL = {.data1 = 0, .data2 = 0, .data3 = 0, .data4 = {0,0,0,0,0,0,0,0}};
+UA_EXPORT const UA_Guid UA_GUID_NULL = {.data1 = 0, .data2 = 0, .data3 = 0,
+                                        .data4 = {0,0,0,0,0,0,0,0}};
 UA_EXPORT const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 UA_EXPORT const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
-    .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0 },
+    .nodeId = { .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+                .identifier.numeric = 0 },
     .namespaceUri = {.length = 0, .data = NULL}, .serverIndex = 0 };
 
 static void UA_deleteMembers_noInit(void *p, const UA_DataType *type);
@@ -419,12 +421,8 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = (UA_UInt32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; i++) {
-            /* dimensions can have negative size similar to array lengths */
-            if(v->arrayDimensions[i] < 0)
-                return UA_STATUSCODE_BADINDEXRANGEINVALID;
+        for(size_t i = 0; i < dims_count; i++)
             elements *= dims[i];
-        }
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -611,7 +609,7 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
         dst->arrayDimensionsSize = thisrange.dimensionsSize;
         for(size_t k = 0; k < thisrange.dimensionsSize; k++)
             dst->arrayDimensions[k] =
-                (UA_Int32)(thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1);
+                thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1;
     }
     return UA_STATUSCODE_GOOD;
 }

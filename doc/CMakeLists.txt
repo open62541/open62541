@@ -26,12 +26,14 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${DOC_SRC_DIR}/log.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${DOC_SRC_DIR}/connection.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/nodestore.rst
+          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
+          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -48,6 +50,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/nodestore.rst
+          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
+          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)

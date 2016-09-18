@@ -23,7 +23,7 @@ START_TEST(parseRange) {
 
 START_TEST(parseRangeMinEqualMax) {
     UA_NumericRange range;
-    UA_String str = UA_STRING("1:2,1:1");
+    UA_String str = UA_STRING("1:2,1");
     UA_StatusCode retval = parse_numericrange(&str, &range);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(range.dimensionsSize,2);

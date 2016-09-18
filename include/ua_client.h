@@ -172,6 +172,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
 /**
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_METHODCALLS
 static UA_INLINE UA_CallResponse
 UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
     UA_CallResponse response;
@@ -179,6 +180,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
                         &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     return response;
 }
+#endif
 
 /**
  * NodeManagement Service Set
