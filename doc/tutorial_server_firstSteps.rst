@@ -6,7 +6,7 @@ compiling the examples, you need a compiler (MS Visual Studio 2015 or newer,
 GCC, Clang and MinGW32 are all known to be working). The compilation
 instructions are given for GCC but should be straightforward to adapt.
 
-It will also be very helpfull to install an OPC UA Client with a graphical
+It will also be very helpful to install an OPC UA Client with a graphical
 frontend, such as UAExpert by Unified Automation. That will enable you to
 examine the information model of any OPC UA server.
 
