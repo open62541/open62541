@@ -51,7 +51,7 @@ class opcua_value_t():
     self.value = None
     self.parent = parent
     self.stringRepresentation = ""
-    self.setStringReprentation()
+    self.setStringRepresentation()
     self.__binTypeId__ = 0
     self.setNumericRepresentation()
     self.__alias__ = None
@@ -310,7 +310,7 @@ class opcua_value_t():
         ebodypart = getNextElementNode(ebodypart)
       return extobj
 
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     pass
 
   def setNumericRepresentation(self):
@@ -365,7 +365,7 @@ class opcua_value_t():
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
             logger.debug("Building extObj array index " + str(self.value.index(v)))
-            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
+            code.extend(v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v)))
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
@@ -391,7 +391,7 @@ class opcua_value_t():
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-          code = code + self.value[0].printOpen62541CCode_SubType_build()
+          code.extend(self.value[0].printOpen62541CCode_SubType_build())
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
@@ -417,7 +417,7 @@ class opcua_value_t():
 ###
 
 class opcua_BuiltinType_extensionObject_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "ExtensionObject"
     self.__typeId__ = None
 
@@ -533,7 +533,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     return "'" + self.alias() + "':" + self.stringRepresentation + "(" + str(self.value) + ")"
 
 class opcua_BuiltinType_localizedtext_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "LocalizedText"
 
   def setNumericRepresentation(self):
@@ -600,7 +600,7 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
       return code
 
 class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "ExpandedNodeId"
 
   def setNumericRepresentation(self):
@@ -619,7 +619,7 @@ class opcua_BuiltinType_expandednodeid_t(opcua_value_t):
     return code
 
 class opcua_BuiltinType_nodeid_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "NodeId"
 
   def setNumericRepresentation(self):
@@ -671,7 +671,7 @@ class opcua_BuiltinType_nodeid_t(opcua_value_t):
     return "UA_NODEID_NUMERIC(0,0)"
 
 class opcua_BuiltinType_datetime_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "DateTime"
 
   def setNumericRepresentation(self):
@@ -712,7 +712,7 @@ class opcua_BuiltinType_datetime_t(opcua_value_t):
         self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
 
 class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "QualifiedName"
 
   def setNumericRepresentation(self):
@@ -758,7 +758,7 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
       return code
 
 class opcua_BuiltinType_statuscode_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "StatusCode"
 
   def setNumericRepresentation(self):
@@ -771,7 +771,7 @@ class opcua_BuiltinType_statuscode_t(opcua_value_t):
     logger.warn("Not implemented")
 
 class opcua_BuiltinType_diagnosticinfo_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "StatusCode"
 
   def setNumericRepresentation(self):
@@ -784,7 +784,7 @@ class opcua_BuiltinType_diagnosticinfo_t(opcua_value_t):
     logger.warn("Not implemented")
 
 class opcua_BuiltinType_guid_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Guid"
 
   def setNumericRepresentation(self):
@@ -827,7 +827,7 @@ class opcua_BuiltinType_guid_t(opcua_value_t):
       self.value = tmp
 
 class opcua_BuiltinType_boolean_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Boolean"
 
   def setNumericRepresentation(self):
@@ -861,7 +861,7 @@ class opcua_BuiltinType_boolean_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_byte_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Byte"
 
   def setNumericRepresentation(self):
@@ -895,7 +895,7 @@ class opcua_BuiltinType_byte_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_sbyte_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "SByte"
 
   def setNumericRepresentation(self):
@@ -929,7 +929,7 @@ class opcua_BuiltinType_sbyte_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int16_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Int16"
 
   def setNumericRepresentation(self):
@@ -963,7 +963,7 @@ class opcua_BuiltinType_int16_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint16_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "UInt16"
 
   def setNumericRepresentation(self):
@@ -997,7 +997,7 @@ class opcua_BuiltinType_uint16_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int32_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Int32"
 
   def setNumericRepresentation(self):
@@ -1031,7 +1031,7 @@ class opcua_BuiltinType_int32_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint32_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "UInt32"
 
   def setNumericRepresentation(self):
@@ -1065,7 +1065,7 @@ class opcua_BuiltinType_uint32_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_int64_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Int64"
 
   def setNumericRepresentation(self):
@@ -1095,7 +1095,7 @@ class opcua_BuiltinType_int64_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_uint64_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "UInt64"
 
   def setNumericRepresentation(self):
@@ -1129,7 +1129,7 @@ class opcua_BuiltinType_uint64_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_float_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Float"
 
   def setNumericRepresentation(self):
@@ -1163,7 +1163,7 @@ class opcua_BuiltinType_float_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_double_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "Double"
 
   def setNumericRepresentation(self):
@@ -1197,7 +1197,7 @@ class opcua_BuiltinType_double_t(opcua_value_t):
     return "(UA_" + self.stringRepresentation + ") " + str(self.value)
 
 class opcua_BuiltinType_string_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "String"
 
   def setNumericRepresentation(self):
@@ -1234,7 +1234,7 @@ class opcua_BuiltinType_string_t(opcua_value_t):
       return code
 
 class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "XmlElement"
 
   def setNumericRepresentation(self):
@@ -1245,7 +1245,7 @@ class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
       return code
 
 class opcua_BuiltinType_bytestring_t(opcua_value_t):
-  def setStringReprentation(self):
+  def setStringRepresentation(self):
     self.stringRepresentation = "ByteString"
 
   def setNumericRepresentation(self):

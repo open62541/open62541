@@ -135,31 +135,13 @@ class opcua_namespace():
   def getNodeByBrowseName(self, idstring):
     """ Returns the first node in the nodelist whose browseName matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.browseName()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.browseName())), None)
 
   def getNodeByIDString(self, idstring):
     """ Returns the first node in the nodelist whose id string representation
         matches idstring.
     """
-    matches = []
-    for n in self.nodes:
-      if idstring==str(n.id()):
-        matches.append(n)
-    if len(matches) > 1:
-      logger.error("Found multiple nodes with same ID!?")
-    if len(matches) == 0:
-      return None
-    else:
-      return matches[0]
+    return next((n for n in self.nodes if idstring==str(n.id())), None)
 
   def createNode(self, ndtype, xmlelement):
     """ createNode is instantiates a node described by xmlelement, its type being
@@ -635,17 +617,17 @@ class opcua_namespace():
         if (r.target() != None) and (r.target().id() != None) and (r.parent() != None):
           unPrintedRefs.append(r)
 
-    logger.debug(str(len(unPrintedNodes)) + " Nodes, " + str(len(unPrintedRefs)) +  "References need to get printed.")
+    logger.debug("%d nodes and %d references need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
     header.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
     code.append("/* WARNING: This is a generated file.\n * Any manual changes will be overwritten.\n\n */")
 
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
+    header.append('#include "ua_types.h"')
     header.append('#include "server/ua_server_internal.h"')
     header.append('#include "server/ua_nodes.h"')
     header.append('#include "ua_util.h"')
-    header.append('#include "ua_types.h"')
     header.append('#include "ua_types_encoding_binary.h"')
     header.append('#include "ua_types_generated_encoding_binary.h"')
     header.append('#include "ua_transport_generated_encoding_binary.h"')
@@ -679,28 +661,27 @@ class opcua_namespace():
       if n.id().ns != 0:
         nc = n.nodeClass()
         if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
-          header = header + codegen.getNodeIdDefineString(n)
+          header.append(codegen.getNodeIdDefineString(n))
 
       # Now for the actual references...
       for r in n.getReferences():
         # Only print valid references in namespace 0 (users will not want their refs bootstrapped)
         if not r.referenceType() in refsUsed and r.referenceType() != None and r.referenceType().id().ns == 0:
           refsUsed.append(r.referenceType())
-    logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
+    logger.debug("%d reference types are used in the namespace, which will now get bootstrapped.", len(refsUsed))
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
+      code.extend(r.printOpen62541CCode(unPrintedNodes, unPrintedRefs))
 
-    header.append("extern void "+outfilename+"(UA_Server *server);\n")
-    header.append("#endif /* "+outfilename.upper()+"_H_ */")
+    logger.debug("%d Nodes, %d References need to get printed.", len(unPrintedNodes), len(unPrintedRefs))
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
     logger.debug("Printing all other nodes.")
     for n in self.nodes:
-      code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
+      code.extend(n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute))
 
     if len(unPrintedNodes) != 0:
-      logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
+      logger.warn("%d nodes could not be translated to code.", len(unPrintedNodes))
     else:
       logger.debug("Printing suceeded for all nodes")
 
@@ -716,7 +697,7 @@ class opcua_namespace():
           else:
             if (len(tmprefs) == 0):
               code.append("//  Creating leftover references:")
-            code = code + codegen.getCreateStandaloneReference(r.parent(), r)
+            code.extend(codegen.getCreateStandaloneReference(r.parent(), r))
             code.append("")
             tmprefs.append(r)
       # Remove printed refs from list
@@ -726,8 +707,11 @@ class opcua_namespace():
         logger.warn("" + str(len(unPrintedRefs)) + " references could not be translated to code.")
     else:
       logger.debug("Printing succeeded for all references")
-
-    code.append("}")
+        
+    # finalizing source and header
+    header.append("extern void "+outfilename+"(UA_Server *server);\n")
+    header.append("#endif /* "+outfilename.upper()+"_H_ */")
+    code.append("} // closing nodeset()")
     return (header,code)
 
 ###
@@ -779,9 +763,6 @@ class testing:
         ns.append(n)
       print("...done, " + str(len(ns)) + " nodes discovered")
 
-    logger.debug("Phase 5: Printing pretty graph")
-    self.namespace.printDotGraphWalk(depth=1, rootNode=self.namespace.getNodeByIDString("i=84"), followInverse=False, excludeNodeIds=["i=29", "i=22", "i=25"])
-    #self.namespace.printDot()
 
 class testing_open62541_header:
   def __init__(self):

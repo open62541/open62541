@@ -33,9 +33,9 @@ class open62541_MacroHelper():
 
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_EXPANDEDNODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
+      return "UA_EXPANDEDNODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
     elif node.id().s != None:
-      return "UA_EXPANDEDNODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
+      return "UA_EXPANDEDNODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -58,10 +58,10 @@ class open62541_MacroHelper():
         if illegal_char == '_': # underscore is allowed
             continue
         input = input.replace(illegal_char, "_") # map to underscore
+    input = input.replace(" ", "_")
     return input
 
   def getNodeIdDefineString(self, node):
-    code = []
     extrNs = node.browseName().split(":")
     symbolic_name = ""
     # strip all characters that would be illegal in C-Code
@@ -72,7 +72,7 @@ class open62541_MacroHelper():
 
     symbolic_name = self.substitutePunctuationCharacters(nodename)
     if symbolic_name != nodename :
-        logger.warn("Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ")
+        logger.warn("Substituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ")
 
     if symbolic_name in defined_typealiases:
       logger.warn(self, "Typealias definition of " + str(node.id().i) + " is non unique!")
@@ -83,15 +83,13 @@ class open62541_MacroHelper():
       symbolic_name = symbolic_name+"_"+str(extendedN)
 
     defined_typealiases.append(symbolic_name)
-
-    code.append("#define UA_NS"  + str(node.id().ns) + "ID_" + symbolic_name.upper() + " " + str(node.id().i))
-    return code
+    return "#define UA_NS%sID_%s %s" % (node.id().ns, symbolic_name.upper(), node.id().i)
 
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_NODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
+      return "UA_NODEID_NUMERIC(%s, %s)" % (node.id().ns, node.id().i)
     elif node.id().s != None:
-      return "UA_NODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
+      return "UA_NODEID_STRING(%s, %s)" % (node.id().ns, node.id().s)
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -105,14 +103,14 @@ class open62541_MacroHelper():
     code = []
 
     if reference.isForward():
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", true);")
+      code.append("UA_Server_addReference(server, %s, %s, %s, true);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
     else:
-      code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
+      code.append("UA_Server_addReference(server, %s, %s, %s, false);" % (self.getCreateNodeIDMacro(sourcenode), self.getCreateNodeIDMacro(reference.referenceType()), self.getCreateExpandedNodeIDMacro(reference.target())))
     return code
 
-  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes):
+  def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes=[]):
     code = []
-    code.append("// Node: " + str(node) + ", " + str(node.browseName()))
+    code.append("// Node: %s, %s" % (str(node), str(node.browseName())))
 
     if node.nodeClass() == NODE_CLASS_OBJECT:
       nodetype = "Object"
@@ -197,31 +195,33 @@ class open62541_MacroHelper():
     # print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
     code.append("UA_%sAttributes_init(&attr);" %  nodetype);
-    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
-    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
+    code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.displayName().replace("\"", "\\\""))
+    code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"%s\");" % node.description().replace("\"", "\\\""))
 
     if nodetype == "Variable":
       code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
       code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
 
     if nodetype in ["Variable", "VariableType"]:
-      code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
+      #TODO: Fix this
+      pass
+      #code.extend(node.printOpen62541CCode_SubtypeEarly(bootstrapping = False))
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")
       if node.userExecutable():
         code.append("attr.userExecutable = true;")
 
-    code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
+    code.append("UA_NodeId nodeId = %s;" % str(self.getCreateNodeIDMacro(node)))
     if nodetype in ["Object", "Variable"]:
       code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") #due to the current API we cannot set types here since the API will generate nodes with random IDs
-    code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
-    code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
+    code.append("UA_NodeId parentNodeId = %s;" % str(self.getCreateNodeIDMacro(parentNode)))
+    code.append("UA_NodeId parentReferenceNodeId = %s;" % str(self.getCreateNodeIDMacro(parentReference.referenceType())))
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
-      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
+      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(%s, \"%s\");" % (str(extrNs[0]), extrNs[1]))
     else:
-      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
+      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"%s\");" % str(node.browseName()))
 
     # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using
     # Djikstra (check that arguments have not been printed). (@ichrispa)
@@ -232,9 +232,9 @@ class open62541_MacroHelper():
     if nodetype != "Method":
       code.append("       , attr, NULL, NULL);")
     else:
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
-      
-    #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since 
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL, %s, inputArguments,  %s, outputArguments, NULL);" % (str(len(inArgVal)), str(len(outArgVal))))
+
+    #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since
     #a real Reference will be add in a later step (a single HasTypeDefinition reference is assumed here)
     #The current API does not let us specify IDs of Object's subelements.
     if nodetype is "Object":

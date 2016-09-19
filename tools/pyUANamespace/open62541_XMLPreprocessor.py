@@ -260,7 +260,7 @@ class open62541_XMLPreprocessor:
   def testModelCongruencyAgainstReferences(self, doc, refs):
     """ testModelCongruencyAgainstReferences
 
-        Counts how many of the nodes referencef in refs can be found in the model
+        Counts how many of the nodes referenced in refs can be found in the model
         doc.
 
         returns: double corresponding to the percentage of hits
@@ -272,7 +272,6 @@ class open62541_XMLPreprocessor:
     for ref in refs:
       for n in doc.containedNodes:
         if str(ref) == str(n[0]):
-          print(ref, n[0])
           found = found + 1
           break
     return float(found)/float(sspace)
@@ -356,16 +355,14 @@ class open62541_XMLPreprocessor:
           r.toString()
         # ... how many of them would be found!?
         c = self.testModelCongruencyAgainstReferences(tDoc, refs)
-        print(c)
         if c>0:
           matches.append((c, tDoc))
       best = (0, None)
       for m in matches:
-        print(m[0])
         if m[0] > best[0]:
           best = m
       if best[1] != None:
-        logger.warn("Best match (" + str(best[1]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
+        logger.warn("Best match (%d) for what %s refers to as ns=%s was %s", best[1], os.path.basename(doc.originXML), d, os.path.basename(best[1].originXML))
         doc.reassignReferencedNamespaceId(d, best[1].getNamespaceId())
       else:
         logger.error("Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d))
