@@ -178,6 +178,39 @@ addNodeInternalWithType(UA_Server *server, UA_Node *node, const UA_NodeId parent
     return res;
 }
 
+// delete any children of an instance without touching the object itself
+static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
+  UA_BrowseDescription bDes;
+  UA_BrowseDescription_init(&bDes);
+  UA_NodeId_copy(objectNodeId, &bDes.nodeId );
+  bDes.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+  bDes.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+  bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_REFERENCETYPEINFO;
+  UA_BrowseResult bRes;
+  UA_BrowseResult_init(&bRes);
+  Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
+  for(size_t i=0; i<bRes.referencesSize; i++) {
+    UA_ReferenceDescription *rd = &bRes.references[i];
+    if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) 
+    {
+      Service_DeleteNodes_single(server, &adminSession, &rd->nodeId.nodeId, UA_TRUE) ;
+    }
+    else if (rd->nodeClass == UA_NODECLASS_METHOD) 
+    {
+      UA_DeleteReferencesItem dR;
+      UA_DeleteReferencesItem_init(&dR);
+      dR.sourceNodeId = *objectNodeId;
+      dR.isForward = UA_TRUE;
+      UA_NodeId_copy(&rd->referenceTypeId, &dR.referenceTypeId);
+      UA_NodeId_copy(&rd->nodeId.nodeId, &dR.targetNodeId.nodeId);
+      dR.deleteBidirectional = UA_TRUE;
+      Service_DeleteReferences_single(server, &adminSession, &dR);
+      UA_DeleteReferencesItem_deleteMembers(&dR);
+    }
+  }
+  UA_BrowseResult_deleteMembers(&bRes); 
+}
+
 /**********/
 /* Server */
 /**********/
@@ -873,7 +906,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     servernode->nodeId.identifier.numeric = UA_NS0ID_SERVER;
     addNodeInternalWithType(server, (UA_Node*)servernode, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             nodeIdOrganizes, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE));
-
+    
+    // If we are in an UA conformant namespace, the above function just created a full ServerType object.
+    // Before readding every variable, delete whatever got instantiated.
+    deleteInstanceChildren(server, &servernode->nodeId);
+    
     UA_VariableNode *namespaceArray = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)namespaceArray, "NamespaceArray");
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
