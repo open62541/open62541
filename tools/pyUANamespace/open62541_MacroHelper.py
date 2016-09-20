@@ -222,7 +222,7 @@ class open62541_MacroHelper():
           typeDefinition = r.target()
       if typeDefinition == None:
         # FIXME: We might want to resort to BaseXYTTypes here?
-        code.append("UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);")
+        code.append("UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);")
       else:
         code.append("UA_NodeId typeDefinition = " + str(self.getCreateNodeIDMacro(typeDefinition)) + ";")
     code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
