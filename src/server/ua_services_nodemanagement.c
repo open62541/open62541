@@ -5,10 +5,21 @@
 /* Add Node */
 /************/
 
+
 static void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         UA_InstantiationCallback *instantiationCallback);
+
+static UA_StatusCode
+copyChildNodesToNode(UA_Server *server, UA_Session *session, 
+                     const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
+                     UA_InstantiationCallback *instantiationCallback);
+
+static UA_NodeId
+instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session, 
+                                  const UA_NodeId *searchInstance, 
+                                  const UA_QualifiedName *browseName);
 
 /* copy an existing variable under the given parent. then instantiate the
  * variable for its type */
@@ -63,6 +74,12 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
     Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
+    
+    /* Copy any aggregated/nested variables/methods/subobjects this object contains 
+     * These objects may not be part of the nodes type.
+     */
+    copyChildNodesToNode(server, session, &node->nodeId, &res.addedNodeId, instantiationCallback);
+    
     UA_NodeId_deleteMembers(&res.addedNodeId);
     return res.statusCode;
 }
@@ -108,7 +125,14 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *obje
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
     Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
+    
+    /* Copy any aggregated/nested variables/methods/subobjects this object contains 
+     * These objects may not be part of the nodes type.
+     */
+    copyChildNodesToNode(server, session, &node->nodeId, &res.addedNodeId, instantiationCallback);
+    
     UA_NodeId_deleteMembers(&res.addedNodeId);
+    
     return res.statusCode;
 }
 
@@ -145,42 +169,12 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* Add all the child nodes */
-    UA_BrowseDescription browseChildren;
-    UA_BrowseDescription_init(&browseChildren);
-    browseChildren.nodeId = *typeId;
-    browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-    browseChildren.includeSubtypes = true;
-    browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
-    browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
-
-    UA_BrowseResult browseResult;
-    UA_BrowseResult_init(&browseResult);
-    // todo: continuation points if there are too many results
-    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
-
-    for(size_t i = 0; i < browseResult.referencesSize; i++) {
-        UA_ReferenceDescription *rd = &browseResult.references[i];
-        if(rd->nodeClass == UA_NODECLASS_METHOD) {
-            /* add a reference to the method in the objecttype */
-            UA_AddReferencesItem item;
-            UA_AddReferencesItem_init(&item);
-            item.sourceNodeId = *nodeId;
-            item.referenceTypeId = rd->referenceTypeId;
-            item.isForward = true;
-            item.targetNodeId = rd->nodeId;
-            item.targetNodeClass = UA_NODECLASS_METHOD;
-            Service_AddReferences_single(server, session, &item);
-        } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
-          copyExistingVariable(server, session, &rd->nodeId.nodeId,
-                               &rd->referenceTypeId, nodeId, instantiationCallback);
-        else if(rd->nodeClass == UA_NODECLASS_OBJECT)
-          copyExistingObject(server, session, &rd->nodeId.nodeId,
-                             &rd->referenceTypeId, nodeId, instantiationCallback);
-    }
-    UA_BrowseResult_deleteMembers(&browseResult);
+    copyChildNodesToNode(server, session, typeId, nodeId, instantiationCallback);
     
     /* Instantiate supertype attributes if a supertype is available */
+    UA_BrowseDescription browseChildren;
+    UA_BrowseDescription_init(&browseChildren);
+    UA_BrowseResult browseResult;
     UA_BrowseResult_init(&browseResult);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
@@ -241,31 +235,13 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
         return UA_STATUSCODE_BADNODEIDINVALID;
 
     /* get the references to child properties */
+    /* Add all the child nodes */
+    copyChildNodesToNode(server, session, typeId, nodeId, instantiationCallback);
+    
+    /* Instantiate supertypes */
     UA_BrowseDescription browseChildren;
     UA_BrowseDescription_init(&browseChildren);
-    browseChildren.nodeId = *typeId;
-    browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    browseChildren.includeSubtypes = true;
-    browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    browseChildren.nodeClassMask = UA_NODECLASS_VARIABLE;
-    browseChildren.resultMask =
-        UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
-
     UA_BrowseResult browseResult;
-    UA_BrowseResult_init(&browseResult);
-    // todo: continuation points if there are too many results
-    Service_Browse_single(server, session, NULL, &browseChildren,
-                          100, &browseResult);
-
-    /* add the child properties */
-    for(size_t i = 0; i < browseResult.referencesSize; i++) {
-        UA_ReferenceDescription *rd = &browseResult.references[i];
-        copyExistingVariable(server, session, &rd->nodeId.nodeId,
-                             &rd->referenceTypeId, nodeId, instantiationCallback);
-    }
-    UA_BrowseResult_deleteMembers(&browseResult);
-
-    /* Instantiate supertypes */
     UA_BrowseResult_init(&browseResult);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
@@ -297,6 +273,94 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
 
     return UA_STATUSCODE_GOOD;
 } 
+
+/* Search for an instance of "browseName" in node searchInstance
+ * Used during copyChildNodes to find overwritable/mergable nodes
+ */
+static UA_NodeId
+instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session, 
+                                  const UA_NodeId *searchInstance, 
+                                  const UA_QualifiedName *browseName) {
+    UA_NodeId retval = UA_NODEID_NULL;
+    
+    UA_BrowseDescription browseChildren;
+    UA_BrowseDescription_init(&browseChildren);
+    UA_NodeId_copy(searchInstance, &browseChildren.nodeId);
+    browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    browseChildren.includeSubtypes = true;
+    browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    browseChildren.resultMask = UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
+    
+    UA_BrowseResult browseResult;
+    UA_BrowseResult_init(&browseResult);
+    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
+    
+    for(size_t i = 0; i < browseResult.referencesSize; i++) {
+      UA_ReferenceDescription *rd = &browseResult.references[i];
+      if (strncmp((const char*) rd->browseName.name.data, (const char*) browseName->name.data, 
+        (browseName->name.length>rd->browseName.name.length ? browseName->name.length : rd->browseName.name.length) ) == 0) {
+        // Found
+        retval = rd->nodeId.nodeId;
+        break;
+      }
+    }
+    
+    UA_BrowseResult_deleteMembers(&browseResult);
+    return retval;
+}
+
+/* Copy any children of Node sourceNodeId to another node destinationNodeId 
+ * Used at 2 places: 
+ *  (1) During instantiation, when any children of the Type are copied
+ *  (2) During instantiation to copy any *nested* instances to the new node
+ */
+static UA_StatusCode
+copyChildNodesToNode(UA_Server* server, UA_Session* session, 
+                     const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId, 
+                     UA_InstantiationCallback* instantiationCallback) {
+  /* Add all the child nodes */
+  UA_BrowseDescription browseChildren;
+  UA_BrowseDescription_init(&browseChildren);
+  UA_NodeId_copy(sourceNodeId, &browseChildren.nodeId);
+  browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+  browseChildren.includeSubtypes = true;
+  browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+  browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+  browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
+  
+  UA_BrowseResult browseResult;
+  UA_BrowseResult_init(&browseResult);
+  // todo: continuation points if there are too many results
+  Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
+  
+  for(size_t i = 0; i < browseResult.referencesSize; i++) {
+    UA_ReferenceDescription *rd = &browseResult.references[i];
+    // Check for deduplication
+    UA_NodeId existing = instanceFindAggregateByBrowsename(server, session, destinationNodeId, &rd->browseName);
+    if (UA_NodeId_equal(&UA_NODEID_NULL, &existing) == UA_TRUE) {
+      if(rd->nodeClass == UA_NODECLASS_METHOD) {
+        /* add a reference to the method in the objecttype */
+        UA_AddReferencesItem newItem;
+        UA_AddReferencesItem_init(&newItem);
+        UA_NodeId_copy(destinationNodeId, &newItem.sourceNodeId);
+        newItem.referenceTypeId = rd->referenceTypeId;
+        newItem.isForward = true;
+        newItem.targetNodeId = rd->nodeId;
+        newItem.targetNodeClass = UA_NODECLASS_METHOD;
+        Service_AddReferences_single(server, session, &newItem);
+      } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
+          copyExistingVariable(server, session, &rd->nodeId.nodeId,
+                              &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+        else if(rd->nodeClass == UA_NODECLASS_OBJECT)
+          copyExistingObject(server, session, &rd->nodeId.nodeId,
+                            &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+    }
+  }
+  UA_BrowseResult_deleteMembers(&browseResult);
+  
+  return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeClass,
