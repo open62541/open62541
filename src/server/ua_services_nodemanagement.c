@@ -486,15 +486,18 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     const UA_NodeId basedatavartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     const UA_NodeId *typeDef = &item->typeDefinition.nodeId;
     if(UA_NodeId_isNull(typeDef))
-        typeDef = &basevartype;
+        typeDef = &basedatavartype;
     
     
     /* Make sure we can instantiate the basetypes themselves */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(UA_NodeId_equal(&node->nodeId, &basevartype) == UA_TRUE || 
        UA_NodeId_equal(&node->nodeId, &basedatavartype) == UA_TRUE
-    )
+    ) {
+      node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+      node->valueRank = -2;
       return retval;
+    }
     
     const UA_VariableTypeNode *vt =
         (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
