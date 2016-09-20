@@ -314,6 +314,8 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
  * Used at 2 places: 
  *  (1) During instantiation, when any children of the Type are copied
  *  (2) During instantiation to copy any *nested* instances to the new node
+ *      (2.1) Might call instantiation of a type first
+ *      (2.2) *Should* then overwrite nested contents in definition --> this scenario is currently not handled!
  */
 static UA_StatusCode
 copyChildNodesToNode(UA_Server* server, UA_Session* session, 
@@ -338,7 +340,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
     UA_ReferenceDescription *rd = &browseResult.references[i];
     // Check for deduplication
     UA_NodeId existing = instanceFindAggregateByBrowsename(server, session, destinationNodeId, &rd->browseName);
-    if (UA_NodeId_equal(&UA_NODEID_NULL, &existing) == UA_TRUE) {
+    if (UA_NodeId_equal(&UA_NODEID_NULL, &existing) == UA_TRUE) { /* New node in child */
       if(rd->nodeClass == UA_NODECLASS_METHOD) {
         /* add a reference to the method in the objecttype */
         UA_AddReferencesItem newItem;
@@ -355,6 +357,21 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
         else if(rd->nodeClass == UA_NODECLASS_OBJECT)
           copyExistingObject(server, session, &rd->nodeId.nodeId,
                             &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+    }
+    else { /* Preexistent node in child */
+      /* General strategy if we meet an already existing node:
+       * - Preexistent variable contents always 'win' overwriting anything supertypes would instantiate
+       * - Always copy contents of template *into* existant node (merge contents of e.g. Folders like ParameterSet)
+       */
+      if(rd->nodeClass == UA_NODECLASS_METHOD) {} // Do nothing, existent method wins, right?
+      else if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
+        if (UA_NodeId_equal(&rd->nodeId.nodeId, &existing) != UA_TRUE) 
+          copyChildNodesToNode(server, session, &rd->nodeId.nodeId, &existing, instantiationCallback);
+      }
+      else if(rd->nodeClass == UA_NODECLASS_OBJECT) {
+        if (UA_NodeId_equal(&rd->nodeId.nodeId, &existing) != UA_TRUE) 
+          copyChildNodesToNode(server, session, &rd->nodeId.nodeId, &existing, instantiationCallback);
+      }
     }
   }
   UA_BrowseResult_deleteMembers(&browseResult);
