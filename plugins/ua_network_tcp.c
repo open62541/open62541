@@ -42,9 +42,12 @@
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
-# ifdef __OpenBSD__
-#  include <sys/socket.h>
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+# include <sys/param.h>
+# if defined(BSD)
+#  include<sys/socket.h>
 # endif
+#endif
 # ifndef __CYGWIN__
 #  include <netinet/tcp.h>
 # endif
