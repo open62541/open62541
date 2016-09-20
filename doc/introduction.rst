@@ -54,7 +54,7 @@ Getting Help
 For discussion and help besides this documentation, you can reach the open62541 community via
 
 - the `mailing list <https://groups.google.com/d/forum/open62541>`_
-- our `IRC channe <http://webchat.freenode.net/?channels=%23open62541>`_
+- our `IRC channel <http://webchat.freenode.net/?channels=%23open62541>`_
 - the `bugtracker <https://github.com/open62541/open62541/issues>`_
 
 Contributing

@@ -274,7 +274,7 @@ In its simplest form, an invokation of the namespace compiler will look like thi
 
 The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides defintions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
 
-Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``DENABLE_GENERATE_NAMESPACE0`` will execute the following command::
+Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``DUA_ENABLE_GENERATE_NAMESPACE0`` will execute the following command::
 
   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py 
     -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
@@ -282,7 +282,7 @@ Although it is possible to run the compiler this way, it is highly discouraged. 
     ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} 
     ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
 
-Albeit a bit more complicated then the previous description, you can see that a the namespace 0 XML file is loaded in the line before the last, and that the output will be in ``ua_namespaceinit_generated.c/h``. In order to take advantage of the namespace compiler, we will simply append our nodeset to this call and have cmake care for the rest. Modify the CMakeLists.txt line above to contain the relative path to your own XML file like this::
+Albeit a bit more complicated than the previous description, you can see that a the namespace 0 XML file is loaded in the line before the last, and that the output will be in ``ua_namespaceinit_generated.c/h``. In order to take advantage of the namespace compiler, we will simply append our nodeset to this call and have cmake care for the rest. Modify the CMakeLists.txt line above to contain the relative path to your own XML file like this::
 
   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py 
     -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
@@ -297,9 +297,9 @@ Always make sure that your XML file comes *after* namespace 0. Also, take into c
   * Adding the relative path to the file into CMakeLists.txt
   * Compiling the stack
 
-After adding your XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded::
+After adding your XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DUA_ENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DUA_ENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded::
   
-  ichrispa@Cassandra:open62541/build> cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_METHODCALLS=On -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On -DENABLE_GENERATE_NAMESPACE0=On ../
+  ichrispa@Cassandra:open62541/build> cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_METHODCALLS=On -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On -DUA_ENABLE_GENERATE_NAMESPACE0=On ../
   -- Git version: v0.1.0-RC4-403-g198597c-dirty
   -- Configuring done
   -- Generating done
@@ -361,7 +361,7 @@ These definitions are generated for all types, but not variables, objects or vie
   
 Now switch back to your own source directory and update your libopen62541 library (in case you have not linked it into the build folder). Compile our example server as follows::
   
-  ichrispa@Cassandra:open62541/build-tutorials> gcc -g -std=c99 -Wl,-rpath,`pwd` -I ./include -L . -DENABLE_METHODCALLS -o server ./server.c -lopen62541
+  ichrispa@Cassandra:open62541/build-tutorials> gcc -g -std=c99 -Wl,-rpath,`pwd` -I ./include -L . -DUA_ENABLE_METHODCALLS -o server ./server.c -lopen62541
 
 Note that we need to also define the method-calls here, as the header files may choose to ommit functions such as UA_Server_addMethodNode() if they believe you do not use them. If you run the server, you should now see a new dataType in the browse path ``/Types/ObjectTypes/BaseObjectType/FieldDevice`` when viewing the nodes in UAExpert.
 
@@ -372,7 +372,7 @@ A minor list of some of the miriad things that can go wrong:
   * A structure/DataType you created with a value was not encoded. The namespace compiler can currently not handle nested extensionObjects.
   * Nodes are not or wrongly encoded or you get nodeId errors.  The namespace compiler can currently not encode bytestring or guid node id's and external server uris are not supported either.
   * You get compiler complaints for non-existant variants. Check that you have removed any namespace qualifiers (like "uax:") from the XML file.
-  * You get "invalid reference to addMethodNode" style errors. Make sure ``-DDENABLE_METHODCALLS=On`` is defined.
+  * You get "invalid reference to addMethodNode" style errors. Make sure ``-DUA_ENABLE_METHODCALLS=On`` is defined.
 
 Creating object instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^
