@@ -213,8 +213,16 @@ class open62541_MacroHelper():
         code.append("attr.userExecutable = true;")
 
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
-    if nodetype in ["Object", "Variable"]:
-      code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;") #due to the current API we cannot set types here since the API will generate nodes with random IDs
+    if nodetype in ["Object", "Variable", "VariableType"]:
+      typeDefinition = None
+      for r in node.getReferences():
+        if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
+          typeDefinition = r.target()
+      if typeDefinition == None:
+        # FIXME: We might want to resort to BaseXYTTypes here?
+        code.append("UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);")
+      else:
+        code.append("UA_NodeId typeDefinition = " + str(self.getCreateNodeIDMacro(typeDefinition)) + ";")
     code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
     code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
     extrNs = node.browseName().split(":")
@@ -227,7 +235,7 @@ class open62541_MacroHelper():
     # Djikstra (check that arguments have not been printed). (@ichrispa)
     code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
 
-    if nodetype in ["Object", "Variable"]:
+    if nodetype in ["Object", "Variable", "VariableType"]:
       code.append("       , typeDefinition")
     if nodetype != "Method":
       code.append("       , attr, NULL, NULL);")

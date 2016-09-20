@@ -482,33 +482,47 @@ static UA_StatusCode
 copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
                              const UA_AddNodesItem *item,
                              const UA_VariableAttributes *attr) {
-    const UA_NodeId basevartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    const UA_NodeId basevartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE);
+    const UA_NodeId basedatavartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     const UA_NodeId *typeDef = &item->typeDefinition.nodeId;
     if(UA_NodeId_isNull(typeDef))
         typeDef = &basevartype;
-
+    
+    
+    /* Make sure we can instantiate the basetypes themselves */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(UA_NodeId_equal(&node->nodeId, &basevartype) == UA_TRUE || 
+       UA_NodeId_equal(&node->nodeId, &basedatavartype) == UA_TRUE
+    )
+      return retval;
+    
     const UA_VariableTypeNode *vt =
         (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
+    if(!vt || (vt->nodeClass != UA_NODECLASS_VARIABLETYPE && vt->nodeClass != UA_NODECLASS_DATATYPE))
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     
     /* Set the constraints */
-    UA_StatusCode retval;
     if(!UA_NodeId_isNull(&attr->dataType))
         retval  = UA_VariableNode_setDataType(server, node, vt, &attr->dataType);
     else /* workaround common error where the datatype is left as NA_NODEID_NULL */
+      /* Note that most NS0 VarTypeNodes are DataTypes, not VariableTypes! */
+      if (vt->nodeClass == UA_NODECLASS_DATATYPE) 
+        UA_NodeId_copy(&vt->nodeId, &node->dataType);
+      else
         retval = UA_VariableNode_setDataType(server, node, vt, &vt->dataType);
         
     node->valueRank = -2; /* allow all dimensions first */
-    retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
-                                                 attr->arrayDimensionsSize,
-                                                 attr->arrayDimensions);
+    if (vt->nodeClass != UA_NODECLASS_DATATYPE) {
+      retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
+                                                  attr->arrayDimensionsSize,
+                                                  attr->arrayDimensions);
 
-    if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
-        retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
-    else /* workaround common error where the valuerank is left as 0 */
-        retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
-
+      if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
+          retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
+      else /* workaround common error where the valuerank is left as 0 */
+          retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
+    }
+    
     /* Set the value */
     UA_DataValue value;
     UA_DataValue_init(&value);

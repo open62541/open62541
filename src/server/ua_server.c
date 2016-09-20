@@ -866,7 +866,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /*********************/
     /* The Server Object */
     /*********************/
-
+    
+    /* Create our own server object */ 
     UA_ObjectNode *servernode = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)servernode, "Server");
     servernode->nodeId.identifier.numeric = UA_NS0ID_SERVER;
