@@ -464,8 +464,11 @@ UA_matchValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize)
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank < 0)
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        /* The following is not correct: May be an empty array; See "ServerType"->"ServerArray" as an example
+         * Might hold true for other, specific use cases in userspace?
         if(arrayDimensionsSize != (size_t)valueRank)
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        */
     }
     return UA_STATUSCODE_GOOD;
 }
