@@ -864,6 +864,36 @@ START_TEST(WriteSingleAttributeValue) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(WriteSingleAttributeValueRangeFromScalar) {
+    UA_Server *server = makeTestSequence();
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 20;
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "myarray");
+    wValue.indexRange = UA_STRING("0,0");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(WriteSingleAttributeValueRangeFromArray) {
+    UA_Server *server = makeTestSequence();
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 20;
+    UA_Variant_setArray(&wValue.value.value, &myInteger, 1, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "myarray");
+    wValue.indexRange = UA_STRING("0,0");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = Service_Write_single(server, &adminSession, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Server_delete(server);
+} END_TEST
+
 START_TEST(WriteSingleAttributeDataType) {
     UA_Server *server = makeTestSequence();
     UA_WriteValue wValue;
@@ -1055,6 +1085,8 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeEventNotifier);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);

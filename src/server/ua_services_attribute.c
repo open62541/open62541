@@ -551,22 +551,27 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
     if(value->arrayDimensionsSize == 0 && value->arrayLength > 0)
         arrayDims = 1;
     UA_StatusCode retval = UA_matchValueRankArrayDimensions(variableValueRank, arrayDims);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "New array dimensions do not match the value rank");
         return retval;
-
-    /* Ranges are checked in detail during writing into the variant */
-    if(range)
-        return UA_STATUSCODE_GOOD;
+    }
 
     /* See if the array dimensions match */
-    if(variableArrayDimensions) {
-        if(value->arrayDimensionsSize != variableArrayDimensionsSize)
+    if(!range && variableArrayDimensions) {
+        if(value->arrayDimensionsSize != variableArrayDimensionsSize) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Array dimensions of the value do not match the variable definition");
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
         /* dimension size zero in the node definition: this value dimension can be any size */
         for(size_t i = 0; i < variableArrayDimensionsSize; i++) {
             if(variableArrayDimensions[i] != value->arrayDimensions[i] &&
-               variableArrayDimensions[i] != 0)
+               variableArrayDimensions[i] != 0) {
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Array dimensions %u does not have the required length", (unsigned int)i);
                 return UA_STATUSCODE_BADTYPEMISMATCH;
+            }
         }
     }
     return UA_STATUSCODE_GOOD;
@@ -600,8 +605,11 @@ UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
                                                     node->arrayDimensionsSize,
                                                     node->arrayDimensions,
                                                     &node->value.data.value.value, NULL, NULL);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current value does not match the new data type");
             return retval;
+        }
     }
     
     /* replace the datatype nodeid */
@@ -670,18 +678,29 @@ UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
     /* Check that the array dimensions match with the valuerank */
     UA_StatusCode retval = UA_matchValueRankArrayDimensions(node->valueRank,
                                                             arrayDimensionsSize);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "The current value rank does not match the new array dimensions");
         return retval;
+    }
 
     /* Check if the array dimensions match with the wildcards in the
      * variabletype (dimension length 0) */
     if(vt->arrayDimensions) {
-        if(vt->arrayDimensionsSize != arrayDimensionsSize)
+        if(vt->arrayDimensionsSize != arrayDimensionsSize) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The variable type requires %u array dimenions",
+                         (unsigned int)vt->arrayDimensionsSize);
             return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
         for(size_t i = 0; i < arrayDimensionsSize; i++) {
             if(vt->arrayDimensions[i] != 0 &&
-               vt->arrayDimensions[i] != arrayDimensions[i])
+               vt->arrayDimensions[i] != arrayDimensions[i]) {
+                UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "The variable type requires a different length of array dimensions %u",
+                             (unsigned int)i);
                 return UA_STATUSCODE_BADTYPEMISMATCH;
+            }
         }
     }
 
@@ -690,8 +709,11 @@ UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
         retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
                                                     arrayDimensionsSize, arrayDimensions,
                                                     &node->value.data.value.value, NULL, NULL);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current value does not match the new array dimensions");
             return retval;
+        }
     }
 
     /* Ok, apply */
@@ -703,6 +725,47 @@ UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
     UA_free(oldArrayDimensions);
     node->arrayDimensionsSize = arrayDimensionsSize;
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setValueAfterTypeCheck(UA_VariableNode *node, UA_DataValue *editableValue,
+                       UA_NumericRange *rangeptr) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(rangeptr) {
+        /* Write with a range */
+        if(editableValue->status == UA_STATUSCODE_GOOD) {
+            if(!node->value.data.value.hasValue || !editableValue->hasValue)
+                return UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+            /* Make Scalar a one-entry array for range matching */
+            if(UA_Variant_isScalar(&editableValue->value))
+                editableValue->value.arrayLength = 1;
+                
+            /* Write the value */
+            retval = UA_Variant_setRangeCopy(&node->value.data.value.value,
+                                             editableValue->value.data,
+                                             editableValue->value.arrayLength, *rangeptr);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+        }
+        node->value.data.value.hasStatus = editableValue->hasStatus;
+        node->value.data.value.hasSourceTimestamp = editableValue->hasSourceTimestamp;
+        node->value.data.value.hasSourcePicoseconds = editableValue->hasSourcePicoseconds;
+        node->value.data.value.status = editableValue->status;
+        node->value.data.value.sourceTimestamp = editableValue->sourceTimestamp;
+        node->value.data.value.sourcePicoseconds = editableValue->sourcePicoseconds;
+        return retval;
+    }
+
+    /* Replace scalar */
+    UA_Variant old_value = node->value.data.value.value;
+    retval = UA_DataValue_copy(editableValue, &node->value.data.value);
+    if(retval == UA_STATUSCODE_GOOD)
+        UA_Variant_deleteMembers(&old_value);
+    else
+        node->value.data.value.value = old_value; 
+    return retval;
 }
 
 UA_StatusCode
@@ -730,12 +793,15 @@ UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
      * matches the node data type */
     if(value->hasValue) {
         retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
-                                                    node->arrayDimensionsSize,
-                                                    node->arrayDimensions,
-                                                    &value->value, rangeptr,
-                                                    &editableValue.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+                                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                                    &value->value, rangeptr, &editableValue.value);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The new value does not match the variable definiton");
+            if(rangeptr)
+                UA_free(range.dimensions);
+            return retval;
+        }
     }
 
     /* Set the source timestamp if there is none */
@@ -746,35 +812,10 @@ UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
 
     /* Write the value */
     if(node->valueSource == UA_VALUESOURCE_DATA) {
-        if(!rangeptr) {
-            /* Replace the DataValue */
-            UA_Variant old_value = node->value.data.value.value;
-            retval = UA_DataValue_copy(&editableValue, &node->value.data.value);
-            if(retval == UA_STATUSCODE_GOOD)
-                UA_Variant_deleteMembers(&old_value);
-            else
-                node->value.data.value.value = old_value; 
-        } else {
-            /* Write with a range */
-            node->value.data.value.hasStatus = editableValue.hasStatus;
-            node->value.data.value.hasSourceTimestamp = editableValue.hasSourceTimestamp;
-            node->value.data.value.hasSourcePicoseconds = editableValue.hasSourcePicoseconds;
-            node->value.data.value.status = editableValue.status;
-            node->value.data.value.sourceTimestamp = editableValue.sourceTimestamp;
-            node->value.data.value.sourcePicoseconds = editableValue.sourcePicoseconds;
-            if(editableValue.status == UA_STATUSCODE_GOOD) {
-                if(!node->value.data.value.hasValue || !editableValue.hasValue) {
-                    retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
-                    goto cleanup;
-                }
-                /* TODO: Catch error during setRangeCopy (make a copy of the value
-                   in the server?) */
-                retval = UA_Variant_setRangeCopy(&node->value.data.value.value,
-                                                 editableValue.value.data,
-                                                 editableValue.value.arrayLength, range);
-            }
-        }
-
+        retval = setValueAfterTypeCheck(node, &editableValue, rangeptr);
+        if(retval != UA_STATUSCODE_GOOD)
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Could not write the value after checking the type (maybe an index range mismatch)");
         /* post-write callback */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite)
             node->value.data.callback.onWrite(node->value.data.callback.handle, node->nodeId,
@@ -788,10 +829,8 @@ UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
                                                   node->nodeId, &value->value, rangeptr);
     }
 
- cleanup:
     if(rangeptr)
         UA_free(range.dimensions);
-
     return retval;
 }
 
