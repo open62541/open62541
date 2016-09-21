@@ -79,6 +79,9 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
      * These objects may not be part of the nodes type.
      */
     copyChildNodesToNode(server, session, &node->nodeId, &res.addedNodeId, instantiationCallback);
+    if(instantiationCallback)
+        instantiationCallback->method(res.addedNodeId, node->nodeId, 
+                                      instantiationCallback->handle);
     
     UA_NodeId_deleteMembers(&res.addedNodeId);
     return res.statusCode;
@@ -130,6 +133,9 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *obje
      * These objects may not be part of the nodes type.
      */
     copyChildNodesToNode(server, session, &node->nodeId, &res.addedNodeId, instantiationCallback);
+    if(instantiationCallback)
+        instantiationCallback->method(res.addedNodeId, node->nodeId, 
+                                      instantiationCallback->handle);
     
     UA_NodeId_deleteMembers(&res.addedNodeId);
     
