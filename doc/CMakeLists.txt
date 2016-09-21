@@ -23,6 +23,13 @@ configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_firstSteps.rst"
 configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst"
                "${DOC_SRC_DIR}/tutorial_client_firstSteps.rst")
 
+# Copy example code
+set(EXAMPLES ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c
+             ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
+             ${PROJECT_SOURCE_DIR}/examples/server_variable.c
+             ${PROJECT_SOURCE_DIR}/examples/server_method.c)
+file(COPY ${EXAMPLES} DESTINATION ${DOC_SRC_DIR})
+               
 function(generate_rst in out)
   add_custom_command(OUTPUT ${out} DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
                      PRE_BUILD COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})

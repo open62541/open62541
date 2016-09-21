@@ -1,8 +1,8 @@
 Internals
 =========
 
-.. include:: nodestore.rst
+.. toctree::
 
-.. include:: connection.rst
-
-.. include:: log.rst
+   nodestore
+   connection
+   log

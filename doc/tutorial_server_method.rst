@@ -16,7 +16,7 @@ The last example presents a way to bind a new method callback to an already
 instantiated method node.
 
 
-.. literalinclude:: ${PROJECT_SOURCE_DIR}/examples/server_method.c
+.. literalinclude:: server_method.c
    :language: c
    :linenos:
    :lines: 4,5,14,16-

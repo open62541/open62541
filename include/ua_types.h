@@ -835,7 +835,9 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  *
  * The following data types were auto-generated from a definition in XML format.
  *
- * .. include:: types_generated.rst */
+ * .. toctree::
+ *
+ *    types_generated */
 #ifdef __cplusplus
 } // extern "C"
 #endif
