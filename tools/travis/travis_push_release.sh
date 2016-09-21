@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ev
 
 TAGSTOSAVE=50
 TAG="$(git rev-parse --short=10 HEAD)"

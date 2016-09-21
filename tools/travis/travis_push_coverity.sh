@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ev
 
 # This script is run by travis-ci and pushes the first commit
 # of the day to the coverity scan service
