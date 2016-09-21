@@ -168,7 +168,7 @@ START_TEST(UA_UInt32_decodeShallNotRespectSign) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 8);
     ck_assert_uint_eq(val_ff_ff, (UA_UInt32)( (0x01LL << 32 ) - 1 ));
-    ck_assert_uint_eq(val_00_80, (UA_UInt32)(0x01 << 31));
+    ck_assert_uint_eq(val_00_80, (UA_UInt32)(0x01) << 31);
 }
 END_TEST
 
@@ -192,8 +192,7 @@ END_TEST
 START_TEST(UA_Int64_decodeShallRespectSign) {
     // given
     UA_ByteString rawMessage;
-    UA_Int64 expectedVal = 0xFF;
-    expectedVal = expectedVal << 56;
+    UA_UInt64 expectedVal = (UA_UInt64)0xFF << 56;
     UA_Byte  mem[8]      = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
     rawMessage.data   = mem;
     rawMessage.length = 8;
