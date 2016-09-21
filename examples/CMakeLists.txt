@@ -55,6 +55,9 @@ target_link_libraries(server_datasource ${LIBS})
 add_executable(server_firstSteps server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_firstSteps ${LIBS})
 
+add_executable(server_instantiation server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_instantiation ${LIBS})
+
 add_executable(server_repeated_job server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_repeated_job ${LIBS})
 

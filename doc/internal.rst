@@ -1,10 +1,8 @@
 Internals
-#########
+=========
 
-.. toctree::
+.. include:: nodestore.rst
 
-   services
-   nodestore
-   connection
-   log
-   types_generated
+.. include:: connection.rst
+
+.. include:: log.rst

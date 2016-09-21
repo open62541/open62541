@@ -1,5 +1,5 @@
-3. Adding a server-side method
-==============================
+Adding a server-side method
+---------------------------
 
 This tutorial demonstrates how to add method nodes to the server. Use an UA
 client, e.g., UaExpert to call the method (right-click on the method node ->
@@ -16,7 +16,7 @@ The last example presents a way to bind a new method callback to an already
 instantiated method node.
 
 
-.. literalinclude:: ../../examples/server_method.c
+.. literalinclude:: ${PROJECT_SOURCE_DIR}/examples/server_method.c
    :language: c
    :linenos:
    :lines: 4,5,14,16-

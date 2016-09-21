@@ -1105,8 +1105,8 @@ class opcua_node_variable_t(opcua_node_t):
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
-    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    code.append("UA_Variant_copy(" + self.getCodePrintableID() + "_variant, &" + self.getCodePrintableID() + "->value.data.value.value );")
+    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_DATA;")
     return code
 
 class opcua_node_method_t(opcua_node_t):
@@ -1360,8 +1360,8 @@ class opcua_node_variableType_t(opcua_node_t):
       code.append(self.getCodePrintableID() + "->isAbstract = false;")
 
     # The variant is guaranteed to exist by SubtypeEarly()
-    code.append(self.getCodePrintableID() + "->value.variant.value = *" + self.getCodePrintableID() + "_variant;")
-    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_VARIANT;")
+    code.append("UA_Variant_copy(" + self.getCodePrintableID() + "_variant, &" + self.getCodePrintableID() + "->value.data.value.value );")
+    code.append(self.getCodePrintableID() + "->valueSource = UA_VALUESOURCE_DATA;")
     return code
 
 class opcua_node_dataType_t(opcua_node_t):

@@ -47,15 +47,20 @@
 /* Thread Local Storage */
 /************************/
 
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#elif defined(_MSC_VER)
-# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-#else
+#ifdef UA_ENABLE_MULTITHREADING
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 */
+# elif defined(__GNUC__)
+#  define UA_THREAD_LOCAL __thread /* GNU extension */
+# elif defined(_MSC_VER)
+#  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+# else
+#  warning The compiler does not allow thread-local variables. The library can be built, but will not be thread safe.
+# endif
+#endif
+
+#ifndef UA_THREAD_LOCAL
 # define UA_THREAD_LOCAL
-# warning The compiler does not allow thread-local variables. The library can be built, but will not be thread safe.
 #endif
 
 /*************************/

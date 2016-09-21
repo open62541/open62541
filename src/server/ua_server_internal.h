@@ -92,6 +92,13 @@ struct UA_Server {
     UA_ServerConfig config;
 };
 
+/*****************/
+/* Node Handling */
+/*****************/
+
+void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
+UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
+
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
@@ -105,17 +112,115 @@ UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback cal
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
-#ifdef UA_BUILD_UNIT_TESTS
-UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
-#endif
+/* Add an existing node. The node is assumed to be "finished", i.e. no
+ * instantiation from inheritance is necessary. Instantiationcallback and
+ * addedNodeId may be NULL. */
+UA_StatusCode
+Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
+                          const UA_NodeId *parentNodeId,
+                          const UA_NodeId *referenceTypeId,
+                          const UA_NodeId *typeDefinition,
+                          UA_InstantiationCallback *instantiationCallback,
+                          UA_NodeId *addedNodeId);
+
+/*********************/
+/* Utility Functions */
+/*********************/
 
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count);
+parse_numericrange(const UA_String *str, UA_NumericRange *range);
+
+UA_Boolean
+UA_Node_hasSubTypeOrInstances(const UA_Node *node);
+
+const UA_VariableTypeNode *
+getVariableNodeType(UA_Server *server, const UA_VariableNode *node);
+
+const UA_ObjectTypeNode *
+getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
 
 UA_StatusCode
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize,
-             size_t maxDepth, UA_Boolean *found);
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
+                 UA_NodeId **reftypes, size_t *reftypes_count);
+
+UA_StatusCode
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+             const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
+             size_t referenceTypeIdsSize, UA_Boolean *found);
+
+const UA_Node *
+getNodeType(UA_Server *server, const UA_Node *node);
+
+/***************************************/
+/* Check Information Model Consistency */
+/***************************************/
+
+UA_StatusCode
+UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
+                                   const UA_VariableTypeNode *vt,
+                                   size_t arrayDimensionsSize, UA_UInt32 *arrayDimensions);
+
+UA_StatusCode
+UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
+                             const UA_VariableTypeNode *vt,
+                             const UA_Int32 valueRank);
+
+UA_StatusCode
+UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
+                            const UA_VariableTypeNode *vt,
+                            const UA_NodeId *dataType);
+
+UA_StatusCode
+UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
+                         const UA_DataValue *value, const UA_String *indexRange);
+
+UA_StatusCode
+UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
+                                   UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
+                                   const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
+                                   const UA_NumericRange *range, UA_Variant *equivalent);
+
+/*******************/
+/* Single-Services */
+/*******************/
+
+/* Some services take an array of "independent" requests. The single-services
+   are stored here to keep ua_services.h clean for documentation purposes. */
+
+UA_StatusCode
+Service_AddReferences_single(UA_Server *server, UA_Session *session,
+                             const UA_AddReferencesItem *item);
+
+UA_StatusCode
+Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
+                           const UA_NodeId *nodeId, UA_Boolean deleteReferences);
+
+UA_StatusCode
+Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
+                                const UA_DeleteReferencesItem *item);
+
+void Service_Browse_single(UA_Server *server, UA_Session *session,
+                           struct ContinuationPointEntry *cp,
+                           const UA_BrowseDescription *descr,
+                           UA_UInt32 maxrefs, UA_BrowseResult *result);
+
+void
+Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
+                                             const UA_BrowsePath *path,
+                                             UA_BrowsePathResult *result);
+
+void Service_Read_single(UA_Server *server, UA_Session *session,
+                         UA_TimestampsToReturn timestamps,
+                         const UA_ReadValueId *id, UA_DataValue *v);
+
+UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session,
+                                   const UA_WriteValue *wvalue);
+
+void Service_Call_single(UA_Server *server, UA_Session *session,
+                         const UA_CallMethodRequest *request,
+                         UA_CallMethodResult *result);
+
+
 
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);

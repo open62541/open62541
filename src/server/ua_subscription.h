@@ -41,6 +41,7 @@ typedef struct UA_MonitoredItem {
     UA_Boolean discardOldest;
     UA_String indexRange;
     // TODO: dataEncoding is hardcoded to UA binary
+    UA_DataChangeTrigger trigger;
 
     /* Sample Job */
     UA_Guid sampleJobGuid;

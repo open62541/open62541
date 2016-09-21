@@ -30,7 +30,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = NULL;
-    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
+    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);
@@ -107,7 +107,7 @@ UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
 }
 
 void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session) {
-    /* Do we have publish requests but no subscriptions? */
+    /* Are there remaining subscriptions? */
     if(LIST_FIRST(&session->serverSubscriptions))
         return;
 
@@ -121,6 +121,7 @@ void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session) {
         response->responseHeader.timestamp = UA_DateTime_now();
         UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
                                            &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_deleteMembers(response);
         UA_free(pre);
     }
 }

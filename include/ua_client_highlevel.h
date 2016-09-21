@@ -27,22 +27,19 @@ extern "C" {
  *
  * Highlevel Client Functionality
  * ------------------------------
+ *
  * The following definitions are convenience functions making use of the
- * standard OPC UA services in the background.
- *
- * The high level abstractions concetrate on getting the job done in a simple
- * manner for the user. This is a less flexible way of handling the stack,
- * because at many places sensible defaults are presumed; at the same time using
- * these functions is the easiest way of implementing an OPC UA application, as
- * you will not have to consider all the details that go into the OPC UA
- * services. A concept of how nodes and datatypes are used are completely
- * sufficient to use OPC UA with this layer.
- *
- * If more flexibility is needed, you can always achieve the same functionality
- * using the raw :ref:`OPC UA services <client-services>`.
+ * standard OPC UA services in the background. This is a less flexible way of
+ * handling the stack, because at many places sensible defaults are presumed; at
+ * the same time using these functions is the easiest way of implementing an OPC
+ * UA application, as you will not have to consider all the details that go into
+ * the OPC UA services. If more flexibility is needed, you can always achieve
+ * the same functionality using the raw :ref:`OPC UA services
+ * <client-services>`.
  *
  * Read Attributes
  * ^^^^^^^^^^^^^^^
+ *
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
 /* Don't call this function, use the typed versions */
@@ -221,6 +218,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 /**
  * Write Attributes
  * ^^^^^^^^^^^^^^^^
+ *
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
 /* Don't call this function, use the typed versions */
@@ -555,7 +553,7 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
  *
  * Subscriptions Handling
  * ^^^^^^^^^^^^^^^^^^^^^^
- * At this point, the client does not yet contain its own thread or event-driven
+ * At this time, the client does not yet contain its own thread or event-driven
  * main-loop. So the client will not perform any actions automatically in the
  * background. This is especially relevant for subscriptions. The user will have
  * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.

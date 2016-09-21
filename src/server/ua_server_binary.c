@@ -353,16 +353,15 @@ processOPN(UA_Connection *connection, UA_Server *server,
     if(connection->channel && channelId != connection->channel->securityToken.channelId)
         retval |= UA_STATUSCODE_BADREQUESTTYPEINVALID;
 
+    /* Decode the request */
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, offset, &asymHeader);
-
     UA_SequenceHeader seqHeader;
-    retval |= UA_SequenceHeader_decodeBinary(msg, offset, &seqHeader);
-
     UA_NodeId requestType;
-    retval |= UA_NodeId_decodeBinary(msg, offset, &requestType);
-
     UA_OpenSecureChannelRequest r;
+
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, offset, &asymHeader);
+    retval |= UA_SequenceHeader_decodeBinary(msg, offset, &seqHeader);
+    retval |= UA_NodeId_decodeBinary(msg, offset, &requestType);
     retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, offset, &r);
 
     /* Could not decode or wrong service type */
@@ -599,9 +598,11 @@ processRequest(UA_SecureChannel *channel, UA_Server *server,
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
                              "the SecureChannel with error code 0x%08x", retval);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* See if we need to return publish requests without a subscription */
     if(session && requestType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST])
         UA_Session_answerPublishRequestsWithoutSubscription(session);
+#endif
 
     /* Clean up */
     UA_deleteMembers(request, requestType);

@@ -161,3 +161,6 @@ SetMonitoringModeResponse
 RegisteredServer
 RegisterServerRequest
 RegisterServerResponse
+DataChangeTrigger
+DeadbandType
+DataChangeFilter

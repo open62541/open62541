@@ -25,6 +25,7 @@ extern "C" {
 /**
  * Logging
  * -------
+ *
  * Servers and clients may contain a logger. Every logger needs to implement the
  * `UA_Logger` signature. An example logger that writes to stdout is provided in
  * the plugins folder.
@@ -105,7 +106,7 @@ typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
 
 /**
  * Convenience macros for complex types
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 #define UA_PRINTF_GUID_FORMAT "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
