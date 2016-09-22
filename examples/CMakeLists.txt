@@ -64,6 +64,9 @@ target_link_libraries(server_instantiation ${LIBS})
 add_executable(server_repeated_job server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_repeated_job ${LIBS})
 
+add_executable(server_inheritance server_inheritance.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_inheritance ${LIBS})
+
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
   target_link_libraries(server_nodeset ${LIBS})
