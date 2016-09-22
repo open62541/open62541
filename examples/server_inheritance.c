@@ -45,9 +45,9 @@ int main(void) {
      *           v- FetchNewPaper
      */
     UA_StatusCode retval;
+
     UA_ObjectTypeAttributes otAttr;
     UA_ObjectTypeAttributes_init(&otAttr);
-
     otAttr.description = UA_LOCALIZEDTEXT("en_US", "A mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MamalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
@@ -71,6 +71,29 @@ int main(void) {
                             UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                             UA_QUALIFIEDNAME(1, "Species"), UA_NODEID_NULL, vAttr, NULL, NULL);
 
+    UA_ObjectAttributes oAttr;
+    UA_ObjectAttributes_init(&oAttr);
+    oAttr.description = UA_LOCALIZEDTEXT("en_US", "Abilities of mamals");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Abilities");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 10003),
+                            UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "Abilities"), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE) , oAttr, NULL, NULL);
+
+    UA_VariableAttributes_init(&vAttr);
+    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "Ability to make a sound");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "MakeSound");
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10004),
+                            UA_NODEID_NUMERIC(1, 10003), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_QUALIFIEDNAME(1, "MakeSound"), UA_NODEID_NULL, vAttr, NULL, NULL);
+
+    UA_VariableAttributes_init(&vAttr);
+    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "Breathe");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Breathe");
+    UA_Boolean breathVar = UA_TRUE;
+    UA_Variant_setScalarCopy(&vAttr.value, &breathVar, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10005),
+                            UA_NODEID_NUMERIC(1, 10003), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            UA_QUALIFIEDNAME(1, "Breathe"), UA_NODEID_NULL, vAttr, NULL, NULL);
 
 
     UA_ObjectTypeAttributes_init(&otAttr);
@@ -106,29 +129,13 @@ int main(void) {
      *     + Name
      */
 
-    UA_ObjectAttributes oAttr;
+
     UA_ObjectAttributes_init(&oAttr);
     oAttr.description = UA_LOCALIZEDTEXT("en_US", "A dog named Bello");
     oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Bello");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 20000), oAttr, NULL, NULL);
-
-
-    UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US", "Another dog");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Dog2");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME(1, "Dog2"), UA_NODEID_NUMERIC(1, 20000), oAttr, NULL, NULL);
-
-
-    UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US", "A mamal");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Mamal1");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                            UA_QUALIFIEDNAME(1, "Mamal1"), UA_NODEID_NUMERIC(1, 10000), oAttr, NULL, NULL);
 
 
     retval = UA_Server_run(server, &running);
