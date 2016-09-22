@@ -3,12 +3,11 @@ Generating an OPC UA Information Model from XML Descriptions
 
 This tutorial will show you how to create a server from an information model defined in the OPC UA Nodeset XML schema.
 
-Compile XML Namespaces
+OPC UA XML Namespaces
 ^^^^^^^^^^^^^^^^^^^^^^
 
-When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
+When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the (OPC UA Nodeset XML schema)[https://opcfoundation.org/UA/schemas/Opc.Ua.NodeSet.xml]. These XML files allow to persistent and transfer OPC UA information models.
 
-Note that the namespace compiler you can find in the *tools* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
 
 We take the following information model snippet as the starting point of the following tutorial.
 
@@ -19,7 +18,7 @@ We take the following information model snippet as the starting point of the fol
     fixedsize=true;
     node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
 
-    node_root [label="<<ObjectType>>\nFieldDevice"]
+    node_root [label="<<ObjectType>>\nFieldDeviceType"]
 
     { rank=same
       point_1 [shape=point]
@@ -108,8 +107,8 @@ This information model is represented in XML as follows:
             <InverseName Locale="en_US">inputProcidedBy</InverseName>
         </UAReferenceType>
         <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001"
-                      BrowseName="1:FieldDevice">
-            <DisplayName>FieldDevice</DisplayName>
+                      BrowseName="1:FieldDeviceType">
+            <DisplayName>FieldDeviceType</DisplayName>
             <References>
                 <Reference ReferenceType="HasSubtype" IsForward="false">
                     i=58
@@ -266,17 +265,29 @@ This information model is represented in XML as follows:
 
 **TODO** Some modelers prepends the namespace qualifier "uax:" to some fields - this is not supported by the namespace compiler, who has strict aliasing rules concerning field names. If a datatype defines a field called "Argument", the compiler expects to find "<Argument>" tags, not "<uax:Argument>".
 
+
+open62541 Namespace Compiler
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
+Note that the namespace compiler you can find in the *tools* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
+
+
+Compile the namespace into C-code
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 In its simplest form, an invokation of the namespace compiler will look like this:
 
 .. code-block:: bash
 
    $ python ./generate_open62541CCode.py <Opc.Ua.NodeSet2.xml> myNS.xml myNS
 
-The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides defintions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
+The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides definitions for data type, reference types, and so. The second argument points to the user-defined information model (``myNS.xml``), whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code and its header necessary to instantiate those namespaces. The code for actually creating the namespace can then be called with ``myNS(UA_Server *server);``.
 
-Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``DUA_ENABLE_GENERATE_NAMESPACE0`` will execute the following command::
 
-  COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py 
+Integration into CMake
+~~~~~~~~~~~~~~~~~~~~~~
+Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``-DUA_ENABLE_GENERATE_NAMESPACE0`` will execute the following command::
+
+  COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
     -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
     -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt 
     ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} 
