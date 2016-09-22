@@ -113,7 +113,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        memcpy(&connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
+        memcpy(connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
         message->length = complete_until;
     }
 

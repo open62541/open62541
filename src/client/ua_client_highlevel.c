@@ -211,6 +211,8 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_No
 /* Call */
 /********/
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode
 UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
                const UA_Variant *input, size_t *outputSize, UA_Variant **output) {
@@ -246,6 +248,8 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
     UA_CallResponse_deleteMembers(&response);
     return retval;
 }
+
+#endif
 
 /********************/
 /* Write Attributes */
@@ -328,7 +332,7 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_Attribu
     UA_DataValue *res = response.results;
     if(res->hasStatus != UA_STATUSCODE_GOOD)
         retval = res->hasStatus;
-    else if(!res->hasValue || !UA_Variant_isScalar(&res->value))
+    else if(!res->hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ReadResponse_deleteMembers(&response);

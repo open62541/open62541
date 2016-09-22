@@ -414,21 +414,19 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else '') + '''
+''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
-/**
- * Additional Data Type Definitions
- * ================================
- */
-''')
-
+printh('''/**
+ * Every type is assigned an index in an array containing the type descriptions.
+ * These descriptions are used during type handling (copying, deletion,
+ * binary encoding, ...). */''')
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(selected_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
 for t in iter_types(types):
     printh("\n/**\n * " +  t.name)
-    printh(" * " + "-" * len(t.name))
+    printh(" * " + "^" * len(t.name))
     if t.description == "":
         printh(" */")
     else:

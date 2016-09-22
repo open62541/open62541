@@ -158,6 +158,9 @@ MonitoredItemModifyResult
 ModifyMonitoredItemsResponse
 SetMonitoringModeRequest
 SetMonitoringModeResponse
+DataChangeTrigger
+DeadbandType
+DataChangeFilter
 RegisteredServer
 RegisterServerRequest
 RegisterServerResponse

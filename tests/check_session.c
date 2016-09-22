@@ -5,8 +5,7 @@
 #include "server/ua_services.h"
 #include "check.h"
 
-START_TEST(Session_init_ShallWork)
-{
+START_TEST(Session_init_ShallWork) {
     UA_Session session;
     UA_Session_init(&session);
 
@@ -16,23 +15,22 @@ START_TEST(Session_init_ShallWork)
     UA_ApplicationDescription_init(&tmpAppDescription);
     UA_DateTime tmpDateTime;
     UA_DateTime_init(&tmpDateTime);
-    ck_assert_int_eq(session.activated,false);
-    ck_assert_int_eq(session.authenticationToken.identifier.numeric,tmpNodeId.identifier.numeric);
-    ck_assert_int_eq(session.availableContinuationPoints,MAXCONTINUATIONPOINTS);
-    ck_assert_ptr_eq(session.channel,NULL);
-    ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data,NULL);
+    ck_assert_int_eq(session.activated, false);
+    ck_assert_int_eq(session.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
+    ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
+    ck_assert_ptr_eq(session.channel, NULL);
+    ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data, NULL);
     ck_assert_ptr_eq(session.continuationPoints.lh_first, NULL);
-    ck_assert_int_eq(session.maxRequestMessageSize,0);
-    ck_assert_int_eq(session.maxResponseMessageSize,0);
-    ck_assert_int_eq(session.sessionId.identifier.numeric,tmpNodeId.identifier.numeric);
-    ck_assert_ptr_eq(session.sessionName.data,NULL);
-    ck_assert_int_eq((int)session.timeout,0);
-    ck_assert_int_eq(session.validTill,tmpDateTime);
+    ck_assert_int_eq(session.maxRequestMessageSize, 0);
+    ck_assert_int_eq(session.maxResponseMessageSize, 0);
+    ck_assert_int_eq(session.sessionId.identifier.numeric, tmpNodeId.identifier.numeric);
+    ck_assert_ptr_eq(session.sessionName.data, NULL);
+    ck_assert_int_eq((int)session.timeout, 0);
+    ck_assert_int_eq(session.validTill, tmpDateTime);
 }
 END_TEST
 
-START_TEST(Session_updateLifetime_ShallWork)
-{
+START_TEST(Session_updateLifetime_ShallWork) {
     UA_Session session;
     UA_Session_init(&session);
     UA_DateTime tmpDateTime;
@@ -68,5 +66,3 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
-

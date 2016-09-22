@@ -42,13 +42,19 @@
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+# include <sys/param.h>
+# if defined(BSD)
+#  include<sys/socket.h>
+# endif
+#endif
 # ifndef __CYGWIN__
 #  include <netinet/tcp.h>
 # endif
 #endif
 
 /* unsigned int for windows and workaround to a glibc bug */
-#if defined(_WIN32) || (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16))
+#if defined(_WIN32) || defined(__OpenBSD__) || (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16))
 # define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 # define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 #else

@@ -1,10 +1,10 @@
 .. _building:
 
 Building open62541
-^^^^^^^^^^^^^^^^^^
+==================
 
 Building the Examples
-=====================
+---------------------
 
 Using the GCC compiler, the following calls build the examples on Linux.
 
@@ -15,10 +15,10 @@ Using the GCC compiler, the following calls build the examples on Linux.
    gcc -std=c99 open62541.c server_variable.c -o server
 
 Building the Library
-====================
+--------------------
 
 Building with CMake on Ubuntu or Debian
----------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
@@ -41,7 +41,7 @@ Building with CMake on Ubuntu or Debian
    make
 
 Building with CMake on Windows
-------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Here we explain the build process for Visual Studio (2013 or newer). To build
 with MinGW, just replace the compiler selection in the call to CMake.
@@ -66,7 +66,7 @@ with MinGW, just replace the compiler selection in the call to CMake.
 - Then open :file:`build\open62541.sln` in Visual Studio 2015 and build as usual
 
 Building on OS X
-----------------
+^^^^^^^^^^^^^^^^
 
 - Download and install
 
@@ -87,11 +87,37 @@ Building on OS X
 
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
+Building on OpenBSD
+-------------------
+The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3.2.3 and Python version 2.7.10.
+
+- Install a recent gcc, python and cmake:
+
+.. code-block:: bash
+   
+   pkg_add gcc python cmake
+
+- Tell the system to actually use the recent gcc (it gets installed as egcc on OpenBSD): 
+
+.. code-block:: bash
+   
+   export CC=egcc CXX=eg++
+
+- Now procede as described for Ubuntu/Debian:
+
+.. code-block:: bash
+
+   cd open62541
+   mkdir build
+   cd build
+   cmake ..
+   make
+
 Build Options
-=============
+-------------
 
 Build Type and Logging
-----------------------
+^^^^^^^^^^^^^^^^^^^^^^
 
 **CMAKE_BUILD_TYPE**
   - ``RelWithDebInfo`` -O2 optimization with debug symbols
@@ -113,7 +139,7 @@ Further options that are not inherited from the CMake configuration are defined
 in :file:`ua_config.h`. Usually there is no need to adjust them.
 
 UA_BUILD_* group
-----------------
+^^^^^^^^^^^^^^^^
 
 By default only the shared object libopen62541.so or the library open62541.dll
 and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
@@ -139,7 +165,7 @@ specified by the following options:
    Generate a self-signed certificate for the server (openSSL required)
 
 UA_ENABLE_* group
------------------
+^^^^^^^^^^^^^^^^^
 
 This group contains build options related to the supported OPC UA features.
 
@@ -174,7 +200,7 @@ be visible in the cmake GUIs.
    Enable udp extension
 
 Building a shared library
--------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 open62541 is small enough that most users will want to statically link the library into their programs. If a shared library (.dll, .so) is required, this can be enabled in CMake with the `BUILD_SHARED_LIBS` option.
 Note that this option modifies the :file:`ua_config.h` file that is also included in :file:`open62541.h` for the single-file distribution.

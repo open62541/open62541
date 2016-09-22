@@ -311,7 +311,36 @@ void UA_Server_deleteAllRepeatedJobs(UA_Server *server) {
 /* Delayed Jobs */
 /****************/
 
-#ifdef UA_ENABLE_MULTITHREADING
+#ifndef UA_ENABLE_MULTITHREADING
+
+typedef struct UA_DelayedJob {
+    SLIST_ENTRY(UA_DelayedJob) next;
+    UA_Job job;
+} UA_DelayedJob;
+
+UA_StatusCode
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
+    UA_DelayedJob *dj = UA_malloc(sizeof(UA_DelayedJob));
+    if(!dj)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    dj->job.type = UA_JOBTYPE_METHODCALL;
+    dj->job.job.methodCall.data = data;
+    dj->job.job.methodCall.method = callback;
+    SLIST_INSERT_HEAD(&server->delayedCallbacks, dj, next);
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+processDelayedCallbacks(UA_Server *server) {
+    UA_DelayedJob *dj, *dj_tmp;
+    SLIST_FOREACH_SAFE(dj, &server->delayedCallbacks, next, dj_tmp) {
+        SLIST_REMOVE(&server->delayedCallbacks, dj, UA_DelayedJob, next);
+        processJob(server, &dj->job);
+        UA_free(dj);
+    }
+}
+
+#else
 
 #define DELAYEDJOBSSIZE 100 // Collect delayed jobs until we have DELAYEDWORKSIZE items
 
@@ -622,6 +651,10 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
     }
 
+#ifndef UA_ENABLE_MULTITHREADING
+    processDelayedCallbacks(server);
+#endif
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 # ifndef UA_ENABLE_MULTITHREADING
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
@@ -671,6 +704,8 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     emptyDispatchQueue(server);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
+#else
+    processDelayedCallbacks(server);
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST

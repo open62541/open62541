@@ -168,7 +168,7 @@ START_TEST(UA_UInt32_decodeShallNotRespectSign) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(pos, 8);
     ck_assert_uint_eq(val_ff_ff, (UA_UInt32)( (0x01LL << 32 ) - 1 ));
-    ck_assert_uint_eq(val_00_80, (UA_UInt32)(0x01 << 31));
+    ck_assert_uint_eq(val_00_80, (UA_UInt32)(0x01) << 31);
 }
 END_TEST
 
@@ -192,8 +192,7 @@ END_TEST
 START_TEST(UA_Int64_decodeShallRespectSign) {
     // given
     UA_ByteString rawMessage;
-    UA_Int64 expectedVal = 0xFF;
-    expectedVal = expectedVal << 56;
+    UA_UInt64 expectedVal = (UA_UInt64)0xFF << 56;
     UA_Byte  mem[8]      = { 00, 00, 00, 00, 0x00, 0x00, 0x00, 0xFF };
     rawMessage.data   = mem;
     rawMessage.length = 8;
@@ -1322,8 +1321,8 @@ START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     srcArray[1] = UA_STRING_ALLOC("_62541");
     srcArray[2] = UA_STRING_ALLOC("opc ua");
 
-    UA_Int32 *dimensions;
-    dimensions = UA_malloc(sizeof(UA_Int32));
+    UA_UInt32 *dimensions;
+    dimensions = UA_malloc(sizeof(UA_UInt32));
     dimensions[0] = 3;
 
     UA_Variant value, copiedValue;
@@ -1373,9 +1372,9 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
     srcArray[4] = 4;
     srcArray[5] = 5;
 
-    UA_Int32 *dimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Int32 dim1 = 3;
-    UA_Int32 dim2 = 2;
+    UA_UInt32 *dimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_UInt32 dim1 = 3;
+    UA_UInt32 dim2 = 2;
     dimensions[0] = dim1;
     dimensions[1] = dim2;
 

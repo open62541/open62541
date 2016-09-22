@@ -221,26 +221,29 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                # nodestores
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
+                # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                # nodestores
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
                 # method call
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
                 # subscriptions
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                # client
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
                 ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
@@ -419,3 +422,39 @@ if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_custom_target(generate_informationmodel ALL
                     DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
 endif()
+
+
+##########################
+# Installation           #
+##########################
+# invoke via `make install`
+# specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
+# Enable shared library with `-DBUILD_SHARED_LIBS=ON`
+
+# export library (either static or shared depending on BUILD_SHARED_LIBS)
+install(TARGETS open62541
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+    )
+# export amalgamated header open62541.h which is generated due to build of open62541-object
+install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+
+
+
+##########################
+# Packaging (DEB/RPM)    #
+##########################
+# invoke via `make package`
+
+SET(CPACK_GENERATOR "TGZ;DEB;RPM")
+SET(CPACK_PACKAGE_VENDOR "open62541 team")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
+SET(CPACK_PACKAGE_DESCRIPTION "open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
+SET(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+SET(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+SET(CPACK_PACKAGE_VERSION_MAJOR "0")
+SET(CPACK_PACKAGE_VERSION_MINOR "2")
+SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
+
+INCLUDE(CPack)

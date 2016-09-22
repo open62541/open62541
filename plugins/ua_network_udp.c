@@ -24,6 +24,12 @@
 #ifdef __QNX__
 #include <sys/socket.h>
 #endif
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+# include <sys/param.h>
+# if defined(BSD)
+#  include<sys/socket.h>
+# endif
+#endif
 # define CLOSESOCKET(S) close(S)
 
 #define MAXBACKLOG 100

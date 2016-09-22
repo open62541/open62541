@@ -13,7 +13,7 @@ import re
 # - Find the last line beginning with "#ifdef" -> end of the documentation
 
 remove_keyword = [" UA_EXPORT", " UA_FUNC_ATTR_WARN_UNUSED_RESULT",
-                  " UA_FUNC_ATTR_MALLOC"]
+                  " UA_FUNC_ATTR_MALLOC", " UA_RESTRICT "]
 
 def clean_comment(line):
     m = re.search("^( \* |/\*\* )(.*?)( \*/)?$", line)

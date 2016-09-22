@@ -6,7 +6,7 @@
 #include "ua_securechannel.h"
 #include "ua_server.h"
 
-#define MAXCONTINUATIONPOINTS 5
+#define UA_MAXCONTINUATIONPOINTS 5
 
 struct ContinuationPointEntry {
     LIST_ENTRY(ContinuationPointEntry) pointers;
@@ -19,11 +19,13 @@ struct ContinuationPointEntry {
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 typedef struct UA_PublishResponseEntry {
     SIMPLEQ_ENTRY(UA_PublishResponseEntry) listEntry;
     UA_UInt32 requestId;
     UA_PublishResponse response;
 } UA_PublishResponseEntry;
+#endif
 
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
@@ -67,8 +69,6 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_Session_getUniqueSubscriptionID(UA_Session *session);
-
-void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session);
 #endif
 
 /**

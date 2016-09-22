@@ -1,5 +1,6 @@
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 #include "ua_nodestore.h"
 
@@ -46,21 +47,31 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
-                             "Cannot process a monitoreditem that is not a data change notification",
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Subscription %u | MonitoredItem %i | "
+                             "Cannot process a monitoreditem that is not "
+                             "a data change notification",
                              sub->subscriptionID, monitoredItem->itemId);
         return;
     }
 
     MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newvalue) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %i | "
-                               "Skipped a sample due to lack of memory", sub->subscriptionID,
-                               monitoredItem->itemId);
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | MonitoredItem %i | "
+                               "Skipped a sample due to lack of memory",
+                               sub->subscriptionID, monitoredItem->itemId);
         return;
     }
     UA_DataValue_init(&newvalue->value);
     newvalue->clientHandle = monitoredItem->clientHandle;
+
+    /* Adjust timestampstoreturn to get source timestamp for triggering */
+    UA_TimestampsToReturn ts = monitoredItem->timestampsToReturn;
+    if(ts == UA_TIMESTAMPSTORETURN_SERVER)
+        ts = UA_TIMESTAMPSTORETURN_BOTH;
+    else if(ts == UA_TIMESTAMPSTORETURN_NEITHER)
+        ts = UA_TIMESTAMPSTORETURN_SOURCE;
 
     /* Read the value */
     UA_ReadValueId rvid;
@@ -68,11 +79,25 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn,
-                        &rvid, &newvalue->value);
+    Service_Read_single(server, sub->session, ts, &rvid, &newvalue->value);
 
-    /* encode to see if the data has changed */
-    size_t binsize = UA_calcSizeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT]);
+    /* Apply Filter */
+    UA_Boolean hasValue = newvalue->value.hasValue;
+    UA_Boolean hasServerTimestamp = newvalue->value.hasServerTimestamp;
+    UA_Boolean hasServerPicoseconds = newvalue->value.hasServerPicoseconds;
+    UA_Boolean hasSourceTimestamp = newvalue->value.hasSourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = newvalue->value.hasSourcePicoseconds;
+    newvalue->value.hasServerTimestamp = false;
+    newvalue->value.hasServerPicoseconds = false;
+    if(monitoredItem->trigger == UA_DATACHANGETRIGGER_STATUS)
+        newvalue->value.hasValue = false;
+    if(monitoredItem->trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+        newvalue->value.hasSourceTimestamp = false;
+        newvalue->value.hasSourcePicoseconds = false;
+    }
+
+    /* Encode the data for comparison */
+    size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_ByteString newValueAsByteString;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -81,26 +106,37 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         return;
     }
     size_t encodingOffset = 0;
-    retval = UA_encodeBinary(&newvalue->value.value, &UA_TYPES[UA_TYPES_VARIANT],
+    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE],
                              NULL, NULL, &newValueAsByteString, &encodingOffset);
 
-    /* error or the content has not changed */
+    /* Restore the settings changed for the filter */
+    newvalue->value.hasValue = hasValue;
+    newvalue->value.hasServerTimestamp = hasServerTimestamp;
+    newvalue->value.hasServerPicoseconds = hasServerPicoseconds;
+    if(monitoredItem->timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+       monitoredItem->timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
+        newvalue->value.hasSourceTimestamp = false;
+        newvalue->value.hasSourcePicoseconds = false;
+    } else {
+        newvalue->value.hasSourceTimestamp = hasSourceTimestamp;
+        newvalue->value.hasSourcePicoseconds = hasSourcePicoseconds;
+    }
+
+    /* Error or the value has not changed */
     if(retval != UA_STATUSCODE_GOOD ||
        (monitoredItem->lastSampledValue.data &&
         UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue))) {
-        UA_ByteString_deleteMembers(&newValueAsByteString);
-        UA_DataValue_deleteMembers(&newvalue->value);
-        UA_free(newvalue);
-        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
+        UA_LOG_TRACE_SESSION(server->config.logger, sub->session, "Subscription %u | "
                              "MonitoredItem %u | Do not sample an unchanged value",
                              sub->subscriptionID, monitoredItem->itemId);
-        return;
+        goto cleanup;
     }
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | MonitoredItem %u | "
                          "Sampling the value", sub->subscriptionID, monitoredItem->itemId);
 
-    /* Do we have space in the queue? */
+    /* Is enough space in the queue? */
     if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
         MonitoredItem_queuedValue *queueItem;
         if(monitoredItem->discardOldest)
@@ -109,13 +145,11 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
             queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
 
         if(!queueItem) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | "
-                                   "Cannot remove an element from the full queue. Internal error!",
-                                   sub->subscriptionID, monitoredItem->itemId);
-            UA_ByteString_deleteMembers(&newValueAsByteString);
-            UA_DataValue_deleteMembers(&newvalue->value);
-            UA_free(newvalue);
-            return;
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
+                                   "MonitoredItem %u | Cannot remove an element from the full "
+                                   "queue. Internal error!", sub->subscriptionID,
+                                   monitoredItem->itemId);
+            goto cleanup;
         }
 
         TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
@@ -125,23 +159,36 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     }
 
     /* If the read request returned a datavalue pointing into the nodestore, we
-       must make a copy to keep the datavalue across mainloop iterations */
-    if(newvalue->value.hasValue && newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
+     * must make a deep copy to keep the datavalue across mainloop iterations */
+    if(newvalue->value.hasValue &&
+       newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
         UA_Variant tempv = newvalue->value.value;
         UA_Variant_copy(&tempv, &newvalue->value.value);
     }
 
-    /* add the sample */
+    /* Replace the comparison bytestring with the current sample */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
     monitoredItem->lastSampledValue = newValueAsByteString;
+
+    /* Add the sample to the queue for publication */
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newvalue, listEntry);
     monitoredItem->currentQueueSize++;
+    return;
+
+ cleanup:
+    UA_ByteString_deleteMembers(&newValueAsByteString);
+    UA_DataValue_deleteMembers(&newvalue->value);
+    UA_free(newvalue);
 }
 
-UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback, .data = mon} };
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)mon->samplingInterval,
+UA_StatusCode
+MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_Job job;
+    job.type = UA_JOBTYPE_METHODCALL;
+    job.job.methodCall.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback;
+    job.job.methodCall.data = mon;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
+                                                    (UA_UInt32)mon->samplingInterval,
                                                     &mon->sampleJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
         mon->sampleJobIsRegistered = true;
@@ -248,6 +295,9 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         sub->currentKeepAliveCount++;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Sending a keepalive on subscription %u",
+                             sub->subscriptionID)
     }
 
     /* Check if the securechannel is valid */
@@ -301,7 +351,8 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         message->notificationDataSize = 1;
         UA_ExtensionObject *data = message->notificationData;
         UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-        dcn->monitoredItems = UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
+        dcn->monitoredItems =
+            UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
         dcn->monitoredItemsSize = notifications;
         size_t l = 0;
         UA_MonitoredItem *mon;
@@ -319,10 +370,12 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                 mon->currentQueueSize--;
                 mon_l++;
             }
-            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | MonitoredItem %u | " \
-                                 "Adding %u notifications to the publish response. " \
+            UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                                 "Subscription %u | MonitoredItem %u | "
+                                 "Adding %u notifications to the publish response. "
                                  "%u notifications remain in the queue",
-                                 sub->subscriptionID, mon->itemId, mon_l, mon->currentQueueSize);
+                                 sub->subscriptionID, mon->itemId, mon_l,
+                                 mon->currentQueueSize);
             l += mon_l;
         }
         data->encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -330,13 +383,16 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
 
         /* Put the notification message into the retransmission queue */
-        UA_NotificationMessageEntry *retransmission = malloc(sizeof(UA_NotificationMessageEntry));
+        UA_NotificationMessageEntry *retransmission =
+            malloc(sizeof(UA_NotificationMessageEntry));
         if(retransmission) {
-            UA_NotificationMessage_copy(&response->notificationMessage, &retransmission->message);
+            UA_NotificationMessage_copy(&response->notificationMessage,
+                                        &retransmission->message);
             LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
         } else {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                                   "Could not allocate memory for retransmission", sub->subscriptionID);
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                                   "Subscription %u | Could not allocate memory "
+                                   "for retransmission", sub->subscriptionID);
         }
     }
 
@@ -357,8 +413,9 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                         "Subscription %u | Sending out a publish response with %u notifications",
-                         sub->subscriptionID, (UA_UInt32)notifications);
+                         "Subscription %u | Sending out a publish response with %u "
+                         "notifications", sub->subscriptionID, (UA_UInt32)notifications);
+    UA_assert(response->responseHeader.requestHandle != 0);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -376,13 +433,13 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
     if(sub->publishJobIsRegistered)
         return UA_STATUSCODE_GOOD;
-    if(!sub->publishingEnabled)
-        return UA_STATUSCODE_GOOD;
 
-    UA_Job job = (UA_Job) {.type = UA_JOBTYPE_METHODCALL,
-                           .job.methodCall = {.method = (UA_ServerCallback)UA_Subscription_publishCallback,
-                                              .data = sub} };
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job, (UA_UInt32)sub->publishingInterval,
+    UA_Job job;
+    job.type = UA_JOBTYPE_METHODCALL;
+    job.job.methodCall.method = (UA_ServerCallback)UA_Subscription_publishCallback;
+    job.job.methodCall.data = sub;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
+                                                    (UA_UInt32)sub->publishingInterval,
                                                     &sub->publishJobGuid);
     if(retval == UA_STATUSCODE_GOOD)
         sub->publishJobIsRegistered = true;
@@ -394,6 +451,33 @@ UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscripti
         return UA_STATUSCODE_GOOD;
     sub->publishJobIsRegistered = false;
     return UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
+}
+
+/* When the session has publish requests stored but the last subscription is
+   deleted... Send out empty responses */
+void
+UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_NodeId *sessionToken) {
+    /* Get session */
+    UA_Session *session = UA_SessionManager_getSession(&server->sessionManager, sessionToken);
+    UA_NodeId_delete(sessionToken);
+
+    /* No session or there are remaining subscriptions */
+    if(!session || LIST_FIRST(&session->serverSubscriptions))
+        return;
+
+    /* Send a response for every queued request */
+    UA_PublishResponseEntry *pre;
+    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
+        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        UA_assert(response->responseHeader.requestHandle != 0);
+        UA_SecureChannel_sendBinaryMessage(session->channel, pre->requestId, response,
+                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_deleteMembers(response);
+        UA_free(pre);
+    }
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
