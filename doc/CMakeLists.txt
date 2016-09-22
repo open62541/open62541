@@ -27,7 +27,8 @@ configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst"
 set(EXAMPLES ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c
              ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
              ${PROJECT_SOURCE_DIR}/examples/server_variable.c
-             ${PROJECT_SOURCE_DIR}/examples/server_method.c)
+             ${PROJECT_SOURCE_DIR}/examples/server_method.c
+             ${PROJECT_SOURCE_DIR}/examples/server_inheritance.c)
 file(COPY ${EXAMPLES} DESTINATION ${DOC_SRC_DIR})
                
 function(generate_rst in out)
@@ -70,5 +71,6 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
           ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
+          ${DOC_SRC_DIR}/tutorial_object_instantiation.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)

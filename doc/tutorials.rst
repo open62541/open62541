@@ -7,4 +7,5 @@ Tutorials
    tutorial_server_variables.rst
    tutorial_server_method.rst
    tutorial_noderelations.rst
+   tutorial_object_instantiation.rst
    tutorial_client_firstSteps.rst
