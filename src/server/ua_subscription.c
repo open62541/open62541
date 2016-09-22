@@ -295,6 +295,9 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         sub->currentKeepAliveCount++;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
+        UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                             "Sending a keepalive on subscription %u",
+                             sub->subscriptionID)
     }
 
     /* Check if the securechannel is valid */
@@ -412,6 +415,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Sending out a publish response with %u "
                          "notifications", sub->subscriptionID, (UA_UInt32)notifications);
+    UA_assert(response->responseHeader.requestHandle != 0);
     UA_SecureChannel_sendBinaryMessage(sub->session->channel, requestId, response,
                                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -428,8 +432,6 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
 UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
     if(sub->publishJobIsRegistered)
-        return UA_STATUSCODE_GOOD;
-    if(!sub->publishingEnabled)
         return UA_STATUSCODE_GOOD;
 
     UA_Job job;
@@ -449,6 +451,33 @@ UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscripti
         return UA_STATUSCODE_GOOD;
     sub->publishJobIsRegistered = false;
     return UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
+}
+
+/* When the session has publish requests stored but the last subscription is
+   deleted... Send out empty responses */
+void
+UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_NodeId *sessionToken) {
+    /* Get session */
+    UA_Session *session = UA_SessionManager_getSession(&server->sessionManager, sessionToken);
+    UA_NodeId_delete(sessionToken);
+
+    /* No session or there are remaining subscriptions */
+    if(!session || LIST_FIRST(&session->serverSubscriptions))
+        return;
+
+    /* Send a response for every queued request */
+    UA_PublishResponseEntry *pre;
+    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
+        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        UA_assert(response->responseHeader.requestHandle != 0);
+        UA_SecureChannel_sendBinaryMessage(session->channel, pre->requestId, response,
+                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_deleteMembers(response);
+        UA_free(pre);
+    }
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

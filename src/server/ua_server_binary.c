@@ -591,12 +591,6 @@ processRequest(UA_SecureChannel *channel, UA_Server *server,
         UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
                              "the SecureChannel with error code 0x%08x", retval);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* See if we need to return publish requests without a subscription */
-    if(session && requestType == &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST])
-        UA_Session_answerPublishRequestsWithoutSubscription(session);
-#endif
-
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);

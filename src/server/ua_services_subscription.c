@@ -66,10 +66,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     /* Set the subscription parameters */
     newSubscription->publishingEnabled = request->publishingEnabled;
-    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount;
     setSubscriptionSettings(server, newSubscription, request->requestedPublishingInterval,
                             request->requestedLifetimeCount, request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
+    newSubscription->currentKeepAliveCount = newSubscription->maxKeepAliveCount; /* set settings first */
 
     /* Prepare the response */
     response->subscriptionId = newSubscription->subscriptionID;
@@ -134,10 +134,6 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
         if(sub->publishingEnabled != request->publishingEnabled) {
             sub->publishingEnabled = request->publishingEnabled;
             sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
-            if(sub->publishingEnabled)
-                Subscription_registerPublishJob(server, sub);
-            else
-                Subscription_unregisterPublishJob(server, sub);
         }
     }
 }
@@ -402,28 +398,17 @@ void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing PublishRequest");
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
-        UA_PublishResponse response;
-        UA_PublishResponse_init(&response);
-        response.responseHeader.requestHandle = request->requestHeader.requestHandle;
-        response.responseHeader.timestamp = UA_DateTime_now();
-        response.responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        return;
+        retval = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        goto send_error;
     }
 
     UA_PublishResponseEntry *entry = UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        UA_PublishResponse response;
-        UA_PublishResponse_init(&response);
-        response.responseHeader.requestHandle = request->requestHeader.requestHandle;
-        response.responseHeader.timestamp = UA_DateTime_now();
-        response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        return;
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto send_error;
     }
     entry->requestId = requestId;
 
@@ -435,14 +420,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
         response->results = UA_Array_new(request->subscriptionAcknowledgementsSize,
                                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
-            /* Respond immediately with the error code */
-            response->responseHeader.timestamp = UA_DateTime_now();
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
-                                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-            UA_PublishResponse_deleteMembers(response);
             UA_free(entry);
-            return;
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto send_error;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;
     }
@@ -450,15 +430,15 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Delete Acknowledged Subscription Messages */
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
         UA_SubscriptionAcknowledgement *ack = &request->subscriptionAcknowledgements[i];
-        /* Get the subscription */
         UA_Subscription *sub = UA_Session_getSubscriptionByID(session, ack->subscriptionId);
         if(!sub) {
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Cannot process acknowledgements subscription %u", ack->subscriptionId);
+                                 "Cannot process acknowledgements subscription %u",
+                                 ack->subscriptionId);
             continue;
         }
-        /* Remove the acked transmission for the retransmission queue */
+        /* Remove the acked transmission from the retransmission queue */
         response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
         UA_NotificationMessageEntry *pre, *pre_tmp;
         LIST_FOREACH_SAFE(pre, &sub->retransmissionQueue, listEntry, pre_tmp) {
@@ -485,9 +465,20 @@ Service_Publish(UA_Server *server, UA_Session *session,
                                  "Response on a late subscription", immediate->subscriptionID,
                                  session->authenticationToken.identifier.numeric);
             UA_Subscription_publishCallback(server, immediate);
-            return;
+            break;
         }
     }
+    return;
+
+    UA_PublishResponse err_response;
+ send_error:
+    UA_PublishResponse_init(&err_response);
+    err_response.responseHeader.requestHandle = request->requestHeader.requestHandle;
+    err_response.responseHeader.timestamp = UA_DateTime_now();
+    err_response.responseHeader.serviceResult = retval;
+    UA_assert(err_response.responseHeader.requestHandle != 0);
+    UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &err_response,
+                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 }
 
 void
@@ -520,6 +511,17 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                  response->results[i]);
         }
     }
+
+    /* Send dangling publish responses in a delayed job if the last subscription
+       was removed */
+    if(LIST_FIRST(&session->serverSubscriptions))
+        return;
+    UA_NodeId *sessionToken = UA_NodeId_new();
+    if(!sessionToken)
+        return;
+    UA_NodeId_copy(&session->authenticationToken, sessionToken);
+    UA_Server_delayedCallback(server, (UA_ServerCallback)UA_Subscription_answerPublishRequestsNoSubscription,
+                              sessionToken);
 }
 
 void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
