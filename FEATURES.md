@@ -1,9 +1,6 @@
 open62541 Supported Features
 ============================
 
-
-## Supported Features
-
 | __**Service**__             |                                 |                      | Comment              |
 |:----------------------------|:--------------------------------|:--------------------:|:---------------------|
 | Discovery Service Set       |                                 |                      |                      |
@@ -59,28 +56,32 @@ open62541 Supported Features
 
 |                                         |                      |                      |
 |:----------------------------------------|:--------------------:|:---------------------|
-| __**Transport Protocol**__              |                      |                      |
-| **Transport**                           |      **Status**      | **Comment**          |
+| **Transport**                           |                      |                      |
 | UA-TCP UA-SC UA Binary                  |  :white_check_mark:  | OPC.TCP - Binary     |
 | SOAP-HTTP WS-SC UA Binary               |      :new_moon:      | HTTP/HTTPS - Binary  |
 | SOAP-HTTP WS-SC UA XML                  |      :new_moon:      |                      |
 | SOAP-HTTP WS-SC UA XML-UA Binary        |      :new_moon:      |                      |
-| __**Security Policies**__               |                      |                      |
-| **Policy**                              |      **Status**      | **Comment**          |
+| **Encryption**                          |                      |                      |
 | None                                    |  :white_check_mark:  |                      |
-| Basic128Rsa15                           |  :white_check_mark:  |                      |
-| Basic256                                |  :white_check_mark:  |                      |
-| Basic256Sha256                          |  :white_check_mark:  |                      |
-| **Authentication**                      |      **Status**      | **Comment**          |
+| Basic128Rsa15                           |      :new_moon:      |                      |
+| Basic256                                |      :new_moon:      |                      |
+| Basic256Sha256                          |      :new_moon:      |                      |
+| **Authentication**                      |                      |                      |
 | Anonymous                               |  :white_check_mark:  |                      |
 | User Name Password                      |  :white_check_mark:  |                      |
 | X509 Certificate                        |      :new_moon:      |                      |
-| __**Discovery**__                       |                      |                      |
-| **Type**                                |      **Status**      | **Comment**          |
-| LDS                                     | :first_quarter_moon: | Branch: feature_mdns |
-| LDS-ME                                  | :first_quarter_moon: | Branch: feature_mdns |
-| GDS                                     |      :new_moon:      |                      |
-| __**client facets**__                   |                      |                      |
+| **Server Facets**                       |                      |                      |
+| Core Server                             |  :white_check_mark:  |                      |
+| Data Access Server                      |  :white_check_mark:  |                      |
+| Embedded Server                         |  :white_check_mark:  |                      |
+| Nano Embedded Device Server             |  :white_check_mark:  |                      |
+| Micro Embedded Device Server            |  :white_check_mark:  |                      |
+| Method Server                           |  :white_check_mark:  |                      |
+| Embedded DataChange Subscription Server |  :white_check_mark:  |                      |
+| Node Management Server                  |  :white_check_mark:  |                      |
+| Standard DataChange Subscription Server | :waxing_gibbous_moon: | Only Deadband Filter missing |
+| Event Subscription Server               |     :new_moon:       |                      |
+| **Client Facets**                       |                      |                      |
 | Base Client Behaviour                   |  :white_check_mark:  |                      |
 | AddressSpace Lookup                     |  :white_check_mark:  |                      |
 | Attribute Read                          |  :white_check_mark:  |                      |
@@ -89,22 +90,8 @@ open62541 Supported Features
 | Discovery                               |  :white_check_mark:  |                      |
 | Event Subscription                      |  :white_check_mark:  |                      |
 | Method call                             |  :white_check_mark:  |                      |
-| Historical Access                       |      :new_moon:      |                      |
 | Advanced Type                           |  :white_check_mark:  |                      |
-| Programming                             |      :new_moon:      |                      |
-| Auditing                                |      :new_moon:      |                      |
-| Redundancy                              |      :new_moon:      |                      |
-| __**server profiles**__                 |                      |                      |
-| Core Server                             |  :white_check_mark:  |                      |
-| Data Access Server                      |  :white_check_mark:  |                      |
-| Embedded Server                         |  :white_check_mark:  |                      |
-| Nano Embedded Device Server             |  :white_check_mark:  |                      |
-| Micro Embedded Device Server            |  :white_check_mark:  |                      |
-| Standard DataChange Subscription Server |                      |                      |
-| Standard Event Subscription Server      |                      |                      |
-| Standard UA Server                      |                      |                      |
-| Redundancy Transparent Server           |      :new_moon:      |                      |
-| Redundancy Visible Server               |      :new_moon:      |                      |
-| Node Management Server                  |      :new_moon:      |                      |
-| Auditing Server                         |      :new_moon:      |                      |
-| Complex Type Server                     |                      |                      |
+| **Discovery**                           |                      | See Discovery Service Set |
+| Local Disovery Server                   | :first_quarter_moon: | Branch: feature_mdns |
+| Local Discovery Server Multicast Ext.   | :first_quarter_moon: | Branch: feature_mdns |
+| Global Discovery Server                 |      :new_moon:      |                      |
