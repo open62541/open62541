@@ -12,6 +12,9 @@ open62541 is licensed under the LGPL with a static linking exception. So the **o
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
 ### Features
+
+For a complete list of features check: [open62541 Features](FEATURES.md)
+
 open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. It currently supports the Micro Embedded Device Server Profile plus some additional features. The final server binaries can be well under 100kb, depending on the size of the information model.
 - Communication Stack
   - OPC UA binary protocol
