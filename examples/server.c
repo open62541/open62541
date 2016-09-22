@@ -249,6 +249,7 @@ int main(int argc, char** argv) {
         UA_VariableAttributes attr;
         UA_VariableAttributes_init(&attr);
         attr.valueRank = -2;
+        attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPENAMES
         char name[15];
 #if defined(_WIN32) && !defined(__MINGW32__)
