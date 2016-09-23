@@ -1,30 +1,30 @@
-Generating an OPC UA Information Model from XML Descriptions
-------------------------------------------------------------
+Namespace Compiler
+------------------
 
-This tutorial will show you how to create a server from an information model defined in the OPC UA Nodeset XML schema.
+Generating an OPC UA Information Model from XML Descriptions
+
+
+This tutorial will show you how to generate an OPC UA Information Model from XML descritions defined in the OPC UA Nodeset XML schema.
 
 OPC UA XML Namespaces
 ^^^^^^^^^^^^^^^^^^^^^^
 
-When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the (OPC UA Nodeset XML schema)[https://opcfoundation.org/UA/schemas/Opc.Ua.NodeSet.xml]. These XML files allow to persistent and transfer OPC UA information models.
+Writing all the code for generating namespace is quite boring and error-prone.
+When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the (OPC UA Nodeset XML schema)[https://opcfoundation.org/UA/schemas/Opc.Ua.NodeSet.xml]. These XML files allow to persistent and transfer OPC UA information models. Furthermore, most servers can somehow embed or include those node XMLs.
 
-
-
-The :ref:`example-information-model` from the previous tutorial is represented in XML as follows:
+The :ref:`example information model <example-information-model>` from the previous tutorial can be represented in XML as follows:
 
 
 .. literalinclude:: server_nodeset.xml
    :language: xml
 
 
-open62541 Namespace Compiler
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
 Note that the namespace compiler you can find in the *tools* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
 
 
 Compile the namespace into C-code
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 In its simplest form, an invokation of the namespace compiler will look like this:
 
 .. code-block:: bash
@@ -37,7 +37,7 @@ The first argument points to the XML definition of the standard-defined namespac
 
 
 Integration into CMake
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (toplevel directory), you will find that compiling the stack with ``-DUA_ENABLE_GENERATE_NAMESPACE0`` will execute the following command::
 
   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
@@ -46,7 +46,7 @@ Although it is possible to run the compiler this way, it is highly discouraged. 
     ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
     ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
 
-Albeit a bit more complicated than the previous description, you can see that a the namespace 0 XML file is loaded in the line before the last, and that the output will be in ``ua_namespaceinit_generated.c/h``. In order to take advantage of the namespace compiler, we will simply append our nodeset to this call and have cmake care for the rest. Modify the CMakeLists.txt line above to contain the relative path to your own XML file like this::
+Albeit a bit more complicated than the previous description, you can see that the namespace 0 XML file is loaded in the line before the last, and that the output will be in ``ua_namespaceinit_generated.c/h``. In order to take advantage of the namespace compiler, we will simply append our nodeset to this call and have CMake care for the rest. Modify the CMakeLists.txt line above to contain the relative path to your own XML file like this::
 
   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
     -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
@@ -120,11 +120,9 @@ If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a
 
 .. code-block:: c
 
-  #define UA_NS1ID_PROVIDESINPUTTO
-  #define UA_NS1ID_FIELDDEVICE
-  #define UA_NS1ID_PUMP
-  #define UA_NS1ID_STARTPUMP
-  #define UA_NS1ID_STOPPUMP
+  #define UA_NS1ID_FIELDDEVICETYPE
+  #define UA_NS1ID_PUMPTYPE
+  #define UA_NS1ID_PUMPAX2500TYPE
 
 These definitions are generated for all types, but not variables, objects or views (as their names may be ambiguous and may not a be unique identifier). You can use these definitions in your code as you already used the ``UA_NS0ID_`` equivalents.
 
@@ -135,6 +133,10 @@ Now switch back to your own source directory and update your libopen62541 librar
 Note that we need to also define the method-calls here, as the header files may choose to ommit functions such as UA_Server_addMethodNode() if they believe you do not use them. If you run the server, you should now see a new dataType in the browse path ``/Types/ObjectTypes/BaseObjectType/FieldDevice`` when viewing the nodes in UAExpert.
 
 If you take a look at any of the variables, like ``ManufacturerName``, you will notice it is shown as a Boolean; this is not an error. The node does not include a variant and as you learned in our previous tutorial, it is that variant that would hold the dataType ID.
+
+
+Possible pitfalls
+^^^^^^^^^^^^^^^^^
 
 A minor list of some of the miriad things that can go wrong:
   * Your file was not found. The namespace compiler will complain, print a help message, and exit.
