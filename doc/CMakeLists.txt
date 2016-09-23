@@ -13,7 +13,6 @@ list(APPEND DOC_SRC_FILES
     ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
     ${PROJECT_SOURCE_DIR}/examples/server_variable.c
     ${PROJECT_SOURCE_DIR}/examples/server_method.c
-    ${PROJECT_SOURCE_DIR}/examples/server_inheritance.c
     ${PROJECT_SOURCE_DIR}/examples/server_instantiation.c
     ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
 )
