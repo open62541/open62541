@@ -248,6 +248,10 @@ if(UA_ENABLE_GENERATE_NAMESPACE0)
   list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
+if(UA_ENABLE_NONSTANDARD_UDP)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+endif()
+
 #########################
 # Generate source files #
 #########################
