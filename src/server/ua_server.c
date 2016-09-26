@@ -143,18 +143,25 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 }
 UA_StatusCode UA_EXPORT
 UA_Server_NodestoreInterface_add(UA_Server *server, UA_String *url,
-        UA_NodestoreInterface *nodeStore){
+        UA_NodestoreInterface *nodeStore, UA_UInt16* nsIndex){
     if(nodeStore==NULL){
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
     UA_UInt32 size = server->nodestoresSize;
-        server->nodestores =
-            UA_realloc(server->nodestores, sizeof(UA_NodestoreInterface) * (size + 1));
-        server->nodestores[size] = *nodeStore;
-        server->nodestoresSize++;
-        addNamespaceInternal(server, url);
+    server->nodestores =
+        UA_realloc(server->nodestores, sizeof(UA_NodestoreInterface) * (size + 1));
+    server->nodestores[size] = *nodeStore;
+    server->nodestoresSize++;
+    *nsIndex = addNamespaceInternal(server, url);
     return UA_STATUSCODE_GOOD;
 }
+UA_NodestoreInterface UA_EXPORT *
+UA_Server_NodestoreInterface_get(UA_Server *server, UA_UInt16 nsIndex) {
+	if (server && server->nodestores && nsIndex < server->nodestoresSize)
+		return &(server->nodestores[nsIndex]);
+	return NULL;
+}
+
 UA_StatusCode
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId, UA_Boolean deleteReferences) {
     UA_RCU_LOCK();
@@ -450,15 +457,21 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     nsInterface.handle = server->nodestore;
     //register nodestore access function
     nsInterface.get = (UA_NodestoreInterface_get)UA_NodeStore_get_internal;
+	nsInterface.getCopy = (UA_NodestoreInterface_getCopy)UA_NodeStore_getCopy;
     nsInterface.insert = (UA_NodestoreInterface_insert)UA_NodeStore_insert;
+	nsInterface.remove = (UA_NodestoreInterface_remove)UA_NodeStore_remove;
+	nsInterface.replace = (UA_NodestoreInterface_replace)UA_NodeStore_replace;
     //for testing purpose
     server->nodestore = (UA_NodeStore*)nsInterface.handle;
 
     UA_String ns0Url = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     //add ns0 and ns1 using the same inbuilt nodestore
-    UA_Server_NodestoreInterface_add(server, &ns0Url,&nsInterface);
-    UA_Server_NodestoreInterface_add(server, &server->config.applicationDescription.applicationUri,&nsInterface);
+	UA_UInt16 nsIndex;
+    UA_Server_NodestoreInterface_add(server, &ns0Url,&nsInterface, &nsIndex);
+    UA_Server_NodestoreInterface_add(server, &server->config.applicationDescription.applicationUri,
+		&nsInterface, &nsIndex);
     UA_String_deleteMembers(&ns0Url);
+	UA_Int16_deleteMembers(&nsIndex);
 
     //server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     //server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
@@ -523,6 +536,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+
 
     /**********************/
     /* Server Information */

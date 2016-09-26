@@ -89,9 +89,6 @@ UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore);
 
-/** Delete an editable node. */
-void UA_NodeStore_deleteNode(UA_Node *node);
-
 /**
  * Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
  * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
@@ -134,8 +131,9 @@ typedef struct UA_NodestoreInterface {
 
 UA_StatusCode UA_EXPORT
 UA_Server_NodestoreInterface_add(UA_Server *server, UA_String *url,
-        UA_NodestoreInterface *nodeStore);
-
+        UA_NodestoreInterface *nodeStore, UA_UInt16* nsIndex);
+UA_NodestoreInterface UA_EXPORT
+* UA_Server_NodestoreInterface_get(UA_Server * server, UA_UInt16 nsIndex);
 #ifdef __cplusplus
 }
 #endif

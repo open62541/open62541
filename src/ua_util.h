@@ -93,12 +93,12 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp);
 
 #ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
+# ifdef NDEBUG
 # include <urcu.h>
 # include <urcu/wfcqueue.h>
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
 # include <urcu/lfstack.h>
-# ifdef NDEBUG
 #  define UA_RCU_LOCK() rcu_read_lock()
 #  define UA_RCU_UNLOCK() rcu_read_unlock()
 #  define UA_ASSERT_RCU_LOCKED()
