@@ -1,6 +1,8 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-
+#ifdef UA_ENABLE_NONSTANDARD_STATELESS
+#include "ua_types_encoding_binary.h"
+#endif
 /******************/
 /* Read Attribute */
 /******************/
