@@ -384,7 +384,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     UA_PublishResponse *response = &pre->response;
     UA_NotificationMessage *message = &response->notificationMessage;
-    UA_NotificationMessageEntry *retransmission;
+    UA_NotificationMessageEntry *retransmission = NULL;
     if(notifications > 0) {
         /* Allocate the retransmission entry */
         retransmission = malloc(sizeof(UA_NotificationMessageEntry));
