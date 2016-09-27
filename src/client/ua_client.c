@@ -371,9 +371,10 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
                      "ActivateSession failed with statuscode 0x%08x", response.responseHeader.serviceResult);
     }
 
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_ActivateSessionRequest_deleteMembers(&request);
     UA_ActivateSessionResponse_deleteMembers(&response);
-    return response.responseHeader.serviceResult; // not deleted
+    return retval;
 }
 
 /**
@@ -394,10 +395,11 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDes
                         &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_StatusCode retval = response.responseHeader.serviceResult;
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+                     "GetEndpointRequest failed with statuscode 0x%08x", retval);
         UA_GetEndpointsResponse_deleteMembers(&response);
-        return response.responseHeader.serviceResult;
+        return retval;
     }
 
     *endpointDescriptionsSize = response.endpointsSize;
@@ -481,9 +483,10 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
 
     UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
 
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
-    return response.responseHeader.serviceResult; // not deleted
+    return retval;
 }
 
 static UA_StatusCode CloseSession(UA_Client *client) {
@@ -497,9 +500,10 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
 
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_CloseSessionRequest_deleteMembers(&request);
     UA_CloseSessionResponse_deleteMembers(&response);
-    return response.responseHeader.serviceResult; // not deleted
+    return retval;
 }
 
 static UA_StatusCode CloseSecureChannel(UA_Client *client) {
