@@ -25,8 +25,12 @@ int main(void) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     UA_ServerNetworkLayer nl;
     nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    UA_NodeStoreInterface nsi;
+    nsi = UA_NodeStoreInterface_standard();
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+    config.nodeStore0 = &nsi;
+    config.nodeStore1 = &nsi;
     UA_Server *server = UA_Server_new(config);
 
     UA_Server_run(server, &running);

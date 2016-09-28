@@ -692,7 +692,8 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
     }
 
     /* Create the node */
-    UA_Node *node = UA_NodeStore_newNode(item->nodeClass);
+    UA_Node *node = UA_NodeStore_newNode(item->nodeClass, item->requestedNewNodeId.nodeId.namespaceIndex);
+    //TODO check node id
     if(!node) {
         // todo: case where the nodeclass is faulty
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -849,7 +850,8 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
                                     const UA_VariableAttributes attr, const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId) {
     /* Create the new node */
-    UA_VariableNode *node = UA_NodeStore_newVariableNode();
+    UA_VariableNode *node = (UA_VariableNode*) UA_NodeStore_newNode(
+            UA_NODECLASS_VARIABLE,requestedNewNodeId.namespaceIndex);
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -908,7 +910,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId) {
-    UA_MethodNode *node = UA_NodeStore_newMethodNode();
+    UA_MethodNode *node = (UA_MethodNode*) UA_NodeStore_newNode(
+            UA_NODECLASS_METHOD,requestedNewNodeId.namespaceIndex);
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -936,7 +939,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     const UA_NodeId propertytype = UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE);
 
     if(inputArgumentsSize > 0) {
-        UA_VariableNode *inputArgumentsVariableNode = UA_NodeStore_newVariableNode();
+        UA_VariableNode *inputArgumentsVariableNode = (UA_VariableNode*) UA_NodeStore_newNode(
+                        UA_NODECLASS_VARIABLE,newMethodId.namespaceIndex);
         inputArgumentsVariableNode->nodeId.namespaceIndex = newMethodId.namespaceIndex;
         inputArgumentsVariableNode->browseName = UA_QUALIFIEDNAME_ALLOC(0, "InputArguments");
         inputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
@@ -968,7 +972,8 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 
     if(outputArgumentsSize > 0) {
         /* create OutputArguments */
-        UA_VariableNode *outputArgumentsVariableNode  = UA_NodeStore_newVariableNode();
+        UA_VariableNode *outputArgumentsVariableNode  = (UA_VariableNode*) UA_NodeStore_newNode(
+                        UA_NODECLASS_VARIABLE, newMethodId.namespaceIndex);
         outputArgumentsVariableNode->nodeId.namespaceIndex = newMethodId.namespaceIndex;
         outputArgumentsVariableNode->browseName  = UA_QUALIFIEDNAME_ALLOC(0, "OutputArguments");
         outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");

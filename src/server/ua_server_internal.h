@@ -65,8 +65,6 @@ struct UA_Server {
     size_t registeredServersSize;
 #endif
 
-    size_t nodestoresSize;
-    UA_NodestoreInterface *nodestores;
     size_t namespacesSize;
     UA_String *namespaces;
 

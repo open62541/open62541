@@ -210,8 +210,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 # nodestores
+                ${PROJECT_SOURCE_DIR}/plugins/nodestore.c
+                ${PROJECT_SOURCE_DIR}/plugins/nodestore_concurrent.c
+                ${PROJECT_SOURCE_DIR}/plugins/nodestore_hash.inc
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c

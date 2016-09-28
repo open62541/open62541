@@ -28,6 +28,7 @@ extern "C" {
 #include "ua_log.h"
 #include "ua_job.h"
 #include "ua_connection.h"
+#include "ua_nodestore_interface.h"
 
 /**
  * .. _server:
@@ -112,6 +113,10 @@ typedef struct {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
+    /* NS0 and NS1 NodeStore */
+    UA_NodeStoreInterface *nodeStore0;
+    UA_NodeStoreInterface *nodeStore1;
+
     /* Login */
     UA_Boolean enableAnonymousLogin;
     UA_Boolean enableUsernamePasswordLogin;
@@ -149,7 +154,7 @@ typedef struct {
 } UA_ServerConfig;
 
 /* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name, UA_NodeStoreInterface* nodeStore);
 
 /**
  * Server Lifecycle

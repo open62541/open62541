@@ -56,7 +56,7 @@ extern "C" {
     size_t referencesSize;                      \
     UA_ReferenceNode *references;
 
-typedef struct {
+typedef struct UA_Node {
     UA_NODE_BASEATTRIBUTES
 } UA_Node;
 
