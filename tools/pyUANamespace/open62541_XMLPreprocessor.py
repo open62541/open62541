@@ -208,6 +208,8 @@ class preProcessDocument:
 
         returns: nothing
     """
+    if currentNsId == newNsId:
+        return
     for refNd in self.referencedNodes:
       if refNd[0].ns == currentNsId:
         refNd[1].firstChild.data = refNd[1].firstChild.data.replace("ns="+str(currentNsId), "ns="+str(newNsId))
