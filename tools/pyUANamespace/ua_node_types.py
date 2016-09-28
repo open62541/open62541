@@ -434,7 +434,9 @@ class opcua_node_t:
     """
     if data != None:
       self.__node_displayName__ = data
-    return self.__node_displayName__.encode('utf-8')
+    if sys.version_info[0] < 3:
+      return self.__node_displayName__.encode('utf-8')
+    return self.__node_displayName__
 
   def description(self, data=None):
     """ Sets the description attribute if data is passed.
@@ -442,7 +444,9 @@ class opcua_node_t:
     """
     if data != None:
       self.__node_description__ = data
-    return self.__node_description__.encode('utf-8')
+    if sys.version_info[0] < 3:
+      return self.__node_description__.encode('utf-8')
+    return self.__node_description__
 
   def writeMask(self, data=None):
     """ Sets the write mask attribute if data is passed.
