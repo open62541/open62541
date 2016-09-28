@@ -370,7 +370,7 @@ class open62541_XMLPreprocessor:
         if m[0] > best[0]:
           best = m
       if best[1] != None:
-        logger.warn("Best match (" + str(best[1]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
+        logger.warn("Best match (" + str(best[0]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
         doc.reassignReferencedNamespaceId(d, best[1].getNamespaceId())
       else:
         logger.error("Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d))
