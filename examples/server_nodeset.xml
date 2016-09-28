@@ -39,5 +39,8 @@
             <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
             <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
         </References>
+        <Value>
+            <uax:Double>42.0</uax:Double>
+        </Value>
     </UAVariable>
 </UANodeSet>

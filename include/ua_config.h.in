@@ -1,132 +1,90 @@
+/*
+ * Copyright (C) 2013-2015 the contributors as stated in the AUTHORS file
+ *
+ * This file is part of open62541. open62541 is free software: you can
+ * redistribute it and/or modify it under the terms of the GNU Lesser General
+ * Public License, version 3 (as published by the Free Software Foundation) with
+ * a static linking exception as stated in the LICENSE file provided with
+ * open62541.
+ *
+ * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
+ * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+ * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
+ * details.
+ */
+
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef _XOPEN_SOURCE
 # define _XOPEN_SOURCE 500
-# define _BSD_SOURCE
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
 #endif
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
+#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
 #cmakedefine UA_ENABLE_MULTITHREADING
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
+#cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_TYPENAMES
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 
+#cmakedefine UA_ENABLE_EMBEDDED_LIBC
+
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 
-/* Function Export */
-#ifdef _WIN32
-# ifdef UA_DYNAMIC_LINKING
+/**
+ * Function Export
+ * --------------- */
+/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
+   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
+   from a DLL.*/
+#cmakedefine UA_DYNAMIC_LINKING
+#if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
+# ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
 #   define UA_EXPORT __attribute__ ((dllexport))
 #  else
 #   define UA_EXPORT __declspec(dllexport)
 #  endif
-# else
+# else /* import dll */
 #  ifdef __GNUC__
-#   define UA_EXPORT __attribute__ ((dllexport))
+#   define UA_EXPORT __attribute__ ((dllimport))
 #  else
 #   define UA_EXPORT __declspec(dllimport)
 #  endif
 # endif
-#else
+#else /* non win32 */
 # if __GNUC__ || __clang__
 #  define UA_EXPORT __attribute__ ((visibility ("default")))
-# else
-#  define UA_EXPORT
 # endif
 #endif
-
-/* Endianness */
-// UA_NON_LITTLEENDIAN_ARCHITECTURE disables memcpying integer arrays directly
-// onto the message buffer. UA_MIXED_ENDIAN enables special encoding for floats
-// and doubles. Otherwise, they are endianness-switched similar to integers.
-#if defined(__LITTLE_ENDIAN__) || defined(_WIN32) || (!defined(__ANDROID__) && BYTE_ORDER == ORDER_LITTLE_ENDIAN)
-# define htole16(x) (x)
-# define htole32(x) (x)
-# define htole64(x) (x)
-# define le16toh(x) (x)
-# define le32toh(x) (x)
-# define le64toh(x) (x)
-#else
-# if defined(__ANDROID__)
-#  include <endian.h>
-#  define le16toh(x) letoh16(x)
-#  define le32toh(x) letoh32(x)
-#  define le64toh(x) letoh64(x)
-# elif defined(__linux__)
-#  include <endian.h>
-# elif defined(__OpenBSD__)
-#  include <sys/endian.h>
-# elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__)
-#  include <sys/endian.h>
-#  define le16toh(x) letoh16(x)
-#  define le32toh(x) letoh32(x)
-#  define le64toh(x) letoh64(x)
-# elif defined(__APPLE__)
-#  include <libkern/OSByteOrder.h>
-#  define htole16(x) OSSwapHostToLittleInt16(x)
-#  define htole32(x) OSSwapHostToLittleInt32(x)
-#  define htole64(x) OSSwapHostToLittleInt64(x)
-#  define le16toh(x) OSSwapLittleToHostInt16(x)
-#  define le32toh(x) OSSwapLittleToHostInt32(x)
-#  define le64toh(x) OSSwapLittleToHostInt64(x)
-#  define __BYTE_ORDER BYTE_ORDER
-# elif defined(__QNX__) || defined(__QNXNTO__)
-#  include <gulliver.h>
-#  if defined(__LITTLEENDIAN__)
-#   define __BYTE_ORDER __LITTLE_ENDIAN
-#  endif
-#  define htole16(x) ENDIAN_LE16(x)
-#  define htole32(x) ENDIAN_LE32(x)
-#  define htole64(x) ENDIAN_LE64(x)
-#  define le16toh(x) ENDIAN_LE16(x)
-#  define le32toh(x) ENDIAN_LE32(x)
-#  define le64toh(x) ENDIAN_LE64(x)
-# endif
-# if ( __BYTE_ORDER != __LITTLE_ENDIAN ) && (_BYTE_ORDER != _LITTLE_ENDIAN)
-#  define UA_NON_LITTLEENDIAN_ARCHITECTURE
-# endif
+#ifndef UA_EXPORT
+# define UA_EXPORT /* fallback to default */
 #endif
 
-/* Manually override */
-// If required, define UA_NON_LITTLEENDIAN_ARCHITECTURE, UA_MIXED_ENDIAN, and
-// the htole / letoh functions here. Even better, post an issue on github or the
-// mailing list, so we can include the architecture in the standard release.
-#define swap16(u16) ((u16 >> 8) | (u16 << 8))
-#define swap32(u32) ((u32 >> 24) | ((u32 << 8) & 0x00FF0000) | ((u32 >> 8) & 0x0000FF00) | (u32 << 24))
-#define swap64(u64) ((u64 >> 56) | ((u64 << 40) & 0x00FF000000000000) | ((u64 << 24) & 0x0000FF0000000000) | \
-                     ((u64 << 8) & 0x000000FF00000000) | ((u64 >> 8) & 0x00000000FF000000) |                 \
-                     ((u64 >> 24) & 0x0000000000FF0000) | ((u64 >> 40) & 0x000000000000FF00) | (u64 << 56))
-
-#ifdef __ARM_ARCH_4T__
-# define UA_MIXED_ENDIAN
-# define UA_NON_LITTLEENDIAN_ARCHITECTURE
-# define htole16(x) swap16(x)
-# define htole32(x) swap32(x)
-# define htole64(x) swap64(x)
-# define le16toh(x) swap16(x)
-# define le32toh(x) swap32(x)
-# define le64toh(x) swap64(x)
-#endif
-
-#ifndef htole16
-# error The endianness of the architecture not known
-#endif
-
-/* Inline Functions */
+/**
+ * Inline Functions
+ * ---------------- */
 #ifdef _MSC_VER
 # define UA_INLINE __inline
 #else
 # define UA_INLINE inline
 #endif
 
-/* Define non-aliasing pointers */
+/**
+ * Non-aliasing pointers
+ * -------------------- */
 #ifdef _MSC_VER
 # define UA_RESTRICT __restrict
 #elif defined(__GNUC__)
@@ -135,7 +93,9 @@
 # define UA_RESTRICT restrict
 #endif
 
-/* Function attributes */
+/**
+ * Function attributes
+ * ------------------- */
 #ifdef __GNUC__
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
@@ -148,6 +108,78 @@
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif
 
+/**
+ * Binary Encoding Overlays
+ * ------------------------
+ * Integers and floating point numbers are transmitted in little-endian (IEE 754
+ * for floating point) encoding. If the target architecture uses the same
+ * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
+ * This speeds up encoding.
+ *
+ * Integer Endianness
+ * ^^^^^^^^^^^^^^^^^^ */
+#if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)) /* little endian detected */
+# define UA_BINARY_OVERLAYABLE_INTEGER true
+#elif defined(__ANDROID__) /* Andoid */
+# include <endian.h>
+# if __BYTE_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+#elif defined(__linux__) /* Linux */
+# include <endian.h>
+# if __BYTE_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+# if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_FLOAT true
+# endif
+#elif defined(__OpenBSD__) /* OpenBSD */
+# include <sys/endian.h>
+# if BYTE_ORDER == LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+#elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__) /* Other BSD */
+# include <sys/endian.h>
+# if _BYTE_ORDER == _LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+#elif defined(__APPLE__) /* Apple (MacOS, iOS) */
+# include <libkern/OSByteOrder.h>
+# if defined(__LITTLE_ENDIAN__)
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+#elif defined(__QNX__) || defined(__QNXNTO__) /* QNX */
+# include <gulliver.h>
+# if defined(__LITTLEENDIAN__)
+#  define UA_BINARY_OVERLAYABLE_INTEGER true
+# endif
+#endif
+
+#ifndef UA_BINARY_OVERLAYABLE_INTEGER
+# define UA_BINARY_OVERLAYABLE_INTEGER false
+#endif
+
+/**
+ * Float Endianness
+ * ^^^^^^^^^^^^^^^^ */
+#if defined(_WIN32)
+# define UA_BINARY_OVERLAYABLE_FLOAT true
+#elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+    (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
+# define UA_BINARY_OVERLAYABLE_FLOAT true
+#elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
+    (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
+# define UA_BINARY_OVERLAYABLE_FLOAT true
+#endif
+
+#ifndef UA_BINARY_OVERLAYABLE_FLOAT
+# define UA_BINARY_OVERLAYABLE_FLOAT false
+#endif
+
+/**
+ * Embed unavailable libc functions
+ * -------------------------------- */
 #include <stddef.h>
 #ifdef UA_ENABLE_EMBEDDED_LIBC
   void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
@@ -156,6 +188,10 @@
   int memcmp(const void *vl, const void *vr, size_t n);
 #else
 # include <string.h>
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif
 
 #endif /* UA_CONFIG_H_ */

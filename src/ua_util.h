@@ -3,11 +3,7 @@
 
 #include "ua_config.h"
 
-/* Subtract from nodeids to get from the encoding to the content */
-#define UA_ENCODINGOFFSET_XML 1
-#define UA_ENCODINGOFFSET_BINARY 2
-
-#include <assert.h> // assert
+#include <assert.h>
 #define UA_assert(ignore) assert(ignore)
 
 /*********************/
@@ -52,53 +48,34 @@
 /************************/
 
 #ifdef UA_ENABLE_MULTITHREADING
-# ifdef __GNUC__
-#  define UA_THREAD_LOCAL __thread
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 */
+# elif defined(__GNUC__)
+#  define UA_THREAD_LOCAL __thread /* GNU extension */
 # elif defined(_MSC_VER)
-#  define UA_THREAD_LOCAL __declspec(thread)
+#  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 # else
-#  error No thread local storage keyword defined for this compiler
+#  warning The compiler does not allow thread-local variables. The library can be built, but will not be thread safe.
 # endif
-#else
+#endif
+
+#ifndef UA_THREAD_LOCAL
 # define UA_THREAD_LOCAL
-#endif
-
-/********************/
-/* System Libraries */
-/********************/
-
-#ifdef _WIN32
-# include <winsock2.h> //needed for amalgamation
-# include <windows.h>
-# undef SLIST_ENTRY
-#endif
-
-#include <time.h>
-#if defined(_WIN32) && !defined(__MINGW32__)
-int gettimeofday(struct timeval *tp, struct timezone *tzp);
-#else
-# include <sys/time.h>
-#endif
-
-#if defined(__APPLE__) || defined(__MACH__)
-#include <mach/clock.h>
-#include <mach/mach.h>
 #endif
 
 /*************************/
 /* External Dependencies */
 /*************************/
-
 #include "queue.h"
 
 #ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
-# ifdef NDEBUG
 # include <urcu.h>
 # include <urcu/wfcqueue.h>
 # include <urcu/uatomic.h>
 # include <urcu/rculfhash.h>
 # include <urcu/lfstack.h>
+# ifdef NDEBUG
 #  define UA_RCU_LOCK() rcu_read_lock()
 #  define UA_RCU_UNLOCK() rcu_read_unlock()
 #  define UA_ASSERT_RCU_LOCKED()

@@ -1,5 +1,8 @@
 #include "ua_util.h"
 #include "ua_nodestore.h"
+#include "ua_server_internal.h"
+
+#ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
 
 struct nodeEntry {
     struct cds_lfht_node htn; ///< Contains the next-ptr for urcu-hashmap
@@ -119,13 +122,10 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         node->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
         if(node->nodeId.namespaceIndex == 0) // original request for ns=0 should yield ns=1
             node->nodeId.namespaceIndex = 1;
-        /* set namespaceIndex in browseName in case id is generated */
-        if(node->nodeClass == UA_NODECLASS_VARIABLE)
-        	((UA_VariableNode*)node)->browseName.namespaceIndex = node->nodeId.namespaceIndex;
 
         unsigned long identifier;
         long before, after;
-        cds_lfht_count_nodes(ht, &before, &identifier, &after); // current amount of nodes stored
+        cds_lfht_count_nodes(ht, &before, &identifier, &after); // current number of nodes stored
         identifier++;
 
         node->nodeId.identifier.numeric = (UA_UInt32)identifier;
@@ -174,7 +174,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct cds_lfht *ht = (struct cds_lfht*)ns;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
-    cds_lfht_lookup(ht, h, compare, &nodeid, &iter);
+    cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     if(!iter.node || cds_lfht_del(ht, iter.node) != 0)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     struct nodeEntry *entry = (struct nodeEntry*)iter.node;
@@ -225,3 +225,5 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
         cds_lfht_next(ht, &iter);
     }
 }
+
+#endif /* UA_ENABLE_MULTITHREADING */

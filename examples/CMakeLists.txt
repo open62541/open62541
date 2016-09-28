@@ -1,63 +1,105 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_BINARY_DIR}/src_generated)
+include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
-set(LIBS open62541-static)
-if(NOT WIN32)
-    list(APPEND LIBS pthread)
-    if (NOT APPLE)
-        list(APPEND LIBS rt)
-    endif()
+if(UA_ENABLE_AMALGAMATION)
+    include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
 else()
-    list(APPEND LIBS ws2_32)
+    add_definitions(-DUA_NO_AMALGAMATION)
+endif()
+
+list(APPEND LIBS ${open62541_LIBRARIES} open62541)
+if(NOT WIN32)
+  list(APPEND LIBS pthread)
+  if (NOT APPLE)
+    list(APPEND LIBS rt)
+  endif()
+else()
+  list(APPEND LIBS ws2_32)
 endif()
 if(UA_ENABLE_MULTITHREADING)
-    list(APPEND LIBS urcu-cds urcu urcu-common)
+  list(APPEND LIBS urcu-cds urcu urcu-common)
+endif(UA_ENABLE_MULTITHREADING)
+
+##################
+# Example Server #
+##################
+
+add_executable(server server.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server ${LIBS})
+
+if(UA_ENABLE_NONSTANDARD_UDP)
+  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/networklayer_udp.c)
+  target_link_libraries(server_udp ${LIBS})
 endif()
 
-# add_executable(server_readspeed server_readspeed.c)
-# target_link_libraries(server_readspeed ${LIBS})
+##################
+# Example Client #
+##################
 
-add_executable(server_variable server_variable.c)
+add_executable(client client.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(client ${LIBS})
+
+####################
+# Feature Examples #
+####################
+
+add_executable(server_variable server_variable.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_variable ${LIBS})
 
-add_executable(server_mainloop server_mainloop.c)
+add_executable(server_mainloop server_mainloop.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_mainloop ${LIBS})
 
-add_executable(server_datasource server_datasource.c)
+add_executable(server_datasource server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_datasource ${LIBS})
 
-add_executable(server_firstSteps server_firstSteps.c)
+add_executable(server_firstSteps server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_firstSteps ${LIBS})
 
-add_executable(client_firstSteps client_firstSteps.c)
-target_link_libraries(client_firstSteps ${LIBS})
+add_executable(server_instantiation server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_instantiation ${LIBS})
 
-add_executable(server_chunking server_chunking.c)
-target_link_libraries(server_chunking ${LIBS})
+add_executable(server_repeated_job server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_repeated_job ${LIBS})
 
-if(NOT UA_ENABLE_AMALGAMATION)
-	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-		               PRE_BUILD
-		               COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                                                    -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                                                    ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
-                                                    ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
-                                                    ${PROJECT_BINARY_DIR}/src_generated/nodeset
-   		                DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-		                        ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-		                      
-	add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
-	target_link_libraries(server_nodeset ${LIBS})
-endif()
+add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
+target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+target_link_libraries(server_readspeed ${LIBS})
 
 if(UA_ENABLE_METHODCALLS)
-  add_executable(server_method server_method.c)
+  add_executable(server_method server_method.c $<TARGET_OBJECTS:open62541-object>)
   target_link_libraries(server_method ${LIBS})
 endif()
+
+if(UA_BUILD_SELFSIGNED_CERTIFICATE)
+  find_package(OpenSSL REQUIRED)
+  add_custom_command(OUTPUT server_cert.der ca.crt
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
+                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                             ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
+
+  add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
+
+  add_executable(server_certificate server_certificate.c $<TARGET_OBJECTS:open62541-object> server_cert.der ca.crt)
+  target_link_libraries(server_certificate ${LIBS})
+endif()
+
+if(UA_ENABLE_DISCOVERY)
+
+    add_executable(discovery_server_discovery discovery/server_discovery.c)
+    target_link_libraries(discovery_server_discovery ${LIBS})
+
+    add_executable(discovery_server_register discovery/server_register.c)
+    target_link_libraries(discovery_server_register ${LIBS})
+
+    add_executable(discovery_client_find_servers discovery/client_find_servers.c)
+    target_link_libraries(discovery_client_find_servers ${LIBS})
+endif()
+
+if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
+  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+  target_link_libraries(server_nodeset ${LIBS})
+  target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+endif()
+
+add_executable(client_firstSteps client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(client_firstSteps ${LIBS})

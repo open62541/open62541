@@ -19,17 +19,17 @@ UA_Boolean running = 1;
 
 static void stopHandler(int sign) {
     printf("Received Ctrl-C\n");
-	running = 0;
+    running = 0;
 }
 
 int main(int argc, char** argv) {
-	signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-	UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
     UA_ServerNetworkLayer *nl = ServerNetworkLayerUDP_new(UA_ConnectionConfig_standard, 16664);
     UA_Server_addNetworkLayer(server, nl);
 
-	// add a variable node to the adresspace
+    // add a variable node to the adresspace
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     UA_Int32 myInteger = 42;
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
                               UA_NODEID_NULL, attr, NULL);
 
     UA_StatusCode retval = UA_Server_run(server, 1, &running);
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 
-	return (int) retval;
+    return (int) retval;
 }

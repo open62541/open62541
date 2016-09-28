@@ -1,35 +1,28 @@
-Welcome to open62541's documentation!
-=====================================
+.. only:: html
 
-`OPC UA <http://en.wikipedia.org/wiki/OPC_Unified_Architecture>`_ (short for OPC
-Unified Architecture) is a protocol for industrial communication and has been
-standardized in the IEC62541. At its core, OPC UA defines a set of services to
-interact with a server-side object-oriented information model. Besides the
-service-calls initiated by the client, push-notification of remote events (such
-as data changes) can be negotiated with the server. The client/server
-interaction is mapped either to a binary encoding and TCP-based transmission or
-to SOAP-based webservices. As of late, OPC UA is marketed as the one standard
-for non-realtime industrial communication.
+   .. include:: index_html.rst
 
-We believe that it is best to understand OPC UA *from the inside out*, building
-upon conceptually simple first principles. After establishing a first
-understanding, we go on explaining how these principles are realized in detail.
-Examples are given based on the *open62541* implementation of the
-standard.
+.. only:: latex
 
-.. toctree::
-   :maxdepth: 3
+   open62541 Documentation
+   #######################
 
-   in_a_nutshell
-   building
-   tutorials
-   datatypes
+   .. include:: introduction.rst
 
-   
-Indices and tables
-==================
+   .. include:: building.rst
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   .. include:: tutorials.rst
 
+   .. include:: types.rst
+
+   .. include:: information_modelling.rst
+
+   .. include:: services.rst
+
+   .. include:: server.rst
+
+   .. include:: client.rst
+
+   .. include:: constants.rst
+
+   .. include:: internal.rst
