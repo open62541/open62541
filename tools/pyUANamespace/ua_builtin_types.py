@@ -761,7 +761,7 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
         self.value.append(unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_QUALIFIEDNAME_ALLOC(" + str(self.value[0]) + ", \"" + self.value[1].encode('utf-8') + "\")"
+      code = "UA_QUALIFIEDNAME_ALLOC(" + str(self.value[0]) + ", \"" + str(self.value[1].encode('utf-8')) + "\")"
       return code
 
 class opcua_BuiltinType_statuscode_t(opcua_value_t):
@@ -1237,7 +1237,7 @@ class opcua_BuiltinType_string_t(opcua_value_t):
       self.value = str(unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_STRING_ALLOC(\"" + self.value.encode('utf-8') + "\")"
+      code = "UA_STRING_ALLOC(\"" + str(self.value.encode('utf-8')) + "\")"
       return code
 
 class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
@@ -1248,7 +1248,7 @@ class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
     self.__binTypeId__ = BUILTINTYPE_TYPEID_XMLELEMENT
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_XMLELEMENT_ALLOC(\"" + self.value.encode('utf-8') + "\")"
+      code = "UA_XMLELEMENT_ALLOC(\"" + str(self.value.encode('utf-8')) + "\")"
       return code
 
 class opcua_BuiltinType_bytestring_t(opcua_value_t):
