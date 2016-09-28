@@ -241,6 +241,8 @@ class preProcessDocument:
             refNd[0].ns = newNsId
             refNd[0].toString()
         nd[1].setAttribute(u'NodeId', nd[1].getAttribute(u'NodeId').replace("ns="+str(currentNsId), "ns="+str(newNsId)))
+        if nd[1].getAttribute(u'BrowseName') != "":
+          nd[1].setAttribute(u'BrowseName', nd[1].getAttribute(u'BrowseName').replace(str(currentNsId)+":", str(newNsId)+":"))
         nd[0].ns = newNsId
         nd[0].toString()
 
