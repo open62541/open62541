@@ -104,7 +104,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
 
     /* Get a buffer */
     UA_ByteString message;
-    UA_StatusCode retval = client->connection->getSendBuffer(client->connection, UA_MINMESSAGESIZE, &message);
+    UA_StatusCode retval =
+        client->connection->getSendBuffer(client->connection, UA_MINMESSAGESIZE, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -377,7 +378,8 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     if(response.responseHeader.serviceResult) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+                     "ActivateSession failed with statuscode 0x%08x",
+                     response.responseHeader.serviceResult);
     }
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
@@ -437,7 +439,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
         //NODE: Siemens returns empty ProfileUrl, we will accept it as binary
-        if(endpoint->transportProfileUri.length!=0 && !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
+        if(endpoint->transportProfileUri.length!=0 &&
+           !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
@@ -625,7 +628,9 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    *client->connection = client->config.connectionFunc(UA_ConnectionConfig_standard, endpointUrl, client->config.logger);
+    *client->connection =
+        client->config.connectionFunc(UA_ConnectionConfig_standard,
+                                      endpointUrl, client->config.logger);
     if(client->connection->state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
