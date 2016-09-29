@@ -20,7 +20,7 @@ Now create a new C source-file called ``myServer.c`` with the following content:
 .. literalinclude:: server_firstSteps.c
    :language: c
    :linenos:
-   :lines: 4,12,14-34
+   :lines: 4,12,14-
 
 This is all that is needed for a simple OPC UA server. Compile the the server
 with GCC using the following command:
