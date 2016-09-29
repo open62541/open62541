@@ -34,7 +34,7 @@ if [ ! -e "$TAG.zip" ]; then
 
     LINETOSTART=$((TAGSTOSAVE+1))
     #remove obsolete zips
-    tail -n +"$LINETOSTART" raw.txt | xargs git rm
+    tail -n +"$LINETOSTART" raw.txt | xargs git rm --ignore-unmatch
 
     #remove obsolete zips from list
     head "-$TAGSTOSAVE" raw.txt > temp && mv temp raw.txt
