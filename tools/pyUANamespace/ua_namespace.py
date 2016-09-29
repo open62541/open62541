@@ -658,7 +658,7 @@ class opcua_namespace():
     header.append('#endif')
 
     code.append('#include "'+outfilename+'.h"')
-    code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
+    code.append("UA_INLINE UA_StatusCode "+outfilename+"(UA_Server *server) {")
 
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in self.namespaceIdentifiers:
@@ -667,7 +667,7 @@ class opcua_namespace():
       else:
         name =  self.namespaceIdentifiers[nsid]
         name = name.replace("\"","\\\"")
-        code.append("UA_Server_addNamespace(server, \"" + name + "\");")
+        code.append("if (UA_Server_addNamespace(server, \"{0}\") != {1})\n    return UA_STATUSCODE_BADUNEXPECTEDERROR;".format(name, nsid))
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
@@ -690,7 +690,7 @@ class opcua_namespace():
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
 
-    header.append("extern void "+outfilename+"(UA_Server *server);\n")
+    header.append("extern UA_StatusCode "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
@@ -727,6 +727,7 @@ class opcua_namespace():
     else:
       logger.debug("Printing succeeded for all references")
 
+    code.append("return UA_STATUSCODE_GOOD;")
     code.append("}")
     return (header,code)
 
