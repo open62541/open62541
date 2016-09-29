@@ -187,7 +187,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     return retval;
 }
 
-static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
+static UA_StatusCode
+SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     /* Check if sc is still valid */
     if(renew && client->scRenewAt - UA_DateTime_now() > 0)
         return UA_STATUSCODE_GOOD;
@@ -197,7 +198,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_SecureConversationMessageHeader messageHeader;
-    messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
+    messageHeader.messageHeader.messageTypeAndChunkType =
+        UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     if(renew)
         messageHeader.secureChannelId = client->channel->securityToken.channelId;
     else
@@ -209,10 +211,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
 
     UA_AsymmetricAlgorithmSecurityHeader asymHeader;
     UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-    asymHeader.securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
+    asymHeader.securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
     /* id of opensecurechannelrequest */
-    UA_NodeId requestType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId);
+    UA_NodeId requestType =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId);
 
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
@@ -221,10 +225,12 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
     if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to renew the SecureChannel");
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Requesting to renew the SecureChannel");
     } else {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_ISSUE;
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Requesting to open a SecureChannel");
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Requesting to open a SecureChannel");
     }
 
     UA_ByteString_copy(&client->channel->clientNonce, &opnSecRq.clientNonce);
@@ -277,7 +283,8 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
     UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
     UA_NodeId_decodeBinary(&reply, &offset, &requestType);
-    UA_NodeId expectedRequest = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
+    UA_NodeId expectedRequest =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     if(!UA_NodeId_equal(&requestType, &expectedRequest)) {
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -288,7 +295,6 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
     }
 
     UA_OpenSecureChannelResponse response;
-    UA_OpenSecureChannelResponse_init(&response);
     retval = UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
     if(!realloced)
         c->releaseRecvBuffer(c, &reply);
@@ -323,12 +329,15 @@ static UA_StatusCode SecureChannelHandshake(UA_Client *client, UA_Boolean renew)
         UA_ByteString_copy(&response.serverNonce, &client->channel->serverNonce);
 
         if(renew)
-            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel renewed");
+            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "SecureChannel renewed");
         else
-            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel opened");
+            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "SecureChannel opened");
     } else {
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "SecureChannel could "
-                     "not be opened / renewed with statuscode %i", retval);
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "SecureChannel could not be opened / "
+                     "renewed with statuscode %i", retval);
     }
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -382,12 +391,14 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
  * Memory is allocated for endpointDescription array
  */
 static UA_StatusCode
-GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions) {
+GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
+             UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    request.endpointUrl = client->endpointUrl; // assume the endpointurl outlives the service call
+    // assume the endpointurl outlives the service call
+    request.endpointUrl = client->endpointUrl; 
 
     UA_GetEndpointsResponse response;
     UA_GetEndpointsResponse_init(&response);
@@ -401,11 +412,10 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize, UA_EndpointDes
         UA_GetEndpointsResponse_deleteMembers(&response);
         return retval;
     }
-
+    *endpointDescriptions = response.endpoints;
     *endpointDescriptionsSize = response.endpointsSize;
-    *endpointDescriptions = UA_Array_new(response.endpointsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    for(size_t i=0;i<response.endpointsSize;i++)
-        UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
+    response.endpoints = NULL;
+    response.endpointsSize = 0;
     UA_GetEndpointsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
 }
