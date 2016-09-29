@@ -173,9 +173,9 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
         conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
         conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
         conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
+        conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
         if(conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
             conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
-        conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
         if(conn->remoteConf.sendBufferSize < conn->localConf.recvBufferSize)
             conn->localConf.recvBufferSize = conn->remoteConf.sendBufferSize;
         conn->state = UA_CONNECTION_ESTABLISHED;
