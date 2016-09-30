@@ -1,0 +1,11 @@
+MessageType
+ChunkType
+TcpMessageHeader
+TcpHelloMessage
+TcpAcknowledgeMessage
+SecureConversationMessageHeader
+AsymmetricAlgorithmSecurityHeader
+SymmetricAlgorithmSecurityHeader
+SequenceHeader
+SecureConversationMessageFooter
+SecureConversationMessageAbortBody

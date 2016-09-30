@@ -2,13 +2,8 @@
 #include "ua_server_internal.h"
 
 UA_StatusCode
-UA_SessionManager_init(UA_SessionManager *sm, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId,
-                       UA_Server *server) {
+UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server) {
     LIST_INIT(&sm->sessions);
-    sm->maxSessionCount = maxSessionCount;
-    sm->lastSessionId   = startSessionId;
-    sm->maxSessionLifeTime  = maxSessionLifeTime;
     sm->currentSessionCount = 0;
     sm->server = server;
     return UA_STATUSCODE_GOOD;
@@ -23,10 +18,10 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
     }
 }
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime now) {
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMonotonic) {
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
-        if(sentry->session.validTill < now) {
+        if(sentry->session.validTill < nowMonotonic) {
             UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                          "Session with token %i has timed out and is removed",
                          sentry->session.sessionId.identifier.numeric);
@@ -48,16 +43,18 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
-            if(UA_DateTime_now() > current->session.validTill) {
+            if(UA_DateTime_nowMonotonic() > current->session.validTill) {
                 UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                             "Try to use Session with token %i, but has timed out", token->identifier.numeric);
+                             "Try to use Session with token " UA_PRINTF_GUID_FORMAT ", but has timed out",
+                             UA_PRINTF_GUID_DATA(token->identifier.guid));
                 return NULL;
             }
             return &current->session;
         }
     }
     UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Try to use Session with token %i but is not found", token->identifier.numeric);
+                 "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
+                 UA_PRINTF_GUID_DATA(token->identifier.guid));
     return NULL;
 }
 
@@ -65,7 +62,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
                                 const UA_CreateSessionRequest *request, UA_Session **session) {
-    if(sm->currentSessionCount >= sm->maxSessionCount)
+    if(sm->currentSessionCount >= sm->server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
     session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
@@ -74,14 +71,14 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
 
     sm->currentSessionCount++;
     UA_Session_init(&newentry->session);
-    newentry->session.sessionId = UA_NODEID_NUMERIC(1, sm->lastSessionId++);
+    newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
-    if(request->requestedSessionTimeout <= sm->maxSessionLifeTime &&
+    if(request->requestedSessionTimeout <= sm->server->config.maxSessionTimeout &&
        request->requestedSessionTimeout > 0)
         newentry->session.timeout = request->requestedSessionTimeout;
     else
-        newentry->session.timeout = sm->maxSessionLifeTime; // todo: remove when the CTT is fixed
+        newentry->session.timeout = sm->server->config.maxSessionTimeout;
 
     UA_Session_updateLifetime(&newentry->session);
     LIST_INSERT_HEAD(&sm->sessions, newentry, pointers);

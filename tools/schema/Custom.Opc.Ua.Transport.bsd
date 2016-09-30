@@ -21,7 +21,7 @@
   </opc:EnumeratedType>
   
   <opc:EnumeratedType Name="ChunkType" LengthInBits="32">
-    <opc:Documentation>Message Type and whether the message contains an intermediate chunk</opc:Documentation>
+    <opc:Documentation>Type of the chunk</opc:Documentation>
     <opc:EnumeratedValue Name="FINAL" Value="0x46000000" />
     <opc:EnumeratedValue Name="INTERMEDIATE" Value="0x43000000" />
     <opc:EnumeratedValue Name="ABORT" Value="0x41000000" />

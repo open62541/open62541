@@ -54,3 +54,5 @@ shutil.move("server_cert.der", sys.argv[1])
 if os.path.isfile(os.path.join(sys.argv[1], "ca.crt")):
 	os.remove(os.path.join(sys.argv[1], "ca.crt"))
 shutil.move("ca.crt", sys.argv[1])
+
+print("Certificates generated in " + sys.argv[1])
