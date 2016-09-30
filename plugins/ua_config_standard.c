@@ -62,6 +62,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .networkLayersSize = 0,
     .networkLayers = NULL,
 
+    /* NS0 and NS1 NodeStore */
+    .nodestore0 = NULL,
+    .nodestore1 = NULL,
+
     /* Login */
     .enableAnonymousLogin = true,
     .enableUsernamePasswordLogin = true,
