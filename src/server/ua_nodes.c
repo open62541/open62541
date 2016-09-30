@@ -3,6 +3,8 @@
 #include "ua_nodestore.h"
 #include "ua_util.h"
 
+
+
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
     /* delete standard content */
     UA_NodeId_deleteMembers(&node->nodeId);

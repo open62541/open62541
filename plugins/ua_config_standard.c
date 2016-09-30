@@ -4,6 +4,7 @@
 #include "ua_config_standard.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
+#include "../src/ua_util.h"
 
 /*******************************/
 /* Default Connection Settings */
@@ -16,6 +17,7 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
     .maxMessageSize = 0, /* 0 -> unlimited */
     .maxChunkCount = 0 /* 0 -> unlimited */
 };
+
 
 /***************************/
 /* Default Server Settings */
@@ -61,6 +63,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     /* Networking */
     .networkLayersSize = 0,
     .networkLayers = NULL,
+
+	/* NodeStoreInterface NS0 and NS1 */
+	.nodeStore0 = NULL,
+	.nodeStore1 = NULL,
 
     /* Login */
     .enableAnonymousLogin = true,

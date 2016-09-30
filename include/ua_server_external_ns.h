@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "../src/server/ua_nodestore.h"
 /**
  * An external application that manages its own data and data model. To plug in
  * outside data sources, one can use
@@ -97,7 +97,6 @@ typedef struct UA_ExternalNodeStore {
 UA_StatusCode UA_EXPORT
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore, UA_UInt16 *assignedNamespaceIndex);
-
 #ifdef __cplusplus
 }
 #endif

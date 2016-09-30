@@ -16,6 +16,7 @@
 # include "ua_config_standard.h"
 # include "ua_network_tcp.h"
 # include "ua_log_stdout.h"
+# include "nodestore.h"
 #else
 # include "open62541.h"
 #endif
@@ -132,8 +133,9 @@ outargMethod (void *methodHandle, const UA_NodeId objectId,
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl;
+    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
 

@@ -65,6 +65,9 @@ add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-ob
 target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 target_link_libraries(server_readspeed ${LIBS})
 
+add_executable(server_nodestore server_nodestore.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_nodestore ${LIBS})
+
 if(UA_ENABLE_METHODCALLS)
   add_executable(server_method server_method.c $<TARGET_OBJECTS:open62541-object>)
   target_link_libraries(server_method ${LIBS})

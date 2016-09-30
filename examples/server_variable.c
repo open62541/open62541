@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
     nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
+
     UA_Server *server = UA_Server_new(config);
 
     /* 1) Define the attribute of the myInteger variable node */
