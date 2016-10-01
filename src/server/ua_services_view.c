@@ -176,7 +176,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
             return;
         }
         if(descr->includeSubtypes) {
-            result->statusCode = getTypeHierarchy(server->nodestore, rootRef,
+            result->statusCode = getTypeHierarchy(server->nodestore, rootRef, false,
                                                   &relevant_refs, &relevant_refs_size);
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 return;
@@ -429,7 +429,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         const UA_Node *rootRef = UA_NodeStore_get(server->nodestore, &elem->referenceTypeId);
         if(!rootRef || rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE)
             return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-        retval = getTypeHierarchy(server->nodestore, rootRef, &reftypes, &reftypes_count);
+        retval = getTypeHierarchy(server->nodestore, rootRef, false, &reftypes, &reftypes_count);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }

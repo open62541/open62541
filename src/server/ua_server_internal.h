@@ -132,8 +132,8 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
  * hasSubType reference. Since multi-inheritance is possible, we test for
  * duplicates and return evey nodeid at most once. */
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *root,
-                 UA_NodeId **reftypes, size_t *reftypes_count);
+getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 UA_StatusCode
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,

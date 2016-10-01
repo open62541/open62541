@@ -82,27 +82,27 @@ parse_numericrange(const UA_String *str, UA_NumericRange *range) {
 /********************************/
 
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *root,
+getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
     size_t results_size = 20; // probably too big, but saves mallocs
     UA_NodeId *results = UA_malloc(sizeof(UA_NodeId) * results_size);
     if(!results)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_StatusCode retval = UA_NodeId_copy(&root->nodeId, &results[0]);
+    UA_StatusCode retval = UA_NodeId_copy(&rootRef->nodeId, &results[0]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(results);
         return retval;
     }
 
-    const UA_Node *node = root;
+    const UA_Node *node = rootRef;
     size_t idx = 0; /* Current index (contains NodeId of node) */
     size_t last = 0; /* Index of the last element in the array */
     const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     while(true) {
         for(size_t i = 0; i < node->referencesSize; i++) {
             /* is the reference relevant? */
-            if(node->references[i].isInverse == true ||
+            if(node->references[i].isInverse != inverse ||
                !UA_NodeId_equal(&hasSubtypeNodeId, &node->references[i].referenceTypeId))
                 continue;
 
@@ -141,7 +141,7 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_Node *root,
         if(idx > last || retval != UA_STATUSCODE_GOOD)
             break;
         node = UA_NodeStore_get(ns, &results[idx]);
-        if(!node || node->nodeClass != root->nodeClass)
+        if(!node || node->nodeClass != rootRef->nodeClass)
             goto next;
     }
 
