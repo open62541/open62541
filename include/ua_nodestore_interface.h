@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-struct UA_Node;
 typedef struct UA_Node UA_Node;
 
 /*

@@ -1,5 +1,4 @@
 #include "ua_nodestore_switch.h"
-#include "ua_nodestore_interface.h"
 #include "ua_util.h"
 
 UA_NodestoreSwitch *nodestoreSwitch;

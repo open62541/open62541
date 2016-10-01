@@ -10,13 +10,11 @@
 
 #include "ua_nodes.h"
 #include "ua_types.h"
+#include "ua_nodestore_interface.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-struct UA_NodestoreInterface;
-typedef struct UA_NodestoreInterface UA_NodestoreInterface;
 
 typedef struct UA_NodestoreSwitch{
     UA_NodestoreInterface** nodestoreInterfaces;
@@ -105,7 +103,6 @@ UA_StatusCode UA_NodestoreSwitch_remove(const UA_NodeId *nodeId);
  * ^^^^^^^^^
  * The following definitions are used to call a callback for every node in the
  * nodestore. */
-typedef void (*UA_Nodestore_nodeVisitor)(const UA_Node *node);
 void UA_NodestoreSwitch_iterate(UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex);
 
 

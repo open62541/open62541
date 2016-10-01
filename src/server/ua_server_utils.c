@@ -263,15 +263,15 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
         retval = callback(server, session, editNode, data);
         return retval;
 #else
-        UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
+        UA_Node *copy = UA_NodestoreSwitch_getCopy(nodeId);
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_NodeStore_deleteNode(copy);
+            UA_NodestoreSwitch_deleteNode(copy);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, copy);
+        retval = UA_NodestoreSwitch_replace(copy);
 #endif
     } while(retval != UA_STATUSCODE_GOOD);
     return UA_STATUSCODE_GOOD;
