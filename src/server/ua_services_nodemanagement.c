@@ -16,11 +16,6 @@ copyChildNodesToNode(UA_Server *server, UA_Session *session,
                      const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
                      UA_InstantiationCallback *instantiationCallback);
 
-static UA_NodeId
-instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session, 
-                                  const UA_NodeId *searchInstance, 
-                                  const UA_QualifiedName *browseName);
-
 /* copy an existing variable under the given parent. then instantiate the
  * variable for its type */
 static UA_StatusCode
@@ -327,62 +322,58 @@ static UA_StatusCode
 copyChildNodesToNode(UA_Server* server, UA_Session* session, 
                      const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId, 
                      UA_InstantiationCallback* instantiationCallback) {
-  /* Add all the child nodes */
-  UA_BrowseDescription browseChildren;
-  UA_BrowseDescription_init(&browseChildren);
-  UA_NodeId_copy(sourceNodeId, &browseChildren.nodeId);
-  browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
-  browseChildren.includeSubtypes = true;
-  browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-  browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
-  browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
+    /* Add all the child nodes */
+    UA_BrowseDescription browseChildren;
+    UA_BrowseDescription_init(&browseChildren);
+    UA_NodeId_copy(sourceNodeId, &browseChildren.nodeId);
+    browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    browseChildren.includeSubtypes = true;
+    browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    browseChildren.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
   
-  UA_BrowseResult browseResult;
-  UA_BrowseResult_init(&browseResult);
-  // todo: continuation points if there are too many results
-  Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
+    UA_BrowseResult browseResult;
+    UA_BrowseResult_init(&browseResult);
+    // todo: continuation points if there are too many results
+    Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
   
-  for(size_t i = 0; i < browseResult.referencesSize; i++) {
-    UA_ReferenceDescription *rd = &browseResult.references[i];
-    // Check for deduplication
-    UA_NodeId existing = instanceFindAggregateByBrowsename(server, session, destinationNodeId, &rd->browseName);
-    if (UA_NodeId_equal(&UA_NODEID_NULL, &existing) == UA_TRUE) { /* New node in child */
-      if(rd->nodeClass == UA_NODECLASS_METHOD) {
-        /* add a reference to the method in the objecttype */
-        UA_AddReferencesItem newItem;
-        UA_AddReferencesItem_init(&newItem);
-        UA_NodeId_copy(destinationNodeId, &newItem.sourceNodeId);
-        newItem.referenceTypeId = rd->referenceTypeId;
-        newItem.isForward = true;
-        newItem.targetNodeId = rd->nodeId;
-        newItem.targetNodeClass = UA_NODECLASS_METHOD;
-        Service_AddReferences_single(server, session, &newItem);
-      } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
-          copyExistingVariable(server, session, &rd->nodeId.nodeId,
-                              &rd->referenceTypeId, destinationNodeId, instantiationCallback);
-        else if(rd->nodeClass == UA_NODECLASS_OBJECT)
-          copyExistingObject(server, session, &rd->nodeId.nodeId,
-                            &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+    for(size_t i = 0; i < browseResult.referencesSize; i++) {
+        UA_ReferenceDescription *rd = &browseResult.references[i];
+        // Check for deduplication
+        UA_NodeId existing = instanceFindAggregateByBrowsename(server, session, destinationNodeId, &rd->browseName);
+        if(UA_NodeId_equal(&UA_NODEID_NULL, &existing)) { /* New node in child */
+            if(rd->nodeClass == UA_NODECLASS_METHOD) {
+                /* add a reference to the method in the objecttype */
+                UA_AddReferencesItem newItem;
+                UA_AddReferencesItem_init(&newItem);
+                UA_NodeId_copy(destinationNodeId, &newItem.sourceNodeId);
+                newItem.referenceTypeId = rd->referenceTypeId;
+                newItem.isForward = true;
+                newItem.targetNodeId = rd->nodeId;
+                newItem.targetNodeClass = UA_NODECLASS_METHOD;
+                Service_AddReferences_single(server, session, &newItem);
+            } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
+                copyExistingVariable(server, session, &rd->nodeId.nodeId,
+                                     &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+            else if(rd->nodeClass == UA_NODECLASS_OBJECT)
+                copyExistingObject(server, session, &rd->nodeId.nodeId,
+                                   &rd->referenceTypeId, destinationNodeId, instantiationCallback);
+        } else { /* Preexistent node in child */
+            /* General strategy if we meet an already existing node:
+             * - Preexistent variable contents always 'win' overwriting anything supertypes would instantiate
+             * - Always copy contents of template *into* existant node (merge contents of e.g. Folders like ParameterSet)
+             */
+            if(rd->nodeClass == UA_NODECLASS_METHOD) {
+                /* Do nothing, existent method wins */
+            } else if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
+                      rd->nodeClass == UA_NODECLASS_OBJECT) {
+                if(!UA_NodeId_equal(&rd->nodeId.nodeId, &existing))
+                    copyChildNodesToNode(server, session, &rd->nodeId.nodeId, &existing, instantiationCallback);
+            }
+        }
     }
-    else { /* Preexistent node in child */
-      /* General strategy if we meet an already existing node:
-       * - Preexistent variable contents always 'win' overwriting anything supertypes would instantiate
-       * - Always copy contents of template *into* existant node (merge contents of e.g. Folders like ParameterSet)
-       */
-      if(rd->nodeClass == UA_NODECLASS_METHOD) {} // Do nothing, existent method wins, right?
-      else if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
-        if (UA_NodeId_equal(&rd->nodeId.nodeId, &existing) != UA_TRUE) 
-          copyChildNodesToNode(server, session, &rd->nodeId.nodeId, &existing, instantiationCallback);
-      }
-      else if(rd->nodeClass == UA_NODECLASS_OBJECT) {
-        if (UA_NodeId_equal(&rd->nodeId.nodeId, &existing) != UA_TRUE) 
-          copyChildNodesToNode(server, session, &rd->nodeId.nodeId, &existing, instantiationCallback);
-      }
-    }
-  }
-  UA_BrowseResult_deleteMembers(&browseResult);
-  
-  return UA_STATUSCODE_GOOD;
+    UA_BrowseResult_deleteMembers(&browseResult);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
