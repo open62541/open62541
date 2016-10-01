@@ -133,16 +133,17 @@ static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session) {
     session->availableContinuationPoints++;
 }
 
-/**
- * Results for a single browsedescription. This is the inner loop for both Browse and BrowseNext
+/* Results for a single browsedescription. This is the inner loop for both
+ * Browse and BrowseNext
+ *
  * @param session Session to save continuationpoints
  * @param ns The nodstore where the to-be-browsed node can be found
- * @param cp If cp is not null, we continue from here
- *           If cp is null, we can add a new continuation point if possible and necessary.
+ * @param cp If cp is not null, we continue from here If cp is null, we can add
+ *           a new continuation point if possible and necessary.
  * @param descr If no cp is set, we take the browsedescription from there
- * @param maxrefs The maximum number of references the client has requested
- * @param result The entry in the request
- */
+ * @param maxrefs The maximum number of references the client has requested. If 0,
+ *                all matching references are returned at once.
+ * @param result The entry in the request */
 void
 Service_Browse_single(UA_Server *server, UA_Session *session,
                       struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
@@ -207,8 +208,6 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     size_t real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
         real_maxrefs = node->referencesSize;
-    if(node->referencesSize == 0)
-        real_maxrefs = 0;
     else if(real_maxrefs > node->referencesSize)
         real_maxrefs = node->referencesSize;
     result->references = UA_Array_new(real_maxrefs, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
@@ -239,11 +238,12 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
             referencesCount++;
         }
     }
-
     result->referencesSize = referencesCount;
+
     if(referencesCount == 0) {
         UA_free(result->references);
         result->references = NULL;
+        result->referencesSize = 0;
     }
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -254,7 +254,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         result->statusCode = retval;
     }
 
-    cleanup:
+ cleanup:
     if(!all_refs && descr->includeSubtypes)
         UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
     if(result->statusCode != UA_STATUSCODE_GOOD)
