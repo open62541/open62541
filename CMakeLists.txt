@@ -251,6 +251,9 @@ endif()
 if(UA_ENABLE_EXTERNAL_NAMESPACES)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
 endif()
+if(UA_ENABLE_NONSTANDARD_UDP)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+endif()
 
 #########################
 # Generate source files #

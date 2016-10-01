@@ -359,7 +359,10 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 
 #endif
 
-/** .. include:: client_highlevel.rst */
+/**
+ * .. toctree::
+ *
+ *    client_highlevel */
 
 #ifdef __cplusplus
 } // extern "C"

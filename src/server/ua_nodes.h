@@ -243,8 +243,87 @@ typedef struct {
  * ReferenceTypeNode
  * -----------------
  *
- * The OPC UA standard defines a set of ReferenceTypes as a mandatory part of
- * OPC UA information models. */
+ * Each reference between two nodes is typed with a ReferenceType that gives
+ * meaning to the relation. The OPC UA standard defines a set of ReferenceTypes
+ * as a mandatory part of OPC UA information models.
+ *
+ * - Abstract ReferenceTypes cannot be used in actual references and are only
+ *   used to structure the ReferenceTypes hierarchy
+ * - Symmetric references have the same meaning from the perspective of the
+ *   source and target node
+ *
+ * The figure below shows the hierarchy of the standard ReferenceTypes (arrows
+ * indicate a ``hasSubType`` relation). Please refer to Part 3 of the OPC UA
+ * specification for the full semantics of each ReferenceType. The ReferenceType
+ * hierarchy can be extended with user-defined ReferenceTypes. Many Companion
+ * Specifications for OPC UA define new ReferenceTypes to be used in their
+ * domain of interest.
+ *
+ * .. graphviz::
+ *
+ *    digraph tree {
+ *
+ *    node [height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+ *
+ *    references [label="References\n(Abstract, Symmetric)"]
+ *    hierarchical_references [label="HierarchicalReferences\n(Abstract)"]
+ *    references -> hierarchical_references
+ *
+ *    nonhierarchical_references [label="NonHierarchicalReferences\n(Abstract, Symmetric)"]
+ *    references -> nonhierarchical_references
+ *
+ *    haschild [label="HasChild\n(Abstract)"]
+ *    hierarchical_references -> haschild
+ *
+ *    aggregates [label="Aggregates\n(Abstract)"]
+ *    haschild -> aggregates
+ *
+ *    organizes [label="Organizes"]
+ *    hierarchical_references -> organizes
+ *
+ *    hascomponent [label="HasComponent"]
+ *    aggregates -> hascomponent
+ *
+ *    hasorderedcomponent [label="HasOrderedComponent"]
+ *    hascomponent -> hasorderedcomponent
+ *
+ *    hasproperty [label="HasProperty"]
+ *    aggregates -> hasproperty
+ *
+ *    hassubtype [label="HasSubtype"]
+ *    haschild -> hassubtype
+ *
+ *    hasmodellingrule [label="HasModellingRule"]
+ *    nonhierarchical_references -> hasmodellingrule
+ *
+ *    hastypedefinition [label="HasTypeDefinition"]
+ *    nonhierarchical_references -> hastypedefinition
+ *
+ *    hasencoding [label="HasEncoding"]
+ *    nonhierarchical_references -> hasencoding
+ *
+ *    hasdescription [label="HasDescription"]
+ *    nonhierarchical_references -> hasdescription
+ *
+ *    haseventsource [label="HasEventSource"]
+ *    hierarchical_references -> haseventsource
+ *
+ *    hasnotifier [label="HasNotifier"]
+ *    hierarchical_references -> hasnotifier
+ *
+ *    generatesevent [label="GeneratesEvent"]
+ *    nonhierarchical_references -> generatesevent
+ *
+ *    alwaysgeneratesevent [label="AlwaysGeneratesEvent"]
+ *    generatesevent -> alwaysgeneratesevent
+ *
+ *    {rank=same hierarchical_references nonhierarchical_references}
+ *    {rank=same generatesevent haseventsource hasmodellingrule
+ *               hasencoding hassubtype}
+ *    {rank=same alwaysgeneratesevent hasproperty}
+ *
+ *    }
+ */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;

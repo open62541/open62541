@@ -28,7 +28,7 @@ add_executable(server server.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server ${LIBS})
 
 if(UA_ENABLE_NONSTANDARD_UDP)
-  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/networklayer_udp.c)
+  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.c)
   target_link_libraries(server_udp ${LIBS})
 endif()
 
@@ -65,6 +65,15 @@ add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-ob
 target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 target_link_libraries(server_readspeed ${LIBS})
 
+add_executable(server_inheritance server_inheritance.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(server_inheritance ${LIBS})
+
+if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
+  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
+  target_link_libraries(server_nodeset ${LIBS})
+  target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+endif()
+
 if(UA_ENABLE_METHODCALLS)
   add_executable(server_method server_method.c $<TARGET_OBJECTS:open62541-object>)
   target_link_libraries(server_method ${LIBS})
@@ -93,12 +102,6 @@ if(UA_ENABLE_DISCOVERY)
 
     add_executable(discovery_client_find_servers discovery/client_find_servers.c)
     target_link_libraries(discovery_client_find_servers ${LIBS})
-endif()
-
-if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
-  target_link_libraries(server_nodeset ${LIBS})
-  target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 endif()
 
 add_executable(client_firstSteps client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)

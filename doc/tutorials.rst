@@ -1,12 +1,10 @@
 Tutorials
 =========
 
-.. include:: tutorial_server_firstSteps.rst
+.. toctree::
 
-.. include:: tutorial_server_variables.rst
-
-.. include:: tutorial_server_method.rst
-
-.. include:: tutorial_noderelations.rst
-
-.. include:: tutorial_client_firstSteps.rst
+   tutorial_server_firstSteps.rst
+   tutorial_server_variables.rst
+   tutorial_server_method.rst
+   tutorial_noderelations.rst
+   tutorial_client_firstSteps.rst

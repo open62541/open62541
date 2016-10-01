@@ -118,4 +118,8 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
 
+void
+UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
+                                                    UA_NodeId *sessionToken);
+
 #endif /* UA_SUBSCRIPTION_H_ */
