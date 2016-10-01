@@ -118,7 +118,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         return;
     }
 
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, &id->nodeId);
+    const UA_Node *node = UA_NodestoreSwitch_get(&id->nodeId);
     if(!node) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -504,8 +504,8 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
         /* is this a subtype? */
         const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         UA_Boolean found = false;
-        UA_StatusCode retval = isNodeInTree(server->nodestore, valueDataTypeId,
-                                            variableDataTypeId, &subtypeId, 1, &found);
+        UA_StatusCode retval = isNodeInTree(valueDataTypeId,variableDataTypeId,
+                &subtypeId, 1, &found);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(found)
@@ -594,7 +594,7 @@ UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
     /* Does the new type match the constraints of the variabletype? */
     UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     UA_Boolean found = false;
-    UA_StatusCode retval = isNodeInTree(server->nodestore, dataType,
+    UA_StatusCode retval = isNodeInTree(dataType,
                                         &vt->dataType, &subtypeId, 1, &found);
     if(retval != UA_STATUSCODE_GOOD || !found)
         return UA_STATUSCODE_BADTYPEMISMATCH;

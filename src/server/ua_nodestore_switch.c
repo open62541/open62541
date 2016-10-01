@@ -22,7 +22,7 @@ void
 UA_NodestoreSwitch_delete(){
     UA_UInt16 size = nodestoreSwitch->nodestoreInterfacesSize;
     for(UA_UInt16 i = 0; i < size; i++) {
-        nodestoreSwitch->nodestoreInterfaces[i]->delete(nodestoreSwitch->nodestoreInterfaces[i]);
+        nodestoreSwitch->nodestoreInterfaces[i]->deleteNodeStore(nodestoreSwitch->nodestoreInterfaces[i]);
     }
     UA_free(nodestoreSwitch->nodestoreInterfaces);
     UA_free(nodestoreSwitch);
@@ -54,6 +54,13 @@ UA_NodestoreSwitch_change(UA_NodestoreInterface *nsi, UA_UInt16 nsi_index) {
     }
     nodestoreSwitch->nodestoreInterfaces[nsi_index] = nsi;
     return UA_TRUE;//UA_STATUSCODE_GOOD;
+}
+UA_NodestoreInterface *
+UA_NodestoreSwitch_getNodestoreForNamespace(UA_UInt16 namespaceIndex){
+    if(checkNSIndex(namespaceIndex)){
+        return nodestoreSwitch->nodestoreInterfaces[namespaceIndex];
+    }
+    return NULL;
 }
 
 /*
@@ -114,4 +121,10 @@ UA_NodestoreSwitch_remove(const UA_NodeId *nodeId) {
     }
     return nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->remove(
             nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->handle, nodeId);
+}
+void UA_NodestoreSwitch_iterate(UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex){
+    if(checkNSIndex(namespaceIndex)){
+        nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->iterate(
+                nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->handle, visitor);
+    }
 }

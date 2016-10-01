@@ -5,7 +5,7 @@ UA_NodestoreInterface
 UA_Nodestore_standard() {
     UA_NodestoreInterface nsi;
     nsi.handle =        UA_NodeStore_new();
-    nsi.delete =        (UA_NodestoreInterface_delete)      UA_NodeStore_delete;
+    nsi.deleteNodeStore =        (UA_NodestoreInterface_delete)      UA_NodeStore_delete;
     nsi.newNode =       (UA_NodestoreInterface_newNode)     UA_NodeStore_newNode;
     nsi.deleteNode =    (UA_NodestoreInterface_deleteNode)  UA_NodeStore_deleteNode;
     nsi.insert =        (UA_NodestoreInterface_insert)      UA_NodeStore_insert;

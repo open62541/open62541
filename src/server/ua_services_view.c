@@ -2,7 +2,7 @@
 #include "ua_services.h"
 
 static UA_StatusCode
-fillReferenceDescription(UA_NodeStore *ns, const UA_Node *curr, UA_ReferenceNode *ref,
+fillReferenceDescription(const UA_Node *curr, UA_ReferenceNode *ref,
                          UA_UInt32 mask, UA_ReferenceDescription *descr) {
     UA_ReferenceDescription_init(descr);
     UA_StatusCode retval = UA_NodeId_copy(&curr->nodeId, &descr->nodeId.nodeId);
@@ -118,7 +118,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 #endif
 
     /* return from the internal nodestore */
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, &reference->targetId.nodeId);
+    const UA_Node *node =UA_NodestoreSwitch_get(&reference->targetId.nodeId);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0)
         return NULL;
     *isExternal = false;
@@ -132,8 +132,8 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
  * array to process the newly found referencetype nodeids (emulated recursion).
  */
 static UA_StatusCode
-findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count) {
-    const UA_Node *node = UA_NodeStore_get(ns, root);
+findSubTypes(const UA_NodeId *root, UA_NodeId **reftypes, size_t *reftypes_count) {
+    const UA_Node *node = UA_NodestoreSwitch_get(root);
     if(!node)
         return UA_STATUSCODE_BADNOMATCH;
     if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)
@@ -153,7 +153,7 @@ findSubTypes(UA_NodeStore *ns, const UA_NodeId *root, UA_NodeId **reftypes, size
     size_t idx = 0; // where are we currently in the array?
     size_t last = 0; // where is the last element in the array?
     do {
-        node = UA_NodeStore_get(ns, &results[idx]);
+        node = UA_NodestoreSwitch_get(&results[idx]);
         if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
             continue;
         for(size_t i = 0; i < node->referencesSize; i++) {
@@ -235,12 +235,12 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     UA_Boolean all_refs = UA_NodeId_isNull(&descr->referenceTypeId);
     if(!all_refs) {
         if(descr->includeSubtypes) {
-            result->statusCode = findSubTypes(server->nodestore, &descr->referenceTypeId,
+            result->statusCode = findSubTypes( &descr->referenceTypeId,
                                               &relevant_refs, &relevant_refs_size);
             if(result->statusCode != UA_STATUSCODE_GOOD)
                 return;
         } else {
-            const UA_Node *rootRef = UA_NodeStore_get(server->nodestore, &descr->referenceTypeId);
+            const UA_Node *rootRef =UA_NodestoreSwitch_get(&descr->referenceTypeId);
             if(!rootRef || rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE) {
                 result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
                 return;
@@ -251,7 +251,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     }
 
     /* get the node */
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, &descr->nodeId);
+    const UA_Node *node =UA_NodestoreSwitch_get(&descr->nodeId);
     if(!node) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         if(!all_refs && descr->includeSubtypes)
@@ -296,7 +296,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         if(skipped < continuationIndex) {
             skipped++;
         } else {
-            retval |= fillReferenceDescription(server->nodestore, current,
+            retval |= fillReferenceDescription(current,
                                                &node->references[referencesIndex],
                                                descr->resultMask,
                                                &result->references[referencesCount]);
@@ -490,7 +490,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
     } else if(!elem->includeSubtypes) {
         reftypes = (UA_NodeId*)(uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
     } else {
-        retval = findSubTypes(server->nodestore, &elem->referenceTypeId, &reftypes, &reftypes_count);
+        retval = findSubTypes( &elem->referenceTypeId, &reftypes, &reftypes_count);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -506,7 +506,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
             continue;
 
         // get the node, todo: expandednodeid
-        const UA_Node *next = UA_NodeStore_get(server->nodestore, &node->references[i].targetId.nodeId);
+        const UA_Node *next =UA_NodestoreSwitch_get(&node->references[i].targetId.nodeId);
         if(!next)
             continue;
 
@@ -571,7 +571,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
         return;
     }
     result->targetsSize = 0;
-    const UA_Node *firstNode = UA_NodeStore_get(server->nodestore, &path->startingNode);
+    const UA_Node *firstNode =UA_NodestoreSwitch_get(&path->startingNode);
     if(!firstNode) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_free(result->targets);

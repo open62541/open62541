@@ -94,7 +94,7 @@ typedef void (*UA_NodestoreInterface_iterate)(void *handle, UA_Nodestore_nodeVis
  */
 typedef struct UA_NodestoreInterface {
     void *                              handle;
-    UA_NodestoreInterface_delete        delete;
+    UA_NodestoreInterface_delete        deleteNodeStore;
 
     UA_NodestoreInterface_newNode       newNode;
     UA_NodestoreInterface_deleteNode    deleteNode;

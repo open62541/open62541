@@ -7,7 +7,8 @@
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
-#include "ua_nodestore.h"
+#include "ua_nodes.h"
+#include "ua_nodestore_switch.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -56,8 +57,6 @@ struct UA_Server {
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
-    /* Address Space */
-    UA_NodeStore *nodestore;
 
 #ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
@@ -140,11 +139,11 @@ const UA_ObjectTypeNode *
 getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
 
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
+getTypeHierarchy(const UA_NodeId *root,
                  UA_NodeId **reftypes, size_t *reftypes_count);
 
 UA_StatusCode
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+isNodeInTree(const UA_NodeId *rootNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize, UA_Boolean *found);
 
