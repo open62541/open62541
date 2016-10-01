@@ -175,14 +175,15 @@ instantiateObjectNode(UA_Server *server, UA_Session *session,
     /* Instantiate supertype attributes if a supertype is available */
     UA_BrowseDescription browseChildren;
     UA_BrowseDescription_init(&browseChildren);
-    UA_BrowseResult browseResult;
-    UA_BrowseResult_init(&browseResult);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     browseChildren.includeSubtypes = false;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_INVERSE; // isSubtypeOf
     browseChildren.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
     browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
+
+    UA_BrowseResult browseResult;
+    UA_BrowseResult_init(&browseResult);
     // todo: continuation points if there are too many results
     Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
     for(size_t i = 0; i < browseResult.referencesSize; i++) {
@@ -242,14 +243,15 @@ instantiateVariableNode(UA_Server *server, UA_Session *session, const UA_NodeId 
     /* Instantiate supertypes */
     UA_BrowseDescription browseChildren;
     UA_BrowseDescription_init(&browseChildren);
-    UA_BrowseResult browseResult;
-    UA_BrowseResult_init(&browseResult);
     browseChildren.nodeId = *typeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     browseChildren.includeSubtypes = false;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_INVERSE; // isSubtypeOf
     browseChildren.nodeClassMask = UA_NODECLASS_VARIABLETYPE;
     browseChildren.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_NODECLASS;
+
+    UA_BrowseResult browseResult;
+    UA_BrowseResult_init(&browseResult);
     // todo: continuation points if there are too many results
     Service_Browse_single(server, session, NULL, &browseChildren, 100, &browseResult);
     for(size_t i = 0; i < browseResult.referencesSize; i++) {
@@ -286,7 +288,7 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     
     UA_BrowseDescription browseChildren;
     UA_BrowseDescription_init(&browseChildren);
-    UA_NodeId_copy(searchInstance, &browseChildren.nodeId);
+    browseChildren.nodeId = *searchInstance;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
     browseChildren.includeSubtypes = true;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
@@ -325,7 +327,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
     /* Add all the child nodes */
     UA_BrowseDescription browseChildren;
     UA_BrowseDescription_init(&browseChildren);
-    UA_NodeId_copy(sourceNodeId, &browseChildren.nodeId);
+    browseChildren.nodeId = *sourceNodeId;
     browseChildren.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
     browseChildren.includeSubtypes = true;
     browseChildren.browseDirection = UA_BROWSEDIRECTION_FORWARD;
@@ -346,7 +348,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
                 /* add a reference to the method in the objecttype */
                 UA_AddReferencesItem newItem;
                 UA_AddReferencesItem_init(&newItem);
-                UA_NodeId_copy(destinationNodeId, &newItem.sourceNodeId);
+                newItem.sourceNodeId = *destinationNodeId;
                 newItem.referenceTypeId = rd->referenceTypeId;
                 newItem.isForward = true;
                 newItem.targetNodeId = rd->nodeId;
@@ -569,9 +571,8 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     
     /* Make sure we can instantiate the basetypes themselves */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(UA_NodeId_equal(&node->nodeId, &basevartype) == UA_TRUE || 
-       UA_NodeId_equal(&node->nodeId, &basedatavartype) == UA_TRUE
-    ) {
+    if(UA_NodeId_equal(&node->nodeId, &basevartype) || 
+       UA_NodeId_equal(&node->nodeId, &basedatavartype)) {
       node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
       node->valueRank = -2;
       return retval;
