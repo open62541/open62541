@@ -919,6 +919,9 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session,
                    UA_Node *node, const UA_AddReferencesItem *item) {
+    if(item->targetNodeClass != UA_NODECLASS_UNSPECIFIED &&
+       item->targetNodeClass != node->nodeClass)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
     size_t i = node->referencesSize;
     size_t refssize = (i+1) | 3; // so the realloc is not necessary every time
     UA_ReferenceNode *new_refs = UA_realloc(node->references, sizeof(UA_ReferenceNode) * refssize);
