@@ -40,6 +40,7 @@ void UA_NodestoreSwitch_delete(void);
  */
 UA_Boolean UA_NodestoreSwitch_add(UA_NodestoreInterface *nodestore);
 UA_Boolean UA_NodestoreSwitch_change(UA_NodestoreInterface *nodestoreInterface, UA_UInt16 nodestoreIndex);
+UA_NodestoreInterface* UA_NodestoreSwitch_getNodestoreForNamespace(UA_UInt16 namespaceIndex);
 //TODO Add: Get all Namespaces for a Nodestore. --> Export this Functions
 
 /**
@@ -55,21 +56,21 @@ UA_Node * UA_NodestoreSwitch_newNode(UA_NodeClass nodeClass, UA_UInt16 namespace
  * node types in NameSpace 0.
  */
 #define UA_Nodestore_newObjectNode() \
-    (UA_ObjectNode*)UA_Nodestore_newNode(UA_NODECLASS_OBJECT, 0)
+    (UA_ObjectNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_OBJECT, 0)
 #define UA_Nodestore_newVariableNode() \
-    (UA_VariableNode*)UA_Nodestore_newNode(UA_NODECLASS_VARIABLE, 0)
+    (UA_VariableNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_VARIABLE, 0)
 #define UA_Nodestore_newMethodNode() \
-    (UA_MethodNode*)UA_Nodestore_newNode(UA_NODECLASS_METHOD, 0)
+    (UA_MethodNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_METHOD, 0)
 #define UA_Nodestore_newObjectTypeNode() \
-    (UA_ObjectTypeNode*)UA_Nodestore_newNode(UA_NODECLASS_OBJECTTYPE, 0)
+    (UA_ObjectTypeNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_OBJECTTYPE, 0)
 #define UA_Nodestore_newVariableTypeNode() \
-    (UA_VariableTypeNode*)UA_Nodestore_newNode(UA_NODECLASS_VARIABLETYPE, 0)
+    (UA_VariableTypeNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_VARIABLETYPE, 0)
 #define UA_Nodestore_newReferenceTypeNode() \
-    (UA_ReferenceTypeNode*)UA_Nodestore_newNode(UA_NODECLASS_REFERENCETYPE, 0)
+    (UA_ReferenceTypeNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_REFERENCETYPE, 0)
 #define UA_Nodestore_newDataTypeNode() \
-    (UA_DataTypeNode*)UA_Nodestore_newNode(UA_NODECLASS_DATATYPE, 0)
+    (UA_DataTypeNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_DATATYPE, 0)
 #define UA_Nodestore_newViewNode() \
-    (UA_ViewNode*)UA_Nodestore_newNode(UA_NODECLASS_VIEW, 0)
+    (UA_ViewNode*)UA_NodestoreSwitch_newNode(UA_NODECLASS_VIEW, 0)
 
 /* Delete an editable node. */
 void UA_NodestoreSwitch_deleteNode(UA_Node *node);

@@ -1,6 +1,24 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/**
+ * Nodestore switch architecture
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * UA_Services            +------------------------------+
+ *
+ * UA_Nodestore_switch    +------------------------------+
+ * aka ua_nodestore.c     |  Namespace to Nodestore      |
+ *                        +------------------------------+
+ *
+ * UA_NodeStoreInterfaces +------------+ +------------+
+ *                        +------------+ +------------+
+ *                        |            | |            |
+ * Nodestores             | open62541  | | different  | ...
+ *                        | Nodestore  | | Nodestore/ |
+ *                        |            | | Repository |
+ *                        +------------+ +------------+
+ * */
 #include <signal.h>
 
 #ifdef UA_NO_AMALGAMATION
@@ -38,7 +56,7 @@ int main(void) {
     UA_Server *server = UA_Server_new(config);
 
     //Add a new namespace with same nodestore
-    //UA_Server_addNamespace_Nodestore(server, "Namespace3",&nsi);
+    UA_Server_addNamespace_Nodestore(server, "Namespace3",&nsi);
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

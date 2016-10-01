@@ -36,22 +36,6 @@ void UA_NodeStore_delete(UA_NodeStore *ns);
  * added to the nodestore.) */
 /* Create an editable node of the given NodeClass. */
 UA_Node * UA_NodeStore_newNode(UA_NodeClass nodeClass);
-#define UA_NodeStore_newObjectNode() \
-    (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
-#define UA_NodeStore_newVariableNode() \
-    (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
-#define UA_NodeStore_newMethodNode() \
-    (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)
-#define UA_NodeStore_newObjectTypeNode() \
-    (UA_ObjectTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECTTYPE)
-#define UA_NodeStore_newVariableTypeNode() \
-    (UA_VariableTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLETYPE)
-#define UA_NodeStore_newReferenceTypeNode() \
-    (UA_ReferenceTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_REFERENCETYPE)
-#define UA_NodeStore_newDataTypeNode() \
-    (UA_DataTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_DATATYPE)
-#define UA_NodeStore_newViewNode() \
-    (UA_ViewNode*)UA_NodeStore_newNode(UA_NODECLASS_VIEW)
 
 /* Delete an editable node. */
 void UA_NodeStore_deleteNode(UA_Node *node);

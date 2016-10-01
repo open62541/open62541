@@ -55,6 +55,13 @@ UA_NodestoreSwitch_change(UA_NodestoreInterface *nsi, UA_UInt16 nsi_index) {
     nodestoreSwitch->nodestoreInterfaces[nsi_index] = nsi;
     return UA_TRUE;//UA_STATUSCODE_GOOD;
 }
+UA_NodestoreInterface *
+UA_NodestoreSwitch_getNodestoreForNamespace(UA_UInt16 namespaceIndex){
+    if(checkNSIndex(namespaceIndex)){
+        return nodestoreSwitch->nodestoreInterfaces[namespaceIndex];
+    }
+    return NULL;
+}
 
 /*
  * NodestoreInterface Function routing
@@ -114,4 +121,10 @@ UA_NodestoreSwitch_remove(const UA_NodeId *nodeId) {
     }
     return nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->remove(
             nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->handle, nodeId);
+}
+void UA_NodestoreSwitch_iterate(UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex){
+    if(checkNSIndex(namespaceIndex)){
+        nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->iterate(
+                nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->handle, visitor);
+    }
 }

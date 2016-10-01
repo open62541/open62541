@@ -87,9 +87,9 @@ parse_numericrange(const UA_String *str, UA_NumericRange *range) {
  * safely progress in the array to process the newly found referencetype
  * nodeids. */
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
+getTypeHierarchy(const UA_NodeId *root,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    const UA_Node *node = UA_NodeStore_get(ns, root);
+    const UA_Node *node = UA_NodestoreSwitch_get(root);
     if(!node)
         return UA_STATUSCODE_BADNOMATCH;
     if(node->nodeClass != UA_NODECLASS_REFERENCETYPE)
@@ -110,7 +110,7 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
     size_t last = 0; // where is the last element in the array?
     const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     do {
-        node = UA_NodeStore_get(ns, &results[idx]);
+        node = UA_NodestoreSwitch_get(&results[idx]);
         if(!node || node->nodeClass != UA_NODECLASS_REFERENCETYPE)
             continue;
         for(size_t i = 0; i < node->referencesSize; i++) {
@@ -148,7 +148,7 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *root,
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_StatusCode
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTree(const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize, UA_Boolean *found) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(UA_NodeId_equal(leafNode, nodeToFind)) {
@@ -156,7 +156,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
         return UA_STATUSCODE_GOOD;
     }
 
-    const UA_Node *node = UA_NodeStore_get(ns,leafNode);
+    const UA_Node *node = UA_NodestoreSwitch_get(leafNode);
     if(!node)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -169,7 +169,7 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
         for(size_t j = 0; j < referenceTypeIdsSize; j++) {
             if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]))
                 continue;
-            retval = isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
+            retval = isNodeInTree(&node->references[i].targetId.nodeId, nodeToFind,
                                   referenceTypeIds, referenceTypeIdsSize, found);
             if(*found || retval != UA_STATUSCODE_GOOD)
                 return retval;
@@ -213,7 +213,7 @@ getNodeType(UA_Server *server, const UA_Node *node) {
 
     if(!parentId)
         return NULL;
-    return UA_NodeStore_get(server->nodestore, parentId);
+    return UA_NodestoreSwitch_get(parentId);
 }
 
 const UA_VariableTypeNode *
@@ -256,7 +256,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
     UA_StatusCode retval;
     do {
 #ifndef UA_ENABLE_MULTITHREADING
-        const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+        const UA_Node *node = UA_NodestoreSwitch_get(nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_Node *editNode = (UA_Node*)(uintptr_t)node; // dirty cast
