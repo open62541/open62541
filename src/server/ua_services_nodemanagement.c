@@ -379,10 +379,8 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     /* Test if the referencetype is hierarchical */
     const UA_NodeId hierarchicalReference =
         UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
-    UA_Boolean found = false;
-    UA_StatusCode retval = isNodeInTree(server->nodestore, referenceTypeId,
-                                        &hierarchicalReference, &subtypeId, 1, &found);
-    if(retval != UA_STATUSCODE_GOOD || !found) {
+    if(!isNodeInTree(server->nodestore, referenceTypeId,
+                     &hierarchicalReference, &subtypeId, 1)) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
                              "AddNodes: Reference type is not hierarchical");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;

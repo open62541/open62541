@@ -156,18 +156,15 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
 }
 
 /* Recursively searches "upwards" in the tree following specific reference types */
-UA_StatusCode
+UA_Boolean
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize, UA_Boolean *found) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(UA_NodeId_equal(leafNode, nodeToFind)) {
-        *found = true;
-        return UA_STATUSCODE_GOOD;
-    }
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+    if(UA_NodeId_equal(leafNode, nodeToFind))
+        return true;
 
     const UA_Node *node = UA_NodeStore_get(ns,leafNode);
     if(!node)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return false;
 
     /* Search upwards in the tree */
     for(size_t i = 0; i < node->referencesSize; i++) {
@@ -176,19 +173,13 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
         /* Recurse only for valid reference types */
         for(size_t j = 0; j < referenceTypeIdsSize; j++) {
-            if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]))
-                continue;
-            retval = isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
-                                  referenceTypeIds, referenceTypeIdsSize, found);
-            if(*found || retval != UA_STATUSCODE_GOOD)
-                return retval;
-            break;
+            if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]) &&
+               isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
+                            referenceTypeIds, referenceTypeIdsSize))
+                return true;
         }
     }
-
-    /* Dead end */
-    *found = false;
-    return UA_STATUSCODE_GOOD;
+    return false;
 }
 
 const UA_Node *

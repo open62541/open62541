@@ -135,10 +135,10 @@ UA_StatusCode
 getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
-UA_StatusCode
+UA_Boolean
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
-             size_t referenceTypeIdsSize, UA_Boolean *found);
+             size_t referenceTypeIdsSize);
 
 const UA_Node *
 getNodeType(UA_Server *server, const UA_Node *node);
