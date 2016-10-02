@@ -28,7 +28,6 @@ extern "C" {
 #include "ua_log.h"
 #include "ua_job.h"
 #include "ua_connection.h"
-#include "ua_nodestore_interface.h"
 
 /**
  * .. _server:
@@ -99,6 +98,9 @@ typedef struct {
     UA_Double min;
     UA_Double max;
 } UA_DoubleRange;
+
+struct UA_NodestoreInterface;
+typedef struct UA_NodestoreInterface UA_NodestoreInterface;
 
 typedef struct {
     UA_UInt16 nThreads; /* only if multithreading is enabled */

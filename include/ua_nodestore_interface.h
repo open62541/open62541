@@ -17,12 +17,11 @@
 #define UA_NODESTORE_INTERFACE_H_
 
 #include "ua_types_generated.h"
+#include "ua_nodes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct UA_Node UA_Node;
 
 /*
  * NodestoreInterface Type Definition
