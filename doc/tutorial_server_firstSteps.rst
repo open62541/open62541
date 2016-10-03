@@ -17,10 +17,10 @@ have the ``open62541.c/.h`` files in the current folder.
 
 Now create a new C source-file called ``myServer.c`` with the following content:
 
-.. literalinclude:: ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
+.. literalinclude:: server_firstSteps.c
    :language: c
    :linenos:
-   :lines: 4,12,14-34
+   :lines: 4,12,14-
 
 This is all that is needed for a simple OPC UA server. Compile the the server
 with GCC using the following command:

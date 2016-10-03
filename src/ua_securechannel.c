@@ -129,6 +129,10 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
+/***********************/
+/* Send Binary Message */
+/***********************/
+
 static UA_StatusCode
 UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
     UA_SecureChannel *channel = ci->channel;
@@ -253,9 +257,27 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     return UA_SecureChannel_sendChunk(&ci, &message, messagePos);
 }
 
+/***************************/
+/* Process Received Chunks */
+/***************************/
+
+static void
+UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId) {
+    struct ChunkEntry *ch;
+    LIST_FOREACH(ch, &channel->chunks, pointers) {
+        if(ch->requestId == requestId) {
+            UA_ByteString_deleteMembers(&ch->bytes);
+            LIST_REMOVE(ch, pointers);
+            UA_free(ch);
+            return;
+        }
+    }
+}
+
 /* assume that chunklength fits */
-static void appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
-                        size_t offset, size_t chunklength) {
+static void
+appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
+            size_t offset, size_t chunklength) {
     UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
     if(!new_bytes) {
         UA_ByteString_deleteMembers(&ch->bytes);
@@ -266,11 +288,14 @@ static void appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
     ch->bytes.length += chunklength;
 }
 
-void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                  const UA_ByteString *msg, size_t offset, size_t chunklength) {
+static void
+UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
+                             const UA_ByteString *msg, size_t offset,
+                             size_t chunklength) {
     /* Check if the chunk fits into the message */
     if(msg->length - offset < chunklength) {
-        UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
+        /* can't process all chunks for that request */
+        UA_SecureChannel_removeChunk(channel, requestId);
         return;
     }
 
@@ -294,11 +319,13 @@ void UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId
     appendChunk(ch, msg, offset, chunklength);
 }
 
-UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                             const UA_ByteString *msg, size_t offset, size_t chunklength,
-                                             UA_Boolean *deleteChunk) {
+static UA_ByteString
+UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
+                               const UA_ByteString *msg, size_t offset,
+                               size_t chunklength, UA_Boolean *deleteChunk) {
     if(msg->length - offset < chunklength) {
-        UA_SecureChannel_removeChunk(channel, requestId); /* can't process all chunks for that request */
+        /* can't process all chunks for that request */
+        UA_SecureChannel_removeChunk(channel, requestId);
         return UA_BYTESTRING_NULL;
     }
 
@@ -323,27 +350,94 @@ UA_ByteString UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt3
     return bytes;
 }
 
-void UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId) {
-    struct ChunkEntry *ch;
-    LIST_FOREACH(ch, &channel->chunks, pointers) {
-        if(ch->requestId == requestId) {
-            UA_ByteString_deleteMembers(&ch->bytes);
-            LIST_REMOVE(ch, pointers);
-            UA_free(ch);
-            return;
-        }
-    }
-}
-
-UA_StatusCode UA_SecureChannel_processSequenceNumber (UA_UInt32 SequenceNumber, UA_SecureChannel *channel){
-/* Does the sequence number match? */
+static UA_StatusCode
+UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 SequenceNumber) {
+    /* Does the sequence number match? */
     if(SequenceNumber != channel->receiveSequenceNumber + 1) {
-        if(channel->receiveSequenceNumber + 1 > 4294966271 && SequenceNumber < 1024) {
+        if(channel->receiveSequenceNumber + 1 > 4294966271 && SequenceNumber < 1024)
             channel->receiveSequenceNumber = SequenceNumber - 1; /* Roll over */
-        } else {
+        else
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        }
     }
     channel->receiveSequenceNumber++;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
+                               UA_ProcessMessageCallback callback, void *application) {
+    size_t offset= 0;
+    do {
+        size_t initial_offset = offset;
+        
+        /* Decode header */
+        UA_SecureConversationMessageHeader header;
+        UA_StatusCode retval = UA_SecureConversationMessageHeader_decodeBinary(chunks, &offset, &header);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        /* Is the channel attached to connection? */
+        if(header.secureChannelId != channel->securityToken.channelId) {
+            //Service_CloseSecureChannel(server, channel);
+            //connection->close(connection);
+            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+
+        /* Use requestId = 0 with OPN as argument for the callback */
+        UA_SequenceHeader sequenceHeader;
+        UA_SequenceHeader_init(&sequenceHeader);
+
+        if((header.messageHeader.messageTypeAndChunkType & 0x00ffffff) != UA_MESSAGETYPE_OPN) {
+            /* Check the symmetric security header (not for OPN) */
+            UA_UInt32 tokenId = 0;
+            retval |= UA_UInt32_decodeBinary(chunks, &offset, &tokenId);
+            retval |= UA_SequenceHeader_decodeBinary(chunks, &offset, &sequenceHeader);
+            if(retval != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+
+            /* Does the token match? */
+            if(tokenId != channel->securityToken.tokenId) {
+                if(tokenId != channel->nextSecurityToken.tokenId)
+                    return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+                UA_SecureChannel_revolveTokens(channel);
+            }
+
+            /* Does the sequence number match? */
+            retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
+            if(retval != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+
+        /* Process chunk */
+        size_t processed_header = offset - initial_offset;
+        switch(header.messageHeader.messageTypeAndChunkType & 0xff000000) {
+        case UA_CHUNKTYPE_INTERMEDIATE:
+            UA_SecureChannel_appendChunk(channel, sequenceHeader.requestId, chunks, offset,
+                                         header.messageHeader.messageSize - processed_header);
+            break;
+        case UA_CHUNKTYPE_FINAL: {
+            UA_Boolean deleteMessage = false;
+            UA_ByteString message =
+                UA_SecureChannel_finalizeChunk(channel, sequenceHeader.requestId, chunks, offset,
+                                               header.messageHeader.messageSize - processed_header,
+                                               &deleteMessage);
+            if(message.length > 0) {
+                callback(application, channel, header.messageHeader.messageTypeAndChunkType & 0x00ffffff,
+                         sequenceHeader.requestId, &message);
+                if(deleteMessage)
+                    UA_ByteString_deleteMembers(&message);
+            }
+            break; }
+        case UA_CHUNKTYPE_ABORT:
+            UA_SecureChannel_removeChunk(channel, sequenceHeader.requestId);
+            break;
+        default:
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+
+        /* Jump to the end of the chunk */
+        offset += (header.messageHeader.messageSize - processed_header);
+    } while(chunks->length > offset);
+
     return UA_STATUSCODE_GOOD;
 }

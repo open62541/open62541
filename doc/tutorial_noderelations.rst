@@ -1,7 +1,7 @@
 Generating an OPC UA Information Model from XML Descriptions
 ------------------------------------------------------------
 
-This tutorial will show you how to interact with objects and object types, and how to create a server from an information model defined in the OPC UA Nodeset XML schema.
+This tutorial will show you how to create a server from an information model defined in the OPC UA Nodeset XML schema.
 
 Compile XML Namespaces
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -270,7 +270,7 @@ In its simplest form, an invokation of the namespace compiler will look like thi
 
 .. code-block:: bash
 
-    python ./generate_open62541CCode.py <Opc.Ua.NodeSet2.xml> myNS.xml myNS
+   $ python ./generate_open62541CCode.py <Opc.Ua.NodeSet2.xml> myNS.xml myNS
 
 The first argument points to the XML definition of the standard-defined namespace 0. Namespace 0 is assumed to be loaded beforehand and provides defintions for data type, reference types, and so. The second argument points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then creates the files ``myNS.c`` and ``myNS.h`` containing the C code necessary to instantiate those namespaces.
 
@@ -297,14 +297,19 @@ Always make sure that your XML file comes *after* namespace 0. Also, take into c
   * Adding the relative path to the file into CMakeLists.txt
   * Compiling the stack
 
-After adding your XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DUA_ENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DUA_ENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded::
+After adding your XML file to CMakeLists.txt, rerun cmake in your build directory and enable ``DUA_ENABLE_GENERATE_NAMESPACE0``. Make especially sure that you are using the option ``CMAKE_BUILD_TYPE=Debug``. The generated namespace contains more than 30000 lines of code and many strings. Optimizing this amount of code with -O2 or -Os options will require several hours on most PCs! Also make sure to enable ``-DUA_ENABLE_METHODCALLS``, as namespace 0 does contain methods that need to be encoded
+
+.. code-block:: bash
   
-  ichrispa@Cassandra:open62541/build> cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_METHODCALLS=On -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On -DUA_ENABLE_GENERATE_NAMESPACE0=On ../
+  $ cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_METHODCALLS=On \
+          -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On \
+          -DUA_ENABLE_GENERATE_NAMESPACE0=On ../
   -- Git version: v0.1.0-RC4-403-g198597c-dirty
   -- Configuring done
   -- Generating done
   -- Build files have been written to: /home/ichrispa/work/svn/working_copies/open62541/build
-  ichrispa@Cassandra:open62541/build> make
+
+  $ make
   [  3%] Generating src_generated/ua_nodeids.h
   [  6%] Generating src_generated/ua_types_generated.c, src_generated/ua_types_generated.h
   [ 10%] Generating src_generated/ua_transport_generated.c, src_generated/ua_transport_generated.h

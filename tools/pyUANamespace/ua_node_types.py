@@ -928,8 +928,8 @@ class opcua_node_variable_t(opcua_node_t):
     self.__dataType__            = None
     self.__valueRank__           = -1
     self.__arrayDimensions__     = []
-    self.__accessLevel__         = 0
-    self.__userAccessLevel__     = 0
+    self.__accessLevel__         = 3
+    self.__userAccessLevel__     = 3
     self.__minimumSamplingInterval__ = 0.0
     self.__historizing__         = False
     self.__xmlValueDef__         = None

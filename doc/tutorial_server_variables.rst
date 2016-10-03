@@ -10,7 +10,7 @@ connected to a physical process in the background.
 This is the code for a server with a single variable node holding an integer. We
 will take this example to explain some of the fundamental concepts of open62541.
 
-.. literalinclude:: ${PROJECT_SOURCE_DIR}/examples/server_variable.c
+.. literalinclude:: server_variable.c
    :language: c
    :linenos:
    :lines: 4,13,15-

@@ -69,8 +69,6 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_Session_getUniqueSubscriptionID(UA_Session *session);
-
-void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session);
 #endif
 
 /**

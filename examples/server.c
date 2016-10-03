@@ -249,17 +249,23 @@ int main(int argc, char** argv) {
         UA_VariableAttributes attr;
         UA_VariableAttributes_init(&attr);
         attr.valueRank = -2;
+        attr.dataType = UA_TYPES[type].typeId;
+#ifndef UA_ENABLE_TYPENAMES
         char name[15];
 #if defined(_WIN32) && !defined(__MINGW32__)
         sprintf_s(name, 15, "%02d", type);
 #else
         sprintf(name, "%02d", type);
 #endif
-        attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
+        attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+        UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
+#else
+        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", UA_TYPES[type].typeName);
+        UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME_ALLOC(1, UA_TYPES[type].typeName);
+#endif
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         attr.writeMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
         attr.userWriteMask = UA_WRITEMASK_DISPLAYNAME | UA_WRITEMASK_DESCRIPTION;
-        UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 
         /* add a scalar node for every built-in type */
         void *value = UA_new(&UA_TYPES[type]);
@@ -289,10 +295,15 @@ int main(int argc, char** argv) {
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qualifiedName,
                                   UA_NODEID_NULL, attr, NULL, NULL);
         UA_Variant_deleteMembers(&attr.value);
+#ifdef UA_ENABLE_TYPENAMES
+        UA_LocalizedText_deleteMembers(&attr.displayName);
+        UA_QualifiedName_deleteMembers(&qualifiedName);
+#endif
     }
 
     /* Hierarchy of depth 10 for CTT testing with forward and inverse references */
-    /* Enter node "depth 9" in CTT configuration - Project->Settings->Server Test->NodeIds->Paths->Starting Node 1 */
+    /* Enter node "depth 9" in CTT configuration - Project->Settings->Server
+       Test->NodeIds->Paths->Starting Node 1 */
     object_attr.description = UA_LOCALIZEDTEXT("en_US","DepthDemo");
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US","DepthDemo");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),

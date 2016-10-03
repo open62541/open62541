@@ -479,6 +479,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     rcu_init();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
     cds_lfs_init(&server->mainLoopJobs);
+#else
+    SLIST_INIT(&server->delayedCallbacks);
 #endif
 
     /* uncomment for non-reproducible server runs */

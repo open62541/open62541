@@ -1,6 +1,8 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
-
+#ifdef UA_ENABLE_NONSTANDARD_STATELESS
+#include "ua_types_encoding_binary.h"
+#endif
 /******************/
 /* Read Attribute */
 /******************/
@@ -520,7 +522,7 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
            dimensions are checked later */
         if(variableDataType == &UA_TYPES[UA_TYPES_BYTE] &&
            valueDataType == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-           !range && !UA_Variant_isScalar(value)) {
+           !range && UA_Variant_isScalar(value)) {
             UA_ByteString *str = (UA_ByteString*)value->data;
             editableValue->type = &UA_TYPES[UA_TYPES_BYTE];
             editableValue->arrayLength = str->length;

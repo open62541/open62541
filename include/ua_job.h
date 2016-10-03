@@ -27,15 +27,15 @@ typedef struct UA_Server UA_Server;
 
 typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
 
-/** Jobs describe work that is executed once or repeatedly in the server */
+/* Jobs describe work that is executed once or repeatedly in the server */
 typedef struct {
     enum {
-        UA_JOBTYPE_NOTHING, ///< Guess what?
-        UA_JOBTYPE_DETACHCONNECTION, ///< Detach the connection from the secure channel (but don't delete it)
-        UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER, ///< The binary message is memory managed by the networklayer
-        UA_JOBTYPE_BINARYMESSAGE_ALLOCATED, ///< The binary message was relocated away from the networklayer
-        UA_JOBTYPE_METHODCALL, ///< Call the method as soon as possible
-        UA_JOBTYPE_METHODCALL_DELAYED, ///< Call the method as soon as all previous jobs have finished
+        UA_JOBTYPE_NOTHING,
+        UA_JOBTYPE_DETACHCONNECTION, /* Detach the connection from the secure channel (but don't delete it) */
+        UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER, /* The binary message is memory managed by the networklayer */
+        UA_JOBTYPE_BINARYMESSAGE_ALLOCATED, /* The binary message was relocated away from the networklayer */
+        UA_JOBTYPE_METHODCALL, /* Call the method as soon as possible */
+        UA_JOBTYPE_METHODCALL_DELAYED, /* Call the method as soon as all previous jobs have finished */
     } type;
     union {
         UA_Connection *closeConnection;
