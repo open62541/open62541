@@ -45,7 +45,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${DOC_SRC_DIR}/log.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${DOC_SRC_DIR}/connection.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"

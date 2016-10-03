@@ -28,6 +28,7 @@ extern "C" {
 #include "ua_log.h"
 #include "ua_job.h"
 #include "ua_connection.h"
+#include "ua_nodestore_interface.h"
 
 /**
  * .. _server:
@@ -98,9 +99,6 @@ typedef struct {
     UA_Double min;
     UA_Double max;
 } UA_DoubleRange;
-
-struct UA_NodestoreInterface;
-typedef struct UA_NodestoreInterface UA_NodestoreInterface;
 
 typedef struct {
     UA_UInt16 nThreads; /* only if multithreading is enabled */
@@ -614,44 +612,6 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  *
  * It is expected that the read callback is implemented. The write callback can
  * be set to a null-pointer. */
-typedef struct {
-    void *handle; /* A custom pointer to reuse the same datasource functions for
-                     multiple sources */
-    /* Copies the data from the source into the provided value.
-     *
-     * @param handle An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the read node
-     * @param includeSourceTimeStamp If true, then the datasource is expected to
-     *        set the source timestamp in the returned value
-     * @param range If not null, then the datasource shall return only a
-     *        selection of the (nonscalar) data. Set
-     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
-     *        apply.
-     * @param value The (non-null) DataValue that is returned to the client. The
-     *        data source sets the read data, the result status and optionally a
-     *        sourcetimestamp.
-     * @return Returns a status code for logging. Error codes intended for the
-     *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done. */
-    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,
-                          UA_Boolean includeSourceTimeStamp,
-                          const UA_NumericRange *range, UA_DataValue *value);
-
-    /* Write into a data source. The write member of UA_DataSource can be empty
-     * if the operation is unsupported.
-     *
-     * @param handle An optional pointer to user-defined data for the
-     *        specific data source
-     * @param nodeid Id of the node being written to
-     * @param data The data to be written into the data source
-     * @param range An optional data range. If the data source is scalar or does
-     *        not support writing of ranges, then an error code is returned.
-     * @return Returns a status code that is returned to the user
-     */
-    UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid,
-                           const UA_Variant *data, const UA_NumericRange *range);
-} UA_DataSource;
 
 UA_StatusCode UA_EXPORT
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
@@ -662,13 +622,6 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
  * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not-null, they are called before reading and after writing respectively. */
-typedef struct {
-    void *handle;
-    void (*onRead)(void *handle, const UA_NodeId nodeid,
-                   const UA_Variant *data, const UA_NumericRange *range);
-    void (*onWrite)(void *handle, const UA_NodeId nodeid,
-                    const UA_Variant *data, const UA_NumericRange *range);
-} UA_ValueCallback;
 
 UA_StatusCode UA_EXPORT
 UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
@@ -681,12 +634,6 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeI
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * Lifecycle management adds constructor and destructor callbacks to
  * object types. */
-typedef struct {
-    /* Returns the instance handle that is then attached to the node */
-    void * (*constructor)(const UA_NodeId instance);
-    void (*destructor)(const UA_NodeId instance, void *instanceHandle);
-} UA_ObjectLifecycleManagement;
-
 UA_StatusCode UA_EXPORT
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server,
                                                 UA_NodeId nodeId,
@@ -695,11 +642,6 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server,
 /**
  * Method Callbacks
  * ~~~~~~~~~~~~~~~~ */
-typedef UA_StatusCode
-(*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
-                     size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output);
-
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,

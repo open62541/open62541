@@ -8,7 +8,6 @@
 #ifndef UA_NODESTORE_SWITCH_H_
 #define UA_NODESTORE_SWITCH_H_
 
-#include "ua_nodes.h"
 #include "ua_types.h"
 #include "ua_nodestore_interface.h"
 
