@@ -16,6 +16,7 @@
 # include "open62541.h"
 /* include guards to prevent double definitions with open62541.h */
 # define UA_TYPES_H_
+# define UA_NODES_H_
 # define UA_SERVER_H_
 # define UA_CONNECTION_H_
 # define UA_TYPES_GENERATED_H_
