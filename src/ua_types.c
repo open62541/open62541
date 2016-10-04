@@ -421,8 +421,9 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
        vector of one dimension if none defined */
     UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
-    size_t dims_count = 1, elements = 1;
+    size_t dims_count = 1;
     if(v->arrayDimensionsSize > 0) {
+        size_t elements = 1;
         dims_count = v->arrayDimensionsSize;
         dims = (UA_UInt32*)v->arrayDimensions;
         for(size_t i = 0; i < dims_count; i++)
@@ -444,24 +445,24 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     }
 
     /* Compute the stride length and the position of the first element */
-    size_t b = 1, s = elements, f = 0;
+    *total = count;
+    *block = count;           /* Assume the range describes the entire array. */
+    *stride = v->arrayLength; /* So it can be copied as a contiguous block    */
+    *first = 0;
     size_t running_dimssize = 1;
     UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         k--;
         if(!found_contiguous && (range.dimensions[k].min != 0 ||
                                  range.dimensions[k].max + 1 != dims[k])) {
+            /* The maximum block that can be copied contiguously */
             found_contiguous = true;
-            b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
-            s = dims[k] * running_dimssize;
+            *block = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
+            *stride = dims[k] * running_dimssize;
         }
-        f += running_dimssize * range.dimensions[k].min;
+        *first += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
     }
-    *total = count;
-    *block = b;
-    *stride = s;
-    *first = f;
     return UA_STATUSCODE_GOOD;
 }
 
