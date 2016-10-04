@@ -401,23 +401,27 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
 
 /* Range-wise access to Variants */
 
-/* Test if a range is compatible with a variant. If yes, the following values are set:
+/* Test if a range is compatible with a variant. If yes, the following values
+ * are set:
  * - total: how many elements are in the range
- * - block: how big is each contiguous block of elements in the variant that maps into the range
+ * - block: how big is each contiguous block of elements in the variant that
+ *   maps into the range
  * - stride: how many elements are between the blocks (beginning to beginning)
  * - first: where does the first block begin */
 static UA_StatusCode
 computeStrides(const UA_Variant *v, const UA_NumericRange range,
                size_t *total, size_t *block, size_t *stride, size_t *first) {
-    /* Test the integrity of the source variant dimensions */
-    size_t dims_count = 1;
-    UA_UInt32 elements = 1;
+    /* Test for max array size */
 #if(MAX_SIZE > 0xffffffff) /* 64bit only */
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
+
+    /* Test the integrity of the source variant dimensions, make dimensions
+       vector of one dimension if none defined */
     UA_UInt32 arrayLength = (UA_UInt32)v->arrayLength;
     const UA_UInt32 *dims = &arrayLength;
+    size_t dims_count = 1, elements = 1;
     if(v->arrayDimensionsSize > 0) {
         dims_count = v->arrayDimensionsSize;
         dims = (UA_UInt32*)v->arrayDimensions;
@@ -443,16 +447,16 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     size_t b = 1, s = elements, f = 0;
     size_t running_dimssize = 1;
     UA_Boolean found_contiguous = false;
-    for(size_t k = dims_count - 1; ; k--) {
-        if(!found_contiguous && (range.dimensions[k].min != 0 || range.dimensions[k].max + 1 != dims[k])) {
+    for(size_t k = dims_count; k > 0;) {
+        k--;
+        if(!found_contiguous && (range.dimensions[k].min != 0 ||
+                                 range.dimensions[k].max + 1 != dims[k])) {
             found_contiguous = true;
             b = (range.dimensions[k].max - range.dimensions[k].min + 1) * running_dimssize;
             s = dims[k] * running_dimssize;
         }
         f += running_dimssize * range.dimensions[k].min;
         running_dimssize *= dims[k];
-        if(k == 0)
-            break;
     }
     *total = count;
     *block = b;
