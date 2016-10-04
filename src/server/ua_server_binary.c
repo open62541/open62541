@@ -12,11 +12,6 @@
 /* Helper Functions */
 /********************/
 
-static void init_response_header(const UA_RequestHeader *p, UA_ResponseHeader *r) {
-    r->requestHandle = p->requestHandle;
-    r->timestamp = UA_DateTime_now();
-}
-
 static void
 sendError(UA_SecureChannel *channel, const UA_ByteString *msg,
           size_t offset, const UA_DataType *responseType,
@@ -28,7 +23,8 @@ sendError(UA_SecureChannel *channel, const UA_ByteString *msg,
     void *response = UA_alloca(responseType->memSize);
     UA_init(response, responseType);
     UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)response;
-    init_response_header(&requestHeader, responseHeader);
+    responseHeader->requestHandle = requestHeader.requestHandle;
+    responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = error;
     UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
     UA_RequestHeader_deleteMembers(&requestHeader);
@@ -40,88 +36,64 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
                    const UA_DataType **responseType, UA_Service *service,
                    UA_Boolean *requiresSession) {
     switch(requestTypeId) {
-    case UA_NS0ID_GETENDPOINTSREQUEST:
-    case UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_GetEndpoints;
         *requestType = &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE];
         *requiresSession = false;
         break;
-    case UA_NS0ID_FINDSERVERSREQUEST:
-    case UA_NS0ID_FINDSERVERSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_FINDSERVERSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_FindServers;
         *requestType = &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE];
         *requiresSession = false;
         break;
-    case UA_NS0ID_CREATESESSIONREQUEST:
-    case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CreateSession;
         *requestType = &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE];
         *requiresSession = false;
         break;
-    case UA_NS0ID_ACTIVATESESSIONREQUEST:
-    case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
         break;
-    case UA_NS0ID_CLOSESESSIONREQUEST:
-    case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CloseSession;
         *requestType = &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
-    case UA_NS0ID_READREQUEST:
-    case UA_NS0ID_READREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_READREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Read;
         *requestType = &UA_TYPES[UA_TYPES_READREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_READRESPONSE];
         break;
-    case UA_NS0ID_WRITEREQUEST:
-    case UA_NS0ID_WRITEREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_WRITEREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Write;
         *requestType = &UA_TYPES[UA_TYPES_WRITEREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_WRITERESPONSE];
         break;
-    case UA_NS0ID_BROWSEREQUEST:
-    case UA_NS0ID_BROWSEREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_BROWSEREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Browse;
         *requestType = &UA_TYPES[UA_TYPES_BROWSEREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_BROWSERESPONSE];
         break;
-    case UA_NS0ID_BROWSENEXTREQUEST:
-    case UA_NS0ID_BROWSENEXTREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_BROWSENEXTREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_BrowseNext;
         *requestType = &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE];
         break;
-    case UA_NS0ID_REGISTERNODESREQUEST:
-    case UA_NS0ID_REGISTERNODESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_REGISTERNODESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_RegisterNodes;
         *requestType = &UA_TYPES[UA_TYPES_REGISTERNODESREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REGISTERNODESRESPONSE];
         break;
-    case UA_NS0ID_UNREGISTERNODESREQUEST:
-    case UA_NS0ID_UNREGISTERNODESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_UNREGISTERNODESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_UnregisterNodes;
         *requestType = &UA_TYPES[UA_TYPES_UNREGISTERNODESREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_UNREGISTERNODESRESPONSE];
         break;
-    case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
-    case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_TranslateBrowsePathsToNodeIds;
         *requestType = &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST];
@@ -129,70 +101,50 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         break;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
-    case UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CreateSubscription;
         *requestType = &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE];
         break;
-    case UA_NS0ID_PUBLISHREQUEST:
-    case UA_NS0ID_PUBLISHREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_PUBLISHREQUEST_ENCODING_DEFAULTBINARY:
         *requestType = &UA_TYPES[UA_TYPES_PUBLISHREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_PUBLISHRESPONSE];
         break;
-    case UA_NS0ID_REPUBLISHREQUEST:
-    case UA_NS0ID_REPUBLISHREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_REPUBLISHREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Republish;
         *requestType = &UA_TYPES[UA_TYPES_REPUBLISHREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_REPUBLISHRESPONSE];
         break;
-    case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST:
-    case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_ModifySubscription;
         *requestType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE];
         break;
-    case UA_NS0ID_SETPUBLISHINGMODEREQUEST:
-    case UA_NS0ID_SETPUBLISHINGMODEREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_SETPUBLISHINGMODEREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_SetPublishingMode;
         *requestType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE];
         break;
-    case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
-    case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_DeleteSubscriptions;
         *requestType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE];
         break;
-    case UA_NS0ID_CREATEMONITOREDITEMSREQUEST:
-    case UA_NS0ID_CREATEMONITOREDITEMSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_CREATEMONITOREDITEMSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CreateMonitoredItems;
         *requestType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE];
         break;
-    case UA_NS0ID_DELETEMONITOREDITEMSREQUEST:
-    case UA_NS0ID_DELETEMONITOREDITEMSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_DELETEMONITOREDITEMSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_DeleteMonitoredItems;
         *requestType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE];
         break;
-    case UA_NS0ID_MODIFYMONITOREDITEMSREQUEST:
-    case UA_NS0ID_MODIFYMONITOREDITEMSREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_MODIFYMONITOREDITEMSREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_ModifyMonitoredItems;
         *requestType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE];
         break;
-    case UA_NS0ID_SETMONITORINGMODEREQUEST:
-    case UA_NS0ID_SETMONITORINGMODEREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_SETMONITORINGMODEREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_SetMonitoringMode;
         *requestType = &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST];
@@ -201,8 +153,6 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 #endif
 
 #ifdef UA_ENABLE_METHODCALLS
-    case UA_NS0ID_CALLREQUEST:
-    case UA_NS0ID_CALLREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_CALLREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_Call;
         *requestType = &UA_TYPES[UA_TYPES_CALLREQUEST];
@@ -211,29 +161,21 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT
-    case UA_NS0ID_ADDNODESREQUEST:
-    case UA_NS0ID_ADDNODESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_ADDNODESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_AddNodes;
         *requestType = &UA_TYPES[UA_TYPES_ADDNODESREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ADDNODESRESPONSE];
         break;
-    case UA_NS0ID_ADDREFERENCESREQUEST:
-    case UA_NS0ID_ADDREFERENCESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_ADDREFERENCESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_AddReferences;
         *requestType = &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE];
         break;
-    case UA_NS0ID_DELETENODESREQUEST:
-    case UA_NS0ID_DELETENODESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_DELETENODESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_DeleteNodes;
         *requestType = &UA_TYPES[UA_TYPES_DELETENODESREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_DELETENODESRESPONSE];
         break;
-    case UA_NS0ID_DELETEREFERENCESREQUEST:
-    case UA_NS0ID_DELETEREFERENCESREQUEST_ENCODING_DEFAULTXML:
     case UA_NS0ID_DELETEREFERENCESREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_DeleteReferences;
         *requestType = &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST];
@@ -411,19 +353,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, offset, &requestTypeId);
     if(retval != UA_STATUSCODE_GOOD)
         return;
+    if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+        UA_NodeId_deleteMembers(&requestTypeId); /* leads to badserviceunsupported */
 
     /* Store the start-position of the request */
     size_t requestPos = *offset;
-
-    /* Test if the service type nodeid has the right format */
-    if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
-       requestTypeId.namespaceIndex != 0) {
-        UA_NodeId_deleteMembers(&requestTypeId);
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Received a non-numeric message type NodeId");
-        sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
-                  requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
-    }
 
     /* Get the service pointers */
     UA_Service service = NULL;
@@ -547,11 +481,13 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Call the service */
+    UA_assert(service); /* For all services besides publish, the service pointer is non-NULL*/
     service(server, session, request, response);
 
  send_response:
     /* Send the response */
-    init_response_header(request, response);
+    ((UA_ResponseHeader*)response)->requestHandle = requestHeader->requestHandle;
+    ((UA_ResponseHeader*)response)->timestamp = UA_DateTime_now();
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
 
     if(retval != UA_STATUSCODE_GOOD)
