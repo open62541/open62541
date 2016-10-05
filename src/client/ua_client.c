@@ -755,6 +755,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
 
 void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *requestType,
                          void *response, const UA_DataType *responseType) {
+    UA_init(response, responseType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
 
     /* Make sure we have a valid session */
