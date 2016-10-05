@@ -25,9 +25,6 @@ UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 static const UA_NodeId nodeIdHasSubType = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASSUBTYPE};
-static const UA_NodeId nodeIdHasTypeDefinition = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
 static const UA_NodeId nodeIdHasComponent = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASCOMPONENT};
@@ -37,9 +34,6 @@ static const UA_NodeId nodeIdHasProperty = {
 static const UA_NodeId nodeIdOrganizes = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_ORGANIZES};
-static const UA_NodeId nodeIdFolderType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_FOLDERTYPE};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
@@ -827,6 +821,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /******************/
     /* Root and below */
     /******************/
+
+    static const UA_NodeId nodeIdFolderType = {
+        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+        .identifier.numeric = UA_NS0ID_FOLDERTYPE};
+    static const UA_NodeId nodeIdHasTypeDefinition = {
+        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+        .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
 
     UA_ObjectNode *root = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)root, "Root");
