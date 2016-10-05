@@ -928,6 +928,10 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 /* Add References */
 /******************/
 
+static UA_StatusCode
+deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
+                      const UA_DeleteReferencesItem *item);
+
 /* Adds a one-way reference to the local nodestore */
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session,
@@ -955,17 +959,21 @@ addOneWayReference(UA_Server *server, UA_Session *session,
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session,
                              const UA_AddReferencesItem *item) {
-UA_StatusCode retval = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    UA_Boolean handledExternally = UA_FALSE;
-#endif
+    /* Currently no expandednodeids are allowed */
     if(item->targetServerUri.length > 0)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED; // currently no expandednodeids are allowed
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+    /* Add the first direction */
+#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
+    UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
+                                              (UA_EditNodeCallback)addOneWayReference,
+                                              item);
+#else
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Boolean handledExternally = UA_FALSE;
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         if(item->sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
-                continue;
+            continue;
         } else {
             UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
             retval = ens->addOneWayReference(ens->ensHandle, item);
@@ -973,45 +981,54 @@ UA_StatusCode retval = UA_STATUSCODE_GOOD;
             break;
         }
     }
-    if(handledExternally == UA_FALSE) {
-#endif
-    /* cast away the const to loop the call through UA_Server_editNode beware
-     * the "if" above for external nodestores */
-    retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                (UA_EditNodeCallback)addOneWayReference, item);
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    }
+    if(!handledExternally)
+        retval = UA_Server_editNode(server, session, &item->sourceNodeId,
+                                    (UA_EditNodeCallback)addOneWayReference, item);
 #endif
 
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Add the second direction */
     UA_AddReferencesItem secondItem;
-    secondItem = *item;
-    secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    UA_AddReferencesItem_init(&secondItem);
     secondItem.sourceNodeId = item->targetNodeId.nodeId;
+    secondItem.referenceTypeId = item->referenceTypeId;
     secondItem.isForward = !item->isForward;
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+    secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    /* keep default secondItem.targetNodeClass = UA_NODECLASS_UNSPECIFIED */
+#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
+    retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
+                                (UA_EditNodeCallback)addOneWayReference, &secondItem);
+#else
     handledExternally = UA_FALSE;
     for(size_t j = 0; j <server->externalNamespacesSize; j++) {
         if(secondItem.sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
-                continue;
+            continue;
         } else {
             UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
             retval = ens->addOneWayReference(ens->ensHandle, &secondItem);
             handledExternally = UA_TRUE;
             break;
         }
+    }
+    if(!handledExternally)
+        retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
+                                    (UA_EditNodeCallback)addOneWayReference, &secondItem);
+#endif
 
+    /* remove reference if the second direction failed */
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_DeleteReferencesItem deleteItem;
+        deleteItem.sourceNodeId = item->sourceNodeId;
+        deleteItem.referenceTypeId = item->referenceTypeId;
+        deleteItem.isForward = item->isForward;
+        deleteItem.targetNodeId = item->targetNodeId;
+        deleteItem.deleteBidirectional = false;
+        /* ignore returned status code */
+        UA_Server_editNode(server, session, &item->sourceNodeId,
+                           (UA_EditNodeCallback)deleteOneWayReference, &deleteItem);
     }
-    if(handledExternally == UA_FALSE) {
-#endif
-    retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                (UA_EditNodeCallback)addOneWayReference, &secondItem);
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    }
-#endif
-    // todo: remove reference if the second direction failed
     return retval;
 }
 
@@ -1086,10 +1103,6 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
 /****************/
 /* Delete Nodes */
 /****************/
-
-static UA_StatusCode
-deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
-                      const UA_DeleteReferencesItem *item);
 
 UA_StatusCode
 Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
