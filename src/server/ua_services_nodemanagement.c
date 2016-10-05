@@ -5,7 +5,6 @@
 /* Add Node */
 /************/
 
-
 static void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
@@ -1041,22 +1040,27 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
-    size_t size = request->referencesToAddSize;
 
-    if(!(response->results = UA_malloc(sizeof(UA_StatusCode) * size))) {
+    response->results = UA_malloc(sizeof(UA_StatusCode) * request->referencesToAddSize);
+    if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->resultsSize = size;
+    response->resultsSize = request->referencesToAddSize;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-#ifdef NO_ALLOCA
+#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
+    for(size_t i = 0; i < response->resultsSize; i++)
+        response->results[i] =
+            Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
+#else
+    size_t size = request->referencesToAddSize;
+# ifdef NO_ALLOCA
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
-#else
+# else
     UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /*NO_ALLOCA */
+# endif /*NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
     for(size_t j = 0; j < server->externalNamespacesSize; j++) {
         size_t indicesSize = 0;
@@ -1074,14 +1078,13 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
         ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
                            indices, (UA_UInt32)indicesSize, response->results, response->diagnosticInfos);
     }
-#endif
 
     for(size_t i = 0; i < response->resultsSize; i++) {
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
-#endif
-            response->results[i] = Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
+            response->results[i] =
+                Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
     }
+#endif
 }
 
 UA_StatusCode
@@ -1174,8 +1177,8 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;;
         return;
     }
-
     response->resultsSize = request->nodesToDeleteSize;
+
     for(size_t i = 0; i < request->nodesToDeleteSize; i++) {
         UA_DeleteNodesItem *item = &request->nodesToDelete[i];
         response->results[i] = Service_DeleteNodes_single(server, session, &item->nodeId,
@@ -1338,9 +1341,8 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
 /****************************/
 
 static UA_StatusCode
-setObjectTypeLifecycleManagement(UA_Server *server, UA_Session *session,
-                                 UA_ObjectTypeNode* node,
-                                 UA_ObjectLifecycleManagement *olm) {
+setOLM(UA_Server *server, UA_Session *session,
+       UA_ObjectTypeNode* node, UA_ObjectLifecycleManagement *olm) {
     if(node->nodeClass != UA_NODECLASS_OBJECTTYPE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     node->lifecycleManagement = *olm;
@@ -1352,7 +1354,7 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nod
                                                 UA_ObjectLifecycleManagement olm) {
     UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
-                                              (UA_EditNodeCallback)setObjectTypeLifecycleManagement, &olm);
+                                              (UA_EditNodeCallback)setOLM, &olm);
     UA_RCU_UNLOCK();
     return retval;
 }
@@ -1369,7 +1371,8 @@ struct addMethodCallback {
 };
 
 static UA_StatusCode
-editMethodCallback(UA_Server *server, UA_Session* session, UA_Node* node, const void* handle) {
+editMethodCallback(UA_Server *server, UA_Session* session,
+                   UA_Node* node, const void* handle) {
     if(node->nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
     const struct addMethodCallback *newCallback = handle;
