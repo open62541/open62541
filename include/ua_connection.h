@@ -22,13 +22,6 @@ extern "C" {
 
 #include "ua_types.h"
 
-/* Forward declarations */
-struct UA_Connection;
-typedef struct UA_Connection UA_Connection;
-
-struct UA_SecureChannel;
-typedef struct UA_SecureChannel UA_SecureChannel;
-
 /**
  * Networking
  * ----------
@@ -44,7 +37,7 @@ typedef struct UA_SecureChannel UA_SecureChannel;
  *
  * Connection Config
  * ^^^^^^^^^^^^^^^^^ */
-typedef struct UA_ConnectionConfig {
+typedef struct {
     UA_UInt32 protocolVersion;
     UA_UInt32 sendBufferSize;
     UA_UInt32 recvBufferSize;
@@ -57,7 +50,7 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 /**
  * Connection Structure
  * ^^^^^^^^^^^^^^^^^^^^ */
-typedef enum UA_ConnectionState {
+typedef enum {
     UA_CONNECTION_OPENING,     /* The socket is open, but the HEL/ACK handshake
                                   is not done */
     UA_CONNECTION_ESTABLISHED, /* The socket is open and the connection
@@ -65,6 +58,13 @@ typedef enum UA_ConnectionState {
     UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
                                   will be deleted */
 } UA_ConnectionState;
+
+/* Forward declarations */
+struct UA_Connection;
+typedef struct UA_Connection UA_Connection;
+
+struct UA_SecureChannel;
+typedef struct UA_SecureChannel UA_SecureChannel;
 
 struct UA_Connection {
     UA_ConnectionState state;
@@ -116,7 +116,6 @@ struct UA_Connection {
 
 void UA_EXPORT UA_Connection_init(UA_Connection *connection);
 void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
-
 
 /**
  * EndpointURL Helper
