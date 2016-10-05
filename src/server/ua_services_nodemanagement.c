@@ -405,6 +405,9 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     UA_StatusCode retval = checkParentReference(server, session, node->nodeClass,
                                                 parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                             "AddNodes: Checking the reference to the parent returned"
+                             "error code 0x%08x", retval);
         UA_NodeStore_deleteNode(node);
         return retval;
     }
@@ -438,7 +441,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     retval = Service_AddReferences_single(server, session, &item);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: Could not add the reference to the parent");
+                             "AddNodes: Could not add the reference to the parent"
+                             "with error code 0x%08x", retval);
         goto remove_node;
     }
 
@@ -459,7 +463,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                                  typeDefinition, instantiationCallback);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                 "AddNodes: Could not instantiate the node");
+                                 "AddNodes: Could not instantiate the node with"
+                                 "error code 0x%08x", retval);
             goto remove_node;
         }
     }
