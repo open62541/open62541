@@ -70,7 +70,9 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         UA_StatusCode decode_retval = UA_UInt32_decodeBinary(message, &length_pos, &chunk_length);
 
         /* The message size is not allowed. Throw the remaining bytestring away */
-        if(decode_retval != UA_STATUSCODE_GOOD || chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize) {
+        if(decode_retval != UA_STATUSCODE_GOOD ||
+           chunk_length < 16 ||
+           chunk_length > connection->localConf.recvBufferSize) {
             garbage_end = true;
             break;
         }
@@ -113,7 +115,8 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        memcpy(connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
+        memcpy(connection->incompleteMessage.data,
+               &message->data[complete_until], incomplete_length);
         message->length = complete_until;
     }
 
