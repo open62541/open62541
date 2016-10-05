@@ -1224,8 +1224,10 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
     if(!edited)
         return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
     /* we removed the last reference */
-    if(node->referencesSize == 0 && node->references)
+    if(node->referencesSize == 0 && node->references) {
         UA_free(node->references);
+        node->references = NULL;
+    }
     return UA_STATUSCODE_GOOD;;
 }
 
