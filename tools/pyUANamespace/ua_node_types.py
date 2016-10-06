@@ -670,10 +670,21 @@ class opcua_node_t:
       logger.warn(str(self) + " attempted to reprint already printed node " + str(self)+ ".")
       return []
 
+    # Check if type node is already printed:
+    typeDefinition = None
+    if self.nodeClass() in [NODE_CLASS_OBJECT, NODE_CLASS_VARIABLE, NODE_CLASS_VARIABLETYPE]:
+      for r in self.getReferences():
+        if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
+          typeDefinition = r.target()
+          break
+
+
     # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
     # Note: getFirstParentNode will return [parentNode, referenceToChild]
     (parentNode, parentRef) = self.getFirstParentNode()
-    if not (parentNode in unPrintedNodes) and (parentNode != None) and (parentRef.referenceType() != None):
+
+    if not (parentNode in unPrintedNodes) and (parentNode is not None) and (parentRef.referenceType() is not None) \
+            and ((typeDefinition is None) or not (typeDefinition in unPrintedNodes)):
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
                   "/" + str(parentRef.referenceType().__node_browseName__))
