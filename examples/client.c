@@ -212,7 +212,7 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_addObjectTypeNode(client,
                                          UA_NODEID_NUMERIC(1, 12134),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                          UA_QUALIFIEDNAME(1, "NewObjectType"),
                                          objt_attr, &objt_id);
     if(retval == UA_STATUSCODE_GOOD)
