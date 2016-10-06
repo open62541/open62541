@@ -132,7 +132,7 @@ class open62541_MacroHelper():
       nodetype = "View"
     else:
       code.append("/* undefined nodeclass */")
-      return code;
+      return code
 
     # If this is a method, construct in/outargs for addMethod
     #inputArguments.arrayDimensionsSize = 0;

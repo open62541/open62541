@@ -688,7 +688,7 @@ class opcua_namespace():
           refsUsed.append(r.referenceType())
     logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
     for r in refsUsed:
-      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
+      code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs)
 
     header.append("extern void "+outfilename+"(UA_Server *server);\n")
     header.append("#endif /* "+outfilename.upper()+"_H_ */")
