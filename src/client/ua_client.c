@@ -105,7 +105,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     /* Get a buffer */
     UA_ByteString message;
     UA_StatusCode retval =
-        client->connection->getSendBuffer(client->connection, UA_MINMESSAGESIZE, &message);
+        client->connection->getSendBuffer(client->connection,
+                                          UA_MINMESSAGESIZE, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -137,10 +138,12 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     message.length = messageHeader.messageSize;
     retval = client->connection->send(client->connection, &message);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Sending HEL failed");
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Sending HEL failed");
         return retval;
     }
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Sent HEL message");
+    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Sent HEL message");
 
     /* Loop until we have a complete chunk */
     /* TODO: quit after a total wait time of client->config.timeout */
@@ -150,7 +153,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
         retval = client->connection->recv(client->connection, &reply, client->config.timeout);
         retval |= UA_Connection_completeMessages(client->connection, &reply, &realloced);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Receiving ACK message failed");
+            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                        "Receiving ACK message failed");
             return retval;
         }
     } while(reply.length == 0);
@@ -167,9 +171,11 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     else
         UA_ByteString_deleteMembers(&reply);
 
-    /* Store remote connection settings and adjust local configuration to not exceed the limits */
+    /* Store remote connection settings and adjust local configuration to not
+       exceed the limits */
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Received ACK message");
         conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
         conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
         conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
@@ -181,7 +187,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
             conn->localConf.recvBufferSize = conn->remoteConf.sendBufferSize;
         conn->state = UA_CONNECTION_ESTABLISHED;
     } else {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Decoding ACK message failed");
     }
     UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 
@@ -388,10 +395,7 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     return retval;
 }
 
-/**
- * Gets a list of endpoints
- * Memory is allocated for endpointDescription array
- */
+/* Gets a list of endpoints. Memory is allocated for endpointDescription array */
 static UA_StatusCode
 GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
              UA_EndpointDescription** endpointDescriptions) {
@@ -432,7 +436,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
+                                          "Transport/uatcp-uasc-uabinary");
 
     //TODO: compare endpoint information with client->endpointUri
     for(size_t i = 0; i < endpointArraySize; i++) {
@@ -465,14 +470,17 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         }
     }
 
-    UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    UA_Array_delete(endpointArray, endpointArraySize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(!endpointFound) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT, "No suitable endpoint found");
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No suitable endpoint found");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!tokenFound) {
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT, "No anonymous token found");
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No anonymous token found");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return retval;
@@ -526,7 +534,8 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
-    UA_NodeId_copy(&client->authenticationToken, &request.requestHeader.authenticationToken);
+    UA_NodeId_copy(&client->authenticationToken,
+                   &request.requestHeader.authenticationToken);
 
     UA_SecureConversationMessageHeader msgHeader;
     msgHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_CLO + UA_CHUNKTYPE_FINAL;
@@ -539,7 +548,8 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
 
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId);
+    UA_NodeId typeId =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId);
 
     UA_ByteString message;
     UA_Connection *c = client->connection;
@@ -553,8 +563,8 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST], NULL,
-                              NULL, &message, &offset);
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],
+                              NULL, NULL, &message, &offset);
 
     msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;
@@ -582,8 +592,9 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    *client->connection = client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl,
-                                                       client->config.logger);
+    *client->connection =
+        client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl,
+                                      client->config.logger);
     if(client->connection->state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;
@@ -700,22 +711,26 @@ struct ResponseDescription {
 
 static void
 processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel,
-                       UA_MessageType messageType, UA_UInt32 requestId, UA_ByteString *message) {
+                       UA_MessageType messageType, UA_UInt32 requestId,
+                       UA_ByteString *message) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
     /* Check that the request id matches */
-    /* Todo: we need to demux async responses since a publish responses may come at any time */
+    /* Todo: we need to demux async responses since a publish responses may come
+       at any time */
     if(requestId != rd->requestId) {
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Reply answers the wrong requestId. Async services are not yet implemented.");
+                     "Reply answers the wrong requestId. "
+                     "Async services are not yet implemented.");
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto finish;
     }
 
     /* Check that the response type matches */
-    const UA_NodeId expectedNodeId = UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+    const UA_NodeId expectedNodeId =
+        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     const UA_NodeId serviceFaultNodeId =
         UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
     size_t offset = 0;
@@ -726,12 +741,14 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     if(!UA_NodeId_equal(&responseId, &expectedNodeId)) {
         if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
             /* Take the statuscode from the servicefault */
-            retval = UA_decodeBinary(message, &offset, rd->response, &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+            retval = UA_decodeBinary(message, &offset, rd->response,
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT]);
         } else {
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Reply answers the wrong request. Expected ns=%i,i=%i. But retrieved ns=%i,i=%i",
-                         expectedNodeId.namespaceIndex, expectedNodeId.identifier.numeric,
-                         responseId.namespaceIndex, responseId.identifier.numeric);
+                         "Reply answers the wrong request. Expected ns=%i,i=%i."
+                         "But retrieved ns=%i,i=%i", expectedNodeId.namespaceIndex,
+                         expectedNodeId.identifier.numeric, responseId.namespaceIndex,
+                         responseId.identifier.numeric);
             UA_NodeId_deleteMembers(&responseId);
             retval = UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -748,13 +765,15 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     } else {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             retval = UA_STATUSCODE_BADRESPONSETOOLARGE;
-        UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT, "Error receiving the response");
+        UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "Error receiving the response");
         respHeader->serviceResult = retval;
     }
 }
 
-void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *requestType,
-                         void *response, const UA_DataType *responseType) {
+void
+__UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *requestType,
+                    void *response, const UA_DataType *responseType) {
     UA_init(response, responseType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
 
@@ -807,7 +826,7 @@ void __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *re
         if(!reply.data)
             break;
         UA_SecureChannel_processChunks(client->channel, &reply,
-                                       (UA_ProcessMessageCallback*)processServiceResponse, &rd);
+                     (UA_ProcessMessageCallback*)processServiceResponse, &rd);
     } while(!rd.processed);
 
  finish:
