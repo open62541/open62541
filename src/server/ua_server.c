@@ -911,7 +911,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     
     // If we are in an UA conformant namespace, the above function just created a full ServerType object.
     // Before readding every variable, delete whatever got instantiated.
-    deleteInstanceChildren(server, &servernode->nodeId);
+    // here we can't reuse servernode->nodeId because it may be deleted in addNodeInternalWithType if the node could not be added
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    deleteInstanceChildren(server, &serverNodeId);
     
     UA_VariableNode *namespaceArray = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)namespaceArray, "NamespaceArray");
