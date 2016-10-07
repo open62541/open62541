@@ -370,14 +370,13 @@ class opcua_value_t():
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
             logger.debug("Building extObj array index " + str(self.value.index(v)))
-            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
+            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v), cleanupCode=cleanupCode)
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
             logger.debug("Printing extObj array index " + str(self.value.index(v)))
             code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType(asIndirect=False) + ";")
-            code.append("UA_ExtensionObject_deleteMembers(" + v.printOpen62541CCode_SubType() + ");")
             code.append("UA_free(" + v.printOpen62541CCode_SubType() + ");")
         else:
           for v in self.value:
@@ -397,7 +396,7 @@ class opcua_value_t():
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-          code = code + self.value[0].printOpen62541CCode_SubType_build()
+          code = code + self.value[0].printOpen62541CCode_SubType_build(cleanupCode=cleanupCode)
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
@@ -444,9 +443,9 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     self.__codeInstanceName__ = self.parent.getCodePrintableID() + "_" + str(self.alias()) + "_" + str(arrayIndex) + "_" + str(recursionDepth)
     return self.__codeInstanceName__
 
-  def printOpen62541CCode_SubType_build(self, recursionDepth=0, arrayIndex=0):
+  def printOpen62541CCode_SubType_build(self, recursionDepth=0, arrayIndex=0, cleanupCode=[]):
     code = [""]
-    codeCleanup = []
+    localCleanupCode = []
     codegen = open62541_MacroHelper()
 
     logger.debug("Building extensionObject for " + str(self.parent.id()))
@@ -494,11 +493,12 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
             logger.debug("  " + str(subvix) + " " + str(subvv))
             code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "] = " + subvv.printOpen62541CCode_SubType(asIndirect=True) + ";")
           code.append("}")
+          localCleanupCode.append("UA_free(" + self.getCodeInstanceName()+"_struct."+subv.alias()+");")
         else:
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "Size = 1;")
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias()+" = (UA_" + subv.stringRepresentation + " *) UA_malloc(sizeof(UA_" + subv.stringRepresentation + "));")
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[0]  = " + subv.printOpen62541CCode_SubType(asIndirect=True) + ";")
-          codeCleanup.append("UA_free(" + self.getCodeInstanceName()+"_struct."+subv.alias() + ");")
+          localCleanupCode.append("UA_free(" + self.getCodeInstanceName()+"_struct."+subv.alias() + ");")
 
 
     # Allocate some memory
@@ -523,7 +523,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
             code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
         else:
             code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
-    code = code + codeCleanup
+    code = code + localCleanupCode
 
     # Reallocate the memory by swapping the 65k Bytestring for a new one
     code.append(self.getCodeInstanceName() + "->content.encoded.body.length = " + self.getCodeInstanceName() + "_encOffset;");
@@ -533,6 +533,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     code.append(self.getCodeInstanceName() + "->content.encoded.body.data = " +self.getCodeInstanceName() + "_newBody;")
     code.append("UA_free(" + self.getCodeInstanceName() + "_oldBody);")
     code.append("")
+    cleanupCode.append("UA_free("+ self.getCodeInstanceName() + "_newBody);")
     return code
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
