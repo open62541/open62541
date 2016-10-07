@@ -635,7 +635,7 @@ class opcua_node_t:
   def printXML(self):
     pass
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     """ printOpen62541CCode_SubtypeEarly
 
         Initiate code segments for the nodes instantiotion that preceed
@@ -670,10 +670,21 @@ class opcua_node_t:
       logger.warn(str(self) + " attempted to reprint already printed node " + str(self)+ ".")
       return []
 
+    # Check if type node is already printed:
+    typeDefinition = None
+    if self.nodeClass() in [NODE_CLASS_OBJECT, NODE_CLASS_VARIABLE, NODE_CLASS_VARIABLETYPE]:
+      for r in self.getReferences():
+        if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
+          typeDefinition = r.target()
+          break
+
+
     # If we are being passed a parent node by the namespace, use that for registering ourselves in the namespace
     # Note: getFirstParentNode will return [parentNode, referenceToChild]
     (parentNode, parentRef) = self.getFirstParentNode()
-    if not (parentNode in unPrintedNodes) and (parentNode != None) and (parentRef.referenceType() != None):
+
+    if not (parentNode in unPrintedNodes) and (parentNode is not None) and (parentRef.referenceType() is not None) \
+            and ((typeDefinition is None) or not (typeDefinition in unPrintedNodes)):
       code.append("// Referencing node found and declared as parent: " + str(parentNode .id()) + "/" +
                   str(parentNode .__node_browseName__) + " using " + str(parentRef.referenceType().id()) +
                   "/" + str(parentRef.referenceType().__node_browseName__))
@@ -1069,7 +1080,7 @@ class opcua_node_variable_t(opcua_node_t):
         else:
           logger.info( "Unprocessable XML Element: " + x.tagName)
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     code = []
     # If we have an encodable value, try to encode that
     if self.dataType() != None and isinstance(self.dataType().target(), opcua_node_dataType_t):
@@ -1077,7 +1088,7 @@ class opcua_node_variable_t(opcua_node_t):
       # determined a valid encoding
       if self.dataType().target().isEncodable():
         if self.value() != None:
-          code = code + self.value().printOpen62541CCode(bootstrapping)
+          code = code + self.value().printOpen62541CCode(bootstrapping, cleanupCode)
           return code
     if(bootstrapping):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
@@ -1326,7 +1337,7 @@ class opcua_node_variableType_t(opcua_node_t):
         else:
           logger.info( "Unprocessable XML Element: " + x.tagName)
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     code = []
     # If we have an encodable value, try to encode that
     if self.dataType() != None and isinstance(self.dataType().target(), opcua_node_dataType_t):
