@@ -572,6 +572,7 @@ class opcua_namespace():
       nmatrix[nind][0] = node
 
     # Determine the dependencies of all nodes
+    logger.debug("Determining node interdependencies.")
     for node in self.nodes:
       nind = self.nodes.index(node)
       #print "Examining node " + str(nind) + " " + str(node)
@@ -580,13 +581,13 @@ class opcua_namespace():
           tind = self.nodes.index(ref.target())
           # Typedefinition of this node has precedence over this node
           if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 1
+            nmatrix[nind][tind+1] += 200 # Very big weight for typedefs
           # isSubTypeOf/typeDefinition of this node has precedence over this node
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 1
+            nmatrix[nind][tind+1] += 100 # Big weight for subtypes
           # Else the target depends on us
           elif ref.isForward():
-            nmatrix[tind][nind+1] += 1
+            nmatrix[tind][nind+1] += 1 # regular weight for dependencies
 
     logger.debug("Using Djikstra topological sorting to determine printing order.")
     reorder = []
@@ -598,9 +599,9 @@ class opcua_namespace():
         if isinstance(ref.target(), opcua_node_t):
           tind = self.nodes.index(ref.target())
           if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 1
+            nmatrix[nind][tind+1] -= 200
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 1
+            nmatrix[nind][tind+1] -= 100
           elif ref.isForward():
             nmatrix[tind][nind+1] -= 1
       nmatrix[nind][0] = None
