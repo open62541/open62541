@@ -945,7 +945,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addNodeInternalWithType(server, (UA_Node*)servercapablities, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasComponent,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCAPABILITIESTYPE));
-
+    UA_NodeId ServerCapabilitiesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES);
+    deleteInstanceChildren(server, &ServerCapabilitiesNodeId);
+    
     UA_VariableNode *localeIdArray = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)localeIdArray, "LocaleIdArray");
     localeIdArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY;
@@ -1060,7 +1062,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addNodeInternalWithType(server, (UA_Node*)serverdiagnostics,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERDIAGNOSTICSTYPE));
-
+    UA_NodeId ServerDiagnosticsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS);
+    deleteInstanceChildren(server, &ServerDiagnosticsNodeId);
+    
     UA_VariableNode *enabledFlag = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)enabledFlag, "EnabledFlag");
     enabledFlag->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG;
