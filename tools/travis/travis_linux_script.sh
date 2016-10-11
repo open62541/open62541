@@ -45,7 +45,14 @@ else
     cp -r doc ../../
     cp ./examples/server_cert.der ../../
     cd .. && rm build -rf
-
+    
+    echo "Full Namespace 0 Generation"
+    mkdir -p build
+    cd build
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_GENERATE_NAMESPACE0=On -DUA_BUILD_EXAMPLES=ON  ..
+    make -j8
+    cd .. && rm build -rf
+    
     # cross compilation only with gcc
     if [ "$CC" = "gcc" ]; then
         echo "Cross compile release build for MinGW 32 bit"
