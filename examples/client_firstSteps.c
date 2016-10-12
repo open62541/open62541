@@ -7,7 +7,9 @@
 #ifdef UA_NO_AMALGAMATION
 #include "ua_client.h"
 #include "ua_config_standard.h"
-#include "ua_network_tcp.h"
+#ifdef UA_ENABLE_STATUSCODE_MSG
+#include "ua_statuscode_msg.h"
+#endif
 #else
 #include "open62541.h"
 #endif
@@ -16,6 +18,9 @@ int main(void) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
     if(retval != UA_STATUSCODE_GOOD) {
+#ifdef UA_ENABLE_STATUSCODE_MSG
+	    printf("Client connect failed: %s - %s", UA_StatusCode_name(retval), UA_StatusCode_msg(retval));
+#endif
         UA_Client_delete(client);
         return (int)retval;
     }
