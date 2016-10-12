@@ -48,6 +48,7 @@ option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
+option(UA_ENABLE_STATUSCODE_MSG "Enable conversion of StatusCode to human-readable error message" OFF)
 
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
@@ -293,6 +294,20 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                            ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+if(UA_ENABLE_STATUSCODE_MSG)
+    # StatusCode to String
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_msg_table.c
+            PRE_BUILD
+            COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_msg.py
+            ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_msg_table
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_msg.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
+
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_statuscode_msg.h)
+    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_msg_table.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_statuscode_msg.c)
+endif()
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
