@@ -20,21 +20,30 @@
 extern "C" {
 #endif
 
-#define UA_LOGLEVEL ${UA_LOGLEVEL}
+/**
+ * Library Version
+ * --------------- */
 #define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
-#cmakedefine UA_ENABLE_MULTITHREADING
+
+/**
+ * Options
+ * ------- */
+#define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_ENABLE_METHODCALLS
+#cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
+#cmakedefine UA_ENABLE_MULTITHREADING
+
+/**
+ * Advanced Options
+ * ---------------- */
+#cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
+#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES
-#cmakedefine UA_ENABLE_NODEMANAGEMENT
-#cmakedefine UA_ENABLE_STATUSCODE_MSG
-
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
-
-#cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
+#cmakedefine UA_ENABLE_NONSTANDARD_UDP
 
 /**
  * Standard Includes
@@ -50,10 +59,10 @@ extern "C" {
 
 /**
  * Function Export
- * --------------- */
-/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
-   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
-   from a DLL.*/
+ * ---------------
+ * On Win32: Define ``UA_DYNAMIC_LINKING`` and ``UA_DYNAMIC_LINKING_EXPORT`` in
+ * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
+ * import symbols from a DLL.*/
 #cmakedefine UA_DYNAMIC_LINKING
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
