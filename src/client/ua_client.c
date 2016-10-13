@@ -11,6 +11,25 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 
+/* Listen with a timeout until at least one complete message is received */
+static UA_StatusCode
+Connection_receiveChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                        UA_Boolean * UA_RESTRICT realloced, UA_UInt32 timeout) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    *realloced = false;
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_MSEC_TO_DATETIME);
+    /* Receive packets until one complete message is assembled */
+    do {
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        if(now > maxDate)
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        UA_UInt32 thisTimeout = (UA_UInt32)((maxDate - UA_DateTime_nowMonotonic()) / UA_MSEC_TO_DATETIME);
+        retval = connection->recv(connection, message, thisTimeout);
+        retval |= UA_Connection_completeMessages(connection, message, realloced);
+    } while(retval == UA_STATUSCODE_GOOD && message->length == 0);
+    return retval;
+}
+
 /*********************/
 /* Create and Delete */
 /*********************/
@@ -146,18 +165,15 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
                  "Sent HEL message");
 
     /* Loop until we have a complete chunk */
-    /* TODO: quit after a total wait time of client->config.timeout */
     UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
-    do {
-        retval = client->connection->recv(client->connection, &reply, client->config.timeout);
-        retval |= UA_Connection_completeMessages(client->connection, &reply, &realloced);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
-                        "Receiving ACK message failed");
-            return retval;
-        }
-    } while(reply.length == 0);
+    retval = Connection_receiveChunk(client->connection, &reply,
+                                     &realloced, client->config.timeout);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Receiving ACK message failed");
+        return retval;
+    }
 
     /* Decode the message */
     offset = 0;
@@ -273,19 +289,16 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_ByteString reply;
-    UA_ByteString_init(&reply);
+    UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
-    do {
-        retval = c->recv(c, &reply, client->config.timeout);
-        retval |= UA_Connection_completeMessages(c, &reply, &realloced);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Receiving OpenSecureChannelResponse failed");
-            return retval;
-        }
-    } while(reply.length == 0);
+    retval = Connection_receiveChunk(c, &reply, &realloced, client->config.timeout);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Receiving OpenSecureChannelResponse failed");
+        return retval;
+    }
 
+    /* Decode the header */
     offset = 0;
     UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
     UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
@@ -302,16 +315,18 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Save the sequence number from server */
+    client->channel->receiveSequenceNumber = seqHeader.sequenceNumber;
+
+    /* Decode the response */
     UA_OpenSecureChannelResponse response;
     retval = UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
+
+    /* Free the message */
     if(!realloced)
         c->releaseRecvBuffer(c, &reply);
     else
         UA_ByteString_deleteMembers(&reply);
-
-    /* save the sequence number from server */
-    client->channel->receiveSequenceNumber = seqHeader.sequenceNumber;
-
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -717,6 +732,13 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
+    if(messageType != UA_MESSAGETYPE_MSG) {
+        UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Server replied with the wrong message type");
+        retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        goto finish;
+    }
+
     /* Check that the request id matches */
     /* Todo: we need to demux async responses since a publish responses may come
        at any time */
@@ -803,32 +825,40 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
         else
             respHeader->serviceResult = retval;
         client->state = UA_CLIENTSTATE_ERRORED;
-        goto finish;
+        UA_NodeId_deleteMembers(&request->authenticationToken);
+        return;
     }
 
-    /* Requests always begin witih a RequestHeader, therefore we can cast. */
+    /* Prepare the response and the structure we give into processServiceResponse */
     UA_init(response, responseType);
     struct ResponseDescription rd = (struct ResponseDescription){
         client, false, requestId, response, responseType};
 
     /* Retrieve the response */
-    UA_ByteString reply;
-    UA_ByteString_init(&reply);
-    UA_Boolean realloced = false;
+    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (client->config.timeout * UA_MSEC_TO_DATETIME);
     do {
-        retval = client->connection->recv(client->connection, &reply, client->config.timeout);
-        retval |= UA_Connection_completeMessages(client->connection, &reply, &realloced);
+        /* Retrieve complete chunks */
+        UA_ByteString reply = UA_BYTESTRING_NULL;
+        UA_Boolean realloced = false;
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        if(now < maxDate) {
+            UA_UInt32 timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
+            retval = Connection_receiveChunk(client->connection, &reply, &realloced, timeout);
+        } else {
+            retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        }
         if(retval != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = retval;
-            client->state = UA_CLIENTSTATE_ERRORED;
-            goto finish;
-        }
-        if(!reply.data)
             break;
+        }
+        /* ProcessChunks and call processServiceResponse for complete messages */
         UA_SecureChannel_processChunks(client->channel, &reply,
                      (UA_ProcessMessageCallback*)processServiceResponse, &rd);
+        /* Free the received buffer */
+        if(!realloced)
+            client->connection->releaseRecvBuffer(client->connection, &reply);
+        else
+            UA_ByteString_deleteMembers(&reply);
     } while(!rd.processed);
-
- finish:
     UA_NodeId_deleteMembers(&request->authenticationToken);
 }
