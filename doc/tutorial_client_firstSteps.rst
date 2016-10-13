@@ -8,7 +8,7 @@ creating a server. Copy the following into a file `myClient.c`:
 .. literalinclude:: client_firstSteps.c
    :language: c
    :linenos:
-   :lines: 4,5,12,14-
+   :lines: 4,5,14,17-
 
 Compilation is similar to the server example.
 
