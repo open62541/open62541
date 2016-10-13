@@ -125,8 +125,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
 # ifdef __APPLE__
         struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
 # else
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000),
-                                (long int)(timeout_usec % 1000000)};
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
 # endif
         int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO,
                              (const char *)&tmptv, sizeof(struct timeval));
@@ -143,23 +142,16 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     }
 
 #ifdef __CYGWIN__
-    /* WORKAROUND for https://cygwin.com/ml/cygwin/2013-07/msg00107.html */
+    /* Workaround for https://cygwin.com/ml/cygwin/2013-07/msg00107.html */
     ssize_t ret;
-
-    if (timeout > 0) {
+    if(timeout > 0) {
         fd_set fdset;
-        UA_UInt32 timeout_usec = timeout * 1000;
-    #ifdef __APPLE__
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
-    #else
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000),
-                                (long int)(timeout_usec % 1000000)};
-    #endif
-        UA_Int32 retval;
-
         FD_ZERO(&fdset);
         UA_fd_set(connection->sockfd, &fdset);
-        retval = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
+        UA_UInt32 timeout_usec = timeout * 1000;
+        struct timeval tmptv = {(long int)(timeout_usec / 1000000),
+                                (long int)(timeout_usec % 1000000)};
+        int retval = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
         if(retval && UA_fd_isset(connection->sockfd, &fdset)) {
             ret = recv(connection->sockfd, (char*)response->data,
                        connection->localConf.recvBufferSize, 0);
@@ -183,14 +175,12 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     } else if(ret < 0) {
         UA_ByteString_deleteMembers(response);
 #ifdef _WIN32
-        const int last_error = WSAGetLastError();
-        #define TEST_RETRY (last_error == WSAEINTR || (timeout > 0) ? \
-                            0 : (last_error == WSAEWOULDBLOCK))
-#else
-        #define TEST_RETRY (errno == EINTR || (timeout > 0) ? \
-                            0 : (errno == EAGAIN || errno == EWOULDBLOCK))
+        const int errno = WSAGetLastError();
+        #define EINTR WSAEINTR
+        #define EWOULDBLOCK WSAEWOULDBLOCK
 #endif
-        if (TEST_RETRY)
+        if(errno == EINTR || (timeout > 0) ?
+           false : (errno == EAGAIN || errno == EWOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* retry */
         else {
             socket_close(connection);
@@ -345,10 +335,11 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
                        "Connection %i | New connection over TCP, "
                        "getpeername failed with errno %i", newsockfd, errno);
     }
-    UA_Connection_init(c);
+    memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
     c->localConf = layer->conf;
+    c->remoteConf = layer->conf;
     c->send = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
     c->getSendBuffer = ServerNetworkLayerGetSendBuffer;
@@ -622,9 +613,10 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
 #endif
 
     UA_Connection connection;
-    UA_Connection_init(&connection);
+    memset(&connection, 0, sizeof(UA_Connection));
+    connection.state = UA_CONNECTION_OPENING;
     connection.localConf = localConf;
-
+    connection.remoteConf = localConf;
     connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;
@@ -658,11 +650,11 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_family = AF_INET;
     char portStr[6];
-    #ifndef _MSC_VER
+#ifndef _MSC_VER
     snprintf(portStr, 6, "%d", port);
-    #else
+#else
     _snprintf_s(portStr, 6, _TRUNCATE, "%d", port);
-    #endif
+#endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
@@ -684,7 +676,6 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
     }
 
     /* Connect to the server */
-    connection.state = UA_CONNECTION_OPENING;
     connection.sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
     error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
     freeaddrinfo(server);

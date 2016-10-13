@@ -5,22 +5,6 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securechannel.h"
 
-void UA_Connection_init(UA_Connection *connection) {
-    connection->state = UA_CONNECTION_CLOSED;
-    connection->localConf = UA_ConnectionConfig_standard;
-    connection->remoteConf = UA_ConnectionConfig_standard;
-    connection->channel = NULL;
-    connection->sockfd = 0;
-    connection->handle = NULL;
-    UA_ByteString_init(&connection->incompleteMessage);
-    connection->send = NULL;
-    connection->recv = NULL;
-    connection->close = NULL;
-    connection->getSendBuffer = NULL;
-    connection->releaseSendBuffer = NULL;
-    connection->releaseRecvBuffer = NULL;
-}
-
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
@@ -149,7 +133,9 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 #endif
 }
 
-void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
+void
+UA_Connection_attachSecureChannel(UA_Connection *connection,
+                                  UA_SecureChannel *channel) {
 #ifdef UA_ENABLE_MULTITHREADING
     if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
         uatomic_set((void**)&connection->channel, (void*)channel);
@@ -281,7 +267,6 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
         *path = pathTmp;
     return UA_STATUSCODE_GOOD;
 }
-
 
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     if (!buf)
