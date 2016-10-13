@@ -20,10 +20,14 @@ UA_NodestoreSwitch_new(){
 void
 UA_NodestoreSwitch_delete(){
     UA_UInt16 size = nodestoreSwitch->nodestoreInterfacesSize;
-    for(UA_UInt16 i = 0; i < size; i++) {
-        nodestoreSwitch->nodestoreInterfaces[i]->deleteNodeStore(nodestoreSwitch->nodestoreInterfaces[i]);
+    if(*nodestoreSwitch->nodestoreInterfaces != NULL){
+        for(UA_UInt16 i = 0; i < size; i++) {
+            nodestoreSwitch->nodestoreInterfaces[i]->deleteNodeStore(
+            nodestoreSwitch->nodestoreInterfaces[i]->handle);
+            //UA_free(nodestoreSwitch->nodestoreInterfaces[i]);
+        }
+        UA_free(nodestoreSwitch->nodestoreInterfaces);
     }
-    UA_free(nodestoreSwitch->nodestoreInterfaces);
     UA_free(nodestoreSwitch);
 }
 
