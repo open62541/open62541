@@ -20,7 +20,6 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
-#include <stdint.h>
 #include <stdbool.h>
 
 /**

@@ -67,18 +67,10 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
     if(!se)
         return;
     se->session = session;
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_cmpxchg(&session->channel, NULL, channel) != NULL) {
+    if(UA_atomic_cmpxchg((void**)&session->channel, NULL, channel) != NULL) {
         UA_free(se);
         return;
     }
-#else
-    if(session->channel != NULL) {
-        UA_free(se);
-        return;
-    }
-    session->channel = channel;
-#endif
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
 
@@ -171,11 +163,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     symSecHeader.tokenId = channel->securityToken.tokenId;
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
-#endif
+    seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
     size_t offset_header = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, dst, &offset_header);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, dst, &offset_header);

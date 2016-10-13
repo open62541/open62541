@@ -20,13 +20,6 @@
 extern "C" {
 #endif
 
-#ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 500
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
 #cmakedefine UA_ENABLE_MULTITHREADING
@@ -41,6 +34,18 @@ extern "C" {
 
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
+
+/**
+ * Standard Includes
+ * ----------------- */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 500
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+#include <stddef.h>
+#include <stdint.h>
 
 /**
  * Function Export
@@ -106,6 +111,94 @@ extern "C" {
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif
+
+/**
+ * Memory Management
+ * -----------------
+ * Replace the macros for custom memory allocators if necessary */
+#include <stdlib.h>
+#ifdef _WIN32
+# include <malloc.h>
+#endif
+
+#define UA_free(ptr) free(ptr)
+#define UA_malloc(size) malloc(size)
+#define UA_calloc(num, size) calloc(num, size)
+#define UA_realloc(ptr, size) realloc(ptr, size)
+
+#ifndef NO_ALLOCA
+# if defined(__GNUC__) || defined(__clang__)
+#  define UA_alloca(size) __builtin_alloca (size)
+# elif defined(_WIN32)
+#  define UA_alloca(SIZE) _alloca(SIZE)
+# else
+#  include <alloca.h>
+#  define UA_alloca(SIZE) alloca(SIZE)
+# endif
+#endif
+
+/**
+ * Atomic Operations
+ * -----------------
+ * Atomic operations that synchronize across processor cores (for
+ * multithreading). Only the inline-functions defined next are used. Replace
+ * with architecture-specific operations if necessary. */
+
+#ifndef UA_ENABLE_MULTITHREADING
+# define UA_atomic_sync()
+#else
+# ifdef _MSC_VER /* Visual Studio */
+#  define UA_atomic_sync() _ReadWriteBarrier()
+# else /* GCC/Clang */
+#  define UA_atomic_sync() __sync_synchronize()
+# endif
+#endif
+
+static UA_INLINE void *
+UA_atomic_xchg(void * volatile * addr, void *new) {
+#ifndef UA_ENABLE_MULTITHREADING
+    void *old = *addr;
+    *addr = new;
+    return old;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedExchangePointer(addr, new);
+# else /* GCC/Clang */
+    return __sync_lock_test_and_set(addr, new);
+# endif
+#endif
+}
+
+static UA_INLINE void *
+UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *new) {
+#ifndef UA_ENABLE_MULTITHREADING
+    void *old = *addr;
+    if(old == expected) {
+        *addr = new;
+    }
+    return old;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedCompareExchangePointer(addr, expected, new);
+# else /* GCC/Clang */
+    return __sync_val_compare_and_swap(addr, expected, new);
+# endif
+#endif
+}
+
+static UA_INLINE uint32_t
+UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
+#ifndef UA_ENABLE_MULTITHREADING
+    *addr += increase;
+    return *addr;
+#else
+# ifdef _MSC_VER /* Visual Studio */
+    return _InterlockedExchangeAdd(addr, increase) + increase;
+# else /* GCC/Clang */
+    return __sync_add_and_fetch(addr, increase);
+# endif
+#endif
+}
 
 /**
  * Binary Encoding Overlays
@@ -179,7 +272,6 @@ extern "C" {
 /**
  * Embed unavailable libc functions
  * -------------------------------- */
-#include <stddef.h>
 #ifdef UA_ENABLE_EMBEDDED_LIBC
   void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
   void *memset(void *dest, int c, size_t n);

@@ -113,43 +113,21 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return retval;
 }
 
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wextra"
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wunused-value"
-#endif
-
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
-#ifdef UA_ENABLE_MULTITHREADING
     UA_SecureChannel *channel = connection->channel;
     if(channel)
-        uatomic_cmpxchg(&channel->connection, connection, NULL);
-    uatomic_set(&connection->channel, NULL);
-#else
-    if(connection->channel)
-        connection->channel->connection = NULL;
-    connection->channel = NULL;
-#endif
+        /* only replace when the channel points to this connection */
+        UA_atomic_cmpxchg((void**)&channel->connection, connection, NULL);
+    UA_atomic_xchg((void**)&connection->channel, NULL);
 }
 
+// TODO: Return an error code
 void
 UA_Connection_attachSecureChannel(UA_Connection *connection,
                                   UA_SecureChannel *channel) {
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
-        uatomic_set((void**)&connection->channel, (void*)channel);
-#else
-    if(channel->connection != NULL)
-        return;
-    channel->connection = connection;
-    connection->channel = channel;
-#endif
+    if(UA_atomic_cmpxchg((void**)&channel->connection, NULL, connection) == NULL)
+        UA_atomic_xchg((void**)&connection->channel, (void*)channel);
 }
-
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
-#pragma GCC diagnostic pop
-#endif
 
 UA_StatusCode
 UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,

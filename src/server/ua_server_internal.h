@@ -12,6 +12,36 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
+/* liburcu includes */
+#ifdef UA_ENABLE_MULTITHREADING
+# define _LGPL_SOURCE
+# include <urcu.h>
+# include <urcu/lfstack.h>
+# ifdef NDEBUG
+#  define UA_RCU_LOCK() rcu_read_lock()
+#  define UA_RCU_UNLOCK() rcu_read_unlock()
+#  define UA_ASSERT_RCU_LOCKED()
+#  define UA_ASSERT_RCU_UNLOCKED()
+# else
+   extern UA_THREAD_LOCAL bool rcu_locked;
+#   define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
+#   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
+#   define UA_RCU_LOCK() do {                     \
+        UA_ASSERT_RCU_UNLOCKED();                 \
+        rcu_locked = true;                        \
+        rcu_read_lock(); } while(0)
+#   define UA_RCU_UNLOCK() do {                   \
+        UA_ASSERT_RCU_LOCKED();                   \
+        rcu_locked = false;                       \
+        rcu_read_lock(); } while(0)
+# endif
+#else
+# define UA_RCU_LOCK()
+# define UA_RCU_UNLOCK()
+# define UA_ASSERT_RCU_LOCKED()
+# define UA_ASSERT_RCU_UNLOCKED()
+#endif
+
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
 /** Mapping of namespace-id and url to an external nodestore. For namespaces
     that have no mapping defined, the internal nodestore is used by default. */

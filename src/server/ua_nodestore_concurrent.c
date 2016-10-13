@@ -3,6 +3,7 @@
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
+#include <urcu/rculfhash.h>
 
 struct nodeEntry {
     struct cds_lfht_node htn; ///< Contains the next-ptr for urcu-hashmap

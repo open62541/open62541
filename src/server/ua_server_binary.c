@@ -307,11 +307,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
 
     /* Encode the message after the secureconversationmessageheader */
     size_t tmpPos = 12; /* skip the header */
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
-#endif
+    seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
     retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos);
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
