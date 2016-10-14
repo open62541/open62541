@@ -128,7 +128,9 @@ extern "C" {
  * Replace the macros for custom memory allocators if necessary */
 #include <stdlib.h>
 #ifdef _WIN32
-# include <malloc.h>
+# ifndef __clang__
+#  include <malloc.h>
+# endif
 #endif
 
 #define UA_free(ptr) free(ptr)
