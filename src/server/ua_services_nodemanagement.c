@@ -8,7 +8,7 @@
 static void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
-                        UA_InstantiationCallback *instantiationCallback);
+                        UA_InstantiationCallback *instantiationCallback, UA_Boolean instantiate);
 
 static UA_StatusCode
 copyChildNodesToNode(UA_Server *server, UA_Session *session, 
@@ -67,7 +67,7 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     /* add the new variable */
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
-    Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
+    Service_AddNodes_single(server, session, &item, &res, instantiationCallback,true);
     
     /* Copy any aggregated/nested variables/methods/subobjects this object contains 
      * These objects may not be part of the nodes type. */
@@ -120,7 +120,7 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *obje
     /* add the new object */
     UA_AddNodesResult res;
     UA_AddNodesResult_init(&res);
-    Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
+    Service_AddNodes_single(server, session, &item, &res, instantiationCallback,true);
     
     /* Copy any aggregated/nested variables/methods/subobjects this object contains 
      * These objects may not be part of the nodes type. */
@@ -393,7 +393,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                           const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
                           const UA_NodeId *typeDefinition,
                           UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *addedNodeId) {
+                          UA_NodeId *addedNodeId,
+                          UA_Boolean instantiate) {
     /* Check the namespaceindex */
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Namespace invalid");
@@ -446,6 +447,9 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         goto remove_node;
     }
 
+    if(!instantiate)
+        return UA_STATUSCODE_GOOD;
+
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
         /* Fall back to a default typedefinition for variables and objects */
@@ -457,7 +461,6 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
             else
                 typeDefinition = &baseobjecttype;
         }
-
         /* Instantiate variables and objects */
         retval = instantiateNode(server, session, &node->nodeId, node->nodeClass,
                                  typeDefinition, instantiationCallback);
@@ -611,7 +614,7 @@ dataTypeNodeFromAttributes(UA_DataTypeNode *dtnode,
 static void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
-                        UA_InstantiationCallback *instantiationCallback) {
+                        UA_InstantiationCallback *instantiationCallback, UA_Boolean instantiate) {
     if(item->nodeAttributes.encoding < UA_EXTENSIONOBJECT_DECODED ||
        !item->nodeAttributes.content.decoded.type) {
         result->statusCode = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
@@ -668,7 +671,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
     if(result->statusCode == UA_STATUSCODE_GOOD) {
         result->statusCode = Service_AddNodes_existing(server, session, node, &item->parentNodeId.nodeId,
                                                        &item->referenceTypeId, &item->typeDefinition.nodeId,
-                                                       instantiationCallback, &result->addedNodeId);
+                                                       instantiationCallback, &result->addedNodeId,instantiate);
     } else {
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Could not "
                              "prepare the new node with status code 0x%08x", result->statusCode);
@@ -726,7 +729,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
         if(!isExternal[i])
 #endif
             Service_AddNodes_single(server, session, &request->nodesToAdd[i],
-                                    &response->results[i], NULL);
+                                    &response->results[i], NULL,true);
     }
 }
 
@@ -736,7 +739,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
                     const UA_DataType *attributeType,
-                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId) {
+                    UA_InstantiationCallback *instantiationCallback, UA_NodeId *outNewNodeId, UA_Boolean instantiate) {
     /* prepare the item */
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
@@ -754,7 +757,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
-    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback);
+    Service_AddNodes_single(server, &adminSession, &item, &result, instantiationCallback,instantiate);
     UA_RCU_UNLOCK();
 
     /* prepare the output */
@@ -820,7 +823,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     UA_AddNodesResult_init(&result);
     UA_RCU_LOCK();
     retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
-                                       &referenceTypeId, &typeDefinition, NULL, outNewNodeId);
+                                       &referenceTypeId, &typeDefinition, NULL, outNewNodeId,false);
     UA_RCU_UNLOCK();
     return retval;
 }
@@ -854,7 +857,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     UA_NodeId_init(&newMethodId);
     UA_RCU_LOCK();
     UA_StatusCode retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
-                                                     &referenceTypeId, &UA_NODEID_NULL, NULL, &newMethodId);
+                                                     &referenceTypeId, &UA_NODEID_NULL, NULL, &newMethodId,false);
     UA_RCU_UNLOCK();
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -889,7 +892,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL,false);
         UA_RCU_UNLOCK();
     }
 
@@ -915,7 +918,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL,false);
         UA_RCU_UNLOCK();
     }
 
