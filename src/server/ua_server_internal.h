@@ -139,7 +139,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                           const UA_NodeId *referenceTypeId,
                           const UA_NodeId *typeDefinition,
                           UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *addedNodeId);
+                          UA_NodeId *addedNodeId,
+                          UA_Boolean instantiate);
 
 /*********************/
 /* Utility Functions */
