@@ -30,7 +30,7 @@
 #endif
 
 #ifndef NO_ALLOCA
-# ifdef __GNUC__
+# if defined(__GNUC__) || defined(__clang__)
 #  define UA_alloca(size) __builtin_alloca (size)
 # elif defined(_WIN32)
 #  define UA_alloca(SIZE) _alloca(SIZE)
