@@ -28,7 +28,7 @@ add_executable(server server.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server ${LIBS})
 
 if(UA_ENABLE_NONSTANDARD_UDP)
-  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/networklayer_udp.c)
+  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.c)
   target_link_libraries(server_udp ${LIBS})
 endif()
 

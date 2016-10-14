@@ -29,8 +29,8 @@ int main(void) {
     const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, NS0_CURRENT_TIME);
 
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
-    if(retval == UA_STATUSCODE_GOOD && UA_Variant_isScalar(&value) &&
-       value.type == &UA_TYPES[UA_TYPES_DATETIME]) {
+    if(retval == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime*)value.data;
         UA_String string_date = UA_DateTime_toString(raw_date);
         printf("string date is: %.*s\n", (int)string_date.length, string_date.data);

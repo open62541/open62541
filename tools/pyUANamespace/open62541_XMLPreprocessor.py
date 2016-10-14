@@ -22,6 +22,7 @@ import xml.dom.minidom as dom
 import os
 import string
 from collections import Counter
+import re
 
 from ua_namespace import opcua_node_id_t
 
@@ -118,7 +119,7 @@ class preProcessDocument:
       if "xmlns:" in key:  # Any key: we will be removing these qualifiers from Values later
         self.namespaceQualifiers.append(key.replace("xmlns:",""))
       if "xmlns:s" in key: # get a numeric nsId and modelname/uri
-        self.namespaceOrder.append((int(key.replace("xmlns:s","")), ns[0].getAttribute(key)))
+        self.namespaceOrder.append((int(key.replace("xmlns:s","")), re.sub("[A-Za-z0-9-_\.]+\.[xXsSdD]{3}$","",ns[0].getAttribute(key))))
 
     # Get all nodeIds contained in this XML
     for nd in ns[0].childNodes:

@@ -5,8 +5,9 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
-UA_StatusCode UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
-                                          UA_UInt32 *newSubscriptionId) {
+UA_StatusCode
+UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
+                            UA_UInt32 *newSubscriptionId) {
     UA_CreateSubscriptionRequest request;
     UA_CreateSubscriptionRequest_init(&request);
     request.requestedPublishingInterval = settings.requestedPublishingInterval;
@@ -45,7 +46,8 @@ UA_StatusCode UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSett
 }
 
 /* remove the subscription remotely */
-UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
+UA_StatusCode
+UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->SubscriptionID == subscriptionId)
@@ -57,8 +59,9 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Client_MonitoredItem *mon, *tmpmon;
     LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, tmpmon) {
-        retval = UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
-                                                             mon->MonitoredItemId);
+        retval =
+            UA_Client_Subscriptions_removeMonitoredItem(client, sub->SubscriptionID,
+                                                        mon->MonitoredItemId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -85,7 +88,9 @@ UA_StatusCode UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscr
     return UA_STATUSCODE_GOOD;
 }
 
-void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub) {
+void
+UA_Client_Subscriptions_forceDelete(UA_Client *client,
+                                    UA_Client_Subscription *sub) {
     UA_Client_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &sub->MonitoredItems, listEntry, mon_tmp) {
         UA_NodeId_deleteMembers(&mon->monitoredNodeId);
@@ -190,7 +195,8 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 1)
         retval = response.results[0];
     UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
-    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
+    if(retval != UA_STATUSCODE_GOOD &&
+       retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not remove monitoreditem %u with statuscode 0x%08x",
                     monitoredItemId, retval);
@@ -204,7 +210,8 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
 }
 
 static void
-UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request, UA_PublishResponse *response) {
+UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
+                                 UA_PublishResponse *response) {
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
@@ -276,7 +283,8 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request, 
     LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
 }
 
-UA_StatusCode UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
+UA_StatusCode
+UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     if (client->state == UA_CLIENTSTATE_ERRORED)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 

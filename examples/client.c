@@ -16,22 +16,21 @@
 
 #include <stdio.h>
 
-static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+static void
+handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
-    return;
 }
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
-  UA_NodeId *parent = (UA_NodeId *) handle;
-
-  if(!isInverse) {
+    if(isInverse)
+        return UA_STATUSCODE_GOOD;
+    UA_NodeId *parent = (UA_NodeId *)handle;
     printf("%d, %d --- %d ---> NodeId %d, %d\n",
            parent->namespaceIndex, parent->identifier.numeric,
            referenceTypeId.identifier.numeric, childId.namespaceIndex,
            childId.identifier.numeric);
-  }
-  return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char *argv[]) {
@@ -212,7 +211,7 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_addObjectTypeNode(client,
                                          UA_NODEID_NUMERIC(1, 12134),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                          UA_QUALIFIEDNAME(1, "NewObjectType"),
                                          objt_attr, &objt_id);
     if(retval == UA_STATUSCODE_GOOD)

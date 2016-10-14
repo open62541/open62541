@@ -572,6 +572,7 @@ class opcua_namespace():
       nmatrix[nind][0] = node
 
     # Determine the dependencies of all nodes
+    logger.debug("Determining node interdependencies.")
     for node in self.nodes:
       nind = self.nodes.index(node)
       #print "Examining node " + str(nind) + " " + str(node)
@@ -580,13 +581,13 @@ class opcua_namespace():
           tind = self.nodes.index(ref.target())
           # Typedefinition of this node has precedence over this node
           if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 1
+            nmatrix[nind][tind+1] += 200 # Very big weight for typedefs
           # isSubTypeOf/typeDefinition of this node has precedence over this node
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 1
+            nmatrix[nind][tind+1] += 100 # Big weight for subtypes
           # Else the target depends on us
           elif ref.isForward():
-            nmatrix[tind][nind+1] += 1
+            nmatrix[tind][nind+1] += 1 # regular weight for dependencies
 
     logger.debug("Using Djikstra topological sorting to determine printing order.")
     reorder = []
@@ -598,9 +599,9 @@ class opcua_namespace():
         if isinstance(ref.target(), opcua_node_t):
           tind = self.nodes.index(ref.target())
           if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 1
+            nmatrix[nind][tind+1] -= 200
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 1
+            nmatrix[nind][tind+1] -= 100
           elif ref.isForward():
             nmatrix[tind][nind+1] -= 1
       nmatrix[nind][0] = None
@@ -642,24 +643,40 @@ class opcua_namespace():
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append('#include "server/ua_server_internal.h"')
-    header.append('#include "server/ua_nodes.h"')
-    header.append('#include "ua_util.h"')
-    header.append('#include "ua_types.h"')
-    header.append('#include "ua_types_encoding_binary.h"')
-    header.append('#include "ua_types_generated_encoding_binary.h"')
-    header.append('#include "ua_transport_generated_encoding_binary.h"')
+    header.append(  '#include "server/ua_server_internal.h"')
+    header.append(  '#include "server/ua_nodes.h"')
+    header.append('  #include "ua_util.h"')
+    header.append('  #include "ua_types.h"')
+    header.append('  #include "ua_types_encoding_binary.h"')
+    header.append('  #include "ua_types_generated_encoding_binary.h"')
+    header.append('  #include "ua_transport_generated_encoding_binary.h"')
     header.append('#else')
-    header.append('#include "open62541.h"')
-    header.append('#define NULL ((void *)0)')
+    header.append('  #include "open62541.h"')
     header.append('#endif')
+    header.append('')
+    header.append('/* Definition that (in userspace models) may be ')
+    header.append(' * - not included in the amalgamated header or')
+    header.append(' * - not part of public headers or')
+    header.append(' * - not exported in the shared object in combination with any of the above')
+    header.append(' * but are required for value encoding.')
+    header.append(' * NOTE: Userspace UA_(decode|encode)Binary /wo amalgamations requires UA_EXPORT to be appended to the appropriate definitions. */')
     header.append('#ifndef UA_ENCODINGOFFSET_BINARY')
-    header.append('#define UA_ENCODINGOFFSET_BINARY 2')
+    header.append('#  define UA_ENCODINGOFFSET_BINARY 2')
     header.append('#endif')
-
+    header.append('#ifndef NULL')
+    header.append('  #define NULL ((void *)0)')
+    header.append('#endif')
+    header.append('#ifndef UA_malloc')
+    header.append('  #define UA_malloc(_p_size) malloc(_p_size)')
+    header.append('#endif')
+    header.append('#ifndef UA_free')
+    header.append('  #define UA_free(_p_ptr) free(_p_ptr)')
+    header.append('#endif')
+    
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
-
+    code.append('UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
+    
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in self.namespaceIdentifiers:
       if nsid == 0 or nsid==1:

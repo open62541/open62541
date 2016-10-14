@@ -1,3 +1,7 @@
+License change LGPL (Static Linking Exception) -> MPLv2
+=========
+We are planning to change the license of open62541 project. It should be licensed under the [Mozilla Public license v2](https://www.mozilla.org/en-US/MPL/2.0/) instead of our old LGPL with static linking exception. The MPLv2 license offers a broader vantage than the LGPL, as it is a standard license, thus legally easier to accept and more compatible with the juristic matters. Our intentions of changing our licensing is to expand and have a wider acceptance especially from corporates. For questions please refer to issue #846.
+
 open62541
 =========
 
@@ -123,8 +127,8 @@ int main(int argc, char *argv[])
     UA_Variant value; /* Variants can hold scalar values and arrays of any type */
     UA_Variant_init(&value);
     status = UA_Client_readValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), &value);
-    if(status == UA_STATUSCODE_GOOD && UA_Variant_isScalar(&value) &&
-       value.type == &UA_TYPES[UA_TYPES_INT32]) {
+    if(status == UA_STATUSCODE_GOOD &&
+       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT32])) {
         printf("the value is: %i\n", *(UA_Int32*)value.data);
     }
 

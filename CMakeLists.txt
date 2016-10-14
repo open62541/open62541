@@ -265,15 +265,14 @@ if(UA_ENABLE_GENERATE_NAMESPACE0)
   list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
+if(UA_ENABLE_NONSTANDARD_UDP)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+endif()
+
 if (UA_ENABLE_DISCOVERY_MULTICAST)
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers})
     set(lib_sources ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
-endif()
-
-
-if(UA_ENABLE_EXTERNAL_NAMESPACES)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
 endif()
 
 #########################

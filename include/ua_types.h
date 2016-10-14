@@ -503,14 +503,44 @@ typedef struct {
     UA_UInt32 *arrayDimensions;   /* The length of each dimension */
 } UA_Variant;
 
+/* Returns true if the variant has no value defined (contains neither an array
+ * nor a scalar value).
+ *
+ * @param v The variant
+ * @return Is the variant empty */
+static UA_INLINE UA_Boolean
+UA_Variant_isEmpty(const UA_Variant *v) {
+    return v->type == NULL;
+}
+
 /* Returns true if the variant contains a scalar value. Note that empty variants
  * contain an array of length -1 (undefined).
  *
  * @param v The variant
- * @return Does the variant contain a scalar value. */
+ * @return Does the variant contain a scalar value */
 static UA_INLINE UA_Boolean
 UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
+}
+
+/* Returns true if the variant contains a scalar value of the given type.
+ *
+ * @param v The variant
+ * @param type The data type
+ * @return Does the variant contain a scalar value of the given type */
+static UA_INLINE UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
+    return UA_Variant_isScalar(v) && type == v->type;
+}
+
+/* Returns true if the variant contains an array of the given type.
+ *
+ * @param v The variant
+ * @param type The data type
+ * @return Does the variant contain an array of the given type */
+static UA_INLINE UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
+    return (!UA_Variant_isScalar(v)) && type == v->type;
 }
 
 /* Set the variant to a scalar value that already resides in memory. The value
