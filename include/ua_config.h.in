@@ -128,7 +128,9 @@ extern "C" {
  * Replace the macros for custom memory allocators if necessary */
 #include <stdlib.h>
 #ifdef _WIN32
-# include <malloc.h>
+# ifndef __clang__
+#  include <malloc.h>
+# endif
 #endif
 
 #define UA_free(ptr) free(ptr)
@@ -165,33 +167,33 @@ extern "C" {
 #endif
 
 static UA_INLINE void *
-UA_atomic_xchg(void * volatile * addr, void *new) {
+UA_atomic_xchg(void * volatile * addr, void *newptr) {
 #ifndef UA_ENABLE_MULTITHREADING
     void *old = *addr;
-    *addr = new;
+    *addr = newptr;
     return old;
 #else
 # ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedExchangePointer(addr, new);
+    return _InterlockedExchangePointer(addr, newptr);
 # else /* GCC/Clang */
-    return __sync_lock_test_and_set(addr, new);
+    return __sync_lock_test_and_set(addr, newptr);
 # endif
 #endif
 }
 
 static UA_INLINE void *
-UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *new) {
+UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
 #ifndef UA_ENABLE_MULTITHREADING
     void *old = *addr;
     if(old == expected) {
-        *addr = new;
+        *addr = newptr;
     }
     return old;
 #else
 # ifdef _MSC_VER /* Visual Studio */
-    return _InterlockedCompareExchangePointer(addr, expected, new);
+    return _InterlockedCompareExchangePointer(addr, expected, newptr);
 # else /* GCC/Clang */
-    return __sync_val_compare_and_swap(addr, expected, new);
+    return __sync_val_compare_and_swap(addr, expected, newptr);
 # endif
 #endif
 }
