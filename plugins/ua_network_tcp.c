@@ -70,6 +70,18 @@
 # include <urcu/uatomic.h>
 #endif
 
+#ifdef _WIN32
+#define errno__ WSAGetLastError()
+# define INTERRUPTED WSAEINTR
+# define WOULDBLOCK WSAEWOULDBLOCK
+# define AGAIN WSAEWOULDBLOCK
+#else
+# define errno__ errno
+# define INTERRUPTED EINTR
+# define WOULDBLOCK EWOULDBLOCK
+# define AGAIN EAGAIN
+#endif
+
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -92,18 +104,13 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
             size_t bytes_to_send = buf->length - nWritten;
             n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten,
                      WIN32_INT bytes_to_send, 0);
-#ifdef _WIN32
-            if(n < 0 && WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK)
-#else
-            if(n == -1L && errno != EINTR && errno != EAGAIN)
-#endif
-            {
+            if(n < 0 && errno__ != INTERRUPTED && errno__ != AGAIN) {
                 connection->close(connection);
                 socket_close(connection);
                 UA_ByteString_deleteMembers(buf);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
-        } while(n == -1L);
+        } while(n < 0);
         nWritten += (size_t)n;
     } while(nWritten < buf->length);
     UA_ByteString_deleteMembers(buf);
@@ -174,17 +181,8 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     } else if(ret < 0) {
         UA_ByteString_deleteMembers(response);
-#ifdef _WIN32
-        const int error = WSAGetLastError();
-# define INTERRUPTED WSAEINTR
-# define WOULDBLOCK WSAEWOULDBLOCK
-#else
-# define error errno
-# define INTERRUPTED EINTR
-# define WOULDBLOCK EWOULDBLOCK
-#endif
-        if(error == INTERRUPTED || (timeout > 0) ?
-           false : (error == EAGAIN || error == WOULDBLOCK))
+        if(errno__ == INTERRUPTED || (timeout > 0) ?
+           false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
         else {
             socket_close(connection);
