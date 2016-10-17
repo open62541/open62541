@@ -175,13 +175,17 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     } else if(ret < 0) {
         UA_ByteString_deleteMembers(response);
 #ifdef _WIN32
-        const int errno = WSAGetLastError();
-        #define EINTR WSAEINTR
-        #define EWOULDBLOCK WSAEWOULDBLOCK
+        const int error = WSAGetLastError();
+# define INTERRUPTED WSAEINTR
+# define WOULDBLOCK WSAEWOULDBLOCK
+#else
+# define error errno
+# define INTERRUPTED EINTR
+# define WOULDBLOCK EWOULDBLOCK
 #endif
-        if(errno == EINTR || (timeout > 0) ?
-           false : (errno == EAGAIN || errno == EWOULDBLOCK))
-            return UA_STATUSCODE_GOOD; /* retry */
+        if(error == INTERRUPTED || (timeout > 0) ?
+           false : (error == EAGAIN || error == WOULDBLOCK))
+            return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
         else {
             socket_close(connection);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
