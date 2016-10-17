@@ -665,7 +665,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
-    if(client->state != UA_CLIENTSTATE_CONNECTED)
+    if(client->state == UA_CLIENTSTATE_READY)
         return UA_STATUSCODE_BADNOTCONNECTED;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Is a session established? */
