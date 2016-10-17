@@ -97,6 +97,8 @@ struct UA_Server {
 /* Node Handling */
 /*****************/
 
+UA_NodestoreInterface *nodestore_std;
+
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 

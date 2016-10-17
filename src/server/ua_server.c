@@ -243,6 +243,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_RCU_LOCK();
     UA_NodestoreSwitch_delete();
     UA_RCU_UNLOCK();
+    UA_free(nodestore_std->handle);
+    UA_free(nodestore_std);
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
 #endif
@@ -491,18 +493,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     server->namespacesSize = 0;
     //Handle default nodeStoreInterfaces
-    UA_NodestoreInterface *nodestore0 = config.nodestore0;
-    UA_NodestoreInterface *nodestore1 = config.nodestore1;
-    if (nodestore0 == NULL || config.nodestore1 == NULL) {
-        UA_NodestoreInterface* nodestore_std = UA_malloc(sizeof(UA_NodestoreInterface));
-        *nodestore_std = UA_Nodestore_standard();
-        if (nodestore0 == NULL) {
-            nodestore0 = nodestore_std;
-        }
-        if (nodestore1 == NULL) {
-            nodestore1 = nodestore_std;
-        }
-    }
+    nodestore_std = UA_malloc(sizeof(UA_NodestoreInterface));
+    *nodestore_std = UA_Nodestore_standard();
+
     //Hacky way of converting UA_String to Char*
     //--> Maybe easier to overload addNamespace with UA_String parameter
     UA_Byte* applicationUriStr = UA_malloc(
@@ -511,8 +504,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             config.applicationDescription.applicationUri.length);
     applicationUriStr[config.applicationDescription.applicationUri.length] ='\0';
     //Add NS0 and NS1
-    UA_Server_addNamespace_Nodestore(server, "http://opcfoundation.org/UA/", nodestore0);
-    UA_Server_addNamespace_Nodestore(server, (char *) applicationUriStr, nodestore1);
+    UA_Server_addNamespace_Nodestore(server, "http://opcfoundation.org/UA/",
+            (config.nodestore0 != NULL) ? config.nodestore0 : nodestore_std);
+    UA_Server_addNamespace_Nodestore(server, (char *) applicationUriStr,
+            (config.nodestore1 != NULL) ? config.nodestore1 : nodestore_std);
+    UA_free(applicationUriStr);
 
     /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
     server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,

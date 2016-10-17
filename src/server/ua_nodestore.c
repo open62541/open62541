@@ -195,15 +195,15 @@ UA_NodeStore_new(void) {
 
 void
 UA_NodeStore_delete(UA_NodeStore *ns) {
+    if(ns->size == 0) return; //ns already deleted
     UA_UInt32 size = ns->size;
-    if(*ns->entries == NULL) return; //ns already deleted
     UA_NodeStoreEntry **entries = ns->entries;
     for(UA_UInt32 i = 0; i < size; i++) {
         if(entries[i] > UA_NODESTORE_TOMBSTONE)
             deleteEntry(entries[i]);
     }
     UA_free(ns->entries);
-    UA_free(ns);
+    ns->size = 0;
 }
 
 UA_Node *
