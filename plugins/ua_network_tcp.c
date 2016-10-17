@@ -684,7 +684,17 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
     freeaddrinfo(server);
     if(error < 0) {
         ClientNetworkLayerClose(&connection);
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Connection failed");
+#ifdef _WIN32
+        wchar_t *s = NULL;
+        FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL, WSAGetLastError(),
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       (LPWSTR)&s, 0, NULL);
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Connection to %s failed. Error: %d: %S", endpointUrl, WSAGetLastError(), s);
+        LocalFree(s);
+#else
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK, "Connection to %s failed. Error: %d: %s", endpointUrl, errno, strerror(errno));
+#endif
         return connection;
     }
 
