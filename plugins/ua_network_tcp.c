@@ -356,7 +356,8 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     layer->mappings = nm;
-    layer->mappings[layer->mappingsSize] = (struct ConnectionMapping){c, newsockfd};
+    layer->mappings[layer->mappingsSize].connection = c;
+    layer->mappings[layer->mappingsSize].sockfd = newsockfd;
     layer->mappingsSize++;
     return UA_STATUSCODE_GOOD;
 }
