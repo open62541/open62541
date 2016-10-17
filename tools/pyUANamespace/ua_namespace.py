@@ -675,7 +675,6 @@ class opcua_namespace():
     
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE void "+outfilename+"(UA_Server *server) {")
-    code.append('UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
     
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in self.namespaceIdentifiers:
