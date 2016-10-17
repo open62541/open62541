@@ -518,7 +518,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
     const UA_VariableNode* compNode =
-        (const UA_VariableNode*)UA_NodestoreSwitch_get(&rReq.nodesToRead[0].nodeId);
+        (const UA_VariableNode*)UA_NodestoreSwitch_get(server->nodestoreSwitch, &rReq.nodesToRead[0].nodeId);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->userAccessLevel);

@@ -152,7 +152,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_Double samplingInterval = params->samplingInterval;
     if(mon->attributeID == UA_ATTRIBUTEID_VALUE) {
         const UA_VariableNode *vn = (const UA_VariableNode*)
-           UA_NodestoreSwitch_get(&mon->monitoredNodeId);
+           UA_NodestoreSwitch_get(server->nodestoreSwitch, &mon->monitoredNodeId);
         if(vn && vn->nodeClass == UA_NODECLASS_VARIABLE &&
            samplingInterval <  vn->minimumSamplingInterval)
             samplingInterval = vn->minimumSamplingInterval;

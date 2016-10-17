@@ -11,7 +11,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
         if(ofMethod->references[i].isInverse == false &&
             UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
             const UA_Node *refTarget =
-               UA_NodestoreSwitch_get(&ofMethod->references[i].targetId.nodeId);
+               UA_NodestoreSwitch_get(server->nodestoreSwitch, &ofMethod->references[i].targetId.nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
@@ -56,7 +56,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
                     UA_CallMethodResult *result) {
     /* Get/verify the method node */
     const UA_MethodNode *methodCalled =
-        (const UA_MethodNode*)UA_NodestoreSwitch_get(&request->methodId);
+        (const UA_MethodNode*)UA_NodestoreSwitch_get(server->nodestoreSwitch, &request->methodId);
     if(!methodCalled) {
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
         return;
@@ -72,7 +72,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 
     /* Get/verify the object node */
     const UA_ObjectNode *withObject =
-        (const UA_ObjectNode*)UA_NodestoreSwitch_get(&request->objectId);
+        (const UA_ObjectNode*)UA_NodestoreSwitch_get(server->nodestoreSwitch, &request->objectId);
     if(!withObject) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
         return;
@@ -92,7 +92,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < methodCalled->referencesSize; i++) {
         if(methodCalled->references[i].isInverse &&
            UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId, &withObject->nodeId)) {
-            found = isNodeInTree(&methodCalled->references[i].referenceTypeId,
+            found = isNodeInTree(server->nodestoreSwitch, &methodCalled->references[i].referenceTypeId,
                                  &hasComponentNodeId, &hasSubTypeNodeId, 1);
             if(found)
                 break;

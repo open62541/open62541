@@ -84,7 +84,6 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         cds_lfht_next(ht, &iter);
     }
     cds_lfht_destroy(ht, NULL);
-    UA_free(ns);
 }
 
 UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {

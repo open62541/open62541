@@ -66,6 +66,8 @@ struct UA_Server {
 
     size_t namespacesSize;
     UA_String *namespaces;
+    UA_NodestoreSwitch *nodestoreSwitch;
+    UA_NodestoreInterface *nodestore_std;
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     size_t externalNamespacesSize;
@@ -96,8 +98,6 @@ struct UA_Server {
 /*****************/
 /* Node Handling */
 /*****************/
-
-UA_NodestoreInterface *nodestore_std;
 
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
@@ -147,11 +147,11 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
  * hasSubType reference. Since multi-inheritance is possible, we test for
  * duplicates and return evey nodeid at most once. */
 UA_StatusCode
-getTypeHierarchy(const UA_Node *rootRef, UA_Boolean inverse,
+getTypeHierarchy(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 UA_Boolean
-isNodeInTree(const UA_NodeId *rootNode,
+isNodeInTree(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *rootNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
