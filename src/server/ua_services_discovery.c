@@ -12,7 +12,7 @@
 #  include <fcntl.h>
 #  include <errno.h>
 #  include <stdio.h>
-#  ifndef UA_ENABLE_AMALGAMATION
+#  ifdef UA_NO_AMALGAMATION
 #   include "mdnsd/libmdnsd/xht.h"
 #   include "mdnsd/libmdnsd/sdtxt.h"
 #  endif
