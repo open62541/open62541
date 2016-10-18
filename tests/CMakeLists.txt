@@ -8,7 +8,7 @@ include_directories(${CHECK_INCLUDE_DIRS})
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)
 
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES} open62541)
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 if(NOT WIN32)
   list(APPEND LIBS pthread m)
   if (NOT APPLE)
@@ -72,7 +72,7 @@ add_test_valgrind(services_nodemanagement ${CMAKE_CURRENT_BINARY_DIR}/check_serv
 
 add_executable(check_services_subscriptions check_services_subscriptions.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_subscriptions ${LIBS})
-add_test(check_services_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_services_subscriptions)
+add_test_valgrind(check_services_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_services_subscriptions)
 
 add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_nodestore ${LIBS})
@@ -84,7 +84,7 @@ add_test_valgrind(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
 
 add_executable(check_server_jobs check_server_jobs.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_jobs ${LIBS})
-add_test(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_jobs)
+add_test_valgrind(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_jobs)
 
 add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_userspace ${LIBS})

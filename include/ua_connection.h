@@ -114,7 +114,6 @@ struct UA_Connection {
     void (*close)(UA_Connection *connection);
 };
 
-void UA_EXPORT UA_Connection_init(UA_Connection *connection);
 void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 
 /**

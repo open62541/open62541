@@ -35,27 +35,17 @@ Connection_receiveChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT m
 /*********************/
 
 static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
+    memset(client, 0, sizeof(UA_Client));
+
     client->state = UA_CLIENTSTATE_READY;
     client->connection = UA_malloc(sizeof(UA_Connection));
-    UA_Connection_init(client->connection);
+    memset(client->connection, 0, sizeof(UA_Connection));
     client->channel = UA_malloc(sizeof(UA_SecureChannel));
     UA_SecureChannel_init(client->channel);
     client->channel->connection = client->connection;
-    UA_String_init(&client->endpointUrl);
-    client->requestId = 0;
-
     client->authenticationMethod = UA_CLIENTAUTHENTICATION_NONE;
-    UA_String_init(&client->username);
-    UA_String_init(&client->password);
-
-    UA_NodeId_init(&client->authenticationToken);
-    client->requestHandle = 0;
-
     client->config = config;
-    client->scRenewAt = 0;
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    client->monitoredItemHandles = 0;
     LIST_INIT(&client->pendingNotificationsAcks);
     LIST_INIT(&client->subscriptions);
 #endif

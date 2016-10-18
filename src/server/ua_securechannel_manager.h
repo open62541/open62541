@@ -13,7 +13,7 @@ typedef struct channel_list_entry {
 
 typedef struct UA_SecureChannelManager {
     LIST_HEAD(channel_list, channel_list_entry) channels; // doubly-linked list of channels
-    size_t currentChannelCount;
+    UA_UInt32 currentChannelCount;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;
     UA_Server *server;

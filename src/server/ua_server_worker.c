@@ -111,7 +111,7 @@ workerLoop(UA_Worker *worker) {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
             pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
         }
-        uatomic_inc(counter);
+        UA_atomic_add(counter, 1);
     }
 
     pthread_mutex_unlock(&mutex);
@@ -447,25 +447,15 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
         dw = dw->next;
     }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wextra"
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wunused-value"
-#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         for(size_t i = 0; i < dw->jobsCount; i++)
             processJob(server, &dw->jobs[i]);
-        struct DelayedJobs *next = uatomic_xchg(&beforedw->next, NULL);
+        struct DelayedJobs *next = UA_atomic_xchg((void**)&beforedw->next, NULL);
         UA_free(dw->workerCounters);
         UA_free(dw);
         dw = next;
     }
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
-#pragma GCC diagnostic pop
-#endif
-
 }
 
 #endif

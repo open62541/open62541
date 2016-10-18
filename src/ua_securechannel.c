@@ -10,16 +10,7 @@
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
-    UA_MessageSecurityMode_init(&channel->securityMode);
-    UA_ChannelSecurityToken_init(&channel->securityToken);
-    UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
-    UA_AsymmetricAlgorithmSecurityHeader_init(&channel->clientAsymAlgSettings);
-    UA_AsymmetricAlgorithmSecurityHeader_init(&channel->serverAsymAlgSettings);
-    UA_ByteString_init(&channel->clientNonce);
-    UA_ByteString_init(&channel->serverNonce);
-    channel->receiveSequenceNumber = 0;
-    channel->sendSequenceNumber = 0;
-    channel->connection = NULL;
+    memset(channel, 0, sizeof(UA_SecureChannel));
     LIST_INIT(&channel->sessions);
     LIST_INIT(&channel->chunks);
 }
@@ -76,18 +67,10 @@ void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *sessi
     if(!se)
         return;
     se->session = session;
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_cmpxchg(&session->channel, NULL, channel) != NULL) {
+    if(UA_atomic_cmpxchg((void**)&session->channel, NULL, channel) != NULL) {
         UA_free(se);
         return;
     }
-#else
-    if(session->channel != NULL) {
-        UA_free(se);
-        return;
-    }
-    session->channel = channel;
-#endif
     LIST_INSERT_HEAD(&channel->sessions, se, pointers);
 }
 
@@ -125,7 +108,8 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
         return;
 
     //FIXME: not thread-safe
-    memcpy(&channel->securityToken, &channel->nextSecurityToken, sizeof(UA_ChannelSecurityToken));
+    memcpy(&channel->securityToken, &channel->nextSecurityToken,
+           sizeof(UA_ChannelSecurityToken));
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 }
 
@@ -145,9 +129,11 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
 
-    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize && connection->remoteConf.maxMessageSize > 0)
+    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize &&
+       connection->remoteConf.maxMessageSize > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
-    if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount && connection->remoteConf.maxChunkCount > 0)
+    if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount &&
+       connection->remoteConf.maxChunkCount > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     /* Prepare the chunk headers */
@@ -177,11 +163,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     symSecHeader.tokenId = channel->securityToken.tokenId;
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
-#endif
+    seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
     size_t offset_header = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, dst, &offset_header);
     UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symSecHeader, dst, &offset_header);
@@ -193,7 +175,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
 
     /* Replace with the buffer for the next chunk */
     if(!ci->final) {
-        UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
+        UA_StatusCode retval =
+            connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         /* Hide the header of the buffer, so that the ensuing encoding does not overwrite anything */
@@ -204,15 +187,16 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
 }
 
 UA_StatusCode
-UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId, const void *content,
-                                   const UA_DataType *contentType) {
+UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
+                                   const void *content, const UA_DataType *contentType) {
     UA_Connection *connection = channel->connection;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate the message buffer */
     UA_ByteString message;
-    UA_StatusCode retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &message);
+    UA_StatusCode retval =
+        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -239,7 +223,8 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
         ci.messageType = UA_MESSAGETYPE_OPN;
     else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455)
         ci.messageType = UA_MESSAGETYPE_CLO;
-    retval = UA_encodeBinary(content, contentType, (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
+    retval = UA_encodeBinary(content, contentType,
+                             (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
                              &ci, &message, &messagePos);
 
     /* Encoding failed, release the message */
@@ -366,15 +351,17 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
 UA_StatusCode
 UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
                                UA_ProcessMessageCallback callback, void *application) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t offset= 0;
     do {
+        /* Store the initial offset to compute the header length */
         size_t initial_offset = offset;
-        
+
         /* Decode header */
         UA_SecureConversationMessageHeader header;
-        UA_StatusCode retval = UA_SecureConversationMessageHeader_decodeBinary(chunks, &offset, &header);
+        retval = UA_SecureConversationMessageHeader_decodeBinary(chunks, &offset, &header);
         if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+            break;
 
         /* Is the channel attached to connection? */
         if(header.secureChannelId != channel->securityToken.channelId) {
@@ -416,15 +403,15 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                                          header.messageHeader.messageSize - processed_header);
             break;
         case UA_CHUNKTYPE_FINAL: {
-            UA_Boolean deleteMessage = false;
+            UA_Boolean realloced = false;
             UA_ByteString message =
                 UA_SecureChannel_finalizeChunk(channel, sequenceHeader.requestId, chunks, offset,
                                                header.messageHeader.messageSize - processed_header,
-                                               &deleteMessage);
+                                               &realloced);
             if(message.length > 0) {
                 callback(application, channel, header.messageHeader.messageTypeAndChunkType & 0x00ffffff,
                          sequenceHeader.requestId, &message);
-                if(deleteMessage)
+                if(realloced)
                     UA_ByteString_deleteMembers(&message);
             }
             break; }
@@ -439,5 +426,5 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         offset += (header.messageHeader.messageSize - processed_header);
     } while(chunks->length > offset);
 
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }

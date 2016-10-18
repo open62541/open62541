@@ -18,6 +18,18 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
     }
 }
 
+static void
+removeSessionEntry(UA_SessionManager *sm, session_list_entry *sentry) {
+    LIST_REMOVE(sentry, pointers);
+    UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
+    UA_Session_deleteMembersCleanup(&sentry->session, sm->server);
+#ifndef UA_ENABLE_MULTITHREADING
+    UA_free(sentry);
+#else
+    UA_Server_delayedFree(sm->server, sentry);
+#endif
+}
+
 void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMonotonic) {
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
@@ -25,15 +37,7 @@ void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMon
             UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                          "Session with token %i has timed out and is removed",
                          sentry->session.sessionId.identifier.numeric);
-            LIST_REMOVE(sentry, pointers);
-            UA_Session_deleteMembersCleanup(&sentry->session, sm->server);
-#ifndef UA_ENABLE_MULTITHREADING
-            sm->currentSessionCount--;
-            UA_free(sentry);
-#else
-            sm->currentSessionCount = uatomic_add_return(&sm->currentSessionCount, -1);
-            UA_Server_delayedFree(sm->server, sentry);
-#endif
+            removeSessionEntry(sm, sentry);
         }
     }
 }
@@ -58,7 +62,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     return NULL;
 }
 
-/** Creates and adds a session. But it is not yet attached to a secure channel. */
+/* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
                                 const UA_CreateSessionRequest *request, UA_Session **session) {
@@ -69,7 +73,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    sm->currentSessionCount++;
+    UA_atomic_add(&sm->currentSessionCount, 1);
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
@@ -93,18 +97,8 @@ UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token) {
         if(UA_NodeId_equal(&current->session.authenticationToken, token))
             break;
     }
-
     if(!current)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
-
-    LIST_REMOVE(current, pointers);
-    UA_Session_deleteMembersCleanup(&current->session, sm->server);
-#ifndef UA_ENABLE_MULTITHREADING
-    sm->currentSessionCount--;
-    UA_free(current);
-#else
-    sm->currentSessionCount = uatomic_add_return(&sm->currentSessionCount, -1);
-    UA_Server_delayedFree(sm->server, current);
-#endif
+    removeSessionEntry(sm, current);
     return UA_STATUSCODE_GOOD;
 }

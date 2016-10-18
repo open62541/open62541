@@ -26,12 +26,11 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
 
 static void removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry){
     LIST_REMOVE(entry, pointers);
+    UA_atomic_add(&cm->currentChannelCount, (UA_UInt32)-1);
     UA_SecureChannel_deleteMembersCleanup(&entry->channel);
 #ifndef UA_ENABLE_MULTITHREADING
-    cm->currentChannelCount--;
     UA_free(entry);
 #else
-    cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
     UA_Server_delayedFree(cm->server, entry);
 #endif
 }
@@ -108,11 +107,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     /* Set all the pointers internally */
     UA_Connection_attachSecureChannel(conn, &entry->channel);
     LIST_INSERT_HEAD(&cm->channels, entry, pointers);
-#ifndef UA_ENABLE_MULTITHREADING
-    cm->currentChannelCount++;
-#else
-    cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, 1);
-#endif
+    UA_atomic_add(&cm->currentChannelCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -151,7 +146,8 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+UA_SecureChannel *
+UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
     channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
@@ -160,7 +156,8 @@ UA_SecureChannel * UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_U
     return NULL;
 }
 
-UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
+UA_StatusCode
+UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) {
     channel_list_entry *entry;
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(entry->channel.securityToken.channelId == channelId)
@@ -168,15 +165,6 @@ UA_StatusCode UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt
     }
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    LIST_REMOVE(entry, pointers);
-    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
-#ifndef UA_ENABLE_MULTITHREADING
-    cm->currentChannelCount--;
-    UA_free(entry);
-#else
-    cm->currentChannelCount = uatomic_add_return(&cm->currentChannelCount, -1);
-    UA_Server_delayedFree(cm->server, entry);
-#endif
+    removeSecureChannel(cm, entry);
     return UA_STATUSCODE_GOOD;
 }

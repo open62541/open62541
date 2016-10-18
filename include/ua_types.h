@@ -20,7 +20,6 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
-#include <stdint.h>
 #include <stdbool.h>
 
 /**
@@ -154,6 +153,27 @@ typedef double UA_Double;
  * or an operation. See the section :ref:`statuscodes` for the meaning of a
  * specific code. */
 typedef uint32_t UA_StatusCode;
+
+typedef struct {
+	UA_StatusCode code;      /* The numeric value of the StatusCode */
+	const char* name;        /* The symbolic name */
+	const char* explanation; /* Short message explaining the StatusCode */
+} UA_StatusCodeDescription;
+
+/* Returns the description of the StatusCode. Never returns NULL, but a generic
+ * description for invalid StatusCodes instead. */
+UA_EXPORT const UA_StatusCodeDescription *
+UA_StatusCode_description(UA_StatusCode code);
+
+static UA_INLINE const char *
+UA_StatusCode_name(UA_StatusCode code) {
+    return UA_StatusCode_description(code)->name;
+}
+
+static UA_INLINE const char *
+UA_StatusCode_explanation(UA_StatusCode code) {
+    return UA_StatusCode_description(code)->explanation;
+}
 
 /**
  * String
