@@ -25,9 +25,6 @@ UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 static const UA_NodeId nodeIdHasSubType = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASSUBTYPE};
-static const UA_NodeId nodeIdHasTypeDefinition = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
 static const UA_NodeId nodeIdHasComponent = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASCOMPONENT};
@@ -37,9 +34,6 @@ static const UA_NodeId nodeIdHasProperty = {
 static const UA_NodeId nodeIdOrganizes = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_ORGANIZES};
-static const UA_NodeId nodeIdFolderType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_FOLDERTYPE};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
