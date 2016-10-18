@@ -514,12 +514,12 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a MSG", connection->sockfd);
+                             "Process a MSG", channel->connection->sockfd);
         processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a CLO", connection->sockfd);
+                             "Process a CLO", channel->connection->sockfd);
         Service_CloseSecureChannel(server, channel);
         break;
     default:
