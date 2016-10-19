@@ -243,7 +243,7 @@ void UA_Server_delete(UA_Server *server) {
     UA_RCU_LOCK();
     UA_NodestoreSwitch_delete(server->nodestoreSwitch);
     UA_RCU_UNLOCK();
-    UA_free(server->nodestore_std->handle);
+    UA_Nodestore_standard_delete(server->nodestore_std);
     UA_free(server->nodestore_std);
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);

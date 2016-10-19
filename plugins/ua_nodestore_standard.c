@@ -1,4 +1,5 @@
 #include "ua_nodestore_standard.h"
+#include "../src/ua_util.h"
 #include "../src/server/ua_nodestore.h" //TODO make external --> move to plugins?
 
 UA_NodestoreInterface
@@ -15,4 +16,10 @@ UA_Nodestore_standard() {
     nsi.remove =        (UA_NodestoreInterface_remove)      UA_NodeStore_remove,
     nsi.iterate =       (UA_NodestoreInterface_iterate)     UA_NodeStore_iterate;
     return nsi;
+}
+
+void
+UA_Nodestore_standard_delete(UA_NodestoreInterface * nodestoreInterface){
+    nodestoreInterface->deleteNodeStore(nodestoreInterface->handle);
+    UA_free(nodestoreInterface->handle);
 }
