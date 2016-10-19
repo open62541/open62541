@@ -33,7 +33,9 @@
  */
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-# include <unistd.h> // gethostname
+# ifndef _WIN32
+#  include <unistd.h> // gethostname
+# endif
 #endif
 
 #define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration

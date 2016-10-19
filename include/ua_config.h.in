@@ -62,6 +62,11 @@ extern "C" {
 # define _BSD_SOURCE
 #endif
 
+// Disable deprecation warnings for sprintf, strncpy, strerror
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
