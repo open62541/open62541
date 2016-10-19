@@ -28,6 +28,7 @@
 #   include <netinet/in.h> // for struct ip_mreq
 #   include <ifaddrs.h>
 #   include <net/if.h> /* for IFF_RUNNING */
+#   include <netdb.h> // for recvfrom in cygwin
 #  endif
 # endif
 #endif
