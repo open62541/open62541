@@ -97,29 +97,32 @@ class Type(object):
             #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
 
     def members_c(self):
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
-        before = None
-        for index, member in enumerate(self.members):
-            m = "\n  { .memberTypeIndex = %s_%s,\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
-            m += "#ifdef UA_ENABLE_TYPENAMES\n    .memberName = \"%s\",\n#endif\n" % member.name
-            m += "    .namespaceZero = %s,\n" % member.memberType.ns0
-            m += "    .padding = "
-            if not before:
-                m += "0,\n"
-            else:
-                if member.isArray:
-                    m += "offsetof(UA_%s, %sSize)" % (self.name, member.name)
+        if len(self.members)==0:
+            return "#define %s_members NULL" % (self.name)
+        else:
+            members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
+            before = None
+            for index, member in enumerate(self.members):
+                m = "\n  { .memberTypeIndex = %s_%s,\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
+                m += "#ifdef UA_ENABLE_TYPENAMES\n    .memberName = \"%s\",\n#endif\n" % member.name
+                m += "    .namespaceZero = %s,\n" % member.memberType.ns0
+                m += "    .padding = "
+                if not before:
+                    m += "0,\n"
                 else:
-                    m += "offsetof(UA_%s, %s)" % (self.name, member.name)
-                m += " - offsetof(UA_%s, %s)" % (self.name, before.name)
-                if before.isArray:
-                    m += " - sizeof(void*),\n"
-                else:
-                    m += " - sizeof(UA_%s),\n" % before.memberType.name
-            m += "    .isArray = " + ("true" if member.isArray else "false")
-            members += m + "\n  },"
-            before = member
-        return members + "};"
+                    if member.isArray:
+                        m += "offsetof(UA_%s, %sSize)" % (self.name, member.name)
+                    else:
+                        m += "offsetof(UA_%s, %s)" % (self.name, member.name)
+                    m += " - offsetof(UA_%s, %s)" % (self.name, before.name)
+                    if before.isArray:
+                        m += " - sizeof(void*),\n"
+                    else:
+                        m += " - sizeof(UA_%s),\n" % before.memberType.name
+                m += "    .isArray = " + ("true" if member.isArray else "false")
+                members += m + "\n  },"
+                before = member
+            return members + "};"
 
     def datatype_ptr(self):
         return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
