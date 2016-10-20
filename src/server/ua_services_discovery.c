@@ -178,6 +178,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                     UA_free(foundServerFilteredPointer);
                 return;
             }
+            // UaExpert does not list DiscoveryServer, thus set it to Server
+            // See http://forum.unified-automation.com/topic1987.html
+            if (foundServers[0].applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+                foundServers[0].applicationType = UA_APPLICATIONTYPE_SERVER;
 
             /* add the discoveryUrls from the networklayers */
             UA_String* disc = UA_realloc(foundServers[0].discoveryUrls, sizeof(UA_String) *
