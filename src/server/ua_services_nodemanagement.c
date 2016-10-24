@@ -525,18 +525,43 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     /* Set the constraints */
     if(!UA_NodeId_isNull(&attr->dataType))
         retval  = UA_VariableNode_setDataType(server, node, vt, &attr->dataType);
-    else /* workaround common error where the datatype is left as NA_NODEID_NULL */
-        retval = UA_VariableNode_setDataType(server, node, vt, &vt->dataType);
+	else { // set Datatype, kown from variante datatype 
+		if(&attr->value.type->typeId != NULL) {
+    	    retval = UA_VariableNode_setDataType(server, node, vt, &attr->value.type->typeId);
+		}
+		else {
+			// set BaseDatatype
+			retval = UA_VariableNode_setDataType(server, node, vt, &vt->dataType);
+		}
+	}
         
     node->valueRank = -2; /* allow all dimensions first */
     retval |= UA_VariableNode_setArrayDimensions(server, node, vt,
                                                 attr->arrayDimensionsSize,
                                                 attr->arrayDimensions);
 
-    if(attr->valueRank != 0 || !UA_Variant_isScalar(&attr->value))
-        retval |= UA_VariableNode_setValueRank(server, node, vt, attr->valueRank);
-    else /* workaround common error where the valuerank is left as 0 */
-        retval |= UA_VariableNode_setValueRank(server, node, vt, vt->valueRank);
+	/* All ValueRank cases can be handle with this code, 
+	 * expect -3 (ScalarOrOneDimension) -> there is no special dynamic usecase for this
+	 */
+	UA_Int32 valueRank = -2; // If no rank fit
+    if(attr->valueRank == 0 && UA_Variant_isScalar(&attr->value)) {
+		// Scalar
+		valueRank = -1;
+	}
+	else {
+		if(attr->arrayDimensionsSize == 1) {
+			// OneDimension
+			valueRank = 1;
+		}
+		else {
+			if(attr->arrayDimensionsSize > 1) {
+				// OneOrMoreDimensions
+				valueRank = 0;
+			}
+		}
+	}
+	// Write ValueRank to Node
+	retval |= UA_VariableNode_setValueRank(server, node, vt, valueRank);
     
     /* Set the value */
     UA_DataValue value;
