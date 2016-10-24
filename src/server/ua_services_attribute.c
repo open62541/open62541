@@ -3,7 +3,6 @@
 #ifdef UA_ENABLE_NONSTANDARD_STATELESS
 #include "ua_types_encoding_binary.h"
 #endif
-
 /******************/
 /* Read Attribute */
 /******************/
@@ -548,7 +547,7 @@ UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableD
     /* Check if the valuerank allows for the value dimension */
     arrayDims = value->arrayDimensionsSize;
     if(value->arrayDimensionsSize == 0 && value->arrayLength > 0)
-        arrayDims = 1; /* array but no arraydimensions -> implicit array dimension 1 */
+        arrayDims = 1;
     UA_StatusCode retval = UA_matchValueRankArrayDimensions(variableValueRank, arrayDims);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -597,20 +596,17 @@ UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_StatusCode retval = UA_Server_readValue(server, node->nodeId, &value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    retval = UA_Variant_matchVariableDefinition(server, dataType, node->valueRank,
-                                                node->arrayDimensionsSize,
-                                                node->arrayDimensions,
-                                                &value, NULL, NULL);
-    UA_Variant_deleteMembers(&value);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "The current value does not match the new data type");
-        return retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(node->value.data.value.hasValue) {
+        retval = UA_Variant_matchVariableDefinition(server, dataType, node->valueRank,
+                                                    node->arrayDimensionsSize,
+                                                    node->arrayDimensions,
+                                                    &node->value.data.value.value, NULL, NULL);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current value does not match the new data type");
+            return retval;
+        }
     }
     
     /* replace the datatype nodeid */
@@ -633,8 +629,8 @@ UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
     if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
        UA_Node_hasSubTypeOrInstances((const UA_Node*)node))
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    /* Check if the valuerank of the variabletype allows the change. */
+    
+    /* Check if the valuerank of the type allows the change */
     switch(vt->valueRank) {
     case -3: /* the value can be a scalar or a one dimensional array */
         if(valueRank != -1 && valueRank != 1)
@@ -643,34 +639,25 @@ UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
     case -2: /* the value can be a scalar or an array with any number of dimensions */
         break;
     case -1: /* the value is a scalar */
-        if(valueRank != -1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     case 0: /* the value is an array with one or more dimensions */
         if(valueRank < 0)
             return UA_STATUSCODE_BADTYPEMISMATCH;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
-        if(valueRank != vt->valueRank)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
-    /* Check if the new ValuRank is compatible with the array dimensions */
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_StatusCode retval = UA_Server_readValue(server, node->nodeId, &value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    size_t arrayDims = value.arrayDimensionsSize;
-    if(value.arrayDimensionsSize == 0 && value.arrayLength > 0)
-        arrayDims = 1; /* no array dimensions but an array -> assume dimensions 1 */
-    retval = UA_matchValueRankArrayDimensions(valueRank, arrayDims);
-    UA_Variant_deleteMembers(&value);
+    /* Check if the new value is compatible with the array dimensions */
+    size_t arrayDims = node->value.data.value.value.arrayDimensionsSize;
+    if(node->value.data.value.value.arrayDimensionsSize == 0 &&
+       node->value.data.value.value.arrayLength > 0)
+        arrayDims = 1;
+    UA_StatusCode retval = UA_matchValueRankArrayDimensions(valueRank, arrayDims);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* All good, apply the change */
+    /* Ok, apply */
     node->valueRank = valueRank;
     return UA_STATUSCODE_GOOD;
 }
@@ -715,19 +702,15 @@ UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
     }
 
     /* Check if the current value is compatible with the array dimensions */
-    UA_Variant value;
-    UA_Variant_init(&value);
-    retval = UA_Server_readValue(server, node->nodeId, &value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
-                                                arrayDimensionsSize, arrayDimensions,
-                                                &value, NULL, NULL);
-    UA_Variant_deleteMembers(&value);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "The current value does not match the new array dimensions");
-        return retval;
+    if(node->value.data.value.hasValue) {
+        retval = UA_Variant_matchVariableDefinition(server, &node->dataType, node->valueRank,
+                                                    arrayDimensionsSize, arrayDimensions,
+                                                    &node->value.data.value.value, NULL, NULL);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "The current value does not match the new array dimensions");
+            return retval;
+        }
     }
 
     /* Ok, apply */
@@ -741,7 +724,6 @@ UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
     return UA_STATUSCODE_GOOD;
 }
 
-/* value is stored in the node. no datasource */
 static UA_StatusCode
 setValueAfterTypeCheck(UA_VariableNode *node, UA_DataValue *editableValue,
                        UA_NumericRange *rangeptr) {
