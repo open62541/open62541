@@ -235,7 +235,12 @@ class open62541_MacroHelper():
 
     # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using
     # Djikstra (check that arguments have not been printed). (@ichrispa)
-    code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+    if nodetype is "Object":
+      code.append("UA_Server_addObjectNode_noInstantiation(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName")
+    elif nodetype is "Variable":
+      code.append("UA_Server_addVariableNode_noInstantiation(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName")
+    else:
+      code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)    
 
     if nodetype in ["Object", "Variable", "VariableType"]:
       code.append("       , typeDefinition")
