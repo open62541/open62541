@@ -463,18 +463,18 @@ writeValueAttributeAfterTypeCheck(UA_VariableNode *node, const UA_DataValue *val
             if(!node->value.data.value.hasValue || !value->hasValue)
                 return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-            /* Make Scalar a one-entry array for range matching */
-            UA_DataValue editableValue;
+            /* Make scalar a one-entry array for range matching */
+            UA_Variant editableValue;
+            const UA_Variant *v = &value->value;
             if(UA_Variant_isScalar(&value->value)) {
-                editableValue = *value;
-                editableValue.value.arrayLength = 1;
-                value = &editableValue;
+                editableValue = value->value;
+                editableValue.arrayLength = 1;
+                v = &editableValue;
             }
                 
             /* Write the value */
             retval = UA_Variant_setRangeCopy(&node->value.data.value.value,
-                                             value->value.data, value->value.arrayLength,
-                                             *rangeptr);
+                                             v->data, v->arrayLength, *rangeptr);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
