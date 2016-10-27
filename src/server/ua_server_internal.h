@@ -178,29 +178,31 @@ getNodeType(UA_Server *server, const UA_Node *node);
 /***************************************/
 
 UA_StatusCode
-UA_VariableNode_setArrayDimensions(UA_Server *server, UA_VariableNode *node,
-                                   const UA_VariableTypeNode *vt,
-                                   size_t arrayDimensionsSize, UA_UInt32 *arrayDimensions);
+readValueAttribute(const UA_VariableNode *vn, UA_DataValue *v);
 
 UA_StatusCode
-UA_VariableNode_setValueRank(UA_Server *server, UA_VariableNode *node,
-                             const UA_VariableTypeNode *vt,
-                             const UA_Int32 valueRank);
+typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
+               UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
+               const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
+               const UA_NumericRange *range, UA_Variant *equivalent);
 
 UA_StatusCode
-UA_VariableNode_setDataType(UA_Server *server, UA_VariableNode *node,
-                            const UA_VariableTypeNode *vt,
-                            const UA_NodeId *dataType);
+writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
+                       const UA_NodeId *dataType, const UA_NodeId *constraintDataType);
 
 UA_StatusCode
-UA_VariableNode_setValue(UA_Server *server, UA_VariableNode *node,
-                         const UA_DataValue *value, const UA_String *indexRange);
+compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
+                          const UA_UInt32 *constraintArrayDimensions,
+                          size_t testArrayDimensionsSize,
+                          const UA_UInt32 *testArrayDimensions);
 
 UA_StatusCode
-UA_Variant_matchVariableDefinition(UA_Server *server, const UA_NodeId *variableDataTypeId,
-                                   UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
-                                   const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
-                                   const UA_NumericRange *range, UA_Variant *equivalent);
+writeValueRankAttribute(UA_VariableNode *node, UA_Int32 valueRank,
+                        UA_Int32 constraintValueRank);
+
+UA_StatusCode
+writeValueAttribute(UA_Server *server, UA_VariableNode *node,
+                    const UA_DataValue *value, const UA_String *indexRange);
 
 /*******************/
 /* Single-Services */
@@ -235,13 +237,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v);
 
-UA_StatusCode Service_Write_single(UA_Server *server, UA_Session *session,
-                                   const UA_WriteValue *wvalue);
-
 void Service_Call_single(UA_Server *server, UA_Session *session,
                          const UA_CallMethodRequest *request,
                          UA_CallMethodResult *result);
-
-
 
 #endif /* UA_SERVER_INTERNAL_H_ */
