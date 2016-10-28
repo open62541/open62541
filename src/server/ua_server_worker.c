@@ -247,7 +247,9 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
         /* Set the time for the next execution */
         rj->nextTime += (UA_Int64)rj->interval;
         if(rj->nextTime < current)
-            rj->nextTime = current;
+            rj->nextTime = current + 1; /* prevent to rerun the job right now
+                                           when the repeated jobs took more time
+                                           than rj->interval */
 
         /* Keep the list sorted */
         struct RepeatedJob *prev_rj = lastNow;
