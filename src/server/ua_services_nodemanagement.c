@@ -78,11 +78,12 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     }
     retval = copyChildNodesToNode(server, session, &node->nodeId,
                                   &res.addedNodeId, instantiationCallback);
-    UA_NodeId_deleteMembers(&res.addedNodeId);
+    
     if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
         instantiationCallback->method(res.addedNodeId, node->nodeId,
                                       instantiationCallback->handle);
-
+    
+    UA_NodeId_deleteMembers(&res.addedNodeId);
  cleanup:
     if(value.hasValue && value.value.storageType == UA_VARIANT_DATA)
         UA_Variant_deleteMembers(&value.value);
