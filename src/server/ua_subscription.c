@@ -105,6 +105,7 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
         goto cleanup;
 
     /* The value has changed */
+    encoding->length = encodingOffset;
     if(!mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue))
         *changed = true;
 
