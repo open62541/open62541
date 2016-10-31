@@ -26,7 +26,7 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 
 static UA_StatusCode
 argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequirements,
-                              size_t argsSize, const UA_Variant *args) {
+                              size_t argsSize, UA_Variant *args) {
     if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
@@ -42,11 +42,9 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < argReqsSize; i++)
-        retval |= UA_Variant_matchVariableDefinition(server, &argReqs[i].dataType,
-                                                     argReqs[i].valueRank,
-                                                     argReqs[i].arrayDimensionsSize,
-                                                     argReqs[i].arrayDimensions,
-                                                     &args[i], NULL, NULL);
+        retval |= typeCheckValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
+                                 argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                                 &args[i], NULL, args);
     return retval;
 }
 
