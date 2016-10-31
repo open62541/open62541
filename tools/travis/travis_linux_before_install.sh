@@ -50,8 +50,8 @@ cd ..
 # Install specific check version which is not yet in the apt package
 echo "=== Installing check ==="
 mkdir tmp_check
-wget http://ftp.de.debian.org/debian/pool/main/c/check/check_0.10.0-3_amd64.deb
-dpkg -x check_0.10.0-3_amd64.deb ./tmp_check
+wget http://ftp.de.debian.org/debian/pool/main/c/check/check_0.10.0-3+b1_amd64.deb
+dpkg -x check_0.10.0-3+b1_amd64.deb ./tmp_check
 # change pkg-config file path
 sed -i "s|prefix=/usr|prefix=${LOCAL_PKG}|g" ./tmp_check/usr/lib/x86_64-linux-gnu/pkgconfig/check.pc
 sed -i 's|libdir=.*|libdir=${prefix}/lib|g' ./tmp_check/usr/lib/x86_64-linux-gnu/pkgconfig/check.pc
