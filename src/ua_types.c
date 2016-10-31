@@ -72,6 +72,15 @@ UA_String_equal(const UA_String *string1, const UA_String *string2) {
     return (is == 0) ? true : false;
 }
 
+UA_Boolean
+UA_String_equal_size(const UA_String *string1, const UA_String *string2, size_t size) {
+    if((string1->length < size) || (string2->length < size))
+        return false;
+    UA_Int32 is = memcmp((char const*)string1->data,
+                         (char const*)string2->data, size);
+    return (is == 0) ? true : false;
+}
+
 static void
 String_deleteMembers(UA_String *s, const UA_DataType *_) {
     UA_free((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
