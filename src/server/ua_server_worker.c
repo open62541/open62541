@@ -107,7 +107,7 @@ workerLoop(UA_Worker *worker) {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
             pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
         }
-        uatomic_inc(counter);
+        UA_atomic_add(counter, 1);
     }
 
     pthread_mutex_unlock(&mutex);
@@ -212,11 +212,21 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
 /* Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime
 processRepeatedJobs(UA_Server *server, UA_DateTime current) {
-    struct RepeatedJob *rj, *tmp_rj;
+    /* Find the last job that is executed after this iteration */
+    struct RepeatedJob *lastNow = NULL, *tmp;
+    LIST_FOREACH(tmp, &server->repeatedJobs, next) {
+        if(tmp->nextTime > current)
+            break;
+        lastNow = tmp;
+    }
+
     /* Iterate over the list of elements (sorted according to the next execution timestamp) */
+    struct RepeatedJob *rj, *tmp_rj;
     LIST_FOREACH_SAFE(rj, &server->repeatedJobs, next, tmp_rj) {
         if(rj->nextTime > current)
             break;
+
+        UA_assert(lastNow); /* at least one element at the current time */
 
         /* Dispatch/process job */
 #ifdef UA_ENABLE_MULTITHREADING
@@ -237,13 +247,15 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
         /* Set the time for the next execution */
         rj->nextTime += (UA_Int64)rj->interval;
         if(rj->nextTime < current)
-            rj->nextTime = current;
+            rj->nextTime = current + 1; /* prevent to rerun the job right now
+                                           when the repeated jobs took more time
+                                           than rj->interval */
 
         /* Keep the list sorted */
-        struct RepeatedJob *prev_rj = LIST_FIRST(&server->repeatedJobs);
+        struct RepeatedJob *prev_rj = lastNow;
         while(true) {
             struct RepeatedJob *n = LIST_NEXT(prev_rj, next);
-            if(!n || n->nextTime > rj->nextTime)
+            if(!n || n->nextTime >= rj->nextTime)
                 break;
             prev_rj = n;
         }
@@ -443,25 +455,15 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
         dw = dw->next;
     }
 
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wextra"
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wunused-value"
-#endif
     /* process and free all delayed jobs from here on */
     while(dw) {
         for(size_t i = 0; i < dw->jobsCount; i++)
             processJob(server, &dw->jobs[i]);
-        struct DelayedJobs *next = uatomic_xchg(&beforedw->next, NULL);
+        struct DelayedJobs *next = UA_atomic_xchg((void**)&beforedw->next, NULL);
         UA_free(dw->workerCounters);
         UA_free(dw);
         dw = next;
     }
-#if (__GNUC__ <= 4 && __GNUC_MINOR__ <= 6)
-#pragma GCC diagnostic pop
-#endif
-
 }
 
 #endif

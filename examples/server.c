@@ -1,10 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/* Compile with single file release:
- * - single-threaded: gcc -std=c99 server.c open62541.c -o server
- * - multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread */
-
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
@@ -26,22 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-# include <io.h> //access
-#else
-# include <unistd.h> //access
-#endif
-
-#ifdef UA_ENABLE_MULTITHREADING
-# ifdef UA_NO_AMALGAMATION
-#  ifndef __USE_XOPEN2K
-#   define __USE_XOPEN2K
-#  endif
-# endif
-#include <pthread.h>
-#endif
-
-UA_Boolean running = 1;
+UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
 static UA_ByteString loadCertificate(void) {

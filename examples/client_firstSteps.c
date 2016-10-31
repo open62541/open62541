@@ -7,7 +7,6 @@
 #ifdef UA_NO_AMALGAMATION
 #include "ua_client.h"
 #include "ua_config_standard.h"
-#include "ua_network_tcp.h"
 #else
 #include "open62541.h"
 #endif

@@ -6,7 +6,8 @@
 #include "ua_types.h"
 
 UA_StatusCode
-UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt16 *namespaceIndex) {
+UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
+                            UA_UInt16 *namespaceIndex) {
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
     UA_ReadValueId id;
@@ -45,9 +46,8 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri, UA_UInt1
 }
 
 UA_StatusCode
-UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_NodeIteratorCallback callback, void *handle) {
-  UA_StatusCode retval = UA_STATUSCODE_GOOD;
-  
+UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
+                               UA_NodeIteratorCallback callback, void *handle) {
   UA_BrowseRequest bReq;
   UA_BrowseRequest_init(&bReq);
   bReq.requestedMaxReferencesPerNode = 0;
@@ -59,16 +59,18 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
   
   UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
   
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
   if(bResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-    for (size_t i = 0; i < bResp.resultsSize; ++i) {
-      for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
-        UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
-        retval |= callback(ref->nodeId.nodeId, ! ref->isForward, ref->referenceTypeId, handle);
+      for (size_t i = 0; i < bResp.resultsSize; ++i) {
+          for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
+              UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
+              retval |= callback(ref->nodeId.nodeId, !ref->isForward,
+                                 ref->referenceTypeId, handle);
+          }
       }
-    }
   }
   else
-    retval = bResp.responseHeader.serviceResult;
+      retval = bResp.responseHeader.serviceResult;
   
   
   UA_BrowseRequest_deleteMembers(&bReq);
@@ -82,9 +84,11 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId, UA_Nod
 /*******************/
 
 UA_StatusCode UA_EXPORT
-UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
-                       UA_Boolean isForward, const UA_String targetServerUri,
-                       const UA_ExpandedNodeId targetNodeId, UA_NodeClass targetNodeClass) {
+UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
+                       const UA_NodeId referenceTypeId, UA_Boolean isForward,
+                       const UA_String targetServerUri,
+                       const UA_ExpandedNodeId targetNodeId,
+                       UA_NodeClass targetNodeClass) {
     UA_AddReferencesItem item;
     UA_AddReferencesItem_init(&item);
     item.sourceNodeId = sourceNodeId;
@@ -113,8 +117,9 @@ UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId, const UA
 }
 
 UA_StatusCode UA_EXPORT
-UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId, const UA_NodeId referenceTypeId,
-                          UA_Boolean isForward, const UA_ExpandedNodeId targetNodeId,
+UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId,
+                          const UA_NodeId referenceTypeId, UA_Boolean isForward,
+                          const UA_ExpandedNodeId targetNodeId,
                           UA_Boolean deleteBidirectional) {
     UA_DeleteReferencesItem item;
     UA_DeleteReferencesItem_init(&item);
@@ -143,7 +148,8 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId, const
 }
 
 UA_StatusCode
-UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId, UA_Boolean deleteTargetReferences) {
+UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId,
+                     UA_Boolean deleteTargetReferences) {
     UA_DeleteNodesItem item;
     UA_DeleteNodesItem_init(&item);
     item.nodeId = nodeId;
@@ -168,10 +174,11 @@ UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId, UA_Boolean delet
 }
 
 UA_StatusCode
-__UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_NodeId requestedNewNodeId,
-                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                    const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
-                    const UA_NodeAttributes *attr, const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
+__UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
+                    const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+                    const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+                    const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                    const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
@@ -214,8 +221,10 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass, const UA_No
 #ifdef UA_ENABLE_METHODCALLS
 
 UA_StatusCode
-UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
-               const UA_Variant *input, size_t *outputSize, UA_Variant **output) {
+UA_Client_call(UA_Client *client, const UA_NodeId objectId,
+               const UA_NodeId methodId, size_t inputSize,
+               const UA_Variant *input, size_t *outputSize,
+               UA_Variant **output) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item;
@@ -256,8 +265,9 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId, const UA_NodeId meth
 /********************/
 
 UA_StatusCode 
-__UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_AttributeId attributeId,
-                           const void *in, const UA_DataType *inDataType) {
+__UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
+                           UA_AttributeId attributeId, const void *in,
+                           const UA_DataType *inDataType) {
     if(!in)
       return UA_STATUSCODE_BADTYPEMISMATCH;
     
@@ -268,7 +278,8 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_Attrib
     if(attributeId == UA_ATTRIBUTEID_VALUE)
         wValue.value.value = *(const UA_Variant*)in;
     else
-        UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType); /* hack. is never written into. */
+        /* hack. is never written into. */
+        UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
@@ -283,7 +294,8 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_Attrib
 
 UA_StatusCode
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Int32 *newArrayDimensions, size_t newArrayDimensionsSize) {
+                                        const UA_Int32 *newArrayDimensions,
+                                        size_t newArrayDimensionsSize) {
     if(!newArrayDimensions)
       return UA_STATUSCODE_BADTYPEMISMATCH;
     
@@ -310,8 +322,9 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 /*******************/
 
 UA_StatusCode 
-__UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_AttributeId attributeId,
-                          void *out, const UA_DataType *outDataType) {
+__UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
+                          UA_AttributeId attributeId, void *out,
+                          const UA_DataType *outDataType) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -357,7 +370,8 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId, UA_Attribu
 
 UA_StatusCode
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_Int32 **outArrayDimensions, size_t *outArrayDimensionsSize) {
+                                       UA_Int32 **outArrayDimensions,
+                                       size_t *outArrayDimensionsSize) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = nodeId;

@@ -314,11 +314,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
 
     /* Encode the message after the secureconversationmessageheader */
     size_t tmpPos = 12; /* skip the header */
-#ifndef UA_ENABLE_MULTITHREADING
-    seqHeader.sequenceNumber = ++channel->sendSequenceNumber;
-#else
-    seqHeader.sequenceNumber = uatomic_add_return(&channel->sendSequenceNumber, 1);
-#endif
+    seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
     retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos);
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
@@ -525,12 +521,12 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a MSG", connection->sockfd);
+                             "Process a MSG", channel->connection->sockfd);
         processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a CLO", connection->sockfd);
+                             "Process a CLO", channel->connection->sockfd);
         Service_CloseSecureChannel(server, channel);
         break;
     default:

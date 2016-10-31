@@ -6,6 +6,8 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
+#define UA_VALUENCODING_MAXSTACK 512
+
 /*****************/
 /* MonitoredItem */
 /*****************/
@@ -44,27 +46,88 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_free(monitoredItem);
 }
 
+static void
+ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
+    if(mon->currentQueueSize < mon->maxQueueSize)
+        return;
+    MonitoredItem_queuedValue *queueItem;
+    if(mon->discardOldest)
+        queueItem = TAILQ_FIRST(&mon->queue);
+    else
+        queueItem = TAILQ_LAST(&mon->queue, QueueOfQueueDataValues);
+    UA_assert(queueItem); /* When the currentQueueSize > 0, then there is an item */
+    TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
+    UA_DataValue_deleteMembers(&queueItem->value);
+    UA_free(queueItem);
+    mon->currentQueueSize--;
+}
+
+/* Has this sample changed from the last one? The method may allocate additional
+ * space for the encoding buffer. Detect the change in encoding->data. */
+static UA_StatusCode
+detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
+                  UA_ByteString *encoding, UA_Boolean *changed) {
+    /* Apply Filter */
+    UA_Boolean hasValue = value->hasValue;
+    if(mon->trigger == UA_DATACHANGETRIGGER_STATUS)
+        value->hasValue = false;
+    UA_Boolean hasServerTimestamp = value->hasServerTimestamp;
+    UA_Boolean hasServerPicoseconds = value->hasServerPicoseconds;
+    value->hasServerTimestamp = false;
+    value->hasServerPicoseconds = false;
+    UA_Boolean hasSourceTimestamp = value->hasSourceTimestamp;
+    UA_Boolean hasSourcePicoseconds = value->hasSourcePicoseconds;
+    if(mon->trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
+        value->hasSourceTimestamp = false;
+        value->hasSourcePicoseconds = false;
+    }
+
+    /* Encode the data for comparison */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    if(binsize == 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    /* Allocate buffer on the heap if necessary */
+    if(binsize > UA_VALUENCODING_MAXSTACK &&
+       UA_ByteString_allocBuffer(encoding, binsize) != UA_STATUSCODE_GOOD) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* Encode the value */
+    size_t encodingOffset = 0;
+    retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                             NULL, NULL, encoding, &encodingOffset);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* The value has changed */
+    encoding->length = encodingOffset;
+    if(!mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue))
+        *changed = true;
+
+ cleanup:
+    /* Reset the filter */
+    value->hasValue = hasValue;
+    value->hasServerTimestamp = hasServerTimestamp;
+    value->hasServerPicoseconds = hasServerPicoseconds;
+    value->hasSourceTimestamp = hasSourceTimestamp;
+    value->hasSourcePicoseconds = hasSourcePicoseconds;
+    return retval;
+}
+
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
     UA_Subscription *sub = monitoredItem->subscription;
     if(monitoredItem->monitoredItemType != UA_MONITOREDITEMTYPE_CHANGENOTIFY) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | MonitoredItem %i | "
-                             "Cannot process a monitoreditem that is not "
-                             "a data change notification",
+                             "Not a data change notification",
                              sub->subscriptionID, monitoredItem->itemId);
         return;
     }
-
-    MonitoredItem_queuedValue *newvalue = UA_malloc(sizeof(MonitoredItem_queuedValue));
-    if(!newvalue) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                               "Subscription %u | MonitoredItem %i | "
-                               "Skipped a sample due to lack of memory",
-                               sub->subscriptionID, monitoredItem->itemId);
-        return;
-    }
-    UA_DataValue_init(&newvalue->value);
-    newvalue->clientHandle = monitoredItem->clientHandle;
 
     /* Adjust timestampstoreturn to get source timestamp for triggering */
     UA_TimestampsToReturn ts = monitoredItem->timestampsToReturn;
@@ -79,106 +142,82 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    Service_Read_single(server, sub->session, ts, &rvid, &newvalue->value);
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    Service_Read_single(server, sub->session, ts, &rvid, &value);
 
-    /* Apply Filter */
-    UA_Boolean hasValue = newvalue->value.hasValue;
-    UA_Boolean hasServerTimestamp = newvalue->value.hasServerTimestamp;
-    UA_Boolean hasServerPicoseconds = newvalue->value.hasServerPicoseconds;
-    UA_Boolean hasSourceTimestamp = newvalue->value.hasSourceTimestamp;
-    UA_Boolean hasSourcePicoseconds = newvalue->value.hasSourcePicoseconds;
-    newvalue->value.hasServerTimestamp = false;
-    newvalue->value.hasServerPicoseconds = false;
-    if(monitoredItem->trigger == UA_DATACHANGETRIGGER_STATUS)
-        newvalue->value.hasValue = false;
-    if(monitoredItem->trigger < UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-        newvalue->value.hasSourceTimestamp = false;
-        newvalue->value.hasSourcePicoseconds = false;
-    }
+    /* Stack-allocate some memory for the value encoding */
+    UA_Byte *stackValueEncoding = UA_alloca(UA_VALUENCODING_MAXSTACK);
+    UA_ByteString valueEncoding;
+    valueEncoding.data = stackValueEncoding;
+    valueEncoding.length = UA_VALUENCODING_MAXSTACK;
 
-    /* Encode the data for comparison */
-    size_t binsize = UA_calcSizeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_ByteString newValueAsByteString;
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&newValueAsByteString, binsize);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_DataValue_deleteMembers(&newvalue->value);
-        UA_free(newvalue);
-        return;
-    }
-    size_t encodingOffset = 0;
-    retval = UA_encodeBinary(&newvalue->value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                             NULL, NULL, &newValueAsByteString, &encodingOffset);
+    /* Has the value changed? */
+    UA_Boolean changed = false;
+    UA_StatusCode retval = detectValueChange(monitoredItem, &value,
+                                             &valueEncoding, &changed);
+    if(!changed || retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    /* Restore the settings changed for the filter */
-    newvalue->value.hasValue = hasValue;
-    newvalue->value.hasServerTimestamp = hasServerTimestamp;
-    newvalue->value.hasServerPicoseconds = hasServerPicoseconds;
-    if(monitoredItem->timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
-       monitoredItem->timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
-        newvalue->value.hasSourceTimestamp = false;
-        newvalue->value.hasSourcePicoseconds = false;
-    } else {
-        newvalue->value.hasSourceTimestamp = hasSourceTimestamp;
-        newvalue->value.hasSourcePicoseconds = hasSourcePicoseconds;
-    }
-
-    /* Error or the value has not changed */
-    if(retval != UA_STATUSCODE_GOOD ||
-       (monitoredItem->lastSampledValue.data &&
-        UA_String_equal(&newValueAsByteString, &monitoredItem->lastSampledValue))) {
-        UA_LOG_TRACE_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                             "MonitoredItem %u | Do not sample an unchanged value",
-                             sub->subscriptionID, monitoredItem->itemId);
+    /* Allocate the entry for the publish queue */
+    MonitoredItem_queuedValue *newQueueItem = UA_malloc(sizeof(MonitoredItem_queuedValue));
+    if(!newQueueItem) {
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | MonitoredItem %i | "
+                               "Item for the publishing queue could not be allocated",
+                               sub->subscriptionID, monitoredItem->itemId);
         goto cleanup;
     }
 
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                         "Subscription %u | MonitoredItem %u | "
-                         "Sampling the value", sub->subscriptionID, monitoredItem->itemId);
-
-    /* Is enough space in the queue? */
-    if(monitoredItem->currentQueueSize >= monitoredItem->maxQueueSize) {
-        MonitoredItem_queuedValue *queueItem;
-        if(monitoredItem->discardOldest)
-            queueItem = TAILQ_FIRST(&monitoredItem->queue);
-        else
-            queueItem = TAILQ_LAST(&monitoredItem->queue, QueueOfQueueDataValues);
-
-        if(!queueItem) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session, "Subscription %u | "
-                                   "MonitoredItem %u | Cannot remove an element from the full "
-                                   "queue. Internal error!", sub->subscriptionID,
-                                   monitoredItem->itemId);
+    /* Copy valueEncoding on the heap for the next comparison (if not already done) */
+    if(valueEncoding.data == stackValueEncoding) {
+        UA_ByteString cbs;
+        if(UA_ByteString_copy(&valueEncoding, &cbs) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                                   "Subscription %u | MonitoredItem %i | "
+                                   "ByteString to compare values could not be created",
+                                   sub->subscriptionID, monitoredItem->itemId);
+            UA_free(newQueueItem);
             goto cleanup;
         }
-
-        TAILQ_REMOVE(&monitoredItem->queue, queueItem, listEntry);
-        UA_DataValue_deleteMembers(&queueItem->value);
-        UA_free(queueItem);
-        monitoredItem->currentQueueSize--;
+        valueEncoding = cbs;
     }
 
-    /* If the read request returned a datavalue pointing into the nodestore, we
-     * must make a deep copy to keep the datavalue across mainloop iterations */
-    if(newvalue->value.hasValue &&
-       newvalue->value.value.storageType == UA_VARIANT_DATA_NODELETE) {
-        UA_Variant tempv = newvalue->value.value;
-        UA_Variant_copy(&tempv, &newvalue->value.value);
+    /* Prepare the newQueueItem */
+    if(value.hasValue && value.value.storageType == UA_VARIANT_DATA_NODELETE) {
+        if(UA_DataValue_copy(&value, &newQueueItem->value) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                                   "Subscription %u | MonitoredItem %i | "
+                                   "Item for the publishing queue could not be prepared",
+                                   sub->subscriptionID, monitoredItem->itemId);
+            UA_free(newQueueItem);
+            goto cleanup;
+        }
+    } else {
+        newQueueItem->value = value;
     }
+    newQueueItem->clientHandle = monitoredItem->clientHandle;
 
-    /* Replace the comparison bytestring with the current sample */
+    /* <-- Point of no return --> */
+
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | MonitoredItem %u | Sampled a new value",
+                         sub->subscriptionID, monitoredItem->itemId);
+
+    /* Replace the encoding for comparison */
     UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    monitoredItem->lastSampledValue = newValueAsByteString;
+    monitoredItem->lastSampledValue = valueEncoding;
 
     /* Add the sample to the queue for publication */
-    TAILQ_INSERT_TAIL(&monitoredItem->queue, newvalue, listEntry);
+    ensureSpaceInMonitoredItemQueue(monitoredItem);
+    TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     monitoredItem->currentQueueSize++;
     return;
 
  cleanup:
-    UA_ByteString_deleteMembers(&newValueAsByteString);
-    UA_DataValue_deleteMembers(&newvalue->value);
-    UA_free(newvalue);
+    if(valueEncoding.data != stackValueEncoding)
+        UA_ByteString_deleteMembers(&valueEncoding);
+    UA_DataValue_deleteMembers(&value);
 }
 
 UA_StatusCode

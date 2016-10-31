@@ -58,7 +58,10 @@ if(UA_ENABLE_COVERAGE)
 endif()
 
 # Advanced options
-option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" OFF)
+option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
+mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
+
+option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" ON)
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
 option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
@@ -296,6 +299,15 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                            ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+
+# statuscode explanation
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
+        PRE_BUILD
+        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
+        ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
+list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c

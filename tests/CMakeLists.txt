@@ -37,22 +37,20 @@ macro(add_test_valgrind TEST_NAME)
     ENDIF()
 endmacro()
 
-
-
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
 add_executable(check_types_builtin check_types_builtin.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_types_builtin ${LIBS})
-add_test(types_builtin ${CMAKE_CURRENT_BINARY_DIR}/check_types_builtin)
+add_test_valgrind(types_builtin ${CMAKE_CURRENT_BINARY_DIR}/check_types_builtin)
 
 add_executable(check_types_memory check_types_memory.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_types_memory ${LIBS})
-add_test(types_memory ${CMAKE_CURRENT_BINARY_DIR}/check_types_memory)
+add_test_valgrind(types_memory ${CMAKE_CURRENT_BINARY_DIR}/check_types_memory)
 
 add_executable(check_types_range check_types_range.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_types_range ${LIBS})
-add_test(types_range ${CMAKE_CURRENT_BINARY_DIR}/check_types_range)
+add_test_valgrind(types_range ${CMAKE_CURRENT_BINARY_DIR}/check_types_range)
 
 add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_chunking ${LIBS})
@@ -72,7 +70,7 @@ add_test_valgrind(services_nodemanagement ${CMAKE_CURRENT_BINARY_DIR}/check_serv
 
 add_executable(check_services_subscriptions check_services_subscriptions.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_services_subscriptions ${LIBS})
-add_test(check_services_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_services_subscriptions)
+add_test_valgrind(check_services_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_services_subscriptions)
 
 add_executable(check_nodestore check_nodestore.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_nodestore ${LIBS})
@@ -84,7 +82,7 @@ add_test_valgrind(session ${CMAKE_CURRENT_BINARY_DIR}/check_session)
 
 add_executable(check_server_jobs check_server_jobs.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_jobs ${LIBS})
-add_test(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_jobs)
+add_test_valgrind(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_jobs)
 
 add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_userspace ${LIBS})
@@ -153,4 +151,4 @@ add_test_valgrind(check_client_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_c
 
 add_executable(check_utils check_utils.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_utils ${LIBS})
-add_test(check_utils ${CMAKE_CURRENT_BINARY_DIR}/check_utils)
+add_test_valgrind(check_utils ${CMAKE_CURRENT_BINARY_DIR}/check_utils)
