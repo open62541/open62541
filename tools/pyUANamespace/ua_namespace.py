@@ -468,7 +468,7 @@ class opcua_namespace():
     for ref in currentNode.getReferences():
       if ref.isForward() and ref.referenceType().id() == hasSubtypeRefNode.id():
         tdNodes.append(ref.target())
-        self.getTypeDefinitionNodes(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
+        self.getSubTypesOf(tdNodes=tdNodes, currentNode = ref.target(), hasSubtypeRefNode=hasSubtypeRefNode)
 
     return tdNodes
 
@@ -527,32 +527,49 @@ class opcua_namespace():
     file.write("}\n")
     file.close()
 
-  def __reorder_getMinWeightNode__(self, nmatrix):
-    rcind = -1
+  def getAggregatesOf(self, currentNode, aggregateRefs, tdNodes = None, checkSupertype=False):
+    if tdNodes == None:
+      tdNodes = []
+
+    supertypeNode = None;
+    if checkSupertype:
+      subtypeRefId = self.getNodeByBrowseName("HasSubtype").id()
+      for ref in currentNode.getReferences():
+         if not ref.isForward() and ref.referenceType().id() == subtypeRefId:
+           supertypeNode = ref.target()
+
+    # collect all aggregates of this node
+    for ref in currentNode.getReferences():
+      if ref.isForward() and ref.referenceType() in aggregateRefs:
+        tdNodes.append(ref.target())
+        self.getAggregatesOf(ref.target(), aggregateRefs, tdNodes)
+
+    # collect all aggregates of the supertype
+    if supertypeNode != None:
+      self.getAggregatesOf(supertypeNode, aggregateRefs, tdNodes, True)
+
+    return tdNodes
+
+  def __reorder_getMinWeightNode__(self, weights, unorderd):
     rind = -1
-    minweight = -1
-    minweightnd = None
-    for row in nmatrix:
-      rcind += 1
-      if row[0] == None:
-        continue
-      w = sum(row[1:])
-      if minweight < 0:
-        rind = rcind
+    minweight = 1000			#assuming that minweight will be below 1000
+    for i in unorderd:
+      w = weights[i]
+      if w < minweight:
+        rind = i
         minweight = w
-        minweightnd = row[0]
-      elif w < minweight:
-        rind = rcind
-        minweight = w
-        minweightnd = row[0]
-    return (rind, minweightnd, minweight)
+        if minweight == 0: break
+    return (rind, minweight)
 
   def reorderNodesMinDependencies(self):
-    # create a matrix represtantion of all node
-    #
-    nmatrix = []
-    for n in range(0,len(self.nodes)):
-      nmatrix.append([None] + [0]*len(self.nodes))
+    # number of nodes
+    noNodes = len(self.nodes)
+    # list of weights
+    weights = [0]*noNodes
+		# array of where the weight is
+    deb = [[] for i in range(noNodes)]
+    # list of the index of unorderd nodes
+    unorderd = [i for i in range(noNodes)]
 
     typeRefs = []
     tn = self.getNodeByBrowseName("HasTypeDefinition")
@@ -564,47 +581,49 @@ class opcua_namespace():
     if tn  != None:
       subTypeRefs.append(tn)
       subTypeRefs = subTypeRefs + self.getSubTypesOf(currentNode=tn)
+    # HasComponent, Hasproperty and all their subtypes (and all other aggregates)
+    aggregateRefs = []
+    tn = self.getNodeByBrowseName("Aggregates")
+    if tn  != None:
+      aggregateRefs.append(tn)
+      aggregateRefs = aggregateRefs + self.getSubTypesOf(currentNode=tn)
 
-    logger.debug("Building connectivity matrix for node order optimization.")
-    # Set column 0 to contain the node
-    for node in self.nodes:
-      nind = self.nodes.index(node)
-      nmatrix[nind][0] = node
+    logger.debug("Building weight list for node order optimization.")
 
     # Determine the dependencies of all nodes
     logger.debug("Determining node interdependencies.")
     for node in self.nodes:
       nind = self.nodes.index(node)
-      #print "Examining node " + str(nind) + " " + str(node)
       for ref in node.getReferences():
         if isinstance(ref.target(), opcua_node_t):
           tind = self.nodes.index(ref.target())
           # Typedefinition of this node has precedence over this node
           if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] += 200 # Very big weight for typedefs
+            deb[tind].append([nind,200])
+            weights[nind] += 200
+            # Aggregates of typedefinition has precedence over this node
+            aggregateNodes = self.getAggregatesOf(self.nodes[tind], aggregateRefs, checkSupertype=True)
+            for aNode in aggregateNodes:
+              aind = self.nodes.index(aNode)
+              deb[aind].append([nind,1])
+              weights[nind] += 1
           # isSubTypeOf/typeDefinition of this node has precedence over this node
           elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] += 100 # Big weight for subtypes
+            deb[tind].append([nind,100])
+            weights[nind] += 100
           # Else the target depends on us
           elif ref.isForward():
-            nmatrix[tind][nind+1] += 1 # regular weight for dependencies
+            deb[nind].append([tind,1])
+            weights[tind] += 1
 
     logger.debug("Using Djikstra topological sorting to determine printing order.")
     reorder = []
-    while len(reorder) < len(self.nodes):
-      (nind, node, w) = self.__reorder_getMinWeightNode__(nmatrix)
-      #print  str(100*float(len(reorder))/len(self.nodes)) + "% " + str(w) + " " + str(node) + " " + str(node.browseName())
-      reorder.append(node)
-      for ref in node.getReferences():
-        if isinstance(ref.target(), opcua_node_t):
-          tind = self.nodes.index(ref.target())
-          if ref.referenceType() in typeRefs and ref.isForward():
-            nmatrix[nind][tind+1] -= 200
-          elif ref.referenceType() in subTypeRefs and not ref.isForward():
-            nmatrix[nind][tind+1] -= 100
-          elif ref.isForward():
-            nmatrix[tind][nind+1] -= 1
-      nmatrix[nind][0] = None
+    while len(reorder) < noNodes:
+      (nind, w) = self.__reorder_getMinWeightNode__(weights, unorderd)
+      reorder.append(self.nodes[nind])
+      for arr in deb[nind]:
+        weights[arr[0]] -= arr[1]
+      unorderd.remove(nind)
     self.nodes = reorder
     logger.debug("Nodes reordered.")
     return
