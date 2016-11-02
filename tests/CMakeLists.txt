@@ -37,8 +37,6 @@ macro(add_test_valgrind TEST_NAME)
     ENDIF()
 endmacro()
 
-
-
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 

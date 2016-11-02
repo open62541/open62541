@@ -70,7 +70,6 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
-
 /**
  * Function Export
  * ---------------
