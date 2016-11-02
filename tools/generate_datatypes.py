@@ -97,6 +97,8 @@ class Type(object):
             #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
 
     def members_c(self):
+        if len(self.members)==0:
+            return "#define %s_members NULL" % (self.name)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
         for index, member in enumerate(self.members):

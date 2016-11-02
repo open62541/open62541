@@ -5,22 +5,6 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securechannel.h"
 
-void UA_Connection_init(UA_Connection *connection) {
-    connection->state = UA_CONNECTION_CLOSED;
-    connection->localConf = UA_ConnectionConfig_standard;
-    connection->remoteConf = UA_ConnectionConfig_standard;
-    connection->channel = NULL;
-    connection->sockfd = 0;
-    connection->handle = NULL;
-    UA_ByteString_init(&connection->incompleteMessage);
-    connection->send = NULL;
-    connection->recv = NULL;
-    connection->close = NULL;
-    connection->getSendBuffer = NULL;
-    connection->releaseSendBuffer = NULL;
-    connection->releaseRecvBuffer = NULL;
-}
-
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
@@ -70,7 +54,9 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         UA_StatusCode decode_retval = UA_UInt32_decodeBinary(message, &length_pos, &chunk_length);
 
         /* The message size is not allowed. Throw the remaining bytestring away */
-        if(decode_retval != UA_STATUSCODE_GOOD || chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize) {
+        if(decode_retval != UA_STATUSCODE_GOOD ||
+           chunk_length < 16 ||
+           chunk_length > connection->localConf.recvBufferSize) {
             garbage_end = true;
             break;
         }
@@ -113,7 +99,8 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        memcpy(connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
+        memcpy(connection->incompleteMessage.data,
+               &message->data[complete_until], incomplete_length);
         message->length = complete_until;
     }
 
@@ -126,41 +113,21 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return retval;
 }
 
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wextra"
-#pragma GCC diagnostic ignored "-Wcast-qual"
-#pragma GCC diagnostic ignored "-Wunused-value"
-#endif
-
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
-#ifdef UA_ENABLE_MULTITHREADING
     UA_SecureChannel *channel = connection->channel;
     if(channel)
-        uatomic_cmpxchg(&channel->connection, connection, NULL);
-    uatomic_set(&connection->channel, NULL);
-#else
-    if(connection->channel)
-        connection->channel->connection = NULL;
-    connection->channel = NULL;
-#endif
+        /* only replace when the channel points to this connection */
+        UA_atomic_cmpxchg((void**)&channel->connection, connection, NULL);
+    UA_atomic_xchg((void**)&connection->channel, NULL);
 }
 
-void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_cmpxchg(&channel->connection, NULL, connection) == NULL)
-        uatomic_set((void**)&connection->channel, (void*)channel);
-#else
-    if(channel->connection != NULL)
-        return;
-    channel->connection = connection;
-    connection->channel = channel;
-#endif
+// TODO: Return an error code
+void
+UA_Connection_attachSecureChannel(UA_Connection *connection,
+                                  UA_SecureChannel *channel) {
+    if(UA_atomic_cmpxchg((void**)&channel->connection, NULL, connection) == NULL)
+        UA_atomic_xchg((void**)&connection->channel, (void*)channel);
 }
-
-#if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
-#pragma GCC diagnostic pop
-#endif
 
 UA_StatusCode
 UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
@@ -278,7 +245,6 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
         *path = pathTmp;
     return UA_STATUSCODE_GOOD;
 }
-
 
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     if (!buf)

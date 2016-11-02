@@ -31,9 +31,6 @@ UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 static const UA_NodeId nodeIdHasSubType = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASSUBTYPE};
-static const UA_NodeId nodeIdHasTypeDefinition = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
 static const UA_NodeId nodeIdHasComponent = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_HASCOMPONENT};
@@ -43,9 +40,6 @@ static const UA_NodeId nodeIdHasProperty = {
 static const UA_NodeId nodeIdOrganizes = {
     .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
     .identifier.numeric = UA_NS0ID_ORGANIZES};
-static const UA_NodeId nodeIdFolderType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_FOLDERTYPE};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
@@ -880,6 +874,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /* Root and below */
     /******************/
 
+    static const UA_NodeId nodeIdFolderType = {
+        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+        .identifier.numeric = UA_NS0ID_FOLDERTYPE};
+    static const UA_NodeId nodeIdHasTypeDefinition = {
+        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
+        .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
+
     UA_ObjectNode *root = UA_Nodestore_newObjectNode();
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
@@ -963,8 +964,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     
     // If we are in an UA conformant namespace, the above function just created a full ServerType object.
     // Before readding every variable, delete whatever got instantiated.
-    UA_RCU_LOCK();
-    deleteInstanceChildren(server, &servernode->nodeId);
+    // here we can't reuse servernode->nodeId because it may be deleted in addNodeInternalWithType if the node could not be added
+    UA_RCU_LOCK();    
+    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    deleteInstanceChildren(server, &serverNodeId);
     UA_RCU_UNLOCK();
     
     UA_VariableNode *namespaceArray = UA_Nodestore_newVariableNode();
@@ -996,7 +999,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addNodeInternalWithType(server, (UA_Node*)servercapablities, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasComponent,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCAPABILITIESTYPE));
-
+    UA_NodeId ServerCapabilitiesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES);
+    deleteInstanceChildren(server, &ServerCapabilitiesNodeId);
+    
     UA_VariableNode *localeIdArray = UA_Nodestore_newVariableNode();
     copyNames((UA_Node*)localeIdArray, "LocaleIdArray");
     localeIdArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY;
@@ -1111,7 +1116,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addNodeInternalWithType(server, (UA_Node*)serverdiagnostics,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERDIAGNOSTICSTYPE));
-
+    UA_NodeId ServerDiagnosticsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS);
+    deleteInstanceChildren(server, &ServerDiagnosticsNodeId);
+    
     UA_VariableNode *enabledFlag = UA_Nodestore_newVariableNode();
     copyNames((UA_Node*)enabledFlag, "EnabledFlag");
     enabledFlag->nodeId.identifier.numeric = UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG;

@@ -506,13 +506,15 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
       encField = self.getEncodingRule()[encFieldIdx]
       encFieldIdx = encFieldIdx + 1;
       if encField[2] == 0:
-        code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+        #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+        code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &UA_TYPES[UA_TYPES_" + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
       else:
         if isinstance(subv, list):
           for subvidx in range(0,len(subv)):
-            code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+            #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+            code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
         else:
-          code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+          code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
 
     # Reallocate the memory by swapping the 65k Bytestring for a new one
     code.append(self.getCodeInstanceName() + "->content.encoded.body.length = " + self.getCodeInstanceName() + "_encOffset;");
