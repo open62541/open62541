@@ -129,9 +129,6 @@ struct UA_Server {
 /* Node Handling */
 /*****************/
 
-void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
-UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
-
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in

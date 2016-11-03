@@ -28,7 +28,6 @@
 #include "ua_network_tcp.h"
 #include "ua_nodestore_interface.h"
 #include "ua_nodestore_standard.h"
-#include "ua_nodes.h"
 
 #else
 #include "open62541.h"
@@ -40,22 +39,28 @@ static void stopHandler(int sig) {
 }
 
 /* Define a verry simple nodestore with a cyclic capacity of 100 ObjectNodes as array.*/
-UA_ObjectNode nodes[100];
+#define NODESTORE_SIZE 100
+
+UA_ObjectNode nodes[NODESTORE_SIZE];
 int nodesCount = 0;
 UA_UInt16 nsIdx = 0;
-static void Nodestore_delete(UA_ObjectNode *nodestore){
-
+static void Nodestore_delete(UA_ObjectNode* ns){
+    for(int i=0 ; i < nodesCount && i < NODESTORE_SIZE; i++){
+        UA_Node_deleteMembersAnyNodeClass((UA_Node*)&nodes[i]);
+    }
+    nodesCount = 0;
 }
 static void Nodestore_deleteNode(UA_Node *node){
-    if((int)node->nodeId.identifier.numeric < nodesCount //Node not instanciatet in nodestore
-                && (int)node->nodeId.identifier.numeric > (nodesCount-100)) //Node already overwritten
+    int nodeIdx = (int)node->nodeId.identifier.numeric;
+    if( nodeIdx < nodesCount //Node not instanciatet in nodestore
+     && nodeIdx > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
         return;
-    nodes[node->nodeId.identifier.numeric] = UA_ObjectNode;
+   // nodes[nodeIdx] = UA_ObjectNode;
 }
 static UA_Node * Nodestore_newNode(UA_NodeClass nodeClass){
     if(nodeClass != UA_NODECLASS_OBJECT)
         return NULL;
-    int nodeIndex = nodesCount % 100;
+    int nodeIndex = nodesCount % NODESTORE_SIZE;
     Nodestore_deleteNode((UA_Node*)&nodes[nodeIndex]);
     nodes[nodeIndex].nodeId = UA_NODEID_NUMERIC(nsIdx, (UA_UInt32)nodesCount);
     nodes[nodeIndex].nodeClass = UA_NODECLASS_OBJECT;
@@ -67,8 +72,8 @@ static UA_StatusCode Nodestore_insert(UA_ObjectNode *ns, UA_Node *node){
 }
 static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     if((int)nodeid->identifier.numeric < nodesCount //Node not instanciatet in nodestore
-            && (int)nodeid->identifier.numeric > (nodesCount-100)) //Node already overwritten
-        return (UA_Node*) &ns[nodeid->identifier.numeric % 100];
+            && (int)nodeid->identifier.numeric > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
+        return (UA_Node*) &ns[nodeid->identifier.numeric % NODESTORE_SIZE];
     else
         return NULL;
 }
@@ -84,7 +89,7 @@ static UA_NodestoreInterface
 Nodestore_Example_new(void){
     UA_NodestoreInterface nsi;
     nsi.handle =        &nodes;
-    nsi.deleteNodeStore =        (UA_NodestoreInterface_delete)      Nodestore_delete;
+    nsi.deleteNodeStore =(UA_NodestoreInterface_delete)     Nodestore_delete;
     nsi.newNode =       (UA_NodestoreInterface_newNode)     Nodestore_newNode;
     nsi.deleteNode =    (UA_NodestoreInterface_deleteNode)  Nodestore_deleteNode;
     nsi.insert =        (UA_NodestoreInterface_insert)      Nodestore_insert;
@@ -120,18 +125,18 @@ int main(void) {
     nsIdx = UA_Server_addNamespace_Nodestore(server, "Namespace4Nodestore_example",&nsi2);
     //Create a new node and reference it
     UA_Node * rootNode = Nodestore_newNode(UA_NODECLASS_OBJECT);
-    rootNode->browseName = UA_QUALIFIEDNAME(nsIdx,"RootNode");
-    rootNode->displayName = UA_LOCALIZEDTEXT("en_US","RootNode_Nodestore_Example");
-    rootNode->description = UA_LOCALIZEDTEXT("en_US","This is the root node of the nodestore example.");
+    rootNode->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"RootNode");
+    rootNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","RootNode_Nodestore_Example");
+    rootNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the root node of the nodestore example and resides in Nodestore.");
     UA_Server_addReference(server,
             UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTSFOLDER),
             UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
             UA_EXPANDEDNODEID_NUMERIC(nsIdx,0),
             true);
     UA_Node * node1 = Nodestore_newNode(UA_NODECLASS_OBJECT);
-    node1->browseName = UA_QUALIFIEDNAME(nsIdx,"Node1");
-    node1->displayName = UA_LOCALIZEDTEXT("en_US","Node1_Nodestore_Example");
-    node1->description = UA_LOCALIZEDTEXT("en_US","This is the node1 of the nodestore example.");
+    node1->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"Node1");
+    node1->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","Node1_Nodestore_Example");
+    node1->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the node1 of the nodestore example.");
     UA_Server_addReference(server,
             UA_NODEID_NUMERIC(nsIdx,0),
             UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),

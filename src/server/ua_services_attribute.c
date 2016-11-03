@@ -129,7 +129,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
     if(!UA_NodeId_equal(valueDataTypeId, variableDataTypeId)) {
         /* contains the value a subtype of the required type? */
         const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-        if(isNodeInTree(server->nodestore, valueDataTypeId,
+        if(isNodeInTree(server->nodestoreSwitch, valueDataTypeId,
                         variableDataTypeId, &subtypeId, 1))
             goto check_array;
 
@@ -357,7 +357,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
 
     /* Does the new type match the constraints of the variabletype? */
     UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(!isNodeInTree(server->nodestore, dataType,
+    if(!isNodeInTree(server->nodestoreSwitch, dataType,
                      constraintDataType, &subtypeId, 1))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 

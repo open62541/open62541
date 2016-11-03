@@ -58,6 +58,15 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
 } UA_Node;
 
+/*
+ * Node Handling
+ */
+void UA_EXPORT
+UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
+
+UA_StatusCode UA_EXPORT
+UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
+
 /**
  * Value Callback
  * ~~~~~~~~~~~~~~
