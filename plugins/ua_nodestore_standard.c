@@ -20,6 +20,8 @@ UA_Nodestore_standard() {
 
 void
 UA_Nodestore_standard_delete(UA_NodestoreInterface * nodestoreInterface){
-    nodestoreInterface->deleteNodeStore(nodestoreInterface->handle);
+    //UA_RCU_LOCK();
+    //nodestoreInterface->deleteNodeStore(nodestoreInterface->handle);
+    //UA_RCU_UNLOCK();
     UA_free(nodestoreInterface->handle);
 }

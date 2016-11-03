@@ -254,6 +254,7 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
                    const void *data) {
     UA_StatusCode retval;
+    UA_Int16 failCounts = 0;
     do {
 #ifndef UA_ENABLE_MULTITHREADING
         const UA_Node *node = UA_NodestoreSwitch_get(server->nodestoreSwitch ,nodeId);
@@ -272,7 +273,8 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
             return retval;
         }
         retval = UA_NodestoreSwitch_replace(server->nodestoreSwitch, copy);
+        failCounts++;
 #endif
-    } while(retval != UA_STATUSCODE_GOOD);
+    } while(retval != UA_STATUSCODE_GOOD && failCounts < 10);
     return UA_STATUSCODE_GOOD;
 }

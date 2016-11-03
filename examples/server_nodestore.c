@@ -78,7 +78,16 @@ static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid)
         return NULL;
 }
 static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    if(node->nodeClass != UA_NODECLASS_OBJECT)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    int newId = (int)node->nodeId.identifier.numeric;
+    if(newId < nodesCount //Node not instanciatet in nodestore
+               && newId > (nodesCount-NODESTORE_SIZE)){ //Node already overwritten
+        ns[newId % NODESTORE_SIZE] = *(UA_ObjectNode*)node;
+        return UA_STATUSCODE_GOOD;//(UA_Node*) &ns[nodeid->identifier.numeric % NODESTORE_SIZE];
+    }
+    else
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 }
 static UA_StatusCode Nodestore_remove(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     return UA_STATUSCODE_BADNOTIMPLEMENTED;

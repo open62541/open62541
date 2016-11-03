@@ -586,8 +586,11 @@ variableTypeNodeFromAttributes(UA_Server *server, UA_VariableTypeNode *vtnode,
                                const UA_AddNodesItem *item,
                                const UA_VariableTypeAttributes *attr) {
     vtnode->isAbstract = attr->isAbstract;
-    return copyCommonVariableAttributes(server, (UA_VariableNode*)vtnode, item,
+    UA_RCU_LOCK();
+    UA_StatusCode retVal = copyCommonVariableAttributes(server, (UA_VariableNode*)vtnode, item,
                                         (const UA_VariableAttributes*)attr);
+    UA_RCU_UNLOCK();
+    return retVal;
 }
 
 static UA_StatusCode
@@ -832,8 +835,10 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     item.browseName = browseName;
     item.typeDefinition.nodeId = typeDefinition;
     item.parentNodeId.nodeId = parentNodeId;
+    UA_RCU_LOCK();
     retval |= copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&editAttr);
     retval |= copyCommonVariableAttributes(server, node, &item, &editAttr);
+    UA_RCU_UNLOCK();
     UA_DataValue_deleteMembers(&node->value.data.value);
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;

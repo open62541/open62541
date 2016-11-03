@@ -644,7 +644,7 @@ class opcua_namespace():
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
     header.append(  '#include "server/ua_server_internal.h"')
-    header.append(  '#include "server/ua_nodes.h"')
+    header.append(  '#include "ua_nodes.h"')
     header.append('  #include "ua_util.h"')
     header.append('  #include "ua_types.h"')
     header.append('  #include "ua_types_encoding_binary.h"')

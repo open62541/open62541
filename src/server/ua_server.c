@@ -199,7 +199,9 @@ static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
   bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_REFERENCETYPEINFO;
   UA_BrowseResult bRes;
   UA_BrowseResult_init(&bRes);
+  UA_RCU_LOCK();
   Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
+  UA_RCU_UNLOCK();
   for(size_t i=0; i<bRes.referencesSize; i++) {
     UA_ReferenceDescription *rd = &bRes.references[i];
     if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) 
@@ -236,8 +238,8 @@ void UA_Server_delete(UA_Server *server) {
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_RCU_LOCK();
     UA_NodestoreSwitch_delete(server->nodestoreSwitch);
-    UA_RCU_UNLOCK();
     UA_Nodestore_standard_delete(server->nodestore_std);
+    UA_RCU_UNLOCK();
     UA_free(server->nodestore_std);
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_Server_deleteExternalNamespaces(server);
@@ -965,10 +967,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     // If we are in an UA conformant namespace, the above function just created a full ServerType object.
     // Before readding every variable, delete whatever got instantiated.
     // here we can't reuse servernode->nodeId because it may be deleted in addNodeInternalWithType if the node could not be added
-    UA_RCU_LOCK();    
     UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
     deleteInstanceChildren(server, &serverNodeId);
-    UA_RCU_UNLOCK();
     
     UA_VariableNode *namespaceArray = UA_Nodestore_newVariableNode();
     copyNames((UA_Node*)namespaceArray, "NamespaceArray");

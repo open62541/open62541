@@ -5,6 +5,7 @@
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
 #include "server/ua_nodestore.h"
+#include "server/ua_server_internal.h"
 #include "ua_util.h"
 #include "check.h"
 
@@ -34,6 +35,9 @@ static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
 }
 
 START_TEST(replaceExistingNode) {
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RCU_LOCK();
+#endif
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1);
@@ -44,10 +48,17 @@ START_TEST(replaceExistingNode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     
     UA_NodeStore_delete(ns);
+    UA_free(ns);
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RCU_UNLOCK();
+#endif
 }
 END_TEST
 
 START_TEST(replaceOldNode) {
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RCU_LOCK();
+#endif
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1);
@@ -63,13 +74,18 @@ START_TEST(replaceOldNode) {
     retval = UA_NodeStore_replace(ns, n3);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     
+    //UA_Node_deleteMembersAnyNodeClass(n3);
     UA_NodeStore_delete(ns);
+    UA_free(ns);
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RCU_UNLOCK();
+#endif
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -81,15 +97,16 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     ck_assert_int_eq((uintptr_t)n1, (uintptr_t)nr);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNodeInOtherUA_NodeStore) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -104,15 +121,16 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     ck_assert_int_eq((uintptr_t)nr, 0);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -136,15 +154,16 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     ck_assert_int_eq((uintptr_t)nr, (uintptr_t)n3);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -170,15 +189,16 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
     ck_assert_int_eq(visitCnt, 6);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(findNodeInExpandedNamespace) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -196,15 +216,16 @@ START_TEST(findNodeInExpandedNamespace) {
     // finally
     UA_NodeStore_deleteNode(n2);
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -223,15 +244,16 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
     ck_assert_int_eq(visitCnt, 200);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
 
 START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
@@ -254,8 +276,9 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
     ck_assert_int_eq((uintptr_t)nr, 0);
     // finally
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST
@@ -273,7 +296,7 @@ struct UA_NodeStoreProfileTest {
 };
 
 static void *profileGetThread(void *arg) {
-    rcu_register_thread();
+    UA_RCU_LOCK();
     struct UA_NodeStoreProfileTest *test = (struct UA_NodeStoreProfileTest*) arg;
     UA_NodeId id;
     UA_NodeId_init(&id);
@@ -285,7 +308,7 @@ static void *profileGetThread(void *arg) {
             UA_NodeStore_get(ns,&id);
         }
     }
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
     
     return NULL;
 }
@@ -293,7 +316,7 @@ static void *profileGetThread(void *arg) {
 
 START_TEST(profileGetDelete) {
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_register_thread();
+    UA_RCU_LOCK();
 #endif
 
 #define N 1000000
@@ -331,9 +354,10 @@ START_TEST(profileGetDelete) {
 #endif
 
     UA_NodeStore_delete(ns);
+    UA_free(ns);
 
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_unregister_thread();
+    UA_RCU_UNLOCK();
 #endif
 }
 END_TEST

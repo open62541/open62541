@@ -279,7 +279,7 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return;
 
-    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_NodeStore_new" + nodetype + "Node();")
+    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_Nodestore_new" + nodetype + "Node();")
     if not "browsename" in self.supressGenerationOfAttribute:
       extrNs = node.browseName().split(":")
       if len(extrNs) > 1:
