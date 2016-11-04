@@ -153,7 +153,7 @@ UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
     // opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path
     // if ip6, then end not found, otherwise we are fine
     UA_Boolean ip6_end_found = endpointUrl[portpos] != '[';
-    for(; portpos < urlLength; portpos++) {
+    for(; portpos < urlLength; ++portpos) {
         if (!ip6_end_found) {
             if (endpointUrl[portpos] == ']')
                 ip6_end_found = UA_TRUE;
@@ -180,7 +180,7 @@ UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
 
     if(path) {
         size_t pathpos = portpos < urlLength ? portpos : 10;
-        for(; pathpos < urlLength; pathpos++) {
+        for(; pathpos < urlLength; ++pathpos) {
             if(endpointUrl[pathpos] == '/')
                 break;
         }
@@ -224,7 +224,7 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
         portStr[portLen]='\0';
 
         if(port) {
-            for (size_t i=0; i<6; i++) {
+            for (size_t i=0; i<6; ++i) {
                 if (portStr[i] == 0)
                     break;
                 if (portStr[i] < '0' || portStr[i] > '9')
@@ -257,7 +257,7 @@ size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
         if('0' > c || '9' < c)
             break;
         n = (n*10) + (UA_UInt32)(c-'0');
-        progress++;
+        ++progress;
     }
     *number = n;
     return progress;

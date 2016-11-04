@@ -150,7 +150,7 @@ Boolean_encodeBinary(const UA_Boolean *src, const UA_DataType *_) {
     if(pos + sizeof(UA_Boolean) > end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     *pos = *(const UA_Byte*)src;
-    pos++;
+    ++pos;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -159,7 +159,7 @@ Boolean_decodeBinary(UA_Boolean *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_Boolean) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (*pos > 0) ? true : false;
-    pos++;
+    ++pos;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -169,7 +169,7 @@ Byte_encodeBinary(const UA_Byte *src, const UA_DataType *_) {
     if(pos + sizeof(UA_Byte) > end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
     *pos = *(const UA_Byte*)src;
-    pos++;
+    ++pos;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -178,7 +178,7 @@ Byte_decodeBinary(UA_Byte *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_Byte) > end)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = *pos;
-    pos++;
+    ++pos;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -337,8 +337,8 @@ pack754(long double f, unsigned bits, unsigned expbits) {
     if (f < 0) { sign = 1; fnorm = -f; }
     else { sign = 0; fnorm = f; }
     int shift = 0;
-    while(fnorm >= 2.0) { fnorm /= 2.0; shift++; }
-    while(fnorm < 1.0) { fnorm *= 2.0; shift--; }
+    while(fnorm >= 2.0) { fnorm /= 2.0; ++shift; }
+    while(fnorm < 1.0) { fnorm *= 2.0; --shift; }
     fnorm = fnorm - 1.0;
     long long significand = (long long)(fnorm * ((float)(1LL<<significandbits) + 0.5f));
     long long exponent = shift + ((1<<(expbits-1)) - 1);
@@ -353,8 +353,8 @@ unpack754(uint64_t i, unsigned bits, unsigned expbits) {
     result += 1.0f;
     unsigned bias = (unsigned)(1<<(expbits-1)) - 1;
     long long shift = (long long)((i>>significandbits) & (uint64_t)((1LL<<expbits)-1)) - bias;
-    while(shift > 0) { result *= 2.0; shift--; }
-    while(shift < 0) { result /= 2.0; shift++; }
+    while(shift > 0) { result *= 2.0; --shift; }
+    while(shift < 0) { result /= 2.0; ++shift; }
     result *= ((i>>(bits-1))&1)? -1.0: 1.0;
     return result;
 }
@@ -469,7 +469,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
 
     uintptr_t ptr = (uintptr_t)src;
     size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; i++) {
+    for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; ++i) {
         UA_Byte *oldpos = pos;
         retval = encodeBinaryJumpTable[encode_index]((const void*)ptr, type);
         ptr += type->memSize;
@@ -479,7 +479,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
             retval = exchangeBuffer();
             /* Repeat encoding of the same element */
             ptr -= type->memSize;
-            i--;
+            --i;
         }
     }
     return retval;
@@ -526,7 +526,7 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst,
         /* Decode array members */
         uintptr_t ptr = (uintptr_t)*dst;
         size_t decode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-        for(size_t i = 0; i < length; i++) {
+        for(size_t i = 0; i < length; ++i) {
             retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_Array_delete(*dst, i, type);
@@ -764,7 +764,7 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 static UA_StatusCode
 findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
         if (UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric) {
             *findtype = &UA_TYPES[i];
             return UA_STATUSCODE_GOOD;
@@ -920,7 +920,7 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_) {
         eo.content.decoded.type = src->type;
         const UA_UInt16 memSize = src->type->memSize;
         uintptr_t ptr = (uintptr_t)src->data;
-        for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; i++) {
+        for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; ++i) {
             UA_Byte *oldpos = pos;
             eo.content.decoded.data = (void*)ptr;
             retval |= ExtensionObject_encodeBinary(&eo, NULL);
@@ -930,7 +930,7 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_) {
                 pos = oldpos;
                 retval = exchangeBuffer();
                 /* encode the same element in the next iteration */
-                i--;
+                --i;
                 ptr -= memSize;
             }
         }
@@ -1194,7 +1194,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; i++) {
+    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
@@ -1210,7 +1210,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
                 retval = exchangeBuffer();
                 /* re-encode the same member on the new buffer */
                 ptr -= member->padding + memSize;
-                i--;
+                --i;
             }
         } else {
             ptr += member->padding;
@@ -1279,7 +1279,7 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < membersSize; i++) {
+    for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
@@ -1334,7 +1334,7 @@ Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
     }
     uintptr_t ptr = (uintptr_t)src;
     size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    for(size_t i = 0; i < length; i++) {
+    for(size_t i = 0; i < length; ++i) {
         s += calcSizeBinaryJumpTable[encode_index]((const void*)ptr, type);
         ptr += type->memSize;
     }
@@ -1460,7 +1460,7 @@ Variant_calcSizeBinary(UA_Variant const *src, UA_DataType *_) {
 
     uintptr_t ptr = (uintptr_t)src->data;
     size_t memSize = src->type->memSize;
-    for(size_t i = 0; i < length; i++) {
+    for(size_t i = 0; i < length; ++i) {
         if(!isBuiltin) {
             /* The type is wrapped inside an extensionobject */
             s += NodeId_calcSizeBinary(&typeId, NULL);
@@ -1549,7 +1549,7 @@ UA_calcSizeBinary(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < membersSize; i++) {
+    for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {

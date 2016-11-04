@@ -127,7 +127,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         unsigned long identifier;
         long before, after;
         cds_lfht_count_nodes(ht, &before, &identifier, &after); // current number of nodes stored
-        identifier++;
+        ++identifier;
 
         node->nodeId.identifier.numeric = (UA_UInt32)identifier;
         while(true) {

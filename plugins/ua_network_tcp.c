@@ -287,7 +287,7 @@ setFDSet(ServerNetworkLayerTCP *layer, fd_set *fdset) {
     FD_ZERO(fdset);
     UA_fd_set(layer->serversockfd, fdset);
     UA_Int32 highestfd = layer->serversockfd;
-    for(size_t i = 0; i < layer->mappingsSize; i++) {
+    for(size_t i = 0; i < layer->mappingsSize; ++i) {
         UA_fd_set(layer->mappings[i].sockfd, fdset);
         if(layer->mappings[i].sockfd > highestfd)
             highestfd = layer->mappings[i].sockfd;
@@ -358,7 +358,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     layer->mappings = nm;
     layer->mappings[layer->mappingsSize].connection = c;
     layer->mappings[layer->mappingsSize].sockfd = newsockfd;
-    layer->mappingsSize++;
+    ++layer->mappingsSize;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -448,7 +448,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
 
     /* accept new connections (can only be a single one) */
     if(UA_fd_isset(layer->serversockfd, &fdset)) {
-        resultsize--;
+        --resultsize;
         SOCKET newsockfd = accept((SOCKET)layer->serversockfd, NULL, NULL);
 #ifdef _WIN32
         if(newsockfd != INVALID_SOCKET)
@@ -476,7 +476,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     /* read from established sockets */
     size_t j = 0;
     UA_ByteString buf = UA_BYTESTRING_NULL;
-    for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; i++) {
+    for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; ++i) {
         if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) &&
            !UA_fd_isset(layer->mappings[i].sockfd, &fdset))
           continue;
@@ -486,7 +486,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             js[j].job.binaryMessage.connection = layer->mappings[i].connection;
             js[j].job.binaryMessage.message = buf;
             js[j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
-            j++;
+            ++j;
         } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             UA_Connection *c = layer->mappings[i].connection;
             UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
@@ -495,12 +495,12 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             js[j].type = UA_JOBTYPE_DETACHCONNECTION;
             js[j].job.closeConnection = layer->mappings[i].connection;
             layer->mappings[i] = layer->mappings[layer->mappingsSize-1];
-            layer->mappingsSize--;
-            j++;
+            --layer->mappingsSize;
+            ++j;
             js[j].type = UA_JOBTYPE_METHODCALL_DELAYED;
             js[j].job.methodCall.method = FreeConnectionCallback;
             js[j].job.methodCall.data = c;
-            j++;
+            ++j;
         }
     }
 
@@ -524,7 +524,7 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
     UA_Job *items = malloc(sizeof(UA_Job) * layer->mappingsSize * 2);
     if(!items)
         return 0;
-    for(size_t i = 0; i < layer->mappingsSize; i++) {
+    for(size_t i = 0; i < layer->mappingsSize; ++i) {
         socket_close(layer->mappings[i].connection);
         items[i*2].type = UA_JOBTYPE_DETACHCONNECTION;
         items[i*2].job.closeConnection = layer->mappings[i].connection;

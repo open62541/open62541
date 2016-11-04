@@ -161,7 +161,7 @@ class open62541_MacroHelper():
             code.append("")
             code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")
             code.append("int inputArgumentCnt;")
-            code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; inputArgumentCnt++) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
+            code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; ++inputArgumentCnt) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
             argumentCnt = 0
             for inArg in inArgVal:
                 if inArg.getValueFieldByAlias("Description") != None:
@@ -179,7 +179,7 @@ class open62541_MacroHelper():
             code.append("")
             code.append("outputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(outArgVal)) + ");")
             code.append("int outputArgumentCnt;")
-            code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; outputArgumentCnt++) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
+            code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; ++outputArgumentCnt) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
             argumentCnt = 0
             for outArg in outArgVal:
                 if outArg.getValueFieldByAlias("Description") != None:

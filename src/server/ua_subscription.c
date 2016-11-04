@@ -59,7 +59,7 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
     TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
     UA_DataValue_deleteMembers(&queueItem->value);
     UA_free(queueItem);
-    mon->currentQueueSize--;
+    --mon->currentQueueSize;
 }
 
 /* Has this sample changed from the last one? The method may allocate additional
@@ -211,7 +211,7 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     /* Add the sample to the queue for publication */
     ensureSpaceInMonitoredItemQueue(monitoredItem);
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
-    monitoredItem->currentQueueSize++;
+    ++monitoredItem->currentQueueSize;
     return;
 
  cleanup:
@@ -320,7 +320,7 @@ countQueuedNotifications(UA_Subscription *sub, UA_Boolean *moreNotifications) {
                     *moreNotifications = true;
                     break;
                 }
-                notifications++;
+                ++notifications;
             }
         }
     }
@@ -366,8 +366,8 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
             min->value = qv->value;
             TAILQ_REMOVE(&mon->queue, qv, listEntry);
             UA_free(qv);
-            mon->currentQueueSize--;
-            l++;
+            --mon->currentQueueSize;
+            ++l;
         }
     }
     return UA_STATUSCODE_GOOD;
@@ -387,7 +387,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 
     /* Return if nothing to do */
     if(notifications == 0) {
-        sub->currentKeepAliveCount++;
+        ++sub->currentKeepAliveCount;
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
@@ -411,7 +411,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {
-            sub->currentLifetimeCount++;
+            ++sub->currentLifetimeCount;
             if(sub->currentLifetimeCount > sub->lifeTimeCount) {
                 UA_LOG_DEBUG_SESSION(server->config.logger, sub->session, "Subscription %u | "
                                      "End of lifetime for subscription", sub->subscriptionID);
@@ -473,7 +473,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     size_t available = 0;
     UA_NotificationMessageEntry *nme;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
-        available++;
+        ++available;
     // cppcheck-suppress knownConditionTrueFalse
     if(available > 0) {
         response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
@@ -482,7 +482,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     size_t i = 0;
     LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
         response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
-        i++;
+        ++i;
     }
 
     /* Send the response */

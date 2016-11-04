@@ -31,7 +31,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     descr->discoveryUrlsSize += server->config.networkLayersSize;
 
     // TODO: Add nl only if discoveryUrl not already present
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_String_copy(&nl->discoveryUrl, &descr->discoveryUrls[existing + i]);
     }
@@ -61,16 +61,16 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++)
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j)
             relevant_endpoints[j] = true;
         relevant_count = server->endpointDescriptionsSize;
     } else {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
-            for(size_t i = 0; i < request->profileUrisSize; i++) {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+            for(size_t i = 0; i < request->profileUrisSize; ++i) {
                 if(!UA_String_equal(&request->profileUris[i], &server->endpointDescriptions[j].transportProfileUri))
                     continue;
                 relevant_endpoints[j] = true;
-                relevant_count++;
+                ++relevant_count;
                 break;
             }
         }
@@ -98,15 +98,15 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 
     size_t k = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < clone_times; i++) {
+    for(size_t i = 0; i < clone_times; ++i) {
         if(nl_endpointurl)
             endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
             retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
-            k++;
+            ++k;
         }
     }
 

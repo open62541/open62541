@@ -37,7 +37,7 @@ typeEquivalence(const UA_DataType *t) {
 
 static const UA_DataType *
 findDataType(const UA_NodeId *typeId) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
         if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
             return &UA_TYPES[i];
     }
@@ -95,7 +95,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
     if(testArrayDimensionsSize != constraintArrayDimensionsSize)
         return UA_STATUSCODE_BADTYPEMISMATCH;
     /* dimension size zero in the constraint is a wildcard */
-    for(size_t i = 0; i < constraintArrayDimensionsSize; i++) {
+    for(size_t i = 0; i < constraintArrayDimensionsSize; ++i) {
         if(constraintArrayDimensions[i] != testArrayDimensions[i] &&
            constraintArrayDimensions[i] != 0)
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -799,14 +799,14 @@ void Service_Read(UA_Server *server, UA_Session *session,
     UA_Boolean isExternal[size];
     UA_UInt32 indices[size];
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+    for(size_t j = 0;j<server->externalNamespacesSize;++j) {
         size_t indexSize = 0;
-        for(size_t i = 0;i < size;i++) {
+        for(size_t i = 0;i < size;++i) {
             if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -817,7 +817,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
     }
 #endif
 
-    for(size_t i = 0;i < size;i++) {
+    for(size_t i = 0;i < size;++i) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
@@ -844,7 +844,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
         variant.data = expireArray;
 
         /* expires in 20 seconds */
-        for(UA_UInt32 i = 0;i < response->resultsSize;i++) {
+        for(UA_UInt32 i = 0;i < response->resultsSize;++i) {
             expireArray[i] = UA_DateTime_now() + 20 * 100 * 1000 * 1000;
         }
         UA_Variant_setArray(&variant, expireArray, request->nodesToReadSize,
@@ -1093,7 +1093,7 @@ Service_Write(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToWriteSize;
 
 #ifndef UA_ENABLE_EXTERNAL_NAMESPACES
-    for(size_t i = 0;i < request->nodesToWriteSize;i++) {
+    for(size_t i = 0;i < request->nodesToWriteSize;++i) {
         response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
                                                   (UA_EditNodeCallback)CopyAttributeIntoNode,
                                                   &request->nodesToWrite[i]);
@@ -1102,15 +1102,15 @@ Service_Write(UA_Server *server, UA_Session *session,
     UA_Boolean isExternal[request->nodesToWriteSize];
     UA_UInt32 indices[request->nodesToWriteSize];
     memset(isExternal, false, sizeof(UA_Boolean)*request->nodesToWriteSize);
-    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
         UA_UInt32 indexSize = 0;
-        for(size_t i = 0; i < request->nodesToWriteSize; i++) {
+        for(size_t i = 0; i < request->nodesToWriteSize; ++i) {
             if(request->nodesToWrite[i].nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -1118,7 +1118,7 @@ Service_Write(UA_Server *server, UA_Session *session,
         ens->writeNodes(ens->ensHandle, &request->requestHeader, request->nodesToWrite,
                         indices, indexSize, response->results, response->diagnosticInfos);
     }
-    for(size_t i = 0;i < request->nodesToWriteSize;i++) {
+    for(size_t i = 0;i < request->nodesToWriteSize;++i) {
         if(isExternal[i])
             continue;
         response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,

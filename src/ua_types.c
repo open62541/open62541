@@ -103,7 +103,7 @@ UA_DateTime_toStruct(UA_DateTime t) {
 
 static void
 printNumber(UA_UInt16 n, UA_Byte *pos, size_t digits) {
-    for(size_t i = digits; i > 0; i--) {
+    for(size_t i = digits; i > 0; --i) {
         pos[i-1] = (UA_Byte)((n % 10) + '0');
         n = n / 10;
     }
@@ -434,7 +434,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
         size_t elements = 1;
         dims_count = v->arrayDimensionsSize;
         dims = (UA_UInt32*)v->arrayDimensions;
-        for(size_t i = 0; i < dims_count; i++)
+        for(size_t i = 0; i < dims_count; ++i)
             elements *= dims[i];
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -444,7 +444,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     size_t count = 1;
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINDEXRANGENODATA;
-    for(size_t i = 0; i < dims_count; i++) {
+    for(size_t i = 0; i < dims_count; ++i) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
         if(range.dimensions[i].max >= dims[i])
@@ -460,7 +460,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     size_t running_dimssize = 1;
     UA_Boolean found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
-        k--;
+        --k;
         size_t dimrange = 1 + range.dimensions[k].max - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
@@ -558,14 +558,14 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
     if(nextrange.dimensionsSize == 0) {
         /* no nextrange */
         if(src->type->fixedSize) {
-            for(size_t i = 0; i < block_count; i++) {
+            for(size_t i = 0; i < block_count; ++i) {
                 memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
                 nextdst += block * elem_size;
                 nextsrc += stride * elem_size;
             }
         } else {
-            for(size_t i = 0; i < block_count; i++) {
-                for(size_t j = 0; j < block; j++) {
+            for(size_t i = 0; i < block_count; ++i) {
+                for(size_t j = 0; j < block; ++j) {
                     retval = UA_copy((const void*)nextsrc,
                                      (void*)nextdst, src->type);
                     nextdst += elem_size;
@@ -585,8 +585,8 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
         }
 
         /* Copy the content */
-        for(size_t i = 0; i < block_count; i++) {
-            for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; j++) {
+        for(size_t i = 0; i < block_count; ++i) {
+            for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; ++j) {
                 if(stringLike)
                     retval = copySubString((const UA_String*)nextsrc,
                                            (UA_String*)nextdst,
@@ -624,7 +624,7 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->arrayDimensionsSize = thisrange.dimensionsSize;
-        for(size_t k = 0; k < thisrange.dimensionsSize; k++)
+        for(size_t k = 0; k < thisrange.dimensionsSize; ++k)
             dst->arrayDimensions[k] =
                 thisrange.dimensions[k].max - thisrange.dimensions[k].min + 1;
     }
@@ -651,14 +651,14 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)array;
     if(v->type->fixedSize || !copy) {
-        for(size_t i = 0; i < block_count; i++) {
+        for(size_t i = 0; i < block_count; ++i) {
             memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
             nextsrc += block * elem_size;
             nextdst += stride * elem_size;
         }
     } else {
-        for(size_t i = 0; i < block_count; i++) {
-            for(size_t j = 0; j < block; j++) {
+        for(size_t i = 0; i < block_count; ++i) {
+            for(size_t j = 0; j < block; ++j) {
                 deleteMembers_noInit((void*)nextdst, v->type);
                 retval |= UA_copy((void*)nextsrc, (void*)nextdst, v->type);
                 nextdst += elem_size;
@@ -831,7 +831,7 @@ copy_noInit(const void *src, void *dst, const UA_DataType *type) {
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)dst;
     UA_Byte membersSize = type->membersSize;
-    for(size_t i = 0; i < membersSize; i++) {
+    for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
@@ -908,7 +908,7 @@ static void
 deleteMembers_noInit(void *p, const UA_DataType *type) {
     uintptr_t ptr = (uintptr_t)p;
     UA_Byte membersSize = type->membersSize;
-    for(size_t i = 0; i < membersSize; i++) {
+    for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *m= &type->members[i];
         const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
         const UA_DataType *mt = &typelists[!m->namespaceZero][m->memberTypeIndex];
@@ -977,7 +977,7 @@ UA_Array_copy(const void *src, size_t src_size,
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < src_size; i++) {
+    for(size_t i = 0; i < src_size; ++i) {
         retval |= UA_copy((void*)ptrs, (void*)ptrd, type);
         ptrs += type->memSize;
         ptrd += type->memSize;
@@ -993,7 +993,7 @@ void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     if(!type->fixedSize) {
         uintptr_t ptr = (uintptr_t)p;
-        for(size_t i = 0; i < size; i++) {
+        for(size_t i = 0; i < size; ++i) {
             UA_deleteMembers((void*)ptr, type);
             ptr += type->memSize;
         }
