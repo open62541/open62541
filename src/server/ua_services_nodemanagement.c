@@ -184,7 +184,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         return retval;
     
     /* Copy members of the type and supertypes */
-    for(size_t i = 0; i < hierarchySize; i++)
+    for(size_t i = 0; i < hierarchySize; ++i)
         retval |= copyChildNodesToNode(server, session, &hierarchy[i], nodeId, instantiationCallback);
     UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)
@@ -233,7 +233,7 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
         return br.statusCode;
     
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < br.referencesSize; i++) {
+    for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
         if(rd->browseName.namespaceIndex == browseName->namespaceIndex &&
            UA_String_equal(&rd->browseName.name, &browseName->name)) {
@@ -277,7 +277,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
     /* Copy all children */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId existingChild = UA_NODEID_NULL;
-    for(size_t i = 0; i < br.referencesSize; i++) {
+    for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
         // Check for deduplication
         retval = instanceFindAggregateByBrowsename(server, session, destinationNodeId,
@@ -725,15 +725,15 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
     UA_UInt32 indices[size];
 #endif
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j <server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j <server->externalNamespacesSize; ++j) {
         size_t indexSize = 0;
-        for(size_t i = 0;i < size;i++) {
+        for(size_t i = 0;i < size;++i) {
             if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex !=
                server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -745,7 +745,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 #endif
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++) {
+    for(size_t i = 0; i < size; ++i) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
@@ -996,7 +996,7 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session,
 #else
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Boolean handledExternally = UA_FALSE;
-    for(size_t j = 0; j <server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j <server->externalNamespacesSize; ++j) {
         if(item->sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
             continue;
         } else {
@@ -1027,7 +1027,7 @@ Service_AddReferences_single(UA_Server *server, UA_Session *session,
                                 (UA_EditNodeCallback)addOneWayReference, &secondItem);
 #else
     handledExternally = UA_FALSE;
-    for(size_t j = 0; j <server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j <server->externalNamespacesSize; ++j) {
         if(secondItem.sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
             continue;
         } else {
@@ -1075,7 +1075,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
     response->resultsSize = request->referencesToAddSize;
 
 #ifndef UA_ENABLE_EXTERNAL_NAMESPACES
-    for(size_t i = 0; i < response->resultsSize; i++)
+    for(size_t i = 0; i < response->resultsSize; ++i)
         response->results[i] =
             Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
 #else
@@ -1088,15 +1088,15 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 # endif /*NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
         size_t indicesSize = 0;
-        for(size_t i = 0;i < size;i++) {
+        for(size_t i = 0;i < size;++i) {
             if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
                != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indicesSize] = (UA_UInt32)i;
-            indicesSize++;
+            ++indicesSize;
         }
         if (indicesSize == 0)
             continue;
@@ -1105,7 +1105,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
                            indices, (UA_UInt32)indicesSize, response->results, response->diagnosticInfos);
     }
 
-    for(size_t i = 0; i < response->resultsSize; i++) {
+    for(size_t i = 0; i < response->resultsSize; ++i) {
         if(!isExternal[i])
             response->results[i] =
                 Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
@@ -1155,7 +1155,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         UA_BrowseResult result;
         UA_BrowseResult_init(&result);
         Service_Browse_single(server, &adminSession, NULL, &bd, 0, &result);
-        for(size_t i = 0; i < result.referencesSize; i++) {
+        for(size_t i = 0; i < result.referencesSize; ++i) {
             /* call the destructor */
             UA_ReferenceDescription *rd = &result.references[i];
             const UA_ObjectTypeNode *typenode =
@@ -1174,7 +1174,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
     /* remove references */
     /* TODO: check if consistency is violated */
     if(deleteReferences == true) { 
-        for(size_t i = 0; i < node->referencesSize; i++) {
+        for(size_t i = 0; i < node->referencesSize; ++i) {
             UA_DeleteReferencesItem item;
             UA_DeleteReferencesItem_init(&item);
             item.isForward = node->references[i].isInverse;
@@ -1205,7 +1205,7 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->nodesToDeleteSize;
 
-    for(size_t i = 0; i < request->nodesToDeleteSize; i++) {
+    for(size_t i = 0; i < request->nodesToDeleteSize; ++i) {
         UA_DeleteNodesItem *item = &request->nodesToDelete[i];
         response->results[i] = Service_DeleteNodes_single(server, session, &item->nodeId,
                                                           item->deleteTargetReferences);
@@ -1231,7 +1231,7 @@ static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
     UA_Boolean edited = false;
-    for(size_t i = node->referencesSize-1; ; i--) {
+    for(size_t i = node->referencesSize-1; ; --i) {
         if(i > node->referencesSize)
             break; /* underflow after i == 0 */
         if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &node->references[i].targetId.nodeId))
@@ -1243,7 +1243,7 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
         /* move the last entry to override the current position */
         UA_ReferenceNode_deleteMembers(&node->references[i]);
         node->references[i] = node->references[node->referencesSize-1];
-        node->referencesSize--;
+        --node->referencesSize;
         edited = true;
         break;
     }
@@ -1293,7 +1293,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->referencesToDeleteSize;
 
-    for(size_t i = 0; i < request->referencesToDeleteSize; i++)
+    for(size_t i = 0; i < request->referencesToDeleteSize; ++i)
         response->results[i] =
             Service_DeleteReferences_single(server, session, &request->referencesToDelete[i]);
 }

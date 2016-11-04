@@ -445,7 +445,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
                                           "Transport/uatcp-uasc-uabinary");
 
     //TODO: compare endpoint information with client->endpointUri
-    for(size_t i = 0; i < endpointArraySize; i++) {
+    for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
         //NODE: Siemens returns empty ProfileUrl, we will accept it as binary
