@@ -435,8 +435,10 @@ createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
-GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
-                  const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+GetMonitoredItems(void *handle, const UA_NodeId *objectId,
+                  const UA_NodeId *sessionId, void *sessionHandle,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Session* session = methodCallSession;
     UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
@@ -519,21 +521,21 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
         size_t policies = 0;
-        if(server->config.enableAnonymousLogin)
+        if(server->config.accessControl.enableAnonymousLogin)
             policies++;
-        if(server->config.enableUsernamePasswordLogin)
+        if(server->config.accessControl.enableUsernamePasswordLogin)
             policies++;
         endpoint->userIdentityTokensSize = policies;
         endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
         size_t currentIndex = 0;
-        if(server->config.enableAnonymousLogin) {
+        if(server->config.accessControl.enableAnonymousLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
             currentIndex++;
         }
-        if(server->config.enableUsernamePasswordLogin) {
+        if(server->config.accessControl.enableUsernamePasswordLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);

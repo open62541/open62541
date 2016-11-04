@@ -239,7 +239,8 @@ typedef struct {
  * Method Callbacks
  * ~~~~~~~~~~~~~~~~ */
 typedef UA_StatusCode
-(*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
+(*UA_MethodCallback)(void *methodHandle, const UA_NodeId *objectId,
+                     const UA_NodeId *sessionId, void *sessionHandle,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 
