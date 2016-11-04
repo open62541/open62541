@@ -88,6 +88,12 @@ getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle, const
 }
 
 UA_Boolean
+getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, const UA_NodeId *objectId) {
+    return true;
+}
+
+UA_Boolean
 allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item) {
     return true;
 }

@@ -105,7 +105,11 @@ typedef struct {
     UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
 
     /* Additional access control for method nodes */
-    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId);
+
+    /* Additional access control for calling a method node in the context of a specific object */
+    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId, void *sessionHandle,
+                                            const UA_NodeId *methodId, const UA_NodeId *objectId);
 
     /* Allow adding a node */
     UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
@@ -433,7 +437,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - ContainsNoLoop
  *
  * The following attributes cannot be written from the server, as they are
- * specific to the different users:
+ * specific to the different users and set by the access control callback:
  *
  * - UserWriteMask
  * - UserAccessLevel

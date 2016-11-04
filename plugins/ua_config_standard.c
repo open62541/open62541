@@ -31,7 +31,8 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
 
-/* Access Control */
+/* Access Control. The following definitions are defined as "extern" in
+   ua_accesscontrol_default.h */
 #define ENABLEANONYMOUSLOGIN true
 #define ENABLEUSERNAMEPASSWORDLOGIN true
 const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
@@ -74,6 +75,20 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .nodestore1 = NULL,
 
     /* Access Control */
+    .accessControl = (UA_AccessControl) {
+        .enableAnonymousLogin = ENABLEANONYMOUSLOGIN,
+        .enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN,
+        .activateSession = activateSession_default,
+        .closeSession = closeSession_default,
+        .getUserRightsMask = getUserRightsMask_default,
+        .getUserAccessLevel = getUserAccessLevel_default,
+        .getUserExecutable = getUserExecutable_default,
+        .getUserExecutableOnObject = getUserExecutableOnObject_default,
+        .allowAddNode = allowAddNode_default,
+        .allowAddReference = allowAddReference_default,
+        .allowDeleteNode = allowDeleteNode_default,
+        .allowDeleteReference = allowDeleteReference_default
+    },
 
     /* Limits for SecureChannels */
     .maxSecureChannels = 40,

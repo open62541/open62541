@@ -31,6 +31,10 @@ UA_EXPORT UA_Boolean
 getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
 
 UA_EXPORT UA_Boolean
+getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *methodId, const UA_NodeId *objectId);
+
+UA_EXPORT UA_Boolean
 allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
 
 UA_EXPORT UA_Boolean
