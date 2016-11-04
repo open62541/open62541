@@ -202,7 +202,7 @@ class open62541_MacroHelper():
     
     if nodetype == "Variable":
       code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
-      code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
+    #  code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
     if nodetype in ["Variable", "VariableType"]:
       code.append("attr.valueRank = %s;"       % str(node.valueRank()))
       
@@ -211,8 +211,8 @@ class open62541_MacroHelper():
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")
-      if node.userExecutable():
-        code.append("attr.userExecutable = true;")
+    #  if node.userExecutable():
+    #m    code.append("attr.userExecutable = true;")
 
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable", "VariableType"]:
@@ -294,9 +294,9 @@ class open62541_MacroHelper():
     if not "writemask" in self.supressGenerationOfAttribute:
         if node.__node_writeMask__ != 0:
           code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
-    if not "userwritemask" in self.supressGenerationOfAttribute:
-        if node.__node_userWriteMask__ != 0:
-          code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
+    #if not "userwritemask" in self.supressGenerationOfAttribute:
+    #    if node.__node_userWriteMask__ != 0:
+    #      code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
     if not "nodeid" in self.supressGenerationOfAttribute:
       if node.id().ns != 0:
         code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")

@@ -19,10 +19,10 @@ void UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category, const char *msg, 
     UA_String t = UA_DateTime_toString(UA_DateTime_now());
     printf("[%.23s] %s/%s\t", t.data, LogLevelNames[level], LogCategoryNames[category]);
     UA_ByteString_deleteMembers(&t);
-    va_list ap;
-    va_start(ap, msg);
-    vprintf(msg, ap);
-    va_end(ap);
+    va_list append;
+    va_start(append, msg);
+    vprintf(msg, append);
+    va_end(append);
     printf("\n");
 }
 

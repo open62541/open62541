@@ -1101,7 +1101,7 @@ class opcua_node_variable_t(opcua_node_t):
       code.append(self.getCodePrintableID() + "->historizing = true;")
 
     code.append(self.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + str(self.minimumSamplingInterval()) + ";")
-    code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
+    #code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
@@ -1174,8 +1174,8 @@ class opcua_node_method_t(opcua_node_t):
     # UA_False is default for booleans on _init()
     if self.executable():
       code.append(self.getCodePrintableID() + "->executable = true;")
-    if self.userExecutable():
-      code.append(self.getCodePrintableID() + "->userExecutable = true;")
+    #if self.userExecutable():
+    #  code.append(self.getCodePrintableID() + "->userExecutable = true;")
 
     return code
 
