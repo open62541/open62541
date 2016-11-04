@@ -63,8 +63,8 @@ Service_Call_single(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
-    if(!methodCalled->executable || !methodCalled->userExecutable || !methodCalled->attachedMethod) {
-        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
+    if(!methodCalled->attachedMethod) {
+        result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
@@ -77,6 +77,17 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     }
     if(withObject->nodeClass != UA_NODECLASS_OBJECT && withObject->nodeClass != UA_NODECLASS_OBJECTTYPE) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
+        return;
+    }
+
+    /* Verify access rights */
+    UA_Boolean executable = methodCalled->executable;
+    if(session != &adminSession)
+        executable = executable &&
+            server->config.accessControl.getUserExecutableOnObject(&session->sessionId, session->sessionHandle,
+                                                                   &request->objectId, &request->methodId);
+    if(!executable) {
+        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
         return;
     }
 
