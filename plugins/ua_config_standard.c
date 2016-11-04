@@ -4,6 +4,7 @@
 #include "ua_config_standard.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
+#include "ua_accesscontrol_default.h"
 
 /*******************************/
 /* Default Connection Settings */
@@ -30,7 +31,13 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
 
-UA_UsernamePasswordLogin usernamePasswords[2] = {
+/* Access Control */
+#define ENABLEANONYMOUSLOGIN true
+#define ENABLEUSERNAMEPASSWORDLOGIN true
+const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
+const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
+const size_t usernamePasswordsSize = 2;
+const UA_UsernamePasswordLogin *usernamePasswords = (UA_UsernamePasswordLogin[2]){
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 
@@ -62,11 +69,20 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .networkLayersSize = 0,
     .networkLayers = NULL,
 
-    /* Login */
-    .enableAnonymousLogin = true,
-    .enableUsernamePasswordLogin = true,
-    .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2,
+    /* Access Control */
+    .accessControl = (UA_AccessControl) {
+        .enableAnonymousLogin = ENABLEANONYMOUSLOGIN,
+        .enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN,
+        .activateSession = activateSession_default,
+        .closeSession = closeSession_default,
+        .getUserRightsMask = getUserRightsMask_default,
+        .getUserAccessLevel = getUserAccessLevel_default,
+        .getUserExecutable = getUserExecutable_default,
+        .allowAddNode = allowAddNode_default,
+        .allowAddReference = allowAddReference_default,
+        .allowDeleteNode = allowDeleteNode_default,
+        .allowDeleteReference = allowDeleteReference_default
+    },
 
     /* Limits for SecureChannels */
     .maxSecureChannels = 40,

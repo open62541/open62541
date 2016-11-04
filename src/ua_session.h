@@ -29,8 +29,9 @@ typedef struct UA_PublishResponseEntry {
 
 struct UA_Session {
     UA_ApplicationDescription clientDescription;
-    UA_Boolean        activated;
     UA_String         sessionName;
+    UA_Boolean        activated;
+    void             *sessionHandle; // pointer assigned in userland-callback
     UA_NodeId         authenticationToken;
     UA_NodeId         sessionId;
     UA_UInt32         maxRequestMessageSize;

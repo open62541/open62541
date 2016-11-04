@@ -136,7 +136,8 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = session;
 #endif
-    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, withObject->nodeId,
+    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, &withObject->nodeId,
+                                                      &session->sessionId, session->sessionHandle,
                                                       request->inputArgumentsSize, request->inputArguments,
                                                       result->outputArgumentsSize, result->outputArguments);
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
