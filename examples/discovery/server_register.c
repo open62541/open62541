@@ -41,7 +41,7 @@ readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     dataValue->hasValue = true;
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32*)handle, &UA_TYPES[UA_TYPES_INT32]);
     // we know the nodeid is a string
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %s",
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
                 nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32*)handle);
     return UA_STATUSCODE_GOOD;
