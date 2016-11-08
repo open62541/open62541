@@ -297,146 +297,6 @@ createNodeFromAttributes(UA_Server *server, const UA_AddNodesItem *item, UA_Node
 /* Add Node */
 /************/
 
-static void
-Service_AddNodes_single(UA_Server *server, UA_Session *session,
-                        const UA_AddNodesItem *item, UA_AddNodesResult *result,
-                        UA_InstantiationCallback *instantiationCallback);
-
-static UA_StatusCode
-copyChildNodesToNode(UA_Server *server, UA_Session *session, 
-                     const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
-                     UA_InstantiationCallback *instantiationCallback);
-
-/* copy an existing variable under the given parent. then instantiate the
- * variable for its type */
-static UA_StatusCode
-copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *variable,
-                     const UA_NodeId *referenceType, const UA_NodeId *parent,
-                     UA_InstantiationCallback *instantiationCallback) {
-    const UA_VariableNode *node =
-        (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, variable);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    if(node->nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-
-    /* Get the current value */
-    UA_DataValue value;
-    UA_DataValue_init(&value);
-    UA_StatusCode retval = readValueAttribute(server, node, &value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Prepare the variable description */
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.displayName = node->displayName;
-    attr.description = node->description;
-    attr.writeMask = node->writeMask;
-    attr.userWriteMask = node->userWriteMask;
-    attr.value = value.value;
-    attr.dataType = node->dataType;
-    attr.valueRank = node->valueRank;
-    attr.arrayDimensionsSize = node->arrayDimensionsSize;
-    attr.arrayDimensions = node->arrayDimensions;
-    attr.accessLevel = node->accessLevel;
-    attr.userAccessLevel = node->userAccessLevel;
-    attr.minimumSamplingInterval = node->minimumSamplingInterval;
-    attr.historizing = node->historizing;
-
-    UA_AddNodesItem item;
-    UA_AddNodesItem_init(&item);
-    item.nodeClass = UA_NODECLASS_VARIABLE;
-    item.parentNodeId.nodeId = *parent;
-    item.referenceTypeId = *referenceType;
-    item.browseName = node->browseName;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES];
-    item.nodeAttributes.content.decoded.data = &attr;
-    const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)getNodeType(server, (const UA_Node*)node);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE || vt->isAbstract) {
-        retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-        goto cleanup;
-    }
-    item.typeDefinition.nodeId = vt->nodeId;
-
-    /* Add the variable and instantiate the children */
-    UA_AddNodesResult res;
-    UA_AddNodesResult_init(&res);
-    Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
-    if(res.statusCode != UA_STATUSCODE_GOOD) {
-        retval = res.statusCode;
-        goto cleanup;
-    }
-    retval = copyChildNodesToNode(server, session, &node->nodeId,
-                                  &res.addedNodeId, instantiationCallback);
-    
-    if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
-        instantiationCallback->method(res.addedNodeId, node->nodeId,
-                                      instantiationCallback->handle);
-    
-    UA_NodeId_deleteMembers(&res.addedNodeId);
- cleanup:
-    if(value.hasValue && value.value.storageType == UA_VARIANT_DATA)
-        UA_Variant_deleteMembers(&value.value);
-    return retval;
-}
-
-/* Copy an existing object under the given parent. Then instantiate for all
- * hastypedefinitions of the original version. */
-static UA_StatusCode
-copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *object,
-                   const UA_NodeId *referenceType, const UA_NodeId *parent,
-                   UA_InstantiationCallback *instantiationCallback) {
-    const UA_ObjectNode *node =
-        (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, object);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDINVALID;
-    if(node->nodeClass != UA_NODECLASS_OBJECT)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-
-    /* Prepare the item */
-    UA_ObjectAttributes attr;
-    UA_ObjectAttributes_init(&attr);
-    attr.displayName = node->displayName;
-    attr.description = node->description;
-    attr.writeMask = node->writeMask;
-    attr.userWriteMask = node->userWriteMask;
-    attr.eventNotifier = node->eventNotifier;
-
-    UA_AddNodesItem item;
-    UA_AddNodesItem_init(&item);
-    item.nodeClass = UA_NODECLASS_OBJECT;
-    item.parentNodeId.nodeId = *parent;
-    item.referenceTypeId = *referenceType;
-    item.browseName = node->browseName;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES];
-    item.nodeAttributes.content.decoded.data = &attr;
-    const UA_ObjectTypeNode *objtype = (const UA_ObjectTypeNode*)getNodeType(server, (const UA_Node*)node);
-    if(!objtype || objtype->nodeClass != UA_NODECLASS_OBJECTTYPE || objtype->isAbstract)
-        return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-    item.typeDefinition.nodeId = objtype->nodeId;
-
-    /* add the new object */
-    UA_AddNodesResult res;
-    UA_AddNodesResult_init(&res);
-    Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
-    if(res.statusCode != UA_STATUSCODE_GOOD)
-        return res.statusCode;
-    
-    /* Copy any aggregated/nested variables/methods/subobjects this object contains 
-     * These objects may not be part of the nodes type. */
-    UA_StatusCode retval = copyChildNodesToNode(server, session, &node->nodeId,
-                                                &res.addedNodeId, instantiationCallback);
-    if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
-        instantiationCallback->method(res.addedNodeId, node->nodeId, 
-                                      instantiationCallback->handle);
-
-    UA_NodeId_deleteMembers(&res.addedNodeId);
-    return retval;
-}
-
 static UA_StatusCode
 setObjectInstanceHandle(UA_Server *server, UA_Session *session,
                         UA_ObjectNode* node, void * (*constructor)(const UA_NodeId instance)) {
@@ -446,6 +306,11 @@ setObjectInstanceHandle(UA_Server *server, UA_Session *session,
         node->instanceHandle = constructor(node->nodeId);
     return UA_STATUSCODE_GOOD;
 }
+
+static UA_StatusCode
+copyChildNodesToNode(UA_Server* server, UA_Session* session, 
+                     const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId, 
+                     UA_InstantiationCallback* instantiationCallback);
 
 static UA_StatusCode
 instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
@@ -499,7 +364,12 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     addref.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     addref.isForward = true;
     addref.targetNodeId.nodeId = *typeId;
-    return Service_AddReferences_single(server, session, &addref);
+    retval = Service_AddReferences_single(server, session, &addref);
+
+    /* Custom callback */
+    if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
+        instantiationCallback->method(*nodeId, *typeId, instantiationCallback->handle);
+    return retval;
 }
 
 /* Search for an instance of "browseName" in node searchInstance
@@ -538,13 +408,7 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-/* Copy any children of Node sourceNodeId to another node destinationNodeId 
- * Used at 2 places: 
- *  (1) During instantiation, when any children of the Type are copied
- *  (2) During instantiation to copy any *nested* instances to the new node
- *      (2.1) Might call instantiation of a type first
- *      (2.2) *Should* then overwrite nested contents in definition --> this scenario is currently not handled!
- */
+/* Copy any children of Node sourceNodeId to another node destinationNodeId. */
 static UA_StatusCode
 copyChildNodesToNode(UA_Server* server, UA_Session* session, 
                      const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId, 
@@ -568,19 +432,18 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
   
     /* Copy all children */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_NodeId existingChild = UA_NODEID_NULL;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        // Check for deduplication
+        UA_NodeId existingChild = UA_NODEID_NULL;
         retval = instanceFindAggregateByBrowsename(server, session, destinationNodeId,
                                                    &rd->browseName, &existingChild);
         if(retval != UA_STATUSCODE_GOOD)
             break;
         
+        /* No existing child with that browsename. Create it. */
         if(UA_NodeId_equal(&UA_NODEID_NULL, &existingChild)) {
-            /* New node in child */
             if(rd->nodeClass == UA_NODECLASS_METHOD) {
-                /* add a reference to the method in the objecttype */
+                /* Add a reference to the method in the objecttype */
                 UA_AddReferencesItem newItem;
                 UA_AddReferencesItem_init(&newItem);
                 newItem.sourceNodeId = *destinationNodeId;
@@ -589,31 +452,40 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
                 newItem.targetNodeId = rd->nodeId;
                 newItem.targetNodeClass = UA_NODECLASS_METHOD;
                 retval = Service_AddReferences_single(server, session, &newItem);
-            } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
-                retval = copyExistingVariable(server, session, &rd->nodeId.nodeId,
-                                              &rd->referenceTypeId, destinationNodeId,
-                                              instantiationCallback);
-            else if(rd->nodeClass == UA_NODECLASS_OBJECT)
-                retval = copyExistingObject(server, session, &rd->nodeId.nodeId,
-                                            &rd->referenceTypeId, destinationNodeId,
-                                            instantiationCallback);
-        } else {
-            /* Preexistent node in child
-             * General strategy if we meet an already existing node:
-             * - Preexistent variable contents always 'win' overwriting anything
-             *   supertypes would instantiate
-             * - Always copy contents of template *into* existant node (merge
-             *   contents of e.g. Folders like ParameterSet) */
-            if(rd->nodeClass == UA_NODECLASS_METHOD) {
-                /* Do nothing, existent method wins */
             } else if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
                       rd->nodeClass == UA_NODECLASS_OBJECT) {
-                if(!UA_NodeId_equal(&rd->nodeId.nodeId, &existingChild))
-                    retval = copyChildNodesToNode(server, session, &rd->nodeId.nodeId,
-                                                  &existingChild, instantiationCallback);
+                /* Copy the node */
+                UA_Node *node = UA_NodeStore_getCopy(server->nodestore, &rd->nodeId.nodeId);
+                if(!node) {
+                    retval = UA_STATUSCODE_BADNODEIDINVALID;
+                    break;
+                }
+                
+                /* Get the node type */
+                const UA_NodeId *typeId = NULL;
+                if(node->nodeClass == UA_NODECLASS_VARIABLE ||
+                   node->nodeClass == UA_NODECLASS_OBJECT) {
+                    const UA_Node *vt = getNodeType(server, node);
+                    if(vt)
+                        typeId = &vt->nodeId;
+                }
+
+                /* Add the node (instantiates internally) */
+                retval = Service_AddNodes_existing(server, session, node, destinationNodeId,
+                                                   &rd->referenceTypeId, typeId,
+                                                   instantiationCallback, &existingChild);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
             }
-            UA_NodeId_deleteMembers(&existingChild);
+            continue;
         }
+
+        /* Preexistent child with that browseName. Try to deep-copy missing members. */
+        if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
+           rd->nodeClass == UA_NODECLASS_OBJECT)
+            retval = copyChildNodesToNode(server, session, &rd->nodeId.nodeId,
+                                          &existingChild, instantiationCallback);
+        UA_NodeId_deleteMembers(&existingChild);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }
@@ -718,10 +590,6 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         }
     }
 
-    /* Custom callback */
-    if(instantiationCallback)
-        instantiationCallback->method(node->nodeId, *typeDefinition,
-                                      instantiationCallback->handle);
     return UA_STATUSCODE_GOOD;
 
  remove_node:
