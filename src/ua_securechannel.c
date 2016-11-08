@@ -344,7 +344,7 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
         else
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
-    channel->receiveSequenceNumber++;
+    ++channel->receiveSequenceNumber;
     return UA_STATUSCODE_GOOD;
 }
 

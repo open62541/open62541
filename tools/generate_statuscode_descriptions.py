@@ -54,7 +54,7 @@ printc('''\n};
 
 printc('''
 const UA_StatusCodeDescription * UA_StatusCode_description(UA_StatusCode code) {
-    for(size_t i = 0; i < statusCodeDescriptionsSize; i++) {
+    for(size_t i = 0; i < statusCodeDescriptionsSize; ++i) {
         if(statusCodeDescriptions[i].code == code)
             return &statusCodeDescriptions[i];
     }
