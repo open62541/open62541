@@ -166,7 +166,7 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -187,29 +187,27 @@ typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
                const UA_NumericRange *range, UA_Variant *equivalent);
 
 UA_StatusCode
-writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType, const UA_NodeId *constraintDataType);
-
-UA_StatusCode
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
 UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
-                        UA_Int32 constraintValueRank);
+compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_VariableNode *node,
-                    const UA_DataValue *value, const UA_String *indexRange);
+writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
+                        UA_Int32 valueRank, UA_Int32 constraintValueRank);
+
+UA_StatusCode
+compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 /*******************/
 /* Single-Services */
 /*******************/
 
 /* Some services take an array of "independent" requests. The single-services
-   are stored here to keep ua_services.h clean for documentation purposes. */
+ * are stored here to keep ua_services.h clean for documentation purposes. */
 
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session,
