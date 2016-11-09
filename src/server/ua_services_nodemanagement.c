@@ -460,6 +460,10 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
                     retval = UA_STATUSCODE_BADNODEIDINVALID;
                     break;
                 }
+
+                /* Reset the NodeId (random id will be assigned in the nodestore */
+                UA_NodeId_deleteMembers(&node->nodeId);
+                node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
                 
                 /* Get the node type */
                 const UA_NodeId *typeId = NULL;
