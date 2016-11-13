@@ -130,16 +130,24 @@ UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback cal
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
-/* Add an existing node. The node is assumed to be "finished", i.e. no
- * instantiation from inheritance is necessary. Instantiationcallback and
- * addedNodeId may be NULL. */
+/* Add node to the nodestore */
 UA_StatusCode
-Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId,
-                          const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *addedNodeId);
+UA_Server_addNode_begin(UA_Server *server, UA_Session *session, UA_Node *node,
+                        UA_NodeId *addedNodeId);
+
+/* Check / instantiate node and create reference to parent */
+UA_StatusCode
+UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                         UA_NodeClass nodeClass, const UA_NodeId *parentNodeId,
+                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinition,
+                         UA_InstantiationCallback *instantiationCallback);
+
+/* Add a node and check/instantiate */
+UA_StatusCode
+UA_Server_addNode(UA_Server *server, UA_Session *session, UA_Node *node,
+                  const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
+                  const UA_NodeId *typeDefinition, UA_InstantiationCallback *instantiationCallback,
+                  UA_NodeId *addedNodeId);
 
 /*********************/
 /* Utility Functions */
