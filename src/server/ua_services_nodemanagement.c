@@ -561,16 +561,19 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
                          UA_NodeClass nodeClass, const UA_NodeId *parentNodeId,
                          const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinition,
                          UA_InstantiationCallback *instantiationCallback) {
-    /* Check parent reference */
-    UA_StatusCode retval = checkParentReference(server, session, nodeClass,
-                                                parentNodeId, referenceTypeId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Parent reference invalid");
-        goto cleanup;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Check parent reference. Objects may have no parent. */
+    if(nodeClass != UA_NODECLASS_OBJECT || !UA_NodeId_isNull(parentNodeId) || !UA_NodeId_isNull(referenceTypeId)) {
+        retval = checkParentReference(server, session, nodeClass, parentNodeId, referenceTypeId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: Parent reference invalid");
+            goto cleanup;
+        }
     }
 
-    /* Use standard type is none defined */
+    /* Use standard type definition if none defined */
     const UA_NodeId baseDataVariableType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     const UA_NodeId baseObjectType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
     if(UA_NodeId_isNull(typeDefinition)) {
@@ -599,17 +602,19 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     }
 
     /* Add parent reference */
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = *nodeId;
-    item.referenceTypeId = *referenceTypeId;
-    item.isForward = false;
-    item.targetNodeId.nodeId = *parentNodeId;
-    retval = Service_AddReferences_single(server, session, &item);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Adding reference to parent failed");
-        goto cleanup;
+    if(!UA_NodeId_isNull(parentNodeId)) {
+        UA_AddReferencesItem item;
+        UA_AddReferencesItem_init(&item);
+        item.sourceNodeId = *nodeId;
+        item.referenceTypeId = *referenceTypeId;
+        item.isForward = false;
+        item.targetNodeId.nodeId = *parentNodeId;
+        retval = Service_AddReferences_single(server, session, &item);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: Adding reference to parent failed");
+            goto cleanup;
+        }
     }
 
     return UA_STATUSCODE_GOOD;
