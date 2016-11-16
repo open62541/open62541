@@ -210,6 +210,8 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
 UA_StatusCode
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
+const UA_DataType * findDataType(const UA_NodeId *typeId);
+
 /*******************/
 /* Single-Services */
 /*******************/
