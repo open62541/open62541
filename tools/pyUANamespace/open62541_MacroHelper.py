@@ -253,11 +253,24 @@ class open62541_MacroHelper():
 
     if nodetype in ["Variable", "VariableType"]:
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
+      if node.dataType():
+        code.append("attr.dataType = %s;" % str(self.getCreateNodeIDMacro(node.dataType().target())))
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")
       if node.userExecutable():
         code.append("attr.userExecutable = true;")
+
+    if nodetype == "VariableType":
+      typeDefinition = None
+      for r in node.getReferences():
+        if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
+          typeDefinition = r.target()
+          break
+      if typeDefinition == None:
+        code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;")
+      else:
+        code.append("UA_NodeId typeDefinition = " + str(self.getCreateNodeIDMacro(typeDefinition)) + ";")
 
     # Print the browsename
     extrNs = node.browseName().split(":")
@@ -318,6 +331,10 @@ class open62541_MacroHelper():
       code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
     if not "description" in self.supressGenerationOfAttribute:
       code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.description() + "\");")
+
+    if nodetype in ["Variable", "VariableType"]:
+      code.append(node.getCodePrintableID() + "->dataType = " + str(self.getCreateNodeIDMacro(node.dataType().target())) + ";")
+      code.append(node.getCodePrintableID() + "->valueRank = " + str(node.valueRank()) + ";")
 
     if not "writemask" in self.supressGenerationOfAttribute:
         if node.__node_writeMask__ != 0:
