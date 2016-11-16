@@ -84,6 +84,15 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
 static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session, UA_VariableNode *node,
                       const UA_NodeId *typeDef) {
+    /* Workaround if no datatype is set */
+    if(UA_NodeId_isNull(&node->dataType))
+        node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+
+    /* Omit some type checks for ns0 generation */
+    const UA_NodeId baseDataVariableType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    if(UA_NodeId_equal(&node->nodeId, &baseDataVariableType))
+        return UA_STATUSCODE_GOOD;
+
     /* Get the variable type */
     const UA_VariableTypeNode *vt =
         (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
@@ -93,29 +102,53 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session, UA_VariableNode *n
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* Check the datatype against the vt */
-    if(UA_NodeId_isNull(&node->dataType)) /* Workaround if no datatype is set */
-        node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(!isNodeInTree(server->nodestore, &node->dataType, &vt->dataType, &subtypeId, 1))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
-    /* Check valueRank against array dimensions */
+    /* We need the value for some checks. Might come from a datasource. */
+    UA_DataValue value;
+    UA_DataValue_init(&value);
+    retval = readValueAttribute(server, node, &value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Workaround: If there is no value but the type is concrete, create an
+     * "empty" value */
+    if(!value.value.type) {
+        const UA_DataType *type = UA_findDataType(&node->dataType);
+        if(type) {
+            UA_Variant v;
+            UA_Variant_init(&v);
+            if(node->valueRank == 1)
+                UA_Variant_setArray(&v, UA_EMPTY_ARRAY_SENTINEL, 0, type);
+            else {
+                void *data = UA_alloca(type->memSize);
+                UA_init(data, type);
+                UA_Variant_setScalar(&v, data, type);
+            }
+            UA_Server_writeValue(server, node->nodeId, v);
+            v.storageType = UA_VARIANT_DATA_NODELETE;
+            value.value = v;
+        }
+    }
+
+    /* Get the array dimensions */
     size_t arrayDims = node->arrayDimensionsSize;
     if(arrayDims == 0) {
-        UA_DataValue value;
-        UA_DataValue_init(&value);
-        retval = readValueAttribute(server, node, &value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
         if(value.hasValue && UA_Variant_isScalar(&value.value) && node->valueRank == 0)
             /* Workaround the user forgetting to set the value rank */
             node->valueRank = vt->valueRank;
-        else if(value.hasValue && !UA_Variant_isScalar(&value.value) && node->valueRank == 1)
-            /* Workaround that no array dimensions on an array implies one dimensions*/
+        else if(value.hasValue && value.value.type &&
+                !UA_Variant_isScalar(&value.value) && node->valueRank == 1)
+            /* No array dimensions on an array implies one dimensions*/
             arrayDims = 1;
-        UA_DataValue_deleteMembers(&value);
     }
+
+    UA_DataValue_deleteMembers(&value); /* Free the value before any return clause */
+
+    /* Check valueRank against array dimensions */
     retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -597,7 +630,8 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
                              typeDefinition, instantiationCallback);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Node instantiation failed");
+                            "AddNodes: Node instantiation failed "
+                            "with code %s", UA_StatusCode_name(retval));
         goto cleanup;
     }
 
