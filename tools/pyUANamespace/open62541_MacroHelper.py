@@ -110,6 +110,45 @@ class open62541_MacroHelper():
       code.append("UA_Server_addReference(server, " + self.getCreateNodeIDMacro(sourcenode) + ", " + self.getCreateNodeIDMacro(reference.referenceType()) + ", " + self.getCreateExpandedNodeIDMacro(reference.target()) + ", false);")
     return code
 
+  def finishCreateNodeNoBootstrap(self, node):
+    code = []
+
+    # finishing only required for objects and variables
+    if node.nodeClass() == NODE_CLASS_OBJECT:
+      nodetype = "Object"
+    elif node.nodeClass() == NODE_CLASS_VARIABLE:
+      nodetype = "Variable"
+    else:
+      return code;
+
+    (parentNode, parentRef) = node.getFirstParentNode()
+
+    code.append("{")
+
+    # the nodeids
+    code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
+    if parentNode:
+      code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
+      code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentRef.referenceType())) + ";")
+    else:
+      code.append("UA_NodeId parentNodeId = UA_NODEID_NULL;")
+      code.append("UA_NodeId parentReferenceNodeId = UA_NODEID_NULL;")
+
+    # Print the type definition
+    typeDefinition = None
+    for r in node.getReferences():
+      if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
+        typeDefinition = r.target()
+        break
+    if typeDefinition == None:
+      code.append("UA_NodeId typeDefinition = UA_NODEID_NULL;")
+    else:
+      code.append("UA_NodeId typeDefinition = " + str(self.getCreateNodeIDMacro(typeDefinition)) + ";")
+
+    code.append("UA_Server_add%sNode_finish(server, nodeId, parentNodeId, parentReferenceNodeId, typeDefinition, NULL);" % nodetype)
+    code.append("}")
+    return code
+
   def getCreateNodeNoBootstrap(self, node, parentNode, parentReference, unprintedNodes):
     code = []
     code.append("// Node: " + str(node) + ", " + str(node.browseName()))
@@ -194,18 +233,24 @@ class open62541_MacroHelper():
                 #  code.append("outputArguments[" + str(argumentCnt) + "].arrayDimensions = " + str(outArg.getValueFieldByAlias("ArrayDimensions")) + ";")
                 argumentCnt += 1
 
-    # print the attributes struct
+    # Print the nodeid
+    code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
+    if not nodetype in ["Variable", "Object"]:
+      code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
+      code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
+
+    # Print the attributes struct
     code.append("UA_%sAttributes attr;" % nodetype)
     code.append("UA_%sAttributes_init(&attr);" %  nodetype);
     code.append("attr.displayName = UA_LOCALIZEDTEXT(\"\", \"" + str(node.displayName()) + "\");")
     code.append("attr.description = UA_LOCALIZEDTEXT(\"\", \"" + str(node.description()) + "\");")
-    
+
     if nodetype == "Variable":
       code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
       code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
     if nodetype in ["Variable", "VariableType"]:
       code.append("attr.valueRank = %s;"       % str(node.valueRank()))
-      
+
     if nodetype in ["Variable", "VariableType"]:
       code = code + node.printOpen62541CCode_SubtypeEarly(bootstrapping = False)
     elif nodetype == "Method":
@@ -214,19 +259,7 @@ class open62541_MacroHelper():
       if node.userExecutable():
         code.append("attr.userExecutable = true;")
 
-    code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
-    if nodetype in ["Object", "Variable", "VariableType"]:
-      typeDefinition = None
-      for r in node.getReferences():
-        if r.isForward() and r.referenceType().id().ns == 0 and r.referenceType().id().i == 40:
-          typeDefinition = r.target()
-      if typeDefinition == None:
-        # FIXME: We might want to resort to BaseXYTTypes here?
-        code.append("UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);")
-      else:
-        code.append("UA_NodeId typeDefinition = " + str(self.getCreateNodeIDMacro(typeDefinition)) + ";")
-    code.append("UA_NodeId parentNodeId = " + str(self.getCreateNodeIDMacro(parentNode)) + ";")
-    code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
+    # Print the browsename
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
@@ -235,22 +268,17 @@ class open62541_MacroHelper():
 
     # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using
     # Djikstra (check that arguments have not been printed). (@ichrispa)
-    code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
-
-    if nodetype in ["Object", "Variable", "VariableType"]:
-      code.append("       , typeDefinition")
-    if nodetype != "Method":
-      code.append("       , attr, NULL, NULL);")
+    if nodetype in ["Object", "Variable"]:
+        code.append("UA_Server_add%sNode_begin(server, nodeId, nodeName, attr, NULL);" % nodetype)
     else:
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
+      code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+      if nodetype == "VariableType":
+        code.append("       , typeDefinition")
+      if nodetype != "Method":
+        code.append("       , attr, NULL, NULL);")
+      else:
+        code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
       
-    #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since 
-    #a real Reference will be add in a later step (a single HasTypeDefinition reference is assumed here)
-    #The current API does not let us specify IDs of Object's subelements.
-    if nodetype is "Object":
-      code.append("UA_Server_deleteReference(server, nodeId, UA_NODEID_NUMERIC(0, 40), true, UA_EXPANDEDNODEID_NUMERIC(0, 58), true); //remove HasTypeDefinition refs generated by addObjectNode");
-    if nodetype is "Variable":
-      code.append("UA_Server_deleteReference(server, nodeId, UA_NODEID_NUMERIC(0, 40), true, UA_EXPANDEDNODEID_NUMERIC(0, 62), true); //remove HasTypeDefinition refs generated by addVariableNode");
     return code
 
   def getCreateNodeBootstrap(self, node):
