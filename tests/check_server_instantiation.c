@@ -1,45 +1,13 @@
-/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
-
-#include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
+#include "ua_types.h"
+#include "ua_config_standard.h"
+#include "check.h"
 
-UA_Logger logger = UA_Log_Stdout;
-UA_Boolean running = true;
-
-
-static UA_StatusCode instantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
-        "Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)",
-         objectId.namespaceIndex,
-         objectId.identifier.numeric, definitionId.namespaceIndex,
-         definitionId.identifier.numeric, *((UA_Int32 *) handle));
-  return UA_STATUSCODE_GOOD;
-}
-
-static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
-int main(int argc, char** argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-
-    /* initialize the server */
+START_TEST(Instantiation_inheritance_masking_ShallWork)
+{
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
     /* create information model */
@@ -151,36 +119,52 @@ int main(int argc, char** argv) {
                             UA_NODEID_NUMERIC(1, 10000),
                             oAttr, NULL, NULL);
 
-    UA_Int32 myHandle = 42;
-    UA_InstantiationCallback theCallback;
-    theCallback.method = instantiationCallback;
-    theCallback.handle = (void*) &myHandle;
-
-    UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US","a specific field device");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US","FD315");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 10010),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "FD314"),
-                            UA_NODEID_NUMERIC(1, 10000),
-                            oAttr, &theCallback, NULL);
-
-
     UA_ObjectAttributes_init(&oAttr);
     oAttr.description = UA_LOCALIZEDTEXT("en_US","Pump T1.A3.P002");
     oAttr.displayName = UA_LOCALIZEDTEXT("en_US","T1.A3.P002");
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 10011),
+    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 10010),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                             UA_QUALIFIEDNAME(1, "T1.A3.P002"),
                             UA_NODEID_NUMERIC(1, 10007),
                             oAttr, NULL, NULL);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, retval);
 
 
-    /* start server */
-    UA_Server_run(server, &running);
+    UA_LocalizedText outDisplayName;
+    retval = UA_Server_readDisplayName(server, UA_NODEID_NUMERIC(1, 1315), &outDisplayName);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, retval);
+    retval = UA_Server_readDisplayName(server, UA_NODEID_NUMERIC(1, 1327), &outDisplayName);
+    ck_assert_int_ne(UA_STATUSCODE_GOOD, retval);
 
-    UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_Variant outValue;
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 1315), &outValue);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, retval);
+
+    // FIXME: I would like to test if the masking was succesful
+}
+END_TEST
+
+static Suite* testSuite_Instantiation(void) {
+    Suite *s = suite_create("Instantiation");
+    TCase *tc_core = tcase_create("Inheritance");
+    tcase_add_test(tc_core, Instantiation_inheritance_masking_ShallWork);
+
+    suite_add_tcase(s,tc_core);
+    return s;
+}
+
+int main(void) {
+    int number_failed = 0;
+
+    Suite *s;
+    SRunner *sr;
+
+    s = testSuite_Instantiation();
+    sr = srunner_create(s);
+    srunner_run_all(sr,CK_NORMAL);
+    number_failed += srunner_ntests_failed(sr);
+    srunner_free(sr);
+
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

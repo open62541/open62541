@@ -84,7 +84,7 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
                      COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
                      DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
                              ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
-                             
+
   add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
 
   add_executable(server_certificate server_certificate.c $<TARGET_OBJECTS:open62541-object> server_cert.der ca.crt)

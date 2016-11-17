@@ -90,6 +90,10 @@ add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:
 target_link_libraries(check_server_userspace ${LIBS})
 add_test_valgrind(check_server_userspace ${CMAKE_CURRENT_BINARY_DIR}/check_server_userspace)
 
+add_executable(check_server_instantiation check_server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_server_instantiation ${LIBS})
+add_test(check_server_instantiation ${CMAKE_CURRENT_BINARY_DIR}/check_server_instantiation)
+
 # test with canned interactions from files
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
