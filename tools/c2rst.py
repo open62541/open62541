@@ -48,11 +48,16 @@ def first_line(c):
 def last_line(c):
     "Searches for the latest ifdef (closing the include guard)"
     last = 1
-    for i in range(1, len(c)):
+    for i in range(len(c)-1,1,-1):
         m = re.search("^#ifdef", c[i])
         if m:
             last = i
-    return last
+            break
+    # skip empty lines at the end
+    for i in range(last-1,1,-1):
+        if len(c[i].strip()) > 0:
+            return i
+    return 1
 
 if len(sys.argv) < 2:
     print("Usage: python c2rst.py input.c/h output.rst")
@@ -62,8 +67,11 @@ with open(sys.argv[1]) as f:
     c = f.readlines()
 
 with open(sys.argv[2], 'w') as rst:
+    print(sys.argv[2])
+    print(last_line(c))
     in_doc = False
-    for i in range(first_line(c), last_line(c)):
+    last = last_line(c)
+    for i in range(first_line(c), last+1):
         line = c[i]
         doc_start = False
         doc_end = False
@@ -84,7 +92,6 @@ with open(sys.argv[2], 'w') as rst:
                 line = "   " + line
             rst.write(clean_line(line))
 
-        if doc_end:
+        if doc_end and i < last:
             rst.write("\n.. code-block:: c\n\n")
             in_doc = False
-    rst.write("\n")
