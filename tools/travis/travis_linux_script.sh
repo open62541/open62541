@@ -41,8 +41,10 @@ else
     cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_DOCUMENTATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
     make doc
+    make doc_pdf
     make selfsigned
     cp -r doc ../../
+    cp -r doc_latex ../../
     cp ./examples/server_cert.der ../../
     cd .. && rm build -rf
     
@@ -59,7 +61,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j8
-        zip -r open62541-win32.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win32.zip ../../doc ../../doc_latex/open62541.pdf ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
 
@@ -67,7 +69,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j8
-        zip -r open62541-win64.zip ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win64.zip ../../doc ../../doc_latex/open62541.pdf ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
 
@@ -75,7 +77,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j8
-        tar -pczf open62541-linux32.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-linux32.tar.gz ../../doc ../../doc_latex/open62541.pdf ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
     fi
@@ -84,7 +86,7 @@ else
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j8
-    tar -pczf open62541-linux64.tar.gz ../../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
+    tar -pczf open62541-linux64.tar.gz ../../doc ../../doc_latex/open62541.pdf ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h .. # copy single file-release
     cp open62541.c .. # copy single file-release
