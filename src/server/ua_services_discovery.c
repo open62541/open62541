@@ -571,12 +571,12 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   UA_FindServersOnNetworkResponse *response) {
     UA_UInt32 recordCount;
     if (request->startingRecordId < server->serverOnNetworkRecordIdCounter)
-        recordCount = server->serverOnNetworkRecordIdCounter - request->maxRecordsToReturn;
+        recordCount = server->serverOnNetworkRecordIdCounter - request->startingRecordId;
     else
         recordCount = 0;
 
     if (request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn) {
-        recordCount = request->maxRecordsToReturn;
+        recordCount = recordCount > request->maxRecordsToReturn ? request->maxRecordsToReturn : recordCount;
     }
 
     UA_ServerOnNetwork** filtered = NULL;
@@ -737,7 +737,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
             if (!requestServer->isOnline) {
                 if (UA_Discovery_removeRecord(server, mdnsServer, hostname, (unsigned short) port, i==requestServer->discoveryUrlsSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Could not remove mDNS record for hostname %s.%s", mdnsServer);
+                                   "Could not remove mDNS record for hostname %s.", mdnsServer);
                 }
             }
             else {
@@ -749,7 +749,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
                 }
                 if (UA_Discovery_addRecord(server, mdnsServer, hostname, (unsigned short) port, path, UA_DISCOVERY_TCP, i==0, capabilities, &capabilitiesSize) != UA_STATUSCODE_GOOD) {
                     UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                                   "Could not add mDNS record for hostname %s.%s", mdnsServer);
+                                   "Could not add mDNS record for hostname %s.", mdnsServer);
                 }
             }
         }
