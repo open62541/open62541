@@ -7,7 +7,8 @@ cd open62541-www
 rm -r -f ./doc/current/* || true # ignore result
 mkdir ./doc/current
 cp -r ../../doc/* ./doc/current/
-git add -A ./doc/current
+cp -r ../../doc_latex/open62541.pdf ./doc/open62541-current.pdf
+git add -A ./doc
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
 git config --global push.default simple
