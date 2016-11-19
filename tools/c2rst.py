@@ -67,8 +67,6 @@ with open(sys.argv[1]) as f:
     c = f.readlines()
 
 with open(sys.argv[2], 'w') as rst:
-    print(sys.argv[2])
-    print(last_line(c))
     in_doc = False
     last = last_line(c)
     for i in range(first_line(c), last+1):
