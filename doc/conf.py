@@ -31,6 +31,8 @@ import shlex
 # ones.
 extensions = ['sphinx.ext.graphviz']
 
+numfig = True
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 

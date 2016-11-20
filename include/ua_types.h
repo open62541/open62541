@@ -23,6 +23,8 @@ extern "C" {
 #include <stdbool.h>
 
 /**
+ * .. _types:
+ *
  * Data Types
  * ==========
  *

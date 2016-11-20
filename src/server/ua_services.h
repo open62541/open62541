@@ -28,8 +28,8 @@ extern "C" {
  * are exposed to end users. Please see part 4 of the OPC UA standard for the
  * authoritative definition of the service and their behaviour. */
 /* Most services take as input the server, the current session and pointers to
-   the request and response structures. Possible error codes are returned as
-   part of the response. */
+ * the request and response structures. Possible error codes are returned as
+ * part of the response. */
 typedef void (*UA_Service)(UA_Server*, UA_Session*,
                            const void *request, void *response);
 
@@ -56,7 +56,6 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
  * This Service Set defines Services used to open a communication channel that
  * ensures the confidentiality and Integrity of all Messages exchanged with the
  * Server. */
-
 /* Open or renew a SecureChannel that can be used to ensure Confidentiality and
  * Integrity for Message exchange during a Session. */
 void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
@@ -71,7 +70,6 @@ void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel);
  * -------------------
  * This Service Set defines Services for an application layer connection
  * establishment in the context of a Session. */
-
 /* Used by an OPC UA Client to create a Session and the Server returns two
  * values which uniquely identify the Session. The first value is the sessionId
  * which is used to identify the Session in the audit logs and in the Server's
@@ -105,7 +103,6 @@ void Service_CloseSession(UA_Server *server, UA_Session *session,
  * References between them. All added Nodes continue to exist in the
  * AddressSpace even if the Client that created them disconnects from the
  * Server. */
-
 /* Used to add one or more Nodes into the AddressSpace hierarchy. */
 void Service_AddNodes(UA_Server *server, UA_Session *session,
                       const UA_AddNodesRequest *request,
@@ -133,7 +130,6 @@ void Service_DeleteReferences(UA_Server *server, UA_Session *session,
  * ----------------
  * Clients use the browse Services of the View Service Set to navigate through
  * the AddressSpace or through a View which is a subset of the AddressSpace. */
-
 /* Used to discover the References of a specified Node. The browse can be
  * further limited by the use of a View. This Browse Service also supports a
  * primitive filtering capability. */
@@ -186,7 +182,6 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
  * ---------------------
  * This Service Set provides Services to access Attributes that are part of
  * Nodes. */
-
 /* Used to read one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service
  * allows Clients to read the entire set of indexed values as a composite, to
