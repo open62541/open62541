@@ -766,6 +766,15 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/**
+ * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
+ * the name of the data type. If only the NodeId of a type is known, use the
+ * following method to retrieve the data type description. */
+/* Returns the data type description for the type's identifier or NULL if no
+ * matching data type was found. */
+const UA_DataType UA_EXPORT *
+UA_findDataType(const UA_NodeId *typeId);
+
 /** The following functions are used for generic handling of data types. */
 
 /* Allocates and initializes a variable of type dataType

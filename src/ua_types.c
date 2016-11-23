@@ -24,6 +24,17 @@ const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {
                   .identifier.numeric = 0 },
        .namespaceUri = {.length = 0, .data = NULL}, .serverIndex = 0 };
 
+/* TODO: The standard-defined types are ordered. See if binary search is more
+ * efficient. */
+const UA_DataType *
+UA_findDataType(const UA_NodeId *typeId) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
+            return &UA_TYPES[i];
+    }
+    return NULL;
+}
+
 /***************************/
 /* Random Number Generator */
 /***************************/

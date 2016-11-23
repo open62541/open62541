@@ -35,15 +35,6 @@ typeEquivalence(const UA_DataType *t) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
-static const UA_DataType *
-findDataType(const UA_NodeId *typeId) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
-            return &UA_TYPES[i];
-    }
-    return NULL;
-}
-
 /* Test whether a valurank and the given arraydimensions are compatible. zero
  * array dimensions indicate a scalar */
 static UA_StatusCode
@@ -108,7 +99,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
 static const UA_Variant *
 convertToMatchingValue(UA_Server *server, const UA_Variant *value,
                        const UA_NodeId *targetDataTypeId, UA_Variant *editableValue) {
-    const UA_DataType *targetDataType = findDataType(targetDataTypeId);
+    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
     if(!targetDataType)
         return NULL;
 
