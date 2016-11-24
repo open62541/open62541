@@ -54,6 +54,9 @@ addons:
       - xutils-dev
       - zip
       - graphviz
+      - texlive-latex-recommended
+      - texlive-latex-extra
+      - texlive-fonts-recommended
     # - libsubunit-dev #for check_0.10.0
   coverity_scan:
     project:

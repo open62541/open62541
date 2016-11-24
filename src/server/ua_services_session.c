@@ -20,7 +20,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->serverEndpointsSize = server->endpointDescriptionsSize;
 
     /* Mirror back the endpointUrl */
-    for(size_t i = 0; i < response->serverEndpointsSize; i++)
+    for(size_t i = 0; i < response->serverEndpointsSize; ++i)
         UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
 
     UA_Session *newSession;
@@ -109,7 +109,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
         /* trying to match pw/username */
         UA_Boolean match = false;
-        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
+        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; ++i) {
             UA_String *user = &server->config.usernamePasswordLogins[i].username;
             UA_String *pw = &server->config.usernamePasswordLogins[i].password;
             if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {

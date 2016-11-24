@@ -229,7 +229,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                  sub->SubscriptionID, response->notificationMessage.notificationDataSize);
 
     /* Check if the server has acknowledged any of the sent ACKs */
-    for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; i++) {
+    for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
         /* remove also acks that are unknown to the server */
         if(response->results[i] != UA_STATUSCODE_GOOD &&
            response->results[i] != UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN)
@@ -251,7 +251,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
     /* Process the notification messages */
     UA_NotificationMessage *msg = &response->notificationMessage;
-    for(size_t k = 0; k < msg->notificationDataSize; k++) {
+    for(size_t k = 0; k < msg->notificationDataSize; ++k) {
         if(msg->notificationData[k].encoding != UA_EXTENSIONOBJECT_DECODED)
             continue;
 
@@ -260,7 +260,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
             continue;
 
         UA_DataChangeNotification *dataChangeNotification = msg->notificationData[k].content.decoded.data;
-        for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; j++) {
+        for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
             UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
             UA_Client_MonitoredItem *mon;
             LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
@@ -296,7 +296,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 
         UA_Client_NotificationsAckNumber *ack;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
-            request.subscriptionAcknowledgementsSize++;
+            ++request.subscriptionAcknowledgementsSize;
         if(request.subscriptionAcknowledgementsSize > 0) {
             request.subscriptionAcknowledgements =
                 UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
@@ -308,7 +308,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
             request.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
             request.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-            i++;
+            ++i;
         }
         
         UA_PublishResponse response = UA_Client_Service_publish(client, request);

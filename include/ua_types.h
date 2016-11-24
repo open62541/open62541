@@ -23,6 +23,8 @@ extern "C" {
 #include <stdbool.h>
 
 /**
+ * .. _types:
+ *
  * Data Types
  * ==========
  *
@@ -78,10 +80,10 @@ typedef int8_t UA_SByte;
 /**
  * Byte
  * ^^^^
- * An integer value between 0 and 256. */
+ * An integer value between 0 and 255. */
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MIN 0
-#define UA_BYTE_MAX 256
+#define UA_BYTE_MAX 255
 
 /**
  * Int16
@@ -763,6 +765,15 @@ struct UA_DataType {
     //UA_UInt16  xmlEncodingId;  /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };
+
+/**
+ * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
+ * the name of the data type. If only the NodeId of a type is known, use the
+ * following method to retrieve the data type description. */
+/* Returns the data type description for the type's identifier or NULL if no
+ * matching data type was found. */
+const UA_DataType UA_EXPORT *
+UA_findDataType(const UA_NodeId *typeId);
 
 /** The following functions are used for generic handling of data types. */
 

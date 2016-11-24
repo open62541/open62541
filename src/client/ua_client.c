@@ -23,7 +23,7 @@ Connection_receiveChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT m
         UA_DateTime now = UA_DateTime_nowMonotonic();
         if(now > maxDate)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-        UA_UInt32 thisTimeout = (UA_UInt32)((maxDate - UA_DateTime_nowMonotonic()) / UA_MSEC_TO_DATETIME);
+        UA_UInt32 thisTimeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
         retval = connection->recv(connection, message, thisTimeout);
         retval |= UA_Connection_completeMessages(connection, message, realloced);
     } while(retval == UA_STATUSCODE_GOOD && message->length == 0);
@@ -445,7 +445,7 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
                                           "Transport/uatcp-uasc-uabinary");
 
     //TODO: compare endpoint information with client->endpointUri
-    for(size_t i = 0; i < endpointArraySize; i++) {
+    for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
         //NODE: Siemens returns empty ProfileUrl, we will accept it as binary

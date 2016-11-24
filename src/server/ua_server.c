@@ -56,16 +56,16 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
                                              .data = (UA_Byte*)(uintptr_t)name};
 
     /* Check if the namespace already exists in the server's namespace array */
-    for(UA_UInt16 i=0;i<server->namespacesSize;i++) {
+    for(UA_UInt16 i=0;i<server->namespacesSize;++i) {
         if(UA_String_equal(&nameString, &server->namespaces[i]))
             return i;
     }
 
-    /* Add a new namespace to the namespace array */
+    /* Add a new namespace to the namsepace array */
     server->namespaces = UA_realloc(server->namespaces,
                                     sizeof(UA_String) * (server->namespacesSize + 1));
     UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
-    server->namespacesSize++;
+    ++server->namespacesSize;
     return (UA_UInt16)(server->namespacesSize - 1);
 }
 
@@ -81,7 +81,7 @@ static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
 }
 
 static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
-    for(UA_UInt32 i = 0; i < server->externalNamespacesSize; i++)
+    for(UA_UInt32 i = 0; i < server->externalNamespacesSize; ++i)
         UA_ExternalNamespace_deleteMembers(&server->externalNamespaces[i]);
     if(server->externalNamespacesSize > 0) {
         UA_free(server->externalNamespaces);
@@ -98,10 +98,10 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     char urlString[256];
-    if(url->length >= 256)
+    if(url.length >= 256)
         return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url->data, url->length);
-    urlString[url->length] = 0;
+    memcpy(urlString, url.data, url.length);
+    urlString[url.length] = 0;
 
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
@@ -110,8 +110,8 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     server->externalNamespaces[size].index = (UA_UInt16)server->namespacesSize;
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
-    server->externalNamespacesSize++;
-    UA_Server_addNamespace(server, urlString);
+    ++server->externalNamespacesSize;
+    addNamespaceInternal(server, urlString);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -127,7 +127,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         UA_RCU_UNLOCK();
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
-    for(size_t i = 0; i < parent->referencesSize; i++) {
+    for(size_t i = 0; i < parent->referencesSize; ++i) {
         UA_ReferenceNode *ref = &parent->references[i];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
@@ -188,7 +188,7 @@ static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
   UA_BrowseResult bRes;
   UA_BrowseResult_init(&bRes);
   Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
-  for(size_t i=0; i<bRes.referencesSize; i++) {
+  for(size_t i=0; i<bRes.referencesSize; ++i) {
     UA_ReferenceDescription *rd = &bRes.references[i];
     if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) 
     {
@@ -461,7 +461,7 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
     UA_UInt32 sizeOfOutput = 0;
     UA_MonitoredItem* monitoredItem;
     LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
-        sizeOfOutput++;
+        ++sizeOfOutput;
     }
     if(sizeOfOutput==0)
         return UA_STATUSCODE_GOOD;
@@ -472,7 +472,7 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
     LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
         clientHandles[i] = monitoredItem->clientHandle;
         serverHandles[i] = monitoredItem->itemId;
-        i++;
+        ++i;
     }
     UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
@@ -510,7 +510,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
                                                 &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     server->endpointDescriptionsSize = server->config.networkLayersSize;
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
         endpoint->securityPolicyUri =
@@ -520,9 +520,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
         size_t policies = 0;
         if(server->config.enableAnonymousLogin)
-            policies++;
+            ++policies;
         if(server->config.enableUsernamePasswordLogin)
-            policies++;
+            ++policies;
         endpoint->userIdentityTokensSize = policies;
         endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
@@ -531,7 +531,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
-            currentIndex++;
+            ++currentIndex;
         }
         if(server->config.enableUsernamePasswordLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
@@ -1069,7 +1069,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Variant_setArray(&serverProfileArray->value.data.value.value,
                         UA_Array_new(profileArraySize, &UA_TYPES[UA_TYPES_STRING]),
                         profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    for(UA_UInt16 i=0;i<profileArraySize;i++)
+    for(UA_UInt16 i=0;i<profileArraySize;++i)
         ((UA_String *)serverProfileArray->value.data.value.value.data)[i] = profileArray[i];
     serverProfileArray->value.data.value.hasValue = true;
     serverProfileArray->valueRank = 1;

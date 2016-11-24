@@ -88,7 +88,7 @@ Building on OS X
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
 Building on OpenBSD
--------------------
+^^^^^^^^^^^^^^^^^^^
 The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3.2.3 and Python version 2.7.10.
 
 - Install a recent gcc, python and cmake:

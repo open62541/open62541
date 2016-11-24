@@ -368,7 +368,7 @@ struct DelayedJobs {
 /* Dispatched as an ordinary job when the DelayedJobs list is full */
 static void getCounters(UA_Server *server, struct DelayedJobs *delayed) {
     UA_UInt32 *counters = UA_malloc(server->config.nThreads * sizeof(UA_UInt32));
-    for(UA_UInt16 i = 0; i < server->config.nThreads; i++)
+    for(UA_UInt16 i = 0; i < server->config.nThreads; ++i)
         counters[i] = server->workers[i].counter;
     delayed->workerCounters = counters;
 }
@@ -400,7 +400,7 @@ static void addDelayedJob(UA_Server *server, UA_Job *job) {
         }
     }
     dj->jobs[dj->jobsCount] = *job;
-    dj->jobsCount++;
+    ++dj->jobsCount;
 }
 
 static void
@@ -449,7 +449,7 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
             continue;
         }
         UA_Boolean allMoved = true;
-        for(size_t i = 0; i < server->config.nThreads; i++) {
+        for(size_t i = 0; i < server->config.nThreads; ++i) {
             if(dw->workerCounters[i] == server->workers[i].counter) {
                 allMoved = false;
                 break;
@@ -463,7 +463,7 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
 
     /* process and free all delayed jobs from here on */
     while(dw) {
-        for(size_t i = 0; i < dw->jobsCount; i++)
+        for(size_t i = 0; i < dw->jobsCount; ++i)
             processJob(server, &dw->jobs[i]);
         struct DelayedJobs *next = UA_atomic_xchg((void**)&beforedw->next, NULL);
         UA_free(dw->workerCounters);
@@ -504,7 +504,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(size_t i = 0; i < server->config.nThreads; i++) {
+    for(size_t i = 0; i < server->config.nThreads; ++i) {
         UA_Worker *worker = &server->workers[i];
         worker->server = server;
         worker->counter = 0;
@@ -520,7 +520,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 
     /* Start the networklayers */
     UA_StatusCode result = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, server->config.logger);
     }
@@ -613,7 +613,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 
     /* Get work from the networklayer */
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_Job *jobs;
         size_t jobsSize;
@@ -623,7 +623,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         else
             jobsSize = nl->getJobs(nl, &jobs, 0);
 
-        for(size_t k = 0; k < jobsSize; k++) {
+        for(size_t k = 0; k < jobsSize; ++k) {
 #ifdef UA_ENABLE_MULTITHREADING
             /* Filter out delayed work */
             if(jobs[k].type == UA_JOBTYPE_METHODCALL_DELAYED) {
@@ -638,7 +638,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         }
 
         /* Dispatch/process jobs */
-        for(size_t j = 0; j < jobsSize; j++) {
+        for(size_t j = 0; j < jobsSize; ++j) {
 #ifdef UA_ENABLE_MULTITHREADING
             dispatchJob(server, &jobs[j]);
 #else
@@ -683,11 +683,11 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 }
 
 UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         UA_Job *stopJobs;
         size_t stopJobsSize = nl->stop(nl, &stopJobs);
-        for(size_t j = 0; j < stopJobsSize; j++)
+        for(size_t j = 0; j < stopJobsSize; ++j)
             processJob(server, &stopJobs[j]);
         UA_free(stopJobs);
     }
@@ -696,10 +696,10 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Shutting down %u worker thread(s)", server->config.nThreads);
     /* Wait for all worker threads to finish */
-    for(size_t i = 0; i < server->config.nThreads; i++)
+    for(size_t i = 0; i < server->config.nThreads; ++i)
         server->workers[i].running = false;
     pthread_cond_broadcast(&server->dispatchQueue_condition);
-    for(size_t i = 0; i < server->config.nThreads; i++)
+    for(size_t i = 0; i < server->config.nThreads; ++i)
         pthread_join(server->workers[i].thr, NULL);
     UA_free(server->workers);
 
