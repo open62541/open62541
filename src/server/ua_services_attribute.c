@@ -666,9 +666,13 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_WRITEMASK:
         forceVariantSetScalar(&v->value, &node->writeMask, &UA_TYPES[UA_TYPES_UINT32]);
         break;
-    case UA_ATTRIBUTEID_USERWRITEMASK:
-        forceVariantSetScalar(&v->value, &node->userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
-        break;
+    case UA_ATTRIBUTEID_USERWRITEMASK: {
+        UA_UInt32 userWriteMask = node->writeMask;
+        userWriteMask &=
+            server->config.accessControl.getUserRightsMask(&session->sessionId,
+                                                           session->sessionHandle, &id->nodeId);
+        forceVariantSetScalar(&v->value, &userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
+        break; }
     case UA_ATTRIBUTEID_ISABSTRACT:
         retval = readIsAbstractAttribute(node, &v->value);
         break;
@@ -716,11 +720,14 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         forceVariantSetScalar(&v->value, &((const UA_VariableNode*)node)->accessLevel,
                               &UA_TYPES[UA_TYPES_BYTE]);
         break;
-    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+    case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        forceVariantSetScalar(&v->value, &((const UA_VariableNode*)node)->userAccessLevel,
-                              &UA_TYPES[UA_TYPES_BYTE]);
-        break;
+        UA_Byte userAccessLevel = ((const UA_VariableNode*)node)->accessLevel;
+        userAccessLevel &=
+            server->config.accessControl.getUserAccessLevel(&session->sessionId,
+                                                            session->sessionHandle, &id->nodeId);
+        forceVariantSetScalar(&v->value, &userAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+        break; }
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         forceVariantSetScalar(&v->value, &((const UA_VariableNode*)node)->minimumSamplingInterval,
@@ -736,11 +743,14 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         forceVariantSetScalar(&v->value, &((const UA_MethodNode*)node)->executable,
                               &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
-    case UA_ATTRIBUTEID_USEREXECUTABLE:
+    case UA_ATTRIBUTEID_USEREXECUTABLE: {
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        forceVariantSetScalar(&v->value, &((const UA_MethodNode*)node)->userExecutable,
-                              &UA_TYPES[UA_TYPES_BOOLEAN]);
-        break;
+        UA_Boolean userExecutable = ((const UA_MethodNode*)node)->executable;
+        userExecutable &=
+            server->config.accessControl.getUserExecutable(&session->sessionId,
+                                                           session->sessionHandle, &id->nodeId);
+        forceVariantSetScalar(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        break; }
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
@@ -970,6 +980,9 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     switch(wvalue->attributeId) {
     case UA_ATTRIBUTEID_NODEID:
     case UA_ATTRIBUTEID_NODECLASS:
+    case UA_ATTRIBUTEID_USERWRITEMASK:
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
         retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
         break;
     case UA_ATTRIBUTEID_BROWSENAME:
@@ -990,10 +1003,6 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_WRITEMASK:
         CHECK_DATATYPE_SCALAR(UINT32);
         node->writeMask = *(const UA_UInt32*)value;
-        break;
-    case UA_ATTRIBUTEID_USERWRITEMASK:
-        CHECK_DATATYPE_SCALAR(UINT32);
-        node->userWriteMask = *(const UA_UInt32*)value;
         break;
     case UA_ATTRIBUTEID_ISABSTRACT:
         CHECK_DATATYPE_SCALAR(BOOLEAN);
@@ -1047,11 +1056,6 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_DATATYPE_SCALAR(BYTE);
         ((UA_VariableNode*)node)->accessLevel = *(const UA_Byte*)value;
         break;
-    case UA_ATTRIBUTEID_USERACCESSLEVEL:
-        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
-        CHECK_DATATYPE_SCALAR(BYTE);
-        ((UA_VariableNode*)node)->userAccessLevel = *(const UA_Byte*)value;
-        break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
         CHECK_DATATYPE_SCALAR(DOUBLE);
@@ -1066,11 +1070,6 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
         CHECK_DATATYPE_SCALAR(BOOLEAN);
         ((UA_MethodNode*)node)->executable = *(const UA_Boolean*)value;
-        break;
-    case UA_ATTRIBUTEID_USEREXECUTABLE:
-        CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
-        CHECK_DATATYPE_SCALAR(BOOLEAN);
-        ((UA_MethodNode*)node)->userExecutable = *(const UA_Boolean*)value;
         break;
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;

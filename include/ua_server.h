@@ -81,6 +81,49 @@ struct UA_ServerNetworkLayer {
 };
 
 /**
+ * Access Control
+ * --------------
+ * The access control callback is used to authenticate sessions and grant access
+ * rights accordingly. */
+typedef struct {
+    UA_Boolean enableAnonymousLogin;
+    UA_Boolean enableUsernamePasswordLogin;
+    
+    /* Authenticate a session */
+    UA_StatusCode (*activateSession)(const UA_NodeId *sessionId,
+                                     const UA_ExtensionObject *userIdentityToken,
+                                     void **sessionHandle);
+
+    /* Deauthenticate a session and cleanup */
+    void (*closeSession)(const UA_NodeId *sessionId, void *sessionHandle);
+
+    /* Access control for all nodes*/
+    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+
+    /* Additional access control for variable nodes */
+    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+
+    /* Additional access control for method nodes */
+    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId);
+
+    /* Additional access control for calling a method node in the context of a specific object */
+    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId, void *sessionHandle,
+                                            const UA_NodeId *methodId, const UA_NodeId *objectId);
+
+    /* Allow adding a node */
+    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
+
+    /* Allow adding a reference */
+    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddReferencesItem *item);
+
+    /* Allow deleting a node */
+    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteNodesItem *item);
+
+    /* Allow deleting a reference */
+    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteReferencesItem *item);
+} UA_AccessControl;
+
+/**
  * Server Configuration
  * --------------------
  * The following structure is passed to a new server for configuration. */
@@ -117,11 +160,8 @@ typedef struct {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
-    /* Login */
-    UA_Boolean enableAnonymousLogin;
-    UA_Boolean enableUsernamePasswordLogin;
-    size_t usernamePasswordLoginsSize;
-    UA_UsernamePasswordLogin* usernamePasswordLogins;
+    /* Access Control */
+    UA_AccessControl accessControl;
 
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
@@ -394,7 +434,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - ContainsNoLoop
  *
  * The following attributes cannot be written from the server, as they are
- * specific to the different users:
+ * specific to the different users and set by the access control callback:
  *
  * - UserWriteMask
  * - UserAccessLevel
@@ -760,7 +800,8 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server,
  * Method Callbacks
  * ~~~~~~~~~~~~~~~~ */
 typedef UA_StatusCode
-(*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
+(*UA_MethodCallback)(void *methodHandle, const UA_NodeId *objectId,
+                     const UA_NodeId *sessionId, void *sessionHandle,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 

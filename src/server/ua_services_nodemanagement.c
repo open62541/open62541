@@ -118,14 +118,12 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     attr.displayName = node->displayName;
     attr.description = node->description;
     attr.writeMask = node->writeMask;
-    attr.userWriteMask = node->userWriteMask;
     attr.value = value.value;
     attr.dataType = node->dataType;
     attr.valueRank = node->valueRank;
     attr.arrayDimensionsSize = node->arrayDimensionsSize;
     attr.arrayDimensions = node->arrayDimensions;
     attr.accessLevel = node->accessLevel;
-    attr.userAccessLevel = node->userAccessLevel;
     attr.minimumSamplingInterval = node->minimumSamplingInterval;
     attr.historizing = node->historizing;
 
@@ -186,7 +184,6 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *obje
     attr.displayName = node->displayName;
     attr.description = node->description;
     attr.writeMask = node->writeMask;
-    attr.userWriteMask = node->userWriteMask;
     attr.eventNotifier = node->eventNotifier;
 
     UA_AddNodesItem item;
@@ -511,7 +508,6 @@ copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
     retval |= UA_LocalizedText_copy(&attr->displayName, &node->displayName);
     retval |= UA_LocalizedText_copy(&attr->description, &node->description);
     node->writeMask = attr->writeMask;
-    node->userWriteMask = attr->userWriteMask;
     return retval;
 }
 
@@ -582,7 +578,6 @@ copyVariableNodeAttributes(UA_Server *server, UA_VariableNode *vnode,
                            const UA_AddNodesItem *item,
                            const UA_VariableAttributes *attr) {
     vnode->accessLevel = attr->accessLevel;
-    vnode->userAccessLevel = attr->userAccessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
     return copyCommonVariableAttributes(server, vnode, item, attr);
@@ -882,7 +877,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     item.browseName = browseName;
     copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&attr);
     node->executable = attr.executable;
-    node->userExecutable = attr.userExecutable;
     node->attachedMethod = method;
     node->methodHandle = handle;
 

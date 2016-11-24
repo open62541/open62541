@@ -53,6 +53,7 @@ static UA_StatusCode
 copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *request, UA_ApplicationDescription *target,
                                              const UA_RegisteredServer* registeredServer) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     UA_ApplicationDescription_init(target);
 
     retval |= UA_String_copy(&registeredServer->serverUri, &target->applicationUri);

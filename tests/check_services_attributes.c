@@ -522,7 +522,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
         (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rReq.nodesToRead[0].nodeId);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->userAccessLevel);
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);
@@ -755,20 +755,6 @@ START_TEST(WriteSingleAttributeWriteMask) {
     UA_Server_delete(server);
 } END_TEST
 
-START_TEST(WriteSingleAttributeUserWriteMask) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Int32 testValue = 0;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_delete(server);
-} END_TEST
-
 START_TEST(WriteSingleAttributeIsAbstract) {
     UA_Server *server = makeTestSequence();
     UA_WriteValue wValue;
@@ -954,20 +940,6 @@ START_TEST(WriteSingleAttributeAccessLevel) {
     UA_Server_delete(server);
 } END_TEST
 
-START_TEST(WriteSingleAttributeUserAccessLevel) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Byte testValue = 0;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BYTE]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_delete(server);
-} END_TEST
-
 START_TEST(WriteSingleAttributeMinimumSamplingInterval) {
     UA_Server *server = makeTestSequence();
     UA_WriteValue wValue;
@@ -1004,20 +976,6 @@ START_TEST(WriteSingleAttributeExecutable) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
-    UA_Server_delete(server);
-} END_TEST
-
-START_TEST(WriteSingleAttributeUserExecutable) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
@@ -1078,7 +1036,6 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDisplayName);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDescription);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeWriteMask);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserWriteMask);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeIsAbstract);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeSymmetric);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeInverseName);
@@ -1091,11 +1048,9 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserAccessLevel);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeMinimumSamplingInterval);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
 
     suite_add_tcase(s, tc_writeSingleAttributes);

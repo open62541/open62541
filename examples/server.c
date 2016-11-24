@@ -77,7 +77,8 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
-helloWorld(void *methodHandle, const UA_NodeId objectId,
+helloWorld(void *methodHandle, const UA_NodeId *objectId,
+           const UA_NodeId *sessionId, void *sessionHandle,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
@@ -94,16 +95,18 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
 }
 
 static UA_StatusCode
-noargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+noargMethod(void *methodHandle, const UA_NodeId *objectId,
+            const UA_NodeId *sessionId, void *sessionHandle,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-outargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+outargMethod(void *methodHandle, const UA_NodeId *objectId,
+            const UA_NodeId *sessionId, void *sessionHandle,
+             size_t inputSize, const UA_Variant *input,
+             size_t outputSize, UA_Variant *output) {
     UA_Int32 out = 42;
     UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_INT32]);
     return UA_STATUSCODE_GOOD;
