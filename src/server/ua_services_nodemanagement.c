@@ -85,8 +85,12 @@ static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session, UA_VariableNode *node,
                       const UA_NodeId *typeDef) {
     /* Workaround if no datatype is set */
-    if(UA_NodeId_isNull(&node->dataType))
+    if(UA_NodeId_isNull(&node->dataType)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "TypeCheck: No datatype of Variable(Type) defined; "
+                            "Set to BaseDataType.");
         node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+    }
 
     /* Omit some type checks for ns0 generation */
     const UA_NodeId baseDataVariableType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -119,6 +123,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session, UA_VariableNode *n
     if(!value.value.type) {
         const UA_DataType *type = UA_findDataType(&node->dataType);
         if(type) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "TypeCheck: Value of Variable(Type) is empty. "
+                                "But this is only allowed for BaseDataType. "
+                                "Create a \"null\" value.");
             UA_Variant v;
             UA_Variant_init(&v);
             if(node->valueRank == 1)
@@ -137,13 +145,17 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session, UA_VariableNode *n
     /* Get the array dimensions */
     size_t arrayDims = node->arrayDimensionsSize;
     if(arrayDims == 0) {
-        if(value.hasValue && UA_Variant_isScalar(&value.value) && node->valueRank == 0)
+        if(value.hasValue && UA_Variant_isScalar(&value.value) && node->valueRank == 0) {
             /* Workaround the user forgetting to set the value rank */
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "TypeCheck: The value rank does not match the data; "
+                                "Using the value rank of the variable type.");
             node->valueRank = vt->valueRank;
-        else if(value.hasValue && value.value.type &&
-                !UA_Variant_isScalar(&value.value) && node->valueRank == 1)
+        } else if(value.hasValue && value.value.type &&
+                  !UA_Variant_isScalar(&value.value) && node->valueRank == 1) {
             /* No array dimensions on an array implies one dimensions*/
             arrayDims = 1;
+        }
     }
 
     UA_DataValue_deleteMembers(&value); /* Free the value before any return clause */
