@@ -278,6 +278,7 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
         if(last_dispatched->nextTime == rj->nextTime) {
             /* We "batch" repeatedJobs with the same interval in
              * addRepeatedJobs. So this might occur quite often. */
+            UA_assert(last_dispatched != &tmp_last);
             prev_rj = last_dispatched;
         } else {
             /* Find the position by a linear search starting at the first

@@ -174,6 +174,7 @@ addNodeInternalWithType(UA_Server *server, UA_Node *node, const UA_NodeId parent
 
 // delete any children of an instance without touching the object itself
 static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
+    UA_RCU_LOCK();
   UA_BrowseDescription bDes;
   UA_BrowseDescription_init(&bDes);
   UA_NodeId_copy(objectNodeId, &bDes.nodeId );
@@ -203,6 +204,7 @@ static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
     }
   }
   UA_BrowseResult_deleteMembers(&bRes); 
+  UA_RCU_UNLOCK();
 }
 
 /**********/
