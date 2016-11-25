@@ -835,6 +835,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     }
 
     /* Copy attributes into node */
+    UA_RCU_LOCK();
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.requestedNewNodeId.nodeId = requestedNewNodeId;
@@ -849,13 +850,13 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     UA_DataValue_deleteMembers(&value);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeStore_deleteNode((UA_Node*)node);
+        UA_RCU_UNLOCK();
         return retval;
     }
 
     /* Add the node */
     UA_AddNodesResult result;
     UA_AddNodesResult_init(&result);
-    UA_RCU_LOCK();
     retval = Service_AddNodes_existing(server, &adminSession, (UA_Node*)node, &parentNodeId,
                                        &referenceTypeId, &typeDefinition, NULL, outNewNodeId);
     UA_RCU_UNLOCK();
