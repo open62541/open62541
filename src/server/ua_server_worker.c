@@ -228,7 +228,7 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
  * - Reinserts dispatched job at their new position in the sorted list
  * - Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime
-processRepeatedJobs(UA_Server *server, UA_DateTime current) {
+processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatched) {
     /* Find the last job that is executed in this iteration */
     struct RepeatedJob *lastNow = NULL, *tmp;
     LIST_FOREACH(tmp, &server->repeatedJobs, next) {
@@ -252,6 +252,7 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
         /* Dispatch/process job */
 #ifdef UA_ENABLE_MULTITHREADING
         dispatchJob(server, &rj->job);
+        *dispatched = true;
 #else
         struct RepeatedJob **previousNext = rj->next.le_prev;
         processJob(server, &rj->job);
@@ -594,7 +595,8 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #endif
     /* Process repeated work */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime nextRepeated = processRepeatedJobs(server, now);
+    UA_Boolean dispatched = false; /* to wake up worker threads */
+    UA_DateTime nextRepeated = processRepeatedJobs(server, now, &dispatched);
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
@@ -629,18 +631,21 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         for(size_t j = 0; j < jobsSize; ++j) {
 #ifdef UA_ENABLE_MULTITHREADING
             dispatchJob(server, &jobs[j]);
+            dispatched = true;
 #else
             processJob(server, &jobs[j]);
 #endif
         }
 
-        if(jobsSize > 0) {
 #ifdef UA_ENABLE_MULTITHREADING
-            /* Wake up worker threads */
+        /* Wake up worker threads */
+        if(dispatched)
             pthread_cond_broadcast(&server->dispatchQueue_condition);
 #endif
+
+        /* Clean up jobs list */
+        if(jobsSize > 0)
             UA_free(jobs);
-        }
     }
 
 #ifndef UA_ENABLE_MULTITHREADING
