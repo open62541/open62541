@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.11)
-project(open62541 C)
+project(open62541)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -89,12 +89,17 @@ option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model 
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
+mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 
 # Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
 endif()
+
+# Force compilation with as C++
+option(UA_COMPILE_AS_CXX "Force compilation with a C++ compiler" OFF)
+mark_as_advanced(UA_COMPILE_AS_CXX)
 
 #####################
 # Compiler Settings #
@@ -356,6 +361,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+                          
+##########################################################
+# Set Language to C++ (manually / for certain compilers) #
+##########################################################
 
 #####################
 # Build the Library #
@@ -364,11 +373,18 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
+    if(UA_COMPILE_AS_CXX)
+        set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
+    endif()
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src
                                                         ${PROJECT_SOURCE_DIR}/plugins ${PROJECT_SOURCE_DIR}/deps)
+
+    if(UA_COMPILE_AS_CXX)
+        set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
+    endif()
 endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(open62541 ${open62541_LIBRARIES})
