@@ -165,9 +165,12 @@ endif()
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
-include_directories(${PROJECT_BINARY_DIR}/src_generated)
+include_directories(${PROJECT_BINARY_DIR}/src_generated
+                    ${PROJECT_SOURCE_DIR}/include
+                    ${PROJECT_SOURCE_DIR}/deps)
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
+                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
@@ -361,10 +364,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-                          
-##########################################################
-# Set Language to C++ (manually / for certain compilers) #
-##########################################################
 
 #####################
 # Build the Library #
@@ -379,8 +378,7 @@ if(UA_ENABLE_AMALGAMATION)
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src
-                                                        ${PROJECT_SOURCE_DIR}/plugins ${PROJECT_SOURCE_DIR}/deps)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/plugins)
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
