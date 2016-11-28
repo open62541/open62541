@@ -75,7 +75,7 @@ if not is_c:
 } // extern "C"
 #endif
 
-#endif /* %s */''' % (outname.upper() + u"_H_"))
+#endif /* %s */\n''' % (outname.upper() + u"_H_"))
 file.close()
 
 print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")
