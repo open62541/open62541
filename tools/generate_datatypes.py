@@ -473,7 +473,7 @@ for t in iter_types(types):
     printf(t.functions_c())
 
 printf('''
-#if defined(__GNUC__) && __GNUC__ <= 4
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
 # pragma GCC diagnostic pop
 #endif
 
