@@ -461,7 +461,7 @@ extern "C" {
 
 #include "''' + outname + '''_generated.h"
 
-#if defined(__GNUC__) && __GNUC__ <= 4
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 # pragma GCC diagnostic ignored "-Wmissing-braces"
