@@ -1159,7 +1159,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type);
 static UA_StatusCode
 UA_decodeBinaryInternal(void *dst, const UA_DataType *type);
 
-static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_encodeBinarySignature)Boolean_encodeBinary,
     (UA_encodeBinarySignature)Byte_encodeBinary, // SByte
     (UA_encodeBinarySignature)Byte_encodeBinary,
@@ -1244,7 +1244,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     return retval;
 }
 
-static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_decodeBinarySignature)Boolean_decodeBinary,
     (UA_decodeBinarySignature)Byte_decodeBinary, // SByte
     (UA_decodeBinarySignature)Byte_decodeBinary,
@@ -1514,7 +1514,7 @@ DiagnosticInfo_calcSizeBinary(const UA_DiagnosticInfo *src, UA_DataType *_) {
     return s;
 }
 
-static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Boolean
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Byte
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,
