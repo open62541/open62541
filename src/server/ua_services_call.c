@@ -7,7 +7,7 @@ static const UA_VariableNode *
 getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
     UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    for(size_t i = 0; i < ofMethod->referencesSize; i++) {
+    for(size_t i = 0; i < ofMethod->referencesSize; ++i) {
         if(ofMethod->references[i].isInverse == false &&
             UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
             const UA_Node *refTarget =
@@ -41,7 +41,7 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < argReqsSize; i++)
+    for(size_t i = 0; i < argReqsSize; ++i)
         retval |= typeCheckValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
                                  argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                                  &args[i], NULL, args);
@@ -98,7 +98,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     UA_Boolean found = false;
     UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
     UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
-    for(size_t i = 0; i < methodCalled->referencesSize; i++) {
+    for(size_t i = 0; i < methodCalled->referencesSize; ++i) {
         if(methodCalled->references[i].isInverse &&
            UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId, &withObject->nodeId)) {
             found = isNodeInTree(server->nodestoreSwitch, &methodCalled->references[i].referenceTypeId,
@@ -178,14 +178,14 @@ void Service_Call(UA_Server *server, UA_Session *session,
     UA_Boolean isExternal[request->methodsToCallSize];
     UA_UInt32 indices[request->methodsToCallSize];
     memset(isExternal, false, sizeof(UA_Boolean) * request->methodsToCallSize);
-    for(size_t j = 0;j<server->externalNamespacesSize;j++) {
+    for(size_t j = 0;j<server->externalNamespacesSize;++j) {
         size_t indexSize = 0;
-        for(size_t i = 0;i < request->methodsToCallSize;i++) {
+        for(size_t i = 0;i < request->methodsToCallSize;++i) {
             if(request->methodsToCall[i].methodId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -195,7 +195,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
     }
 #endif
     
-    for(size_t i = 0; i < request->methodsToCallSize;i++){
+    for(size_t i = 0; i < request->methodsToCallSize;++i){
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif    

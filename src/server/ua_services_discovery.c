@@ -60,7 +60,6 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request, UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing FindServersRequest");
 
-
     size_t foundServersSize = 0;
     UA_ApplicationDescription *foundServers = NULL;
 
@@ -116,7 +115,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 #endif
 
-    if (foundServersSize) {
+    if(foundServersSize) {
         foundServers = UA_malloc(sizeof(UA_ApplicationDescription) * foundServersSize);
         if (!foundServers) {
             if (foundServerFilteredPointer)
@@ -125,10 +124,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             return;
         }
 
-        if (addSelf) {
-            /* copy ApplicationDescription from the config */
-
-            response->responseHeader.serviceResult |= UA_ApplicationDescription_copy(&server->config.applicationDescription, &foundServers[0]);
+        /* copy ApplicationDescription from the config */
+        if(addSelf) {
+            response->responseHeader.serviceResult |=
+                UA_ApplicationDescription_copy(&server->config.applicationDescription, &foundServers[0]);
             if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                 UA_free(foundServers);
                 if (foundServerFilteredPointer)
@@ -137,10 +136,10 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             }
 
             /* add the discoveryUrls from the networklayers */
-            UA_String* disc = UA_realloc(foundServers[0].discoveryUrls, sizeof(UA_String) *
-                                                                                   (foundServers[0].discoveryUrlsSize +
-                                                                                    server->config.networkLayersSize));
-            if (!disc) {
+            UA_String* disc = UA_realloc(foundServers[0].discoveryUrls,
+                                         sizeof(UA_String) * (foundServers[0].discoveryUrlsSize +
+                                                              server->config.networkLayersSize));
+            if(!disc) {
                 response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
                 UA_free(foundServers);
                 if (foundServerFilteredPointer)
@@ -164,14 +163,14 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             currentIndex++;
 
         // add all the registered servers to the list
-
-        if (foundServerFilteredPointer) {
+        if(foundServerFilteredPointer) {
             // use filtered list because client only requested specific uris
             // -1 because foundServersSize also includes this self server
             size_t iterCount = addSelf ? foundServersSize - 1 : foundServersSize;
-            for (size_t i = 0; i < iterCount; i++) {
-                response->responseHeader.serviceResult = copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
-                                                                                                      foundServerFilteredPointer[i]);
+            for(size_t i = 0; i < iterCount; i++) {
+                response->responseHeader.serviceResult =
+                    copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
+                                                                 foundServerFilteredPointer[i]);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     UA_free(foundServerFilteredPointer);
@@ -183,8 +182,9 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         } else {
             registeredServer_list_entry* current;
             LIST_FOREACH(current, &server->registeredServers, pointers) {
-                response->responseHeader.serviceResult = copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
-                                                                                                      &current->registeredServer);
+                response->responseHeader.serviceResult =
+                    copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
+                                                                 &current->registeredServer);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     return;
@@ -222,16 +222,16 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
     memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++)
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j)
             relevant_endpoints[j] = true;
         relevant_count = server->endpointDescriptionsSize;
     } else {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
-            for(size_t i = 0; i < request->profileUrisSize; i++) {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+            for(size_t i = 0; i < request->profileUrisSize; ++i) {
                 if(!UA_String_equal(&request->profileUris[i], &server->endpointDescriptions[j].transportProfileUri))
                     continue;
                 relevant_endpoints[j] = true;
-                relevant_count++;
+                ++relevant_count;
                 break;
             }
         }
@@ -259,15 +259,15 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 
     size_t k = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < clone_times; i++) {
+    for(size_t i = 0; i < clone_times; ++i) {
         if(nl_endpointurl)
             endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->endpointDescriptionsSize; j++) {
+        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
             retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
-            k++;
+            ++k;
         }
     }
 

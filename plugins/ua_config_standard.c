@@ -75,7 +75,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .nodestore1 = NULL,
 
     /* Access Control */
-    .accessControl = (UA_AccessControl) {
+    .accessControl = {
         .enableAnonymousLogin = ENABLEANONYMOUSLOGIN,
         .enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN,
         .activateSession = activateSession_default,

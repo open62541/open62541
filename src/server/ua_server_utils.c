@@ -14,7 +14,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
         return progress;
     }
 
-    progress++;
+    ++progress;
     size_t progress2 = UA_readNumber(&buf[progress], buflen - progress, &dim->max);
     if(progress2 == 0)
         return 0;
@@ -55,7 +55,7 @@ parse_numericrange(const UA_String *str, UA_NumericRange *range) {
             break;
         }
         offset += progress;
-        idx++;
+        ++idx;
 
         /* loop into the next dimension */
         if(offset >= str->length)
@@ -65,7 +65,7 @@ parse_numericrange(const UA_String *str, UA_NumericRange *range) {
             retval = UA_STATUSCODE_BADINDEXRANGEINVALID;
             break;
         }
-        offset++;
+        ++offset;
     }
 
     if(retval == UA_STATUSCODE_GOOD && idx > 0) {
@@ -100,7 +100,7 @@ getTypeHierarchy(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *rootRef, UA
     size_t last = 0; /* Index of the last element in the array */
     const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     while(true) {
-        for(size_t i = 0; i < node->referencesSize; i++) {
+        for(size_t i = 0; i < node->referencesSize; ++i) {
             /* is the reference relevant? */
             if(node->references[i].isInverse != inverse ||
                !UA_NodeId_equal(&hasSubtypeNodeId, &node->references[i].referenceTypeId))
@@ -108,7 +108,7 @@ getTypeHierarchy(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *rootRef, UA
 
             /* is the target already considered? (multi-inheritance) */
             UA_Boolean duplicate = false;
-            for(size_t j = 0; j <= last; j++) {
+            for(size_t j = 0; j <= last; ++j) {
                 if(UA_NodeId_equal(&node->references[i].targetId.nodeId, &results[j])) {
                     duplicate = true;
                     break;
@@ -137,7 +137,7 @@ getTypeHierarchy(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *rootRef, UA
 
         /* Get the next node */
     next:
-        idx++;
+        ++idx;
         if(idx > last || retval != UA_STATUSCODE_GOOD)
             break;
         node = UA_NodestoreSwitch_get(nodestoreSwitch ,&results[idx]);
@@ -167,12 +167,12 @@ isNodeInTree(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *leafNode, con
         return false;
 
     /* Search upwards in the tree */
-    for(size_t i = 0; i < node->referencesSize; i++) {
+    for(size_t i = 0; i < node->referencesSize; ++i) {
         if(!node->references[i].isInverse)
             continue;
 
         /* Recurse only for valid reference types */
-        for(size_t j = 0; j < referenceTypeIdsSize; j++) {
+        for(size_t j = 0; j < referenceTypeIdsSize; ++j) {
             if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]) &&
                isNodeInTree(nodestoreSwitch, &node->references[i].targetId.nodeId, nodeToFind,
                             referenceTypeIds, referenceTypeIdsSize))
@@ -203,7 +203,7 @@ getNodeType(UA_Server *server, const UA_Node *node) {
 
     /* stop at the first matching candidate */
     UA_NodeId *parentId = NULL;
-    for(size_t i = 0; i < node->referencesSize; i++) {
+    for(size_t i = 0; i < node->referencesSize; ++i) {
         if(node->references[i].isInverse == inverse &&
            UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef)) {
             parentId = &node->references[i].targetId.nodeId;
@@ -236,7 +236,7 @@ UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
     const UA_NodeId hasSubType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     const UA_NodeId hasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
-    for(size_t i = 0; i < node->referencesSize; i++) {
+    for(size_t i = 0; i < node->referencesSize; ++i) {
         if(node->references[i].isInverse == false &&
            UA_NodeId_equal(&node->references[i].referenceTypeId, &hasSubType))
             return true;

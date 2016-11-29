@@ -124,7 +124,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
     }
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++) {
+    for(size_t i = 0; i < size; ++i) {
         UA_Subscription *sub =
             UA_Session_getSubscriptionByID(session, request->subscriptionIds[i]);
         if(!sub) {
@@ -293,7 +293,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->itemsToCreateSize;
 
-    for(size_t i = 0; i < request->itemsToCreateSize; i++)
+    for(size_t i = 0; i < request->itemsToCreateSize; ++i)
         Service_CreateMonitoredItems_single(server, session, sub, request->timestampsToReturn,
                                             &request->itemsToCreate[i], &response->results[i]);
 }
@@ -348,7 +348,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->itemsToModifySize;
 
-    for(size_t i = 0; i < request->itemsToModifySize; i++)
+    for(size_t i = 0; i < request->itemsToModifySize; ++i)
         Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
                                             &response->results[i]);
 
@@ -376,7 +376,7 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(size_t i = 0; i < response->resultsSize; i++) {
+    for(size_t i = 0; i < response->resultsSize; ++i) {
         UA_MonitoredItem *mon =
             UA_Subscription_getMonitoredItem(sub, request->monitoredItemIds[i]);
         if(!mon) {
@@ -428,7 +428,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     /* Delete Acknowledged Subscription Messages */
-    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; ++i) {
         UA_SubscriptionAcknowledgement *ack = &request->subscriptionAcknowledgements[i];
         UA_Subscription *sub = UA_Session_getSubscriptionByID(session, ack->subscriptionId);
         if(!sub) {
@@ -500,7 +500,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
 
-    for(size_t i = 0; i < request->subscriptionIdsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionIdsSize; ++i) {
         response->results[i] = UA_Session_deleteSubscription(server, session, request->subscriptionIds[i]);
         if(response->results[i] == UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
@@ -551,7 +551,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
+    for(size_t i = 0; i < request->monitoredItemIdsSize; ++i)
         response->results[i] = UA_Subscription_deleteMonitoredItem(server, sub, request->monitoredItemIds[i]);
 }
 

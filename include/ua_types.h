@@ -78,10 +78,10 @@ typedef int8_t UA_SByte;
 /**
  * Byte
  * ^^^^
- * An integer value between 0 and 256. */
+ * An integer value between 0 and 255. */
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MIN 0
-#define UA_BYTE_MAX 256
+#define UA_BYTE_MAX 255
 
 /**
  * Int16

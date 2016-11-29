@@ -20,7 +20,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->serverEndpointsSize = server->endpointDescriptionsSize;
 
     /* Mirror back the endpointUrl */
-    for(size_t i = 0; i < response->serverEndpointsSize; i++)
+    for(size_t i = 0; i < response->serverEndpointsSize; ++i)
         UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
 
     UA_Session *newSession;

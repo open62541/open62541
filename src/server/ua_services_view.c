@@ -18,7 +18,7 @@ fillReferenceDescription(const UA_Node *curr, UA_ReferenceNode *ref,
         retval |= UA_LocalizedText_copy(&curr->displayName, &descr->displayName);
     if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION){
         if(curr->nodeClass == UA_NODECLASS_OBJECT || curr->nodeClass == UA_NODECLASS_VARIABLE) {
-            for(size_t i = 0; i < curr->referencesSize; i++) {
+            for(size_t i = 0; i < curr->referencesSize; ++i) {
                 UA_ReferenceNode *refnode = &curr->references[i];
                 if(refnode->referenceTypeId.identifier.numeric == UA_NS0ID_HASTYPEDEFINITION) {
                     retval |= UA_ExpandedNodeId_copy(&refnode->targetId, &descr->typeDefinition);
@@ -40,7 +40,7 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
     UA_UInt32 indicesSize = 6;
     UA_DataValue *readNodesResults = UA_Array_new(6,&UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(6,&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
-    for(UA_UInt32 i = 0; i < 6; i++) {
+    for(UA_UInt32 i = 0; i < 6; ++i) {
         readValueIds[i].nodeId = reference->targetId.nodeId;
         indices[i] = i;
     }
@@ -96,7 +96,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
     /* is the reference part of the hierarchy of references we look for? */
     if(!return_all) {
         UA_Boolean is_relevant = false;
-        for(size_t i = 0; i < relevant_count; i++) {
+        for(size_t i = 0; i < relevant_count; ++i) {
             if(UA_NodeId_equal(&reference->referenceTypeId, &relevant[i])) {
                 is_relevant = true;
                 break;
@@ -108,7 +108,7 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
     /* return the node from an external namespace*/
-    for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; nsIndex++) {
+    for(size_t nsIndex = 0; nsIndex < server->externalNamespacesSize; ++nsIndex) {
         if(reference->targetId.nodeId.namespaceIndex != server->externalNamespaces[nsIndex].index)
             continue;
         *isExternal = true;
@@ -130,7 +130,7 @@ static void removeCp(struct ContinuationPointEntry *cp, UA_Session* session) {
     UA_ByteString_deleteMembers(&cp->identifier);
     UA_BrowseDescription_deleteMembers(&cp->browseDescription);
     UA_free(cp);
-    session->availableContinuationPoints++;
+    ++session->availableContinuationPoints;
 }
 
 /* Results for a single browsedescription. This is the inner loop for both
@@ -220,7 +220,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     size_t skipped = 0;
     UA_Boolean isExternal = false;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; referencesIndex++) {
+    for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; ++referencesIndex) {
         isExternal = false;
         const UA_Node *current =
             returnRelevantNode(server, descr, all_refs, &node->references[referencesIndex],
@@ -229,13 +229,13 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
             continue;
 
         if(skipped < continuationIndex) {
-            skipped++;
+            ++skipped;
         } else {
             retval |= fillReferenceDescription(current,
                                                &node->references[referencesIndex],
                                                descr->resultMask,
                                                &result->references[referencesCount]);
-            referencesCount++;
+            ++referencesCount;
         }
     }
     result->referencesSize = referencesCount;
@@ -288,7 +288,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
 
         /* store the cp */
         LIST_INSERT_HEAD(&session->continuationPoints, cp, pointers);
-        session->availableContinuationPoints--;
+        --session->availableContinuationPoints;
     }
 }
 
@@ -322,14 +322,14 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /*NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
         size_t indexSize = 0;
-        for(size_t i = 0; i < size; i++) {
+        for(size_t i = 0; i < size; ++i) {
             if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -340,7 +340,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
 #endif
 
-    for(size_t i = 0; i < size; i++) {
+    for(size_t i = 0; i < size; ++i) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
@@ -391,7 +391,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
     }
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++)
+    for(size_t i = 0; i < size; ++i)
         UA_Server_browseNext_single(server, session, request->releaseContinuationPoints,
                                     &request->continuationPoints[i], &response->results[i]);
 }
@@ -434,9 +434,9 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
             return retval;
     }
 
-    for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; i++) {
+    for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; ++i) {
         UA_Boolean match = all_refs;
-        for(size_t j = 0; j < reftypes_count && !match; j++) {
+        for(size_t j = 0; j < reftypes_count && !match; ++j) {
             if(node->references[i].isInverse == elem->isInverse &&
                UA_NodeId_equal(&node->references[i].referenceTypeId, &reftypes[j]))
                 match = true;
@@ -495,7 +495,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     }
         
     //relativePath elements should not have an empty targetName
-    for(size_t i=0;i<path->relativePath.elementsSize;i++){
+    for(size_t i=0;i<path->relativePath.elementsSize;++i){
         UA_QualifiedName *qname = &(path->relativePath.elements[i].targetName);
         if(UA_QualifiedName_isNull(qname)){
             result->statusCode = UA_STATUSCODE_BADBROWSENAMEINVALID;
@@ -555,14 +555,14 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
 #endif /* NO_ALLOCA */
     memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; j++) {
+    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
         size_t indexSize = 0;
-        for(size_t i = 0;i < size;i++) {
+        for(size_t i = 0;i < size;++i) {
             if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
                 continue;
             isExternal[i] = true;
             indices[indexSize] = (UA_UInt32)i;
-            indexSize++;
+            ++indexSize;
         }
         if(indexSize == 0)
             continue;
@@ -574,7 +574,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 #endif
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++) {
+    for(size_t i = 0; i < size; ++i) {
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif

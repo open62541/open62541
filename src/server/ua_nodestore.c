@@ -161,12 +161,12 @@ expand(UA_NodeStore *ns) {
     ns->sizePrimeIndex = nindex;
 
     /* recompute the position of every entry and insert the pointer */
-    for(size_t i = 0, j = 0; i < osize && j < count; i++) {
+    for(size_t i = 0, j = 0; i < osize && j < count; ++i) {
         if(oentries[i] <= UA_NODESTORE_TOMBSTONE)
             continue;
         UA_NodeStoreEntry **e = findSlot(ns, &oentries[i]->node.nodeId);
         *e = oentries[i];
-        j++;
+        ++j;
     }
 
     UA_free(oentries);
@@ -198,7 +198,7 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
     if(ns->size == 0) return; //ns already deleted
     UA_UInt32 size = ns->size;
     UA_NodeStoreEntry **entries = ns->entries;
-    for(UA_UInt32 i = 0; i < size; i++) {
+    for(UA_UInt32 i = 0; i < size; ++i) {
         if(entries[i] > UA_NODESTORE_TOMBSTONE)
             deleteEntry(entries[i]);
     }
@@ -257,7 +257,7 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     }
 
     *entry = container_of(node, UA_NodeStoreEntry, node);
-    ns->count++;
+    ++ns->count;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -309,7 +309,7 @@ UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     deleteEntry(*slot);
     *slot = UA_NODESTORE_TOMBSTONE;
-    ns->count--;
+    --ns->count;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
         expand(ns); // this can fail. we just continue with the bigger hashmap.
@@ -318,7 +318,7 @@ UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 void
 UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
-    for(UA_UInt32 i = 0; i < ns->size; i++) {
+    for(UA_UInt32 i = 0; i < ns->size; ++i) {
         if(ns->entries[i] > UA_NODESTORE_TOMBSTONE)
             visitor((UA_Node*)&ns->entries[i]->node);
     }
