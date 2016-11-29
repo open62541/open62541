@@ -521,7 +521,7 @@ UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
      * with in the "scalar" type that may define an array by itself (string,
      * variant, ...). */
     UA_NumericRange thisrange, nextrange;
-    UA_NumericRangeDimension scalarThisDimension = {0}; /* a single entry */
+    UA_NumericRangeDimension scalarThisDimension = {0,0}; /* a single entry */
     if(isScalar) {
         /* Replace scalar src with array of length 1 */
         arraySrc = *src;
