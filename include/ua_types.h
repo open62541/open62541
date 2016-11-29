@@ -653,8 +653,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
  * are described. If the received data type is unkown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
-typedef struct {
-    enum {
+typedef enum {
         UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
         UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
         UA_EXTENSIONOBJECT_ENCODED_XML        = 2,
@@ -662,7 +661,10 @@ typedef struct {
         UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4 /* Don't delete the content
                                                      together with the
                                                      ExtensionObject */
-    } encoding;
+} UA_ExtensionObjectEncoding;
+
+typedef struct {
+    UA_ExtensionObjectEncoding encoding;
     union {
         struct {
             UA_NodeId typeId;   /* The nodeid of the datatype */
