@@ -509,15 +509,17 @@ typedef struct UA_NumericRange UA_NumericRange;
 
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
-typedef struct {
-    const UA_DataType *type;      /* The data type description */
-    enum {
+typedef enum {
         UA_VARIANT_DATA,          /* The data has the same lifecycle as the
                                      variant */
         UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and
                                      shall not be deleted at the end of the
                                      variant's lifecycle. */
-    } storageType;
+} UA_VariantStorageType;
+
+typedef struct {
+    const UA_DataType *type;      /* The data type description */
+    UA_VariantStorageType storageType;
     size_t arrayLength;           /* The number of elements in the data array */
     void *data;                   /* Points to the scalar or array data */
     size_t arrayDimensionsSize;   /* The number of dimensions */
