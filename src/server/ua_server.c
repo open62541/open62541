@@ -1051,7 +1051,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Variant_setArray(&serverProfileArray->value.data.value.value,
                         UA_Array_new(profileArraySize, &UA_TYPES[UA_TYPES_STRING]),
                         profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    for(UA_UInt16 i=0;i<profileArraySize;i++)
+    for(UA_UInt16 i=0;i<profileArraySize;++i)
         ((UA_String *)serverProfileArray->value.data.value.value.data)[i] = profileArray[i];
     serverProfileArray->value.data.value.hasValue = true;
     serverProfileArray->valueRank = 1;
