@@ -44,7 +44,6 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
-option(UA_ENABLE_MULTITHREADING "Enable multithreading" OFF)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -57,6 +56,9 @@ if(UA_ENABLE_COVERAGE)
 endif()
 
 # Advanced options
+option(UA_ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
+mark_as_advanced(UA_ENABLE_MULTITHREADING)
+
 option(UA_ENABLE_STATUSCODE_DESCRIPTIONS "Enable conversion of StatusCode to human-readable error message" ON)
 mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 
@@ -72,10 +74,10 @@ mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
 
-option(UA_ENABLE_NONSTANDARD_STATELESS "Enable stateless extension" OFF)
+option(UA_ENABLE_NONSTANDARD_STATELESS "Enable stateless extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_STATELESS)
 
-option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension" OFF)
+option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 if(UA_ENABLE_NONSTANDARD_UDP)
   set(UA_ENABLE_NONSTANDARD_STATELESS ON)
