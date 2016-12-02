@@ -83,7 +83,7 @@ struct UA_Subscription {
     UA_Session *session;
     UA_UInt32 lifeTimeCount;
     UA_UInt32 maxKeepAliveCount;
-    UA_Double publishingInterval;     // [ms]
+    UA_Double publishingInterval; /* in ms */
     UA_UInt32 subscriptionID;
     UA_UInt32 notificationsPerPublish;
     UA_Boolean publishingEnabled;
@@ -100,8 +100,12 @@ struct UA_Subscription {
     UA_Guid publishJobGuid;
     UA_Boolean publishJobIsRegistered;
 
+    /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
+
+    /* Retransmission Queue */
     TAILQ_HEAD(UA_ListOfNotificationMessages, UA_NotificationMessageEntry) retransmissionQueue;
+    UA_UInt32 retransmissionQueueSize;
 };
 
 UA_Subscription *UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
@@ -117,6 +121,9 @@ UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub);
+
+UA_StatusCode
+UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 
 void
 UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,

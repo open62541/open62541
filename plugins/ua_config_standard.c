@@ -81,6 +81,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .lifeTimeCountLimits = { .max = 15000, .min = 3 },
     .keepAliveCountLimits = { .max = 100, .min = 1 },
     .maxNotificationsPerPublish = 1000,
+    .maxRetransmissionQueueSize = 0, /* unlimited */
 
     /* Limits for MonitoredItems */
     .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
