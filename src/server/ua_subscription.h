@@ -63,7 +63,7 @@ UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredI
 /****************/
 
 typedef struct UA_NotificationMessageEntry {
-    LIST_ENTRY(UA_NotificationMessageEntry) listEntry;
+    TAILQ_ENTRY(UA_NotificationMessageEntry) listEntry;
     UA_NotificationMessage message;
 } UA_NotificationMessageEntry;
 
@@ -101,7 +101,7 @@ struct UA_Subscription {
     UA_Boolean publishJobIsRegistered;
 
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
-    LIST_HEAD(UA_ListOfNotificationMessages, UA_NotificationMessageEntry) retransmissionQueue;
+    TAILQ_HEAD(UA_ListOfNotificationMessages, UA_NotificationMessageEntry) retransmissionQueue;
 };
 
 UA_Subscription *UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
