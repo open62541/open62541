@@ -260,7 +260,7 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->currentLifetimeCount = 0;
     new->lastMonitoredItemId = 0;
     new->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
-    LIST_INIT(&new->retransmissionQueue);
+    TAILQ_INIT(&new->retransmissionQueue);
     LIST_INIT(&new->monitoredItems);
     return new;
 }
@@ -277,8 +277,8 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
-    LIST_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
-        LIST_REMOVE(nme, listEntry);
+    TAILQ_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
+        TAILQ_REMOVE(&subscription->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
     }
@@ -466,13 +466,13 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
          * be done here, so that the message itself is included in the available
          * sequence numbers for acknowledgement. */
         retransmission->message = response->notificationMessage;
-        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        TAILQ_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
     }
 
     /* Get the available sequence numbers from the retransmission queue */
     size_t available = 0;
     UA_NotificationMessageEntry *nme;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
+    TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry)
         ++available;
     // cppcheck-suppress knownConditionTrueFalse
     if(available > 0) {
@@ -480,7 +480,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         response->availableSequenceNumbersSize = available;
     }
     size_t i = 0;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
+    TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
         response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
         ++i;
     }
