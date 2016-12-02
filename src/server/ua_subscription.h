@@ -100,7 +100,7 @@ struct UA_Subscription {
     UA_Guid publishJobGuid;
     UA_Boolean publishJobIsRegistered;
 
-    LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) MonitoredItems;
+    LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
     LIST_HEAD(UA_ListOfNotificationMessages, UA_NotificationMessageEntry) retransmissionQueue;
 };
 
