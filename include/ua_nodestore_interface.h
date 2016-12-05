@@ -86,6 +86,15 @@ typedef void (*UA_Nodestore_nodeVisitor)(const UA_Node *node);
 typedef void (*UA_NodestoreInterface_iterate)(void *handle, UA_Nodestore_nodeVisitor visitor);
 
 /**
+ * Release
+ * ^^^^^^^^
+ * Prototype for implementation of multithreading capable nodestores with reference counters instead of RCU LOCK.
+ * Indicates that the node is no longer referenced by the caller.
+ */
+typedef void (*UA_NodestoreInterface_release)(void *handle, const UA_Node *node);
+
+
+/**
  * NodestoreInterface Type
  * ^^^^^^^^^^^^^^^^^^^^^^^
  * Definition of the NodestoreInterface with function pointers to the nodestore.
@@ -103,6 +112,7 @@ typedef struct UA_NodestoreInterface {
     UA_NodestoreInterface_replace       replace;
     UA_NodestoreInterface_remove        remove;
     UA_NodestoreInterface_iterate       iterate;
+    UA_NodestoreInterface_release       release;
 }UA_NodestoreInterface;
 
 #ifdef __cplusplus
