@@ -42,16 +42,16 @@ static void stopHandler(int sig) {
 #define NODESTORE_SIZE 100
 
 UA_ObjectNode nodes[NODESTORE_SIZE];
-int nodesCount = 0;
+size_t nodesCount = 0;
 UA_UInt16 nsIdx = 0;
 static void Nodestore_delete(UA_ObjectNode* ns){
-    for(int i=0 ; i < nodesCount && i < NODESTORE_SIZE; i++){
+    for(size_t i=0 ; i < nodesCount && i < NODESTORE_SIZE; i++){
         UA_Node_deleteMembersAnyNodeClass((UA_Node*)&nodes[i]);
     }
     nodesCount = 0;
 }
 static void Nodestore_deleteNode(UA_Node *node){
-    int nodeIdx = (int)node->nodeId.identifier.numeric;
+    size_t nodeIdx = node->nodeId.identifier.numeric;
     if( nodeIdx < nodesCount //Node not instanciatet in nodestore
      && nodeIdx > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
         return;
@@ -60,7 +60,7 @@ static void Nodestore_deleteNode(UA_Node *node){
 static UA_Node * Nodestore_newNode(UA_NodeClass nodeClass){
     if(nodeClass != UA_NODECLASS_OBJECT)
         return NULL;
-    int nodeIndex = nodesCount % NODESTORE_SIZE;
+    size_t nodeIndex = nodesCount % NODESTORE_SIZE;
     Nodestore_deleteNode((UA_Node*)&nodes[nodeIndex]);
     nodes[nodeIndex].nodeId = UA_NODEID_NUMERIC(nsIdx, (UA_UInt32)nodesCount);
     nodes[nodeIndex].nodeClass = UA_NODECLASS_OBJECT;
@@ -71,8 +71,8 @@ static UA_StatusCode Nodestore_insert(UA_ObjectNode *ns, UA_Node *node){
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid){
-    if((int)nodeid->identifier.numeric < nodesCount //Node not instanciatet in nodestore
-            && (int)nodeid->identifier.numeric > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
+    if(nodeid->identifier.numeric < nodesCount //Node not instanciatet in nodestore
+            && nodeid->identifier.numeric > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
         return (UA_Node*) &ns[nodeid->identifier.numeric % NODESTORE_SIZE];
     else
         return NULL;
@@ -80,7 +80,7 @@ static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid)
 static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
     if(node->nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    int newId = (int)node->nodeId.identifier.numeric;
+    size_t newId = node->nodeId.identifier.numeric;
     if(newId < nodesCount //Node not instanciatet in nodestore
                && newId > (nodesCount-NODESTORE_SIZE)){ //Node already overwritten
         ns[newId % NODESTORE_SIZE] = *(UA_ObjectNode*)node;

@@ -11,7 +11,7 @@ UA_NodestoreSwitch *
 UA_NodestoreSwitch_new(){
     UA_NodestoreSwitch* nodestoreSwitch = UA_malloc(sizeof(UA_NodestoreSwitch));
     nodestoreSwitch->nodestoreInterfacesSize = 0;
-    nodestoreSwitch->nodestoreInterfaces = UA_malloc(2*sizeof(UA_NodestoreInterface*));
+    nodestoreSwitch->nodestoreInterfaces = NULL;
     return nodestoreSwitch;
 }
 

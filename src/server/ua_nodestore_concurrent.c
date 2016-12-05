@@ -12,6 +12,11 @@ struct nodeEntry {
     UA_Node node; ///< Might be cast from any _bigger_ UA_Node* type. Allocate enough memory!
 };
 
+struct UA_NodeStore {
+    struct cds_lfht* ht;
+    UA_Boolean isDeleted;
+};
+
 #include "ua_nodestore_hash.inc"
 
 static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
@@ -66,14 +71,20 @@ static int compare(struct cds_lfht_node *htn, const void *orig) {
 }
 
 UA_NodeStore * UA_NodeStore_new() {
+    UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
+    if(!ns)
+        return NULL;
     /* 64 is the minimum size for the hashtable. */
-    return (UA_NodeStore*)cds_lfht_new(64, 64, 0, CDS_LFHT_AUTO_RESIZE, NULL);
+    ns->ht = cds_lfht_new(64, 64, 0, CDS_LFHT_AUTO_RESIZE, NULL);
+    ns->isDeleted = false;
+    return ns;
 }
 
 /* do not call with read-side critical section held!! */
 void UA_NodeStore_delete(UA_NodeStore *ns) {
+    if(ns->isDeleted) return;
     UA_ASSERT_RCU_LOCKED();
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
     while(iter.node) {
@@ -84,7 +95,8 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         }
         cds_lfht_next(ht, &iter);
     }
-    cds_lfht_destroy(ht, NULL);
+    cds_lfht_destroy(ns->ht, NULL);
+    UA_free(ns->ht);
 }
 
 UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
@@ -102,7 +114,7 @@ void UA_NodeStore_deleteNode(UA_Node *node) {
 UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     UA_ASSERT_RCU_LOCKED();
     struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     cds_lfht_node_init(&entry->htn);
     struct cds_lfht_node *result;
     //namespace index is assumed to be valid
@@ -143,7 +155,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
 UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
     UA_ASSERT_RCU_LOCKED();
     struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
 
     /* Get the current version */
     hash_t h = hash(&node->nodeId);
@@ -171,7 +183,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
@@ -184,7 +196,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
@@ -196,7 +208,7 @@ const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     hash_t h = hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
@@ -216,7 +228,7 @@ UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     UA_ASSERT_RCU_LOCKED();
-    struct cds_lfht *ht = (struct cds_lfht*)ns;
+    struct cds_lfht *ht = ns->ht;
     struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
     while(iter.node != NULL) {

@@ -237,7 +237,10 @@ void UA_Server_delete(UA_Server *server) {
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_RCU_LOCK();
+    //delete all other nodestores
     UA_NodestoreSwitch_delete(server->nodestoreSwitch);
+    //Delete the standard nodestore
+    server->nodestore_std->deleteNodeStore(server->nodestore_std->handle);
     UA_Nodestore_standard_delete(server->nodestore_std);
     UA_RCU_UNLOCK();
     UA_free(server->nodestore_std);
