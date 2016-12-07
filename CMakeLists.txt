@@ -392,6 +392,9 @@ target_link_libraries(open62541 ${open62541_LIBRARIES})
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
+# Generate properly versioned shared library links on Linux
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION 0.2.0)
+
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
 endif()
