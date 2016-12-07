@@ -23,7 +23,11 @@ extern "C" {
 /**
  * Library Version
  * --------------- */
-#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
+#define UA_OPEN62541_VER_MAJOR ${OPEN62541_VER_MAJOR}
+#define UA_OPEN62541_VER_MINOR ${OPEN62541_VER_MINOR}
+#define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
+#define UA_OPEN62541_VER_LABEL "${OPEN62541_VER_LABEL}" /* Release candidate label, etc. */
+#define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
 
 /**
  * Options
@@ -56,7 +60,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
-#include "ms_stdint.h" /* includes stdint.h or a workaround for older Visual Studio versions */
+#include "ms_stdint.h" /* Includes stdint.h or workaround for older Visual Studios */
 
 #ifndef __cplusplus
 # include <stdbool.h> /* C99 Boolean */
@@ -176,7 +180,7 @@ typedef uint8_t bool;
  * Integer Endianness
  * ^^^^^^^^^^^^^^^^^^ */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)) /* little endian detected */
+                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define UA_BINARY_OVERLAYABLE_INTEGER true
 #elif defined(__ANDROID__) /* Andoid */
 # include <endian.h>

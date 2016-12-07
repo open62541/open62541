@@ -1,33 +1,31 @@
 cmake_minimum_required(VERSION 2.8.11)
 project(open62541)
-set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
-######################
-# Check Dependencies #
-######################
-
+set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
+
+###########
+# Version #
+###########
+
+set(OPEN62541_VER_MAJOR 0)
+set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_PATCH 0)
+set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+
+# Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
                   RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-  execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=0 --always --tags
-                  RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_REL_ID WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-    if(NOT ${res_var} EQUAL 0)
-        set(GIT_COMMIT_ID "commit id unknown")
-        set(GIT_RELEASE_ID "release unknown")
-        message(STATUS "Git failed (not a repo, or no tags). Build will not contain git revision info." )
-    else()
-        string(REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
-        string(REPLACE "\n" "" GIT_RELEASE_ID ${GIT_REL_ID} )
+    if(${res_var} EQUAL 0)
+        string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
-else()
-    set(GIT_COMMIT_ID "commit id unknown")
-    set(GIT_RELEASE_ID "release unknown")
-    message(STATUS "Git not found. Build will not contain git revision info." )
 endif()
-message(STATUS "Git version: "  ${GIT_COMMIT_ID})
+if(NOT ${OPEN62541_VER_COMMIT})
+    set(OPEN62541_VER_COMMIT "undefined")
+endif()
 
 ############
 # Settings #
@@ -337,7 +335,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_g
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${exported_headers}
                            ${internal_headers})
@@ -345,7 +343,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${GIT_COMMIT_ID} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers}
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers}
                            ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
                            ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
@@ -393,7 +391,7 @@ target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
 # Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION 0.2.0)
+SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
