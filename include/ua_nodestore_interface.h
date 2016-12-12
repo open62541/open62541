@@ -58,7 +58,7 @@ typedef void (*UA_NodestoreInterface_deleteNode)(UA_Node *node);
 /* Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
  * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
  * deleted. */
-typedef UA_StatusCode (*UA_NodestoreInterface_insert)(void *handle, UA_Node *node);
+typedef UA_StatusCode (*UA_NodestoreInterface_insert)(void *handle, UA_Node *node, const UA_NodeId *parentNodeId);
 
 /* The returned node is immutable. */
 typedef const UA_Node * (*UA_NodestoreInterface_get)(void *handle, const UA_NodeId *nodeid);

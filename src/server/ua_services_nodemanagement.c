@@ -421,7 +421,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     }
 
     /* Add the node to the nodestore */
-    retval = UA_NodestoreSwitch_insert(server->nodestoreSwitch, node);
+    retval = UA_NodestoreSwitch_insert(server->nodestoreSwitch, node, parentNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
                              "AddNodes: Node could not be added to the nodestore "

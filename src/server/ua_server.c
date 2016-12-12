@@ -571,6 +571,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 
+    UA_NodeId referenceTypesFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_REFERENCETYPESFOLDER);
+    UA_NodeId hasChildId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCHILD);
+    UA_NodeId dataTypesFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_DATATYPESFOLDER);
+    UA_NodeId variableTypesFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_VARIABLETYPESFOLDER);
+    UA_NodeId objectTypesFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTTYPESFOLDER);
+    UA_NodeId rootFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_ROOTFOLDER);
+
     /*********************************/
     /* Bootstrap reference hierarchy */
     /*********************************/
@@ -590,8 +597,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     hassubtype->symmetric = false;
 
     UA_RCU_LOCK();
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)references);
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)hassubtype);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)references,
+            &referenceTypesFolderId);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)hassubtype,
+            &hasChildId);
     UA_RCU_UNLOCK();
 
     UA_ReferenceTypeNode *hierarchicalreferences = UA_Nodestore_newReferenceTypeNode();
@@ -778,7 +787,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     basedatatype->nodeId.identifier.numeric = UA_NS0ID_BASEDATATYPE;
     basedatatype->isAbstract = true;
     UA_RCU_LOCK();
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basedatatype);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basedatatype,
+            &dataTypesFolderId);
     UA_RCU_UNLOCK();
 
     addDataTypeNode(server, "Boolean", UA_NS0ID_BOOLEAN, false, UA_NS0ID_BASEDATATYPE);
@@ -822,7 +832,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     basevartype->valueRank = -2;
     basevartype->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     UA_RCU_LOCK();
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basevartype);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basevartype,
+            &variableTypesFolderId);
     UA_RCU_UNLOCK();
 
     UA_VariableTypeNode *basedatavartype =
@@ -865,7 +876,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)baseobjtype, "BaseObjectType");
     baseobjtype->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
     UA_RCU_LOCK();
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)baseobjtype);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)baseobjtype,
+            &objectTypesFolderId);
     UA_RCU_UNLOCK();
 
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
@@ -892,7 +904,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
     UA_RCU_LOCK();
-    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)root);
+    UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)root,
+           &rootFolderId);
     UA_RCU_UNLOCK();
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), nodeIdHasTypeDefinition,
                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);
