@@ -227,9 +227,11 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_VariableNode *node,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Array dimensions in the variable type do not match");
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vt);
             return retval;
         }
     }
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vt);
 
     /* Check if the current value is compatible with the array dimensions */
     UA_DataValue value;
@@ -270,7 +272,9 @@ writeValueRankAttributeWithVT(UA_Server *server, UA_VariableNode *node,
     const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return writeValueRankAttribute(node, valueRank, vt->valueRank);
+    UA_StatusCode retVal = writeValueRankAttribute(node, valueRank, vt->valueRank);
+    UA_NodestoreSwitch_release(server->nodestoreSwitch,(const UA_Node*)vt);
+    return retVal;
 }
 
 UA_StatusCode
@@ -342,7 +346,9 @@ writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
     const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return writeDataTypeAttribute(server, node, dataType, &vt->dataType);
+    UA_StatusCode retVal = writeDataTypeAttribute(server, node, dataType, &vt->dataType);
+    UA_NodestoreSwitch_release(server->nodestoreSwitch,(const UA_Node*)vt);
+    return retVal;
 }
 
 /* constraintDataType can be NULL, then we retrieve the vt */
@@ -748,6 +754,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
 
     /* Return error code when reading has failed */
     if(retval != UA_STATUSCODE_GOOD) {

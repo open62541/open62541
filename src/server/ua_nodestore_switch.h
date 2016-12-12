@@ -105,6 +105,13 @@ UA_StatusCode UA_NodestoreSwitch_remove(UA_NodestoreSwitch* nodestoreSwitch, con
  * nodestore. */
 void UA_NodestoreSwitch_iterate(UA_NodestoreSwitch* nodestoreSwitch, UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex);
 
+/**
+ * Release
+ * ^^^^^^^
+ * Indicates that the reference to a node, which was fetched from the nodestore via the "get" method, is not used anymore.
+ * This is the basis for multithreading capable nodestores. Reference Counting and locks can be freed via this method.
+ *  */
+void UA_NodestoreSwitch_release(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *node);
 
 #ifdef __cplusplus
 } // extern "C"

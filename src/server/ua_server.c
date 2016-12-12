@@ -144,6 +144,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, parent);
     UA_RCU_UNLOCK();
     return retval;
 }

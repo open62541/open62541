@@ -92,6 +92,8 @@ static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
 static UA_StatusCode Nodestore_remove(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
+static void Nodestore_release(UA_ObjectNode *ns, const UA_Node *node){
+}
 
 /* Create new nodestore interface for the example nodestore */
 static UA_NodestoreInterface
@@ -106,6 +108,7 @@ Nodestore_Example_new(void){
     nsi.getCopy =       (UA_NodestoreInterface_getCopy)     Nodestore_get;
     nsi.replace =       (UA_NodestoreInterface_replace)     Nodestore_replace;
     nsi.remove =        (UA_NodestoreInterface_remove)      Nodestore_remove;
+    nsi.release =        (UA_NodestoreInterface_release)    Nodestore_release;
     //nsi.iterate =       (UA_NodestoreInterface_iterate)     Nodestore_iterate;
     return nsi;
 }

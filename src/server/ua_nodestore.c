@@ -324,4 +324,7 @@ UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
     }
 }
 
+void
+UA_NodeStore_release(void *handle, const UA_Node *node){};
+
 #endif /* UA_ENABLE_MULTITHREADING */

@@ -15,6 +15,7 @@ UA_Nodestore_standard() {
     nsi.replace =       (UA_NodestoreInterface_replace)     UA_NodeStore_replace;
     nsi.remove =        (UA_NodestoreInterface_remove)      UA_NodeStore_remove,
     nsi.iterate =       (UA_NodestoreInterface_iterate)     UA_NodeStore_iterate;
+    nsi.release =       (UA_NodestoreInterface_release)     UA_NodeStore_release;
     return nsi;
 }
 

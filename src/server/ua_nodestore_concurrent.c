@@ -237,5 +237,7 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
         cds_lfht_next(ht, &iter);
     }
 }
+void
+UA_NodeStore_release(void *handle, const UA_Node *node){};
 
 #endif /* UA_ENABLE_MULTITHREADING */

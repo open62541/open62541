@@ -73,6 +73,13 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
 typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
 void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
 
+/**
+ * Release
+ * ^^^^^^^^
+ * Only used in nodestore_concurrent. Indicates that a node is no longer referenced by the caller.
+ */
+void UA_NodeStore_release(void *handle, const UA_Node *node);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -126,3 +126,10 @@ void UA_NodestoreSwitch_iterate(UA_NodestoreSwitch* nodestoreSwitch, UA_Nodestor
                 nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->handle, visitor);
     }
 }
+void UA_NodestoreSwitch_release(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *node){
+    if(node && checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
+        nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->release(
+                nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node);
+    }
+    node = NULL;
+}

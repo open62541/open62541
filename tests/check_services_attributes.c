@@ -560,6 +560,7 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
     ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)compNode);
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&resp);
     UA_ReadRequest_deleteMembers(&rReq);

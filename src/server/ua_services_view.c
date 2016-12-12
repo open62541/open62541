@@ -119,8 +119,10 @@ returnRelevantNode(UA_Server *server, const UA_BrowseDescription *descr, UA_Bool
 
     /* return from the internal nodestore */
     const UA_Node *node =UA_NodestoreSwitch_get(server->nodestoreSwitch, &reference->targetId.nodeId);
-    if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0)
+    if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0){
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
         return NULL;
+    }
     *isExternal = false;
     return node;
 }
@@ -174,17 +176,21 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         const UA_Node *rootRef = UA_NodestoreSwitch_get(server->nodestoreSwitch, &descr->referenceTypeId);
         if(!rootRef || rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE) {
             result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
             return;
         }
         if(descr->includeSubtypes) {
             result->statusCode = getTypeHierarchy(server->nodestoreSwitch, rootRef, false,
                                                   &relevant_refs, &relevant_refs_size);
-            if(result->statusCode != UA_STATUSCODE_GOOD)
+            if(result->statusCode != UA_STATUSCODE_GOOD){
+                UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
                 return;
+            }
         } else {
             relevant_refs = (UA_NodeId*)(uintptr_t)&descr->referenceTypeId;
             relevant_refs_size = 1;
         }
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
     }
 
     /* get the node */
@@ -201,6 +207,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         result->referencesSize = 0;
         if(!all_refs && descr->includeSubtypes)
             UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
         return;
     }
 
@@ -237,6 +244,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
                                                &result->references[referencesCount]);
             ++referencesCount;
         }
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, current);
     }
     result->referencesSize = referencesCount;
 
@@ -257,8 +265,10 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
  cleanup:
     if(!all_refs && descr->includeSubtypes)
         UA_Array_delete(relevant_refs, relevant_refs_size, &UA_TYPES[UA_TYPES_NODEID]);
-    if(result->statusCode != UA_STATUSCODE_GOOD)
+    if(result->statusCode != UA_STATUSCODE_GOOD){
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
         return;
+    }
 
     /* create, update, delete continuation points */
     if(cp) {
@@ -275,6 +285,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         if(session->availableContinuationPoints <= 0 ||
            !(cp = UA_malloc(sizeof(struct ContinuationPointEntry)))) {
             result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
             return;
         }
         UA_BrowseDescription_copy(descr, &cp->browseDescription);
@@ -290,6 +301,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         LIST_INSERT_HEAD(&session->continuationPoints, cp, pointers);
         --session->availableContinuationPoints;
     }
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
 }
 
 void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseRequest *request,
@@ -427,11 +439,16 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         reftypes = (UA_NodeId*)(uintptr_t)&elem->referenceTypeId; // ptr magic due to const cast
     } else {
         const UA_Node *rootRef = UA_NodestoreSwitch_get(server->nodestoreSwitch, &elem->referenceTypeId);
-        if(!rootRef || rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE)
+        if(!rootRef || rootRef->nodeClass != UA_NODECLASS_REFERENCETYPE){
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
             return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        }
         retval = getTypeHierarchy(server->nodestoreSwitch, rootRef, false, &reftypes, &reftypes_count);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
             return retval;
+        }
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, rootRef);
     }
 
     for(size_t i = 0; i < node->referencesSize && retval == UA_STATUSCODE_GOOD; ++i) {
@@ -452,6 +469,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
         // test the browsename
         if(elem->targetName.namespaceIndex != next->browseName.namespaceIndex ||
            !UA_String_equal(&elem->targetName.name, &next->browseName.name)) {
+            UA_NodestoreSwitch_release(server->nodestoreSwitch, next);
             continue;
         }
 
@@ -466,6 +484,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
                 newtargets = UA_realloc(targets, sizeof(UA_BrowsePathTarget) * (*targets_size) * 2);
                 if(!newtargets) {
                     retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                    UA_NodestoreSwitch_release(server->nodestoreSwitch, next);
                     break;
                 }
                 *targets = newtargets;
@@ -475,11 +494,14 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
             UA_BrowsePathTarget *res = *targets;
             UA_ExpandedNodeId_init(&res[*target_count].targetId);
             retval = UA_NodeId_copy(&next->nodeId, &res[*target_count].targetId.nodeId);
-            if(retval != UA_STATUSCODE_GOOD)
+            if(retval != UA_STATUSCODE_GOOD){
+                UA_NodestoreSwitch_release(server->nodestoreSwitch, next);
                 break;
+            }
             res[*target_count].remainingPathIndex = UA_UINT32_MAX;
             *target_count += 1;
         }
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, next);
     }
 
     if(!all_refs && elem->includeSubtypes)
@@ -520,6 +542,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
 
     result->statusCode = walkBrowsePath(server, session, firstNode, &path->relativePath, 0,
                                         &result->targets, &arraySize, &result->targetsSize);
+    UA_NodestoreSwitch_release(server->nodestoreSwitch, firstNode);
     if(result->targetsSize == 0 && result->statusCode == UA_STATUSCODE_GOOD)
         result->statusCode = UA_STATUSCODE_BADNOMATCH;
 

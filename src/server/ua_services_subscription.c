@@ -156,6 +156,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         if(vn && vn->nodeClass == UA_NODECLASS_VARIABLE &&
            samplingInterval <  vn->minimumSamplingInterval)
             samplingInterval = vn->minimumSamplingInterval;
+        UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vn);
     } else if(mon->attributeID == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: events should not need a samplinginterval */
         samplingInterval = 10000.0f; // 10 seconds to reduce the load
