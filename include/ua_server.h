@@ -618,9 +618,30 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not-null, they are called before reading and after writing respectively. */
 typedef struct {
+    /* Pointer to user-provided data for the callback */
     void *handle;
+
+    /* Called before the value attribute is read. It is possible to write into the
+     * value attribute during onRead (using the write service). The node is
+     * re-opened afterwards so that changes are considered in the following read
+     * operation.
+     *
+     * @param handle Points to user-provided data for the callback.
+     * @param nodeid The identifier of the node.
+     * @param data Points to the current node value.
+     * @param range Points to the numeric range the client wants to read from
+     *        (or NULL). */
     void (*onRead)(void *handle, const UA_NodeId nodeid,
                    const UA_Variant *data, const UA_NumericRange *range);
+
+    /* Called after writing the value attribute. The node is re-opened after
+     * writing so that the new value is visible in the callback.
+     *
+     * @param handle Points to user-provided data for the callback.
+     * @param nodeid The identifier of the node.
+     * @param data Points to the current node value (after writing).
+     * @param range Points to the numeric range the client wants to write to (or
+     *        NULL). */
     void (*onWrite)(void *handle, const UA_NodeId nodeid,
                     const UA_Variant *data, const UA_NumericRange *range);
 } UA_ValueCallback;
