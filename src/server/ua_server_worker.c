@@ -32,7 +32,7 @@
  *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
  *
  * Future Plans: Use work-stealing to load-balance between cores.
- * [3] Lê, Nhat Minh, et al. "Correct and efficient work-stealing for weak
+ * [3] Le, Nhat Minh, et al. "Correct and efficient work-stealing for weak
  *     memory models." ACM SIGPLAN Notices. Vol. 48. No. 8. ACM, 2013.
  */
 
