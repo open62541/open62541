@@ -72,6 +72,9 @@ mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
 
+option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
+mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
+
 option(UA_ENABLE_NONSTANDARD_STATELESS "Enable stateless extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_STATELESS)
 

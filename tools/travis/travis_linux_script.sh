@@ -110,10 +110,11 @@ else
     make -j8
     cd .. && rm build -rf
 
-    #this run inclides full examples and methodcalls
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
+    make -j8 && make test ARGS="-V"
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j8 && make test ARGS="-V"
     echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
     (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
