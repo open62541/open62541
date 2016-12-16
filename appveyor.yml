@@ -17,10 +17,10 @@ environment:
           CC_SHORTNAME: mingw
           MAKE: mingw32-make
           FORCE_CXX: OFF
-        # - CC_NAME: Visual Studio 9 2008
-        #   CC_SHORTNAME: vs2008
-        #   MAKE: msbuild open62541.sln /m
-        #   FORCE_CXX: ON
+        - CC_NAME: Visual Studio 9 2008
+          CC_SHORTNAME: vs2008
+          MAKE: msbuild open62541.sln /m
+          FORCE_CXX: ON
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           MAKE: msbuild open62541.sln /m
