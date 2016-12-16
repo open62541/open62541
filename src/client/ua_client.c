@@ -38,9 +38,9 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
 
     client->state = UA_CLIENTSTATE_READY;
-    client->connection = UA_malloc(sizeof(UA_Connection));
+    client->connection = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
     memset(client->connection, 0, sizeof(UA_Connection));
-    client->channel = UA_malloc(sizeof(UA_SecureChannel));
+    client->channel = (UA_SecureChannel*)UA_malloc(sizeof(UA_SecureChannel));
     UA_SecureChannel_init(client->channel);
     client->channel->connection = client->connection;
     client->authenticationMethod = UA_CLIENTAUTHENTICATION_NONE;
@@ -52,7 +52,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
 }
 
 UA_Client * UA_Client_new(UA_ClientConfig config) {
-    UA_Client *client = UA_calloc(1, sizeof(UA_Client));
+    UA_Client *client = (UA_Client*)UA_calloc(1, sizeof(UA_Client));
     if(!client)
         return NULL;
 
@@ -367,14 +367,14 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     //manual ExtensionObject encoding of the identityToken
     if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE) {
-        UA_AnonymousIdentityToken* identityToken = UA_malloc(sizeof(UA_AnonymousIdentityToken));
+        UA_AnonymousIdentityToken* identityToken = UA_AnonymousIdentityToken_new();
         UA_AnonymousIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
         request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
         request.userIdentityToken.content.decoded.data = identityToken;
     } else {
-        UA_UserNameIdentityToken* identityToken = UA_malloc(sizeof(UA_UserNameIdentityToken));
+        UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
         UA_UserNameIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
         UA_String_copy(&client->username, &identityToken->userName);
@@ -718,6 +718,11 @@ static void
 processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
+	const UA_NodeId expectedNodeId =
+        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+    const UA_NodeId serviceFaultNodeId =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
@@ -741,10 +746,6 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Check that the response type matches */
-    const UA_NodeId expectedNodeId =
-        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
-    const UA_NodeId serviceFaultNodeId =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
     size_t offset = 0;
     UA_NodeId responseId;
     retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
@@ -799,7 +800,7 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
 
     /* Handling request parameters */
     //here const *r is 'violated'
-    UA_RequestHeader *request = (void*)(uintptr_t)r;
+    UA_RequestHeader *request = (UA_RequestHeader*)(uintptr_t)r;
     UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
     request->timestamp = UA_DateTime_now();
     request->requestHandle = ++client->requestHandle;
@@ -821,8 +822,7 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
 
     /* Prepare the response and the structure we give into processServiceResponse */
     UA_init(response, responseType);
-    struct ResponseDescription rd = (struct ResponseDescription){
-        client, false, requestId, response, responseType};
+    struct ResponseDescription rd = {client, false, requestId, response, responseType};
 
     /* Retrieve the response */
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (client->config.timeout * UA_MSEC_TO_DATETIME);

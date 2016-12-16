@@ -43,18 +43,22 @@ addons:
       - clang-3.7
       - cmake
       - gcc-4.8
-      - gcc-mingw-w64-i686
       - gcc-multilib
       - g++-4.8
+      - g++-multilib
+      - mingw-w64
+      - g++-mingw-w64-x86-64
+      - g++-mingw-w64-i686
       - libc6-dbg # for valgrind compilation
       - libsubunit-dev
       - libx11-dev
-      - mingw-w64
       - wget
       - xutils-dev
       - zip
       - graphviz
-    # - libsubunit-dev #for check_0.10.0
+      - texlive-latex-recommended
+      - texlive-latex-extra
+      - texlive-fonts-recommended
   coverity_scan:
     project:
       name: acplt/open62541

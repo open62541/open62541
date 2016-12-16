@@ -6,6 +6,7 @@ open62541 Documentation
    index
    building
    tutorials
+   protocol
    types
    information_modelling
    services

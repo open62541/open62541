@@ -18,7 +18,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
      * After this block, connection->incompleteMessage is always empty. */
     if(connection->incompleteMessage.length > 0) {
         size_t length = connection->incompleteMessage.length + message->length;
-        UA_Byte *data = UA_realloc(connection->incompleteMessage.data, length);
+        UA_Byte *data = (UA_Byte*)UA_realloc(connection->incompleteMessage.data, length);
         if(!data) {
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;

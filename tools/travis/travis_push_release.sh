@@ -25,9 +25,11 @@ if [ ! -e "$TAG.zip" ]; then
     #create a zip for single-file release and copy the files
     cp ../../open62541.c .
     cp ../../open62541.h .
-    zip -r "$TAG.zip" open62541.c open62541.h
+    cp ../../../doc_latex/open62541.pdf .
+    zip -r "$TAG.zip" open62541.c open62541.h open62541.pdf
     rm open62541.c
     rm open62541.h
+    rm open62541.pdf
     git add "$TAG.zip"
 
     echo "$TAG.zip" | cat - raw.txt > temp && mv temp raw.txt

@@ -40,13 +40,13 @@
 
 /* Jumptables for de-/encoding and computing the buffer length */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);
-static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
+extern const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 typedef UA_StatusCode (*UA_decodeBinarySignature)(void *UA_RESTRICT dst, const UA_DataType *type);
-static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
+extern const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
-static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
+extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 /* We give pointers to the current position and the last position in the buffer
    instead of a string with an offset. */
@@ -831,11 +831,11 @@ ExtensionObject_decodeBinary(UA_ExtensionObject *dst, const UA_DataType *_) {
     }
 
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        dst->encoding = encoding;
+        dst->encoding = (UA_ExtensionObjectEncoding)encoding;
         dst->content.encoded.typeId = typeId;
         dst->content.encoded.body = UA_BYTESTRING_NULL;
     } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
-        dst->encoding = encoding;
+        dst->encoding = (UA_ExtensionObjectEncoding)encoding;
         dst->content.encoded.typeId = typeId;
         retval = ByteString_decodeBinary(&dst->content.encoded.body);
     } else {
@@ -1140,7 +1140,7 @@ DiagnosticInfo_decodeBinary(UA_DiagnosticInfo *dst, const UA_DataType *_) {
     }
     if(encodingMask & 0x40) {
         /* innerDiagnosticInfo is allocated on the heap */
-        dst->innerDiagnosticInfo = UA_calloc(1, sizeof(UA_DiagnosticInfo));
+        dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)UA_calloc(1, sizeof(UA_DiagnosticInfo));
         if(!dst->innerDiagnosticInfo)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         dst->hasInnerDiagnosticInfo = true;
@@ -1159,7 +1159,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type);
 static UA_StatusCode
 UA_decodeBinaryInternal(void *dst, const UA_DataType *type);
 
-static const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_encodeBinarySignature)Boolean_encodeBinary,
     (UA_encodeBinarySignature)Byte_encodeBinary, // SByte
     (UA_encodeBinarySignature)Byte_encodeBinary,
@@ -1244,7 +1244,7 @@ UA_encodeBinary(const void *src, const UA_DataType *type,
     return retval;
 }
 
-static const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_decodeBinarySignature)Boolean_decodeBinary,
     (UA_decodeBinarySignature)Byte_decodeBinary, // SByte
     (UA_decodeBinarySignature)Byte_decodeBinary,
@@ -1514,7 +1514,7 @@ DiagnosticInfo_calcSizeBinary(const UA_DiagnosticInfo *src, UA_DataType *_) {
     return s;
 }
 
-static const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
+const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Boolean
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize, // Byte
     (UA_calcSizeBinarySignature)calcSizeBinaryMemSize,

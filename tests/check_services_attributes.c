@@ -150,6 +150,7 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);

@@ -1,0 +1,24 @@
+Description
+===========
+
+
+
+Background Information / Reproduction Steps
+===========================================
+
+See here for the kinds of information we need to reproduce the bug and how to obtain it:
+https://github.com/open62541/open62541/wiki/Writing-Good-Issue-Reports
+
+
+
+Checklist
+=========
+Please provide the following information:
+
+ - [ ] open62541 Version (release number or git tag):
+ - [ ] Other OPC UA SDKs used (client or server): 
+ - [ ] Operating system:
+ - [ ] Logs (with `UA_LOGLEVEL` set as low as necessary) attached
+ - [ ] Wireshark network dump attached
+ - [ ] Self-contained code example attached
+ - [ ] Critical issue

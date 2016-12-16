@@ -246,7 +246,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session,
     newMon->timestampsToReturn = timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
-    LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -439,17 +439,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             continue;
         }
         /* Remove the acked transmission from the retransmission queue */
-        response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
-        UA_NotificationMessageEntry *pre, *pre_tmp;
-        LIST_FOREACH_SAFE(pre, &sub->retransmissionQueue, listEntry, pre_tmp) {
-            if(pre->message.sequenceNumber == ack->sequenceNumber) {
-                LIST_REMOVE(pre, listEntry);
-                response->results[i] = UA_STATUSCODE_GOOD;
-                UA_NotificationMessage_deleteMembers(&pre->message);
-                UA_free(pre);
-                break;
-            }
-        }
+        response->results[i] = UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
     /* Queue the publish response */
@@ -570,7 +560,7 @@ void Service_Republish(UA_Server *server, UA_Session *session, const UA_Republis
 
     /* Find the notification in the retransmission queue  */
     UA_NotificationMessageEntry *entry;
-    LIST_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
+    TAILQ_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
         if(entry->message.sequenceNumber == request->retransmitSequenceNumber)
             break;
     }
