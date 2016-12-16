@@ -14,8 +14,6 @@ START_TEST(Server_addNamespace_ShallWork)
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 c = UA_Server_addNamespace(server, "http://nameOfNamespace2");
 
-	UA_Server_delete(server);
-
     ck_assert_uint_gt(a, 0);
     ck_assert_uint_eq(a,b);
     ck_assert_uint_ne(a,c);
@@ -41,6 +39,7 @@ int main(void) {
 
     s = testSuite_ServerUserspace();
     sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
     number_failed += srunner_ntests_failed(sr);
     srunner_free(sr);
