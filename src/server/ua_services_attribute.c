@@ -687,7 +687,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         userWriteMask &=
             server->config.accessControl.getUserRightsMask(&session->sessionId,
                                                            session->sessionHandle, &id->nodeId);
-        forceVariantSetScalar(&v->value, &userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalarCopy(&v->value, &userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
         break; }
     case UA_ATTRIBUTEID_ISABSTRACT:
         retval = readIsAbstractAttribute(node, &v->value);
@@ -742,7 +742,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         userAccessLevel &=
             server->config.accessControl.getUserAccessLevel(&session->sessionId,
                                                             session->sessionHandle, &id->nodeId);
-        forceVariantSetScalar(&v->value, &userAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+        UA_Variant_setScalarCopy(&v->value, &userAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
         break; }
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
@@ -765,7 +765,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         userExecutable &=
             server->config.accessControl.getUserExecutable(&session->sessionId,
                                                            session->sessionHandle, &id->nodeId);
-        forceVariantSetScalar(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        UA_Variant_setScalarCopy(&v->value, &userExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
         break; }
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;

@@ -319,10 +319,10 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
     rReq.nodesToRead[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
-    UA_UInt32* respval = (UA_UInt32*) resp.value.data;
+    UA_UInt32 respval = *(UA_UInt32*)resp.value.data;
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
-    ck_assert_int_eq(0,*respval);
+    ck_assert_int_eq(0, respval);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
