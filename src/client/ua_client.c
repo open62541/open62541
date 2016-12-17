@@ -469,8 +469,9 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
                 continue;
 
             /* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
-             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME */
-            if(client->authenticationMethod != userToken->tokenType)
+             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME
+             * TODO: Check equivalence for other types when adding the support */
+            if((int)client->authenticationMethod != (int)userToken->tokenType)
                 continue;
 
             /* Endpoint with matching usertokenpolicy found */
