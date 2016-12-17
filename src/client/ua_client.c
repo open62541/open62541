@@ -455,20 +455,25 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
-        endpointFound = true;
+        
         /* endpoint with no security found */
+        endpointFound = true;
+       
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-            //anonymous authentication
-            if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
-                if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
-                    continue;
-            }else{
-            //username authentication
-                if(userToken->tokenType != UA_USERTOKENTYPE_USERNAME)
-                    continue;
-            }
+
+            /* Usertokens also have a security policy... */
+            if(userToken->securityPolicyUri.length > 0 &&
+               !UA_String_equal(&userToken->securityPolicyUri, &securityNone))
+                continue;
+
+            /* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
+             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME */
+            if(client->authenticationMethod != userToken->tokenType)
+                continue;
+
+            /* Endpoint with matching usertokenpolicy found */
             tokenFound = true;
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
