@@ -449,37 +449,39 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
     if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
+    uintptr_t ptr = (uintptr_t)src;
     if(type->overlayable) {
-        size_t i = 0; /* the number of already encoded elements */
-        while(end < pos + (type->memSize * (length-i))) {
+        /* Overlayable type */
+        size_t before = 0; /* the number of already encoded elements */
+        while(end < pos + (type->memSize * (length-before))) {
             /* not enough space, need to exchange the buffer */
-            size_t elements = ((uintptr_t)end - (uintptr_t)pos) / (sizeof(UA_Byte) * type->memSize);
-            memcpy(pos, src, type->memSize * elements);
-            pos += type->memSize * elements;
-            i += elements;
+            size_t possible_elements = ((uintptr_t)end - (uintptr_t)pos) / (sizeof(UA_Byte) * type->memSize);
+            memcpy(pos, (void*)ptr, type->memSize * possible_elements);
+            pos += type->memSize * possible_elements;
+            ptr += possible_elements * type->memSize;
+            before += possible_elements;
             retval = exchangeBuffer();
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
         /* encode the remaining elements */
-        memcpy(pos, src, type->memSize * (length-i));
-        pos += type->memSize * (length-i);
-        return UA_STATUSCODE_GOOD;
-    }
-
-    uintptr_t ptr = (uintptr_t)src;
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; ++i) {
-        UA_Byte *oldpos = pos;
-        retval = encodeBinaryJumpTable[encode_index]((const void*)ptr, type);
-        ptr += type->memSize;
-        if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
-            /* exchange the buffer and try to encode the same element once more */
-            pos = oldpos;
-            retval = exchangeBuffer();
-            /* Repeat encoding of the same element */
-            ptr -= type->memSize;
-            --i;
+        memcpy(pos, (void*)ptr, type->memSize * (length-before));
+        pos += type->memSize * (length-before);
+    } else {
+        /* Call encoding function for every element */
+        /* The jumptable at UA_BUILTIN_TYPES_COUNT points to the generic UA_encodeBinary method */
+        size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+        for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; ++i) {
+            UA_Byte *oldpos = pos;
+            retval = encodeBinaryJumpTable[encode_index]((const void*)ptr, type);
+            ptr += type->memSize;
+            if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
+                /* Reset the last encoding call */
+                pos = oldpos;
+                ptr -= type->memSize;
+                --i;
+                retval = exchangeBuffer(); /* Exchange buffer */
+            }
         }
     }
     return retval;
