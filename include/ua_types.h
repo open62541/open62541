@@ -326,6 +326,9 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
+/* Returns a non-cryptographic hash for the NodeId */
+UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
+
 /** The following functions are shorthand for creating NodeIds. */
 static UA_INLINE UA_NodeId
 UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {

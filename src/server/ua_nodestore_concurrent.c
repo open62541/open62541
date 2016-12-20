@@ -12,8 +12,6 @@ struct nodeEntry {
     UA_Node node; ///< Might be cast from any _bigger_ UA_Node* type. Allocate enough memory!
 };
 
-#include "ua_nodestore_hash.inc"
-
 static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
     size_t size = sizeof(struct nodeEntry) - sizeof(UA_Node);
     switch(class) {
@@ -111,7 +109,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
     if(!UA_NodeId_isNull(&tempNodeid)) {
-        hash_t h = hash(&node->nodeId);
+        UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
         result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
         /* If the nodeid exists already */
         if(result != &entry->htn) {
@@ -131,7 +129,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
 
         node->nodeId.identifier.numeric = (UA_UInt32)identifier;
         while(true) {
-            hash_t h = hash(&node->nodeId);
+            UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
             result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
             if(result == &entry->htn)
                 break;
@@ -147,7 +145,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
     struct cds_lfht *ht = (struct cds_lfht*)ns;
 
     /* Get the current version */
-    hash_t h = hash(&node->nodeId);
+    UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, &node->nodeId, &iter);
     if(!iter.node)
@@ -173,7 +171,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     if(!iter.node || cds_lfht_del(ht, iter.node) != 0)
@@ -186,7 +184,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     struct nodeEntry *found_entry = (struct nodeEntry*)iter.node;
@@ -198,7 +196,7 @@ const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     struct nodeEntry *entry = (struct nodeEntry*)iter.node;

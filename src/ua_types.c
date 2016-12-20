@@ -272,6 +272,32 @@ UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     return false;
 }
 
+/* FNV non-cryptographic hash function. See
+ * https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function */
+#define FNV_PRIME_32 16777619
+static UA_UInt32
+fnv32(UA_UInt32 fnv, const UA_Byte *buf, size_t size) {
+    for(size_t i = 0; i < size; ++i) {
+        fnv = fnv ^ (buf[i]);
+        fnv = fnv * FNV_PRIME_32;
+    }
+    return fnv;
+}
+
+UA_UInt32
+UA_NodeId_hash(const UA_NodeId *n) {
+    switch(n->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+    default:
+        return (UA_UInt32)(n->namespaceIndex + (n->identifier.numeric * 2654435761)); /*  Knuth's multiplicative hashing */
+    case UA_NODEIDTYPE_STRING:
+    case UA_NODEIDTYPE_BYTESTRING:
+        return fnv32(n->namespaceIndex, n->identifier.string.data, (UA_UInt32)n->identifier.string.length);
+    case UA_NODEIDTYPE_GUID:
+        return fnv32(n->namespaceIndex, (const UA_Byte*)&n->identifier.guid, sizeof(UA_Guid));
+    }
+}
+
 /* ExpandedNodeId */
 static void
 ExpandedNodeId_deleteMembers(UA_ExpandedNodeId *p, const UA_DataType *_) {
