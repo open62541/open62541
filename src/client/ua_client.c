@@ -330,8 +330,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
-           to DateTime=Int64 we take 75% of lifetime to start renewing as
-           described in standard */
+         * to DateTime=Int64 we take 75% of lifetime to start renewing as
+         *  described in standard */
         client->scRenewAt = UA_DateTime_now() +
             (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
 
@@ -341,12 +341,13 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         UA_ByteString_deleteMembers(&client->channel->serverNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel->serverNonce);
 
-        if(renew)
+        if(renew) {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel renewed");
-        else
+        } else {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel opened");
+        }
     } else {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "SecureChannel could not be opened / "
