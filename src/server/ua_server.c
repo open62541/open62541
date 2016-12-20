@@ -451,8 +451,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     SLIST_INIT(&server->delayedCallbacks);
 #endif
 
-    /* uncomment for non-reproducible server runs */
-    //UA_random_seed(UA_DateTime_now());
+#ifndef UA_ENABLE_DETERMINISTIC_RNG
+    UA_random_seed((UA_UInt64)UA_DateTime_now());
+#endif
 
     /* ns0 and ns1 */
     server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);

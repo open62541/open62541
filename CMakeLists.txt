@@ -66,6 +66,9 @@ mark_as_advanced(UA_ENABLE_TYPENAMES)
 option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
+option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
+mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
+
 option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
