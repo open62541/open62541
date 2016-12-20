@@ -292,7 +292,7 @@ UA_NodeId_hash(const UA_NodeId *n) {
         return (UA_UInt32)(n->namespaceIndex + (n->identifier.numeric * 2654435761)); /*  Knuth's multiplicative hashing */
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
-        return fnv32(n->namespaceIndex, n->identifier.string.data, (UA_UInt32)n->identifier.string.length);
+        return fnv32(n->namespaceIndex, n->identifier.string.data, n->identifier.string.length);
     case UA_NODEIDTYPE_GUID:
         return fnv32(n->namespaceIndex, (const UA_Byte*)&n->identifier.guid, sizeof(UA_Guid));
     }
