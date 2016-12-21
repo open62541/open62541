@@ -152,6 +152,7 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     UA_RCU_LOCK();
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
     UA_RCU_UNLOCK();
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
     ck_assert_int_eq(42, *(UA_Int32* )resp.value.data);
@@ -336,10 +337,10 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
     UA_RCU_LOCK();
     Service_Read_single(server, &adminSession, UA_TIMESTAMPSTORETURN_NEITHER, &rReq.nodesToRead[0], &resp);
     UA_RCU_UNLOCK();
-    UA_UInt32* respval = (UA_UInt32*) resp.value.data;
+    UA_UInt32 respval = *(UA_UInt32*)resp.value.data;
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
-    ck_assert_int_eq(0,*respval);
+    ck_assert_int_eq(0, respval);
     UA_ReadRequest_deleteMembers(&rReq);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);

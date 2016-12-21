@@ -18,7 +18,9 @@
 #include <string.h> // memset
 #include <errno.h>
 #ifdef _WIN32
-# include <malloc.h>
+# ifndef __clang__
+#  include <malloc.h>
+# endif
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY
 #  undef SLIST_ENTRY

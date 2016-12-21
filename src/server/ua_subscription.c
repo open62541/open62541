@@ -260,8 +260,9 @@ UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptio
     new->currentLifetimeCount = 0;
     new->lastMonitoredItemId = 0;
     new->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
-    LIST_INIT(&new->retransmissionQueue);
-    LIST_INIT(&new->MonitoredItems);
+    LIST_INIT(&new->monitoredItems);
+    TAILQ_INIT(&new->retransmissionQueue);
+    new->retransmissionQueueSize = 0;
     return new;
 }
 
@@ -270,24 +271,25 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &subscription->MonitoredItems, listEntry, tmp_mon) {
+    LIST_FOREACH_SAFE(mon, &subscription->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(server, mon);
     }
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
-    LIST_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
-        LIST_REMOVE(nme, listEntry);
+    TAILQ_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
+        TAILQ_REMOVE(&subscription->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
     }
+    subscription->retransmissionQueueSize = 0;
 }
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->itemId == monitoredItemID)
             break;
     }
@@ -298,7 +300,7 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemID) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->itemId == monitoredItemID) {
             LIST_REMOVE(mon, listEntry);
             MonitoredItem_delete(server, mon);
@@ -313,7 +315,7 @@ countQueuedNotifications(UA_Subscription *sub, UA_Boolean *moreNotifications) {
     size_t notifications = 0;
     if(sub->publishingEnabled) {
         UA_MonitoredItem *mon;
-        LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
             MonitoredItem_queuedValue *qv;
             TAILQ_FOREACH(qv, &mon->queue, listEntry) {
                 if(notifications >= sub->notificationsPerPublish) {
@@ -325,6 +327,40 @@ countQueuedNotifications(UA_Subscription *sub, UA_Boolean *moreNotifications) {
         }
     }
     return notifications;
+}
+
+static void
+UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub,
+                                         UA_NotificationMessageEntry *entry) {
+    /* Release the oldest entry if there is not enough space */
+    if(server->config.maxRetransmissionQueueSize > 0 &&
+       sub->retransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
+        UA_NotificationMessageEntry *lastentry =
+            TAILQ_LAST(&sub->retransmissionQueue, UA_ListOfNotificationMessages);
+        TAILQ_REMOVE(&sub->retransmissionQueue, lastentry, listEntry);
+        --sub->retransmissionQueueSize;
+        UA_NotificationMessage_deleteMembers(&lastentry->message);
+        UA_free(lastentry);
+    }
+
+    /* Add entry */
+    TAILQ_INSERT_HEAD(&sub->retransmissionQueue, entry, listEntry);
+    ++sub->retransmissionQueueSize;
+}
+
+UA_StatusCode
+UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber) {
+    UA_NotificationMessageEntry *entry, *entry_tmp;
+    TAILQ_FOREACH_SAFE(entry, &sub->retransmissionQueue, listEntry, entry_tmp) {
+        if(entry->message.sequenceNumber != sequenceNumber)
+            continue;
+        TAILQ_REMOVE(&sub->retransmissionQueue, entry, listEntry);
+        --sub->retransmissionQueueSize;
+        UA_NotificationMessage_deleteMembers(&entry->message);
+        UA_free(entry);
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
 }
 
 static UA_StatusCode
@@ -356,7 +392,7 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
     /* Move notifications into the response .. the point of no return */
     size_t l = 0;
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         MonitoredItem_queuedValue *qv, *qv_tmp;
         TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
             if(l >= notifications)
@@ -466,23 +502,20 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
          * be done here, so that the message itself is included in the available
          * sequence numbers for acknowledgement. */
         retransmission->message = response->notificationMessage;
-        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        UA_Subscription_addRetransmissionMessage(server, sub, retransmission);
     }
 
     /* Get the available sequence numbers from the retransmission queue */
-    size_t available = 0;
-    UA_NotificationMessageEntry *nme;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
-        ++available;
-    // cppcheck-suppress knownConditionTrueFalse
+    size_t available = sub->retransmissionQueueSize;
     if(available > 0) {
         response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
         response->availableSequenceNumbersSize = available;
-    }
-    size_t i = 0;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
-        response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
-        ++i;
+        size_t i = 0;
+        UA_NotificationMessageEntry *nme;
+        TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
+            response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
+            ++i;
+        }
     }
 
     /* Send the response */

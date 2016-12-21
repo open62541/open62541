@@ -38,12 +38,12 @@ static void stopHandler(int sig) {
     running = false;
 }
 
-/* Define a verry simple nodestore with a cyclic capacity of 100 ObjectNodes as array.*/
+// Define a verry simple nodestore with a cyclic capacity of 100 ObjectNodes as array.
 #define NODESTORE_SIZE 100
-
 UA_ObjectNode nodes[NODESTORE_SIZE];
 size_t nodesCount = 0;
 UA_UInt16 nsIdx = 0;
+
 static void Nodestore_delete(UA_ObjectNode* ns){
     for(size_t i=0 ; i < nodesCount && i < NODESTORE_SIZE; i++){
         UA_Node_deleteMembersAnyNodeClass((UA_Node*)&nodes[i]);
@@ -53,7 +53,7 @@ static void Nodestore_delete(UA_ObjectNode* ns){
 static void Nodestore_deleteNode(UA_Node *node){
     size_t nodeIdx = node->nodeId.identifier.numeric;
     if( nodeIdx < nodesCount //Node not instanciatet in nodestore
-     && nodeIdx > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
+     && (nodeIdx + NODESTORE_SIZE) > nodesCount) //Node already overwritten
         return;
    // nodes[nodeIdx] = UA_ObjectNode;
 }
@@ -72,11 +72,18 @@ static UA_StatusCode Nodestore_insert(UA_ObjectNode *ns, UA_Node *node){
 }
 static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     if(nodeid->identifier.numeric < nodesCount //Node not instanciatet in nodestore
-            && nodeid->identifier.numeric > (nodesCount-NODESTORE_SIZE)) //Node already overwritten
+            && (nodeid->identifier.numeric + NODESTORE_SIZE) > nodesCount) //Node already overwritten
         return (UA_Node*) &ns[nodeid->identifier.numeric % NODESTORE_SIZE];
     else
         return NULL;
 }
+/*static UA_Node * Nodestore_getCopy(UA_ObjectNode *ns, const UA_NodeId *nodeid){
+    const UA_Node original = Nodestore_get(ns,nodeid);
+    if(!original)
+        return NULL;
+    UA_Node* copy = malloc(sizeof UA_ObjectNode);
+    UA_Node_copyAnyNodeClass(original, copy);
+}*/
 static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
     if(node->nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_BADNODECLASSINVALID;

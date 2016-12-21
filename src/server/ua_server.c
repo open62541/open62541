@@ -451,7 +451,7 @@ GetMonitoredItems(void *handle, const UA_NodeId *objectId,
 
     UA_UInt32 sizeOfOutput = 0;
     UA_MonitoredItem* monitoredItem;
-    LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         ++sizeOfOutput;
     }
     if(sizeOfOutput==0)
@@ -460,7 +460,7 @@ GetMonitoredItems(void *handle, const UA_NodeId *objectId,
     UA_UInt32* clientHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32* serverHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 i = 0;
-    LIST_FOREACH(monitoredItem, &subscription->MonitoredItems, listEntry) {
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         clientHandles[i] = monitoredItem->clientHandle;
         serverHandles[i] = monitoredItem->itemId;
         ++i;
@@ -599,9 +599,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     UA_RCU_LOCK();
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)references,
-            &referenceTypesFolderId);
+            &referenceTypesFolderId, NULL);
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)hassubtype,
-            &hasChildId);
+            &hasChildId, NULL);
     UA_RCU_UNLOCK();
 
     UA_ReferenceTypeNode *hierarchicalreferences = UA_Nodestore_newReferenceTypeNode();
@@ -789,7 +789,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     basedatatype->isAbstract = true;
     UA_RCU_LOCK();
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basedatatype,
-            &dataTypesFolderId);
+            &dataTypesFolderId, NULL);
     UA_RCU_UNLOCK();
 
     addDataTypeNode(server, "Boolean", UA_NS0ID_BOOLEAN, false, UA_NS0ID_BASEDATATYPE);
@@ -834,7 +834,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     basevartype->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
     UA_RCU_LOCK();
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)basevartype,
-            &variableTypesFolderId);
+            &variableTypesFolderId, NULL);
     UA_RCU_UNLOCK();
 
     UA_VariableTypeNode *basedatavartype =
@@ -878,7 +878,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     baseobjtype->nodeId.identifier.numeric = UA_NS0ID_BASEOBJECTTYPE;
     UA_RCU_LOCK();
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)baseobjtype,
-            &objectTypesFolderId);
+            &objectTypesFolderId, NULL);
     UA_RCU_UNLOCK();
 
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
@@ -906,7 +906,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
     UA_RCU_LOCK();
     UA_NodestoreSwitch_insert(server->nodestoreSwitch, (UA_Node*)root,
-           &rootFolderId);
+           &rootFolderId, NULL);
     UA_RCU_UNLOCK();
     addReferenceInternal(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), nodeIdHasTypeDefinition,
                          UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), true);

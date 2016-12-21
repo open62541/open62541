@@ -190,7 +190,7 @@ getNodeType(UA_Server *server, const UA_Node *node);
 /***************************************/
 
 UA_StatusCode
-readValueAttribute(const UA_VariableNode *vn, UA_DataValue *v);
+readValueAttribute(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v);
 
 UA_StatusCode
 typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
@@ -209,7 +209,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
 UA_StatusCode
-writeValueRankAttribute(UA_VariableNode *node, UA_Int32 valueRank,
+writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
                         UA_Int32 constraintValueRank);
 
 UA_StatusCode

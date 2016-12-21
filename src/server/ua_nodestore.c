@@ -222,10 +222,12 @@ UA_NodeStore_deleteNode(UA_Node *node) {
 }
 
 UA_StatusCode
-UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
+UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node,
+        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
     if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_STATUSCODE_GOOD)
+        if(expand(ns) != UA_STATUSCODE_GOOD){
             return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
 
     UA_NodeId tempNodeid;
@@ -258,6 +260,9 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
 
     *entry = container_of(node, UA_NodeStoreEntry, node);
     ++ns->count;
+
+    if(addedNodeId)
+        return UA_NodeId_copy(&node->nodeId, addedNodeId);
     return UA_STATUSCODE_GOOD;
 }
 

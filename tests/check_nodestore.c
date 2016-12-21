@@ -40,7 +40,7 @@ START_TEST(replaceExistingNode) {
 #endif
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0, 2253);
     UA_Node* n2 = UA_NodeStore_getCopy(ns, &in1);
     UA_StatusCode retval = UA_NodeStore_replace(ns, n2);
@@ -61,7 +61,7 @@ START_TEST(replaceOldNode) {
 #endif
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
     UA_Node* n2 = UA_NodeStore_getCopy(ns, &in1);
     UA_Node* n3 = UA_NodeStore_getCopy(ns, &in1);
@@ -90,7 +90,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
     const UA_Node* nr = UA_NodeStore_get(ns, &in1);
     // then
@@ -112,7 +112,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     UA_NodeStore *ns = UA_NodeStore_new();
 
     UA_Node* n1 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
 
     // when
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
@@ -135,17 +135,17 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2);
+    UA_NodeStore_insert(ns, n2, NULL, NULL);
     UA_Node* n3 = createNode(0,2257);
-    UA_NodeStore_insert(ns, n3);
+    UA_NodeStore_insert(ns, n3, NULL, NULL);
     UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4);
+    UA_NodeStore_insert(ns, n4, NULL, NULL);
     UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5);
+    UA_NodeStore_insert(ns, n5, NULL, NULL);
     UA_Node* n6 = createNode(0,12);
-    UA_NodeStore_insert(ns, n6);
+    UA_NodeStore_insert(ns, n6, NULL, NULL);
 
     // when
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
@@ -168,17 +168,17 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2);
+    UA_NodeStore_insert(ns, n2, NULL, NULL);
     UA_Node* n3 = createNode(0,2257);
-    UA_NodeStore_insert(ns, n3);
+    UA_NodeStore_insert(ns, n3, NULL, NULL);
     UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4);
+    UA_NodeStore_insert(ns, n4, NULL, NULL);
     UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5);
+    UA_NodeStore_insert(ns, n5, NULL, NULL);
     UA_Node* n6 = createNode(0,12);
-    UA_NodeStore_insert(ns, n6);
+    UA_NodeStore_insert(ns, n6, NULL, NULL);
 
     // when
     zeroCnt = 0;
@@ -206,7 +206,7 @@ START_TEST(findNodeInExpandedNamespace) {
     UA_Int32 i=0;
     for (; i<200; i++) {
         n = createNode(0,i);
-        UA_NodeStore_insert(ns, n);
+        UA_NodeStore_insert(ns, n, NULL, NULL);
     }
     // when
     UA_Node *n2 = createNode(0,25);
@@ -233,7 +233,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
     UA_Int32 i=0;
     for (; i<200; i++) {
         n = createNode(0,i);
-        UA_NodeStore_insert(ns, n);
+        UA_NodeStore_insert(ns, n, NULL, NULL);
     }
     // when
     zeroCnt = 0;
@@ -258,15 +258,15 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
     UA_Node* n1 = createNode(0,2253);
-    UA_NodeStore_insert(ns, n1);
+    UA_NodeStore_insert(ns, n1, NULL, NULL);
     UA_Node* n2 = createNode(0,2255);
-    UA_NodeStore_insert(ns, n2);
+    UA_NodeStore_insert(ns, n2, NULL, NULL);
     UA_Node* n3 = createNode(0,2257);
-    UA_NodeStore_insert(ns, n3);
+    UA_NodeStore_insert(ns, n3, NULL, NULL);
     UA_Node* n4 = createNode(0,2200);
-    UA_NodeStore_insert(ns, n4);
+    UA_NodeStore_insert(ns, n4, NULL, NULL);
     UA_Node* n5 = createNode(0,1);
-    UA_NodeStore_insert(ns, n5);
+    UA_NodeStore_insert(ns, n5, NULL, NULL);
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
 
@@ -324,7 +324,7 @@ START_TEST(profileGetDelete) {
     UA_Node *n;
     for (int i=0; i<N; i++) {
         n = createNode(0,i);
-        UA_NodeStore_insert(ns, n);
+        UA_NodeStore_insert(ns, n, NULL, NULL);
     }
     clock_t begin, end;
     begin = clock();

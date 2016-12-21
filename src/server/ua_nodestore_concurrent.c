@@ -97,6 +97,7 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     }
     cds_lfht_destroy(ns->ht, NULL);
     UA_free(ns->ht);
+    ns->isDeleted = true;
 }
 
 UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
@@ -111,7 +112,8 @@ void UA_NodeStore_deleteNode(UA_Node *node) {
     deleteEntry(&entry->rcu_head);
 }
 
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node,
+        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
     UA_ASSERT_RCU_LOCKED();
     struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
     struct cds_lfht *ht = ns->ht;
@@ -149,6 +151,8 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
             node->nodeId.identifier.numeric += (UA_UInt32)(identifier * 2654435761);
         }
     }
+    if(addedNodeId)
+        return UA_NodeId_copy(&node->nodeId, addedNodeId);
     return UA_STATUSCODE_GOOD;
 }
 

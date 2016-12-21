@@ -81,12 +81,13 @@ UA_NodestoreSwitch_deleteNode(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node
 }
 
 UA_StatusCode
-UA_NodestoreSwitch_insert(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node, const UA_NodeId *parentNodeId) {
+UA_NodestoreSwitch_insert(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node,
+        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
     if(!checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
     return nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->insert(
-            nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node, parentNodeId);
+            nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node, parentNodeId, addedNodeId);
 }
 const UA_Node *
 UA_NodestoreSwitch_get(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *nodeId) {
@@ -131,5 +132,4 @@ void UA_NodestoreSwitch_release(UA_NodestoreSwitch* nodestoreSwitch, const UA_No
         nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->release(
                 nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node);
     }
-    node = NULL;
 }
