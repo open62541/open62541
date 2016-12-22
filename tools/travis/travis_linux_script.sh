@@ -6,8 +6,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build-3.7 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
@@ -115,11 +115,11 @@ else
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
-    make -j8 && make test ARGS="-V"
+    make -j && make test ARGS="-V"
     (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # without valgrind
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
-    make -j8 && make test ARGS="-V"
+    make -j && make test ARGS="-V"
     (./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
