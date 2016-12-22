@@ -9,7 +9,8 @@ os:
 # - osx
 
 # use new build environment (docker)
-sudo: false
+dist: trusty
+sudo: required
 
 env:
   global:
@@ -33,19 +34,17 @@ addons:
     sources:
       # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
       - kalakris-cmake
-      - ubuntu-toolchain-r-test
-      - llvm-toolchain-precise
-      - llvm-toolchain-precise-3.7
     packages:
       - binutils-mingw-w64-i686
       - build-essential
       - clang
       - clang-3.7
       - cmake
-      - gcc-4.8
       - gcc-multilib
-      - g++-4.8
       - g++-multilib
+      - valgrind
+      - check
+      - cppcheck
       - mingw-w64
       - g++-mingw-w64-x86-64
       - g++-mingw-w64-i686
@@ -75,24 +74,6 @@ cache:
     - $HOME/install
 
 before_install:
-# set paths for locally installed libs (like liburcu)
-- export LOCAL_PKG=$HOME/install
-- mkdir -p $LOCAL_PKG/lib
-- mkdir -p $LOCAL_PKG/include
-- mkdir -p $LOCAL_PKG/bin
-- export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
-- export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
-- export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
-- export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
-- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
-# set local path for python packages
-- export PATH=$PATH:$HOME/.local/bin # linux
-- export PATH=$PATH:$HOME/Library/Python #OS X
-- export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
-# set search path for check library
-- export CHECK_INCLUDE_DIRS=$LOCAL_PKG/include/
-- export CHECK_LIBRARIES=$LOCAL_PKG/lib/
-
 - sh ./tools/travis/travis_notifications.sh
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi

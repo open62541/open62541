@@ -20,11 +20,9 @@ struct UA_NodeStore {
     UA_UInt32 sizePrimeIndex;
 };
 
-#include "ua_nodestore_hash.inc"
-
 /* The size of the hash-map is always a prime number. They are chosen to be
  * close to the next power of 2. So the size ca. doubles with each prime. */
-static hash_t const primes[] = {
+static UA_UInt32 const primes[] = {
     7,         13,         31,         61,         127,         251,
     509,       1021,       2039,       4093,       8191,        16381,
     32749,     65521,      131071,     262139,     524287,      1048573,
@@ -32,10 +30,13 @@ static hash_t const primes[] = {
     134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
 };
 
+static UA_UInt32 mod(UA_UInt32 h, UA_UInt32 size) { return h % size; }
+static UA_UInt32 mod2(UA_UInt32 h, UA_UInt32 size) { return 1 + (h % (size - 2)); }
+
 static UA_UInt16
-higher_prime_index(hash_t n) {
+higher_prime_index(UA_UInt32 n) {
     UA_UInt16 low  = 0;
-    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(hash_t));
+    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(UA_UInt32));
     while(low != high) {
         UA_UInt16 mid = (UA_UInt16)(low + ((high - low) / 2));
         if(n > primes[mid])
@@ -93,10 +94,10 @@ deleteEntry(UA_NodeStoreEntry *entry) {
 /* returns slot of a valid node or null */
 static UA_NodeStoreEntry **
 findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -117,10 +118,10 @@ findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
 /* returns an empty slot or null if the nodeid exists */
 static UA_NodeStoreEntry **
 findSlot(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -236,7 +237,7 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
             node->nodeId.namespaceIndex = 1;
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
-        hash_t increase = mod2(identifier, size);
+        UA_UInt32 increase = mod2(identifier, size);
         while(true) {
             node->nodeId.identifier.numeric = identifier;
             entry = findSlot(ns, &node->nodeId);
