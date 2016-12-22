@@ -6,8 +6,8 @@ if [ $ANALYZE = "true" ]; then
     if [ "$CC" = "clang" ]; then
         mkdir -p build
         cd build
-        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
-        scan-build-3.7 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -G "Unix Makefiles" -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
@@ -15,8 +15,8 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build-3.7 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
@@ -24,6 +24,7 @@ if [ $ANALYZE = "true" ]; then
     else
         cppcheck --template "{file}({line}): {severity} ({id}): {message}" \
             --enable=style --force --std=c++11 -j 8 \
+            --suppress=duplicateBranch \
             --suppress=incorrectStringBooleanError \
             --suppress=invalidscanf --inline-suppr \
             -I include src plugins 2> cppcheck.txt
@@ -88,20 +89,15 @@ else
     make -j
     tar -pczf open62541-linux64.tar.gz ../../doc ../../doc_latex/open62541.pdf ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
-    cp open62541.h .. # copy single file-release
-    cp open62541.c .. # copy single file-release
+    cp open62541.h ../.. # copy single file-release
+    cp open62541.c ../.. # copy single file-release
     cd .. && rm build -rf
-
-    if [ "$CC" = "gcc" ]; then
-        echo "Upgrade to gcc 4.8"
-        export CXX="g++-4.8" CC="gcc-4.8"
-    fi
 
     echo "Building the C++ example"
     mkdir -p build && cd build
-    cp ../open62541.* .
-    gcc-4.8 -std=c99 -c open62541.c
-    g++-4.8 ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
+    cp ../../open62541.* .
+    gcc -std=c99 -c open62541.c
+    g++ ../examples/server.cpp -I./ open62541.o -lrt -o cpp-server
     cd .. && rm build -rf
 
     echo "Compile multithreaded version"
@@ -118,17 +114,18 @@ else
 
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
-    make -j && make test ARGS="-V"
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
-    echo "Run valgrind to see if the server leaks memory (just starting up and closing..)"
     (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+    # without valgrind
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
+    make -j && make test ARGS="-V"
+    (./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
-    if ([ "$CC" = "gcc-4.8" ] || [ "$CC" = "gcc" ]) && ([ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ] || [ "${TRAVIS_REPO_SLUG}" = "Pro/open62541" ]); then
+    if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
         echo "  Building coveralls for ${TRAVIS_REPO_SLUG}"
-        coveralls --gcov /usr/bin/gcov-4.8 -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result
+        coveralls -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
     else
         echo "  Skipping coveralls since not gcc and/or ${TRAVIS_REPO_SLUG} is not the main repo"
     fi

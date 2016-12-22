@@ -487,8 +487,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     SLIST_INIT(&server->delayedCallbacks);
 #endif
 
-    /* uncomment for non-reproducible server runs */
-    //UA_random_seed(UA_DateTime_now());
+#ifndef UA_ENABLE_DETERMINISTIC_RNG
+    UA_random_seed((UA_UInt64)UA_DateTime_now());
+#endif
 
     /* ns0 and ns1 */
     server->nodestoreSwitch = UA_NodestoreSwitch_new();
@@ -1410,13 +1411,20 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         UA_Client_delete(client);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
     for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
         retval |= UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
     }
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     /* add the discoveryUrls from the networklayers */
-    UA_String *disc = UA_realloc(request.server.discoveryUrls, sizeof(UA_String) *
-                                                                           (request.server.discoveryUrlsSize + server->config.networkLayersSize));
+    UA_String *disc = UA_realloc(request.server.discoveryUrls,
+                                 sizeof(UA_String) * (request.server.discoveryUrlsSize + server->config.networkLayersSize));
     if(!disc) {
         UA_RegisteredServer_deleteMembers(&request.server);
         UA_Client_disconnect(client);

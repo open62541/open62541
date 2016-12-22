@@ -63,6 +63,28 @@ int main(int argc, char** argv) {
     UA_ValueCallback callback = {(void*)7, onRead, onWrite};
     UA_Server_setVariableNode_valueCallback(server, myIntegerNodeId, callback);
 
+    /* 3) Write another value */
+    myInteger = 43;
+    UA_Variant myVar;
+    UA_Variant_init(&myVar);
+    UA_Variant_setScalar(&myVar, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Server_writeValue(server, myIntegerNodeId, myVar);
+
+    /* 4) Set the status code of the value */
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = myIntegerNodeId;
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wv.value.status = UA_STATUSCODE_BADNOTCONNECTED;
+    wv.value.hasStatus = true;
+    UA_Server_write(server, &wv);
+
+    /* 5) Reset to a good statuscode with a value */
+    wv.value.hasStatus = false;
+    wv.value.value = myVar;
+    wv.value.hasValue = true;
+    UA_Server_write(server, &wv);
+
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);

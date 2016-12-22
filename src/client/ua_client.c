@@ -330,8 +330,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
-           to DateTime=Int64 we take 75% of lifetime to start renewing as
-           described in standard */
+         * to DateTime=Int64 we take 75% of lifetime to start renewing as
+         *  described in standard */
         client->scRenewAt = UA_DateTime_now() +
             (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
 
@@ -341,12 +341,13 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         UA_ByteString_deleteMembers(&client->channel->serverNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel->serverNonce);
 
-        if(renew)
+        if(renew) {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel renewed");
-        else
+        } else {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel opened");
+        }
     } else {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "SecureChannel could not be opened / "
@@ -455,20 +456,26 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
-        endpointFound = true;
+        
         /* endpoint with no security found */
+        endpointFound = true;
+       
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-            //anonymous authentication
-            if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
-                if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
-                    continue;
-            }else{
-            //username authentication
-                if(userToken->tokenType != UA_USERTOKENTYPE_USERNAME)
-                    continue;
-            }
+
+            /* Usertokens also have a security policy... */
+            if(userToken->securityPolicyUri.length > 0 &&
+               !UA_String_equal(&userToken->securityPolicyUri, &securityNone))
+                continue;
+
+            /* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
+             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME
+             * TODO: Check equivalence for other types when adding the support */
+            if((int)client->authenticationMethod != (int)userToken->tokenType)
+                continue;
+
+            /* Endpoint with matching usertokenpolicy found */
             tokenFound = true;
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
