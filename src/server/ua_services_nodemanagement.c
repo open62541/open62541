@@ -609,6 +609,7 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Check parent reference. Objects may have no parent. */
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
     if(nodeClass != UA_NODECLASS_OBJECT || !UA_NodeId_isNull(parentNodeId) || !UA_NodeId_isNull(referenceTypeId)) {
         retval = checkParentReference(server, session, nodeClass, parentNodeId, referenceTypeId);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -617,6 +618,7 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
             goto cleanup;
         }
     }
+#endif
 
     /* Use standard type definition if none defined */
     const UA_NodeId baseDataVariableType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -629,6 +631,7 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     }
     
     /* Type check node */
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
     retval = typeCheckNode(server, session, nodeId, nodeClass,
                            parentNodeId, typeDefinition);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -636,6 +639,7 @@ UA_Server_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
                             "AddNodes: Type checking failed");
         goto cleanup;
     }
+#endif
 
     /* Instantiate node */
     retval = instantiateNode(server, session, nodeId, nodeClass,
