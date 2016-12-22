@@ -1032,14 +1032,18 @@ class opcua_node_variable_t(opcua_node_t):
         xmlelement.removeAttribute(at)
       elif at == "DataType":
         self.dataType(opcua_referencePointer_t(str(av), parentNode=self))
-        # dataType needs to be linked to a node once the namespace is read
-        self.getNamespace().linkLater(self.dataType())
         xmlelement.removeAttribute(at)
       elif at == "SymbolicName":
         # Silently ignore this one
         xmlelement.removeAttribute(at)
       else:
         logger.error("Don't know how to process attribute " + at + " (" + av + ")")
+
+    # use basedatatype as the default
+    if not self.dataType():
+      self.dataType(opcua_referencePointer_t("i=24", parentNode=self))
+    # dataType needs to be linked to a node once the namespace is read
+    self.getNamespace().linkLater(self.dataType())
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:
@@ -1313,10 +1317,14 @@ class opcua_node_variableType_t(opcua_node_t):
         xmlelement.removeAttribute(at)
       elif at == "DataType":
         self.dataType(opcua_referencePointer_t(str(av), parentNode=self))
-        # dataType needs to be linked to a node once the namespace is read
-        self.getNamespace().linkLater(self.dataType())
       else:
         logger.error("Don't know how to process attribute " + at + " (" + av + ")")
+
+    # use basedatatype as the default
+    if not self.dataType():
+      self.dataType(opcua_referencePointer_t("i=24", parentNode=self))
+    # dataType needs to be linked to a node once the namespace is read
+    self.getNamespace().linkLater(self.dataType())
 
     for x in xmlelement.childNodes:
       if x.nodeType == x.ELEMENT_NODE:

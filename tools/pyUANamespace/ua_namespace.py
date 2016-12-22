@@ -675,8 +675,6 @@ class opcua_namespace():
     
     code.append('#include "'+outfilename+'.h"')
     code.append("UA_INLINE UA_StatusCode "+outfilename+"(UA_Server *server) {")
-    code.append('UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
-    code.append('if(retval == UA_STATUSCODE_GOOD){retval = UA_STATUSCODE_GOOD;} //ensure that retval is used');
 
     # Before printing nodes, we need to request additional namespace arrays from the server
     for nsid in self.namespaceIdentifiers:
@@ -716,6 +714,10 @@ class opcua_namespace():
     logger.debug("Printing all other nodes.")
     for n in self.nodes:
       code = code + n.printOpen62541CCode(unPrintedNodes, unPrintedRefs, supressGenerationOfAttribute=supressGenerationOfAttribute)
+    # now finish nodes
+    codegen = open62541_MacroHelper(supressGenerationOfAttribute=supressGenerationOfAttribute)
+    for n in reversed(self.nodes):
+      code = code + codegen.finishCreateNodeNoBootstrap(n)
 
     if len(unPrintedNodes) != 0:
       logger.warn("" + str(len(unPrintedNodes)) + " nodes could not be translated to code.")
