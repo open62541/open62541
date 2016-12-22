@@ -15,8 +15,8 @@ if [ $ANALYZE = "true" ]; then
 
         mkdir -p build
         cd build
-        scan-build-3.7 cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
-        scan-build-3.7 -enable-checker security.FloatLoopCounter \
+        scan-build cmake -G "Unix Makefiles" -DUA_ENABLE_AMALGAMATION=ON ..
+        scan-build -enable-checker security.FloatLoopCounter \
           -enable-checker security.insecureAPI.UncheckedReturn \
           --status-bugs -v \
           make -j
