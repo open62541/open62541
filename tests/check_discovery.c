@@ -172,11 +172,12 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
 	ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
 	// only the discovery server is expected
-	ck_assert_uint_eq(applicationDescriptionArraySize , expectedUrisSize);
+	ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
+    assert(applicationDescriptionArray != NULL);
 
-	for (size_t i=0; i<expectedUrisSize; i++) {
+	for(size_t i=0; i < expectedUrisSize; ++i) {
 		char* serverUri = malloc(sizeof(char)*applicationDescriptionArray[i].applicationUri.length+1);
-		memcpy( serverUri, applicationDescriptionArray[i].applicationUri.data, applicationDescriptionArray[i].applicationUri.length );
+		memcpy(serverUri, applicationDescriptionArray[i].applicationUri.data, applicationDescriptionArray[i].applicationUri.length);
 		serverUri[applicationDescriptionArray[i].applicationUri.length] = '\0';
 		ck_assert_str_eq(serverUri, expectedUris[i]);
 		free(serverUri);
