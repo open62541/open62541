@@ -779,6 +779,7 @@ findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
     }
     for(size_t i = 0; i < typesSize; ++i) {
         if(types[i].binaryEncodingId == typeId->identifier.numeric) {
+            // cppcheck-suppress autoVariables
             *findtype = &types[i];
             return UA_STATUSCODE_GOOD;
         }
