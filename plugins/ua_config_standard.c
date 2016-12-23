@@ -72,6 +72,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrls = NULL },
     .serverCertificate = UA_STRING_STATIC_NULL,
 
+    /* Custom DataTypes */
+    .customDataTypesSize = 0,
+    .customDataTypes = NULL,
+
     /* Networking */
     .networkLayersSize = 0,
     .networkLayers = NULL,
@@ -131,7 +135,11 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
         .maxMessageSize = 0, /* 0 -> unlimited */
         .maxChunkCount = 0 /* 0 -> unlimited */
     },
-    .connectionFunc = UA_ClientConnectionTCP
+    .connectionFunc = UA_ClientConnectionTCP,
+
+    /* Custom DataTypes */
+    .customDataTypesSize = 0,
+    .customDataTypes = NULL
 };
 
 /****************************************/

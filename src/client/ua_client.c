@@ -762,7 +762,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
         if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
             /* Take the statuscode from the servicefault */
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
         } else {
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i."
@@ -776,7 +776,9 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType);
+    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
+                             rd->client->config.customDataTypesSize,
+                             rd->client->config.customDataTypes);
 
  finish:
     if(retval == UA_STATUSCODE_GOOD) {

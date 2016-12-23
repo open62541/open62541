@@ -98,29 +98,46 @@ typedef struct {
     void (*closeSession)(const UA_NodeId *sessionId, void *sessionHandle);
 
     /* Access control for all nodes*/
-    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId,
+                                   void *sessionHandle,
+                                   const UA_NodeId *nodeId);
 
     /* Additional access control for variable nodes */
-    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_NodeId *nodeId);
 
     /* Additional access control for method nodes */
-    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId);
+    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_NodeId *methodId);
 
-    /* Additional access control for calling a method node in the context of a specific object */
-    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId, void *sessionHandle,
-                                            const UA_NodeId *methodId, const UA_NodeId *objectId);
+    /* Additional access control for calling a method node in the context of a
+     * specific object */
+    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId,
+                                            void *sessionHandle,
+                                            const UA_NodeId *methodId,
+                                            const UA_NodeId *objectId);
 
     /* Allow adding a node */
-    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
+    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId,
+                               void *sessionHandle,
+                               const UA_AddNodesItem *item);
 
     /* Allow adding a reference */
-    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddReferencesItem *item);
+    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_AddReferencesItem *item);
 
     /* Allow deleting a node */
-    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteNodesItem *item);
+    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_DeleteNodesItem *item);
 
     /* Allow deleting a reference */
-    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteReferencesItem *item);
+    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId,
+                                       void *sessionHandle,
+                                       const UA_DeleteReferencesItem *item);
 } UA_AccessControl;
 
 /**
@@ -150,6 +167,10 @@ typedef struct {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
+
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
 
     /* Networking */
     size_t networkLayersSize;
