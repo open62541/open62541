@@ -1,4 +1,5 @@
 from libc.stdint cimport uint32_t, uint16_t
+from libcpp cimport bool
 
 
 cdef extern from "ua_connection.h":
@@ -12,6 +13,10 @@ cdef extern from "ua_job.h":
     ctypedef struct UA_Server:
         pass
 
+cdef extern from "ua_types.h":
+    ctypedef bool UA_Boolean;
+    ctypedef uint32_t UA_StatusCode;
+
 cdef extern from "ua_server.h":
 
     ctypedef struct UA_ServerNetworkLayer:
@@ -21,7 +26,10 @@ cdef extern from "ua_server.h":
         UA_ServerNetworkLayer *networkLayers;
         size_t networkLayersSize;
 
+
     UA_Server * UA_Server_new(const UA_ServerConfig config);
+
+    UA_StatusCode UA_Server_run(UA_Server *server, UA_Boolean *running);
 
 cdef extern from "ua_config_standard.h":
 
