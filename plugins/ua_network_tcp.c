@@ -176,21 +176,24 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
                        connection->localConf.recvBufferSize, 0);
 #endif
 
+    /* server has closed the connection */
     if(ret == 0) {
-        /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
         socket_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    } else if(ret < 0) {
+    }
+
+    /* error case */
+    if(ret < 0) {
         UA_ByteString_deleteMembers(response);
         if(errno__ == INTERRUPTED || (timeout > 0) ?
            false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
-        else {
-            socket_close(connection);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
+        socket_close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
+    
+    /* default case */
     response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
@@ -610,7 +613,7 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
+UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
                        UA_Logger logger) {
 #ifdef _WIN32
     WORD wVersionRequested;
@@ -622,8 +625,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_OPENING;
-    connection.localConf = localConf;
-    connection.remoteConf = localConf;
+    connection.localConf = conf;
+    connection.remoteConf = conf;
     connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;

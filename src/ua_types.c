@@ -52,8 +52,8 @@ UA_UInt32_random(void) {
 /* Builtin Types */
 /*****************/
 
-static void deleteMembers_noInit(void *, const UA_DataType *);
-static UA_StatusCode copy_noInit(const void *, void *, const UA_DataType *);
+static void deleteMembers_noInit(void *p, const UA_DataType *type);
+static UA_StatusCode copy_noInit(const void *src, void *dst, const UA_DataType *type);
 
 UA_String
 UA_String_fromChars(char const src[]) {
@@ -72,11 +72,11 @@ UA_String_fromChars(char const src[]) {
 }
 
 UA_Boolean
-UA_String_equal(const UA_String *string1, const UA_String *string2) {
-    if(string1->length != string2->length)
+UA_String_equal(const UA_String *s1, const UA_String *s2) {
+    if(s1->length != s2->length)
         return false;
-    UA_Int32 is = memcmp((char const*)string1->data,
-                         (char const*)string2->data, string1->length);
+    UA_Int32 is = memcmp((char const*)s1->data,
+                         (char const*)s2->data, s1->length);
     return (is == 0) ? true : false;
 }
 
@@ -536,11 +536,10 @@ copySubString(const UA_String *src, UA_String *dst,
 }
 
 UA_StatusCode
-UA_Variant_copyRange(const UA_Variant *orig_src, UA_Variant *dst,
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
-    UA_Boolean isScalar = UA_Variant_isScalar(orig_src);
-    UA_Boolean stringLike = isStringLike(orig_src->type);
-    const UA_Variant *src = orig_src;
+    UA_Boolean isScalar = UA_Variant_isScalar(src);
+    UA_Boolean stringLike = isStringLike(src->type);
     UA_Variant arraySrc;
 
     /* Extract the range for copying at this level. The remaining range is dealt
@@ -984,9 +983,9 @@ UA_Array_new(size_t size, const UA_DataType *type) {
 }
 
 UA_StatusCode
-UA_Array_copy(const void *src, size_t src_size,
+UA_Array_copy(const void *src, size_t size,
               void **dst, const UA_DataType *type) {
-    if(src_size == 0) {
+    if(size == 0) {
         if(src == NULL)
             *dst = NULL;
         else
@@ -998,25 +997,25 @@ UA_Array_copy(const void *src, size_t src_size,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
-    *dst = UA_calloc(src_size, type->memSize);
+    *dst = UA_calloc(size, type->memSize);
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     if(type->fixedSize) {
-        memcpy(*dst, src, type->memSize * src_size);
+        memcpy(*dst, src, type->memSize * size);
         return UA_STATUSCODE_GOOD;
     }
 
     uintptr_t ptrs = (uintptr_t)src;
     uintptr_t ptrd = (uintptr_t)*dst;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < src_size; ++i) {
+    for(size_t i = 0; i < size; ++i) {
         retval |= UA_copy((void*)ptrs, (void*)ptrd, type);
         ptrs += type->memSize;
         ptrd += type->memSize;
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(*dst, src_size, type);
+        UA_Array_delete(*dst, size, type);
         *dst = NULL;
     }
     return retval;
