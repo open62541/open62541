@@ -29,7 +29,7 @@ cdef extern from "ua_server.h":
 
     UA_Server * UA_Server_new(const UA_ServerConfig config);
 
-    UA_StatusCode UA_Server_run(UA_Server *server, UA_Boolean *running);
+    UA_StatusCode UA_Server_run(UA_Server *server, UA_Boolean *running) nogil;
     void UA_Server_delete(UA_Server *server);
 
 cdef extern from "ua_config_standard.h":
