@@ -104,8 +104,8 @@ UA_Client_Subscriptions_forceDelete(UA_Client *client,
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction handlingFunction,
-                                         void *handlingContext, UA_UInt32 *newMonitoredItemId) {
+                                         UA_MonitoredItemHandlingFunction hf,
+                                         void *hfContext, UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->SubscriptionID == subscriptionId)
@@ -151,8 +151,8 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     newMon->SamplingInterval = sub->PublishingInterval;
     newMon->QueueSize = 1;
     newMon->DiscardOldest = true;
-    newMon->handler = handlingFunction;
-    newMon->handlerContext = handlingContext;
+    newMon->handler = hf;
+    newMon->handlerContext = hfContext;
     newMon->MonitoredItemId = response.results[0].monitoredItemId;
     LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
     *newMonitoredItemId = newMon->MonitoredItemId;

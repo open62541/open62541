@@ -589,8 +589,8 @@ UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
                                          UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction hFunc,
-                                         void *handlingContext,
+                                         UA_MonitoredItemHandlingFunction hf,
+                                         void *hfContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT
