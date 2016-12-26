@@ -20,7 +20,7 @@ cdef extern from "ua_types.h":
 cdef extern from "ua_server.h":
 
     ctypedef struct UA_ServerNetworkLayer:
-        pass
+        void (*deleteMembers)(UA_ServerNetworkLayer *nl);
 
     ctypedef struct UA_ServerConfig:
         UA_ServerNetworkLayer *networkLayers;
@@ -30,6 +30,7 @@ cdef extern from "ua_server.h":
     UA_Server * UA_Server_new(const UA_ServerConfig config);
 
     UA_StatusCode UA_Server_run(UA_Server *server, UA_Boolean *running);
+    void UA_Server_delete(UA_Server *server);
 
 cdef extern from "ua_config_standard.h":
 

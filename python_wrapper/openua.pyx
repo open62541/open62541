@@ -7,7 +7,7 @@ cdef class Server:
     cdef copenua.UA_Server* _c_server
     cdef copenua.UA_Boolean _c_running
 
-    def start(self):
+    def run(self):
         c_con_conf = copenua.UA_ConnectionConfig_standard
         self._c_nl = copenua.UA_ServerNetworkLayerTCP(c_con_conf, 4840) 
         self._c_conf = copenua.UA_ServerConfig_standard
@@ -15,7 +15,10 @@ cdef class Server:
         self._c_conf.networkLayersSize = 1
         self._c_server = copenua.UA_Server_new(self._c_conf)
         self._c_running = True
-        copenua.UA_Server_run(self._c_server, &self._c_running)
+        status = copenua.UA_Server_run(self._c_server, &self._c_running)
+        copenua.UA_Server_delete(self._c_server)
+        self._c_nl.deleteMembers(&self._c_nl)
+        return status
 
     def stop(self):
         self._c_running = False
