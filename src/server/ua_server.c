@@ -241,7 +241,6 @@ void UA_Server_delete(UA_Server *server) {
     //delete all other nodestores
     UA_NodestoreSwitch_delete(server->nodestoreSwitch);
     //Delete the standard nodestore
-    server->nodestore_std->deleteNodeStore(server->nodestore_std->handle);
     UA_Nodestore_standard_delete(server->nodestore_std);
     UA_RCU_UNLOCK();
     UA_free(server->nodestore_std);
@@ -571,6 +570,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     server->startTime = UA_DateTime_now();
 
+#ifdef UA_ENABLE_LOAD_NAMESPACE0
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 
     UA_NodeId referenceTypesFolderId = UA_NODEID_NUMERIC(0,UA_NS0ID_REFERENCETYPESFOLDER);
@@ -972,6 +972,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /* load the generated namespace externally */
     ua_namespaceinit_generated(server);
 #endif
+#endif //UA_ENABLE_LOAD_NAMESPACE0
 
     /*********************/
     /* The Server Object */

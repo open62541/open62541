@@ -187,6 +187,8 @@ be visible in the cmake GUIs.
 
 **UA_ENABLE_TYPENAMES**
    Add the type and member names to the UA_DataType structure
+**UA_ENABLE_LOAD_NAMESPACE0**
+  Load namespace 0 to nodestore 0 during UA_Server_new(...) for non-persistent nodestores like the standard nodestore. 
 **UA_ENABLE_GENERATE_NAMESPACE0**
    Generate and load UA XML Namespace 0 definition
    ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``

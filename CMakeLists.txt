@@ -70,7 +70,10 @@ mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
+option(UA_ENABLE_LOAD_NAMESPACE0 "Load namespace 0 to nodestore 0 during UA_Server_new(...) for non-persistenst nodestores." ON)
+mark_as_advanced(UA_ENABLE_LOAD_NAMESPACE0)
+
+option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load (if UA_ENABLE_LOAD_NAMESPACE0) UA XML Namespace 0 definition instead off bootstrapped, hard coded version during UA_Server_new (experimental)." OFF)
 mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)

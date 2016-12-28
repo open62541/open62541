@@ -639,7 +639,7 @@ class opcua_node_t:
     """ printOpen62541CCode_SubtypeEarly
 
         Initiate code segments for the nodes instantiotion that preceed
-        the actual UA_Server_addNode or UA_NodeStore_insert calls.
+        the actual UA_Server_addNode or UA_NodestoreSwitch_insert calls.
     """
     return []
 
@@ -647,7 +647,7 @@ class opcua_node_t:
     """ printOpen62541CCode_Subtype
 
         Appends node type specific information to the nodes  UA_Server_addNode
-        or UA_NodeStore_insert calls.
+        or UA_NodestoreSwitch_insert calls.
     """
     return []
 
