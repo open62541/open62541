@@ -206,8 +206,8 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
 }
 
 UA_Node *
-UA_NodeStore_newNode(UA_NodeClass class) {
-    UA_NodeStoreEntry *entry = instantiateEntry(class);
+UA_NodeStore_newNode(UA_NodeClass nodeClass) {
+    UA_NodeStoreEntry *entry = instantiateEntry(nodeClass);
     if(!entry)
         return NULL;
     return &entry->node;

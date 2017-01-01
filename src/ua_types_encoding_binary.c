@@ -1239,18 +1239,18 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
 
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer callback, void *handle,
+                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle,
                 UA_ByteString *dst, size_t *offset) {
     /* Set the (thread-local) position and end pointers to save function
        arguments */
     pos = &dst->data[*offset];
     end = &dst->data[dst->length];
 
-    /* Set the (thread-local) callbacks where the buffer is exchanged and the
+    /* Set the (thread-local) exchangeBufferCallbacks where the buffer is exchanged and the
        current chunk sent out */
     encodeBuf = dst;
-    exchangeBufferCallback = callback;
-    exchangeBufferCallbackHandle = handle;
+    exchangeBufferCallback = exchangeCallback;
+    exchangeBufferCallbackHandle = exchangeHandle;
 
     /* Encode and clean up */
     UA_StatusCode retval = UA_encodeBinaryInternal(src, type);

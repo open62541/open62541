@@ -138,7 +138,8 @@ typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, 
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                                    const UA_ByteString *message);
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
@@ -179,8 +180,9 @@ UA_StatusCode
 getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+/* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -195,10 +197,10 @@ UA_StatusCode
 readValueAttribute(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v);
 
 UA_StatusCode
-typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
-               UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
-               const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
-               const UA_NumericRange *range, UA_Variant *equivalent);
+typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+               UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
+               const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
+               const UA_NumericRange *range, UA_Variant *editableValue);
 
 UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,

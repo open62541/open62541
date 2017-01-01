@@ -1,17 +1,18 @@
 #!/bin/bash
 set -ev
 
-echo "=== Updating the build environment in $LOCAL_PKG ==="
+echo "=== Installing from external package sources ==="
+wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+echo "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.9 main" | sudo tee -a /etc/apt/sources.list
+sudo add-apt-repository -y ppa:lttng/ppa
+sudo apt-get update -qq
+sudo apt-get install -y clang-3.9 clang-tidy-3.9
+sudo apt-get install -y liburcu4 liburcu-dev
 
 echo "=== Installing python packages ==="
 pip install --user cpp-coveralls
 pip install --user sphinx
 pip install --user sphinx_rtd_theme
-
-wget https://launchpad.net/~lttng/+archive/ubuntu/ppa/+build/11525342/+files/liburcu-dev_0.9.x+stable+bzr1192+pack30+201612060302~ubuntu14.04.1_amd64.deb
-wget https://launchpad.net/~lttng/+archive/ubuntu/ppa/+build/11525342/+files/liburcu4_0.9.x+stable+bzr1192+pack30+201612060302~ubuntu14.04.1_amd64.deb
-sudo dpkg -i *.deb
-rm *.deb
 
 echo "=== Installed versions are ==="
 clang --version

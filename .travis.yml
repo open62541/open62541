@@ -33,12 +33,9 @@ addons:
   apt:
     sources:
       # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
-      - kalakris-cmake
     packages:
       - binutils-mingw-w64-i686
       - build-essential
-      - clang
-      - clang-3.7
       - cmake
       - gcc-multilib
       - g++-multilib
@@ -74,7 +71,6 @@ cache:
     - $HOME/install
 
 before_install:
-- sh ./tools/travis/travis_notifications.sh
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
@@ -84,19 +80,6 @@ script:
 
 after_success:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
-
-before_deploy:
-- rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for Raspberry Pi"
-- cd ~
-- git clone https://github.com/raspberrypi/tools
-- cd -
-- export PATH=$PATH:~/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-- cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
-- make
-- tar -pczf open62541-raspberrypi.tar.gz ../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
-- cp open62541-raspberrypi.tar.gz ..
-- cd ..
 
 deploy:
   provider: releases
@@ -115,12 +98,3 @@ deploy:
     repo: open62541/open62541
     tags: true
     condition: $CC = gcc && $ANALYZE = false
-
-notifications:
-  irc:
-    channels:
-        - "chat.freenode.net#open62541"
-    on_success: ${IRC_NOTIFY_SUCCESS} # default: change, variable defined in ./tools/travis/travis_notification.sh
-    on_failure: ${IRC_NOTIFY_FAILURE} # default: always, variable defined in ./tools/travis/travis_notification.sh
-    use_notice: true
-    skip_join: true
