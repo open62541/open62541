@@ -258,6 +258,6 @@ void Service_Call_single(UA_Server *server, UA_Session *session,
                          UA_CallMethodResult *result);
 
 /* Periodic task to clean up the discovery registry */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 #endif /* UA_SERVER_INTERNAL_H_ */

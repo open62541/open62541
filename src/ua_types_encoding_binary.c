@@ -50,8 +50,8 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-UA_THREAD_LOCAL size_t customTypesSize;
-UA_THREAD_LOCAL const UA_DataType *customTypes;
+UA_THREAD_LOCAL size_t customTypesArraySize;
+UA_THREAD_LOCAL const UA_DataType *customTypesArray;
 
 /* We give pointers to the current position and the last position in the buffer
  * instead of a string with an offset. */
@@ -774,8 +774,8 @@ findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
     const UA_DataType *types = UA_TYPES;
     size_t typesSize = UA_TYPES_COUNT;
     if(typeId->namespaceIndex != 0) {
-        types = customTypes;
-        typesSize = customTypesSize;
+        types = customTypesArray;
+        typesSize = customTypesArraySize;
     }
     for(size_t i = 0; i < typesSize; ++i) {
         if(types[i].binaryEncodingId == typeId->identifier.numeric) {
@@ -1315,14 +1315,15 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t cTS, const UA_DataType *cT) {
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) {
     /* Initialize the destination */
     memset(dst, 0, type->memSize);
 
     /* Store the pointers to the custom datatypes. They might be needed during
      * decoding of variants. */
-    customTypesSize = cTS;
-    customTypes = cT;
+    customTypesArraySize = customTypesSize;
+    customTypesArray = customTypes;
 
     /* Set the (thread-local) position and end pointers to save function
      * arguments */
