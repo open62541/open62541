@@ -28,8 +28,8 @@ UA_NodestoreSwitch_delete(UA_NodestoreSwitch* nodestoreSwitch){
 
 
 UA_Boolean
-UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nsi) {
-    if(!nsi){
+UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface) {
+    if(!nodestoreInterface){
         return UA_FALSE;
     }
     size_t size = nodestoreSwitch->nodestoreInterfacesSize;
@@ -40,17 +40,17 @@ UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterfac
         return UA_FALSE;//UA_STATUSCODE_BADOUTOFMEMORY;
     }
     nodestoreSwitch->nodestoreInterfaces = new_nsis;
-    nodestoreSwitch->nodestoreInterfaces[size] = nsi;
+    nodestoreSwitch->nodestoreInterfaces[size] = nodestoreInterface;
     nodestoreSwitch->nodestoreInterfacesSize++;
     return UA_TRUE;//UA_STATUSCODE_GOOD;
 }
 
 UA_Boolean
-UA_NodestoreSwitch_change(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nsi, UA_UInt16 nsi_index) {
-    if(nsi && checkNSIndex(nodestoreSwitch, nsi_index)){
+UA_NodestoreSwitch_change(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface, UA_UInt16 nodestoreInterfaceIndex) {
+    if(nodestoreInterface && checkNSIndex(nodestoreSwitch, nodestoreInterfaceIndex)){
         return UA_FALSE;
     }
-    nodestoreSwitch->nodestoreInterfaces[nsi_index] = nsi;
+    nodestoreSwitch->nodestoreInterfaces[nodestoreInterfaceIndex] = nodestoreInterface;
     return UA_TRUE;//UA_STATUSCODE_GOOD;
 }
 UA_NodestoreInterface *

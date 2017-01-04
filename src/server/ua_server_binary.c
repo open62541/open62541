@@ -392,7 +392,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     void *request = UA_alloca(requestType->memSize);
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
-    retval = UA_decodeBinary(msg, offset, request, requestType);
+    retval = UA_decodeBinary(msg, offset, request, requestType,
+                             server->config.customDataTypesSize,
+                             server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not decode the request");
         sendError(channel, msg, requestPos, responseType, requestId, retval);

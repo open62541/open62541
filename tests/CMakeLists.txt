@@ -53,6 +53,10 @@ add_executable(check_types_range check_types_range.c $<TARGET_OBJECTS:open62541-
 target_link_libraries(check_types_range ${LIBS})
 add_test_valgrind(types_range ${CMAKE_CURRENT_BINARY_DIR}/check_types_range)
 
+add_executable(check_types_custom check_types_custom.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_types_custom ${LIBS})
+add_test_valgrind(types_custom ${CMAKE_CURRENT_BINARY_DIR}/check_types_custom)
+
 add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_chunking ${LIBS})
 add_test_valgrind(chunking ${CMAKE_CURRENT_BINARY_DIR}/check_chunking)

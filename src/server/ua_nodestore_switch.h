@@ -35,8 +35,8 @@ void UA_NodestoreSwitch_delete(UA_NodestoreSwitch* nodestoreSwitch);
  * ^^^^^^^^^^^^^^^^
  *
  */
-UA_Boolean UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestore);
-UA_Boolean UA_NodestoreSwitch_change(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface, UA_UInt16 nodestoreIndex);
+UA_Boolean UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface);
+UA_Boolean UA_NodestoreSwitch_change(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface, UA_UInt16 nodestoreInterfaceIndex);
 UA_NodestoreInterface* UA_NodestoreSwitch_getNodestoreForNamespace(UA_NodestoreSwitch* nodestoreSwitch, UA_UInt16 namespaceIndex);
 //TODO Add: Get all Namespaces for a Nodestore. --> Export this Functions
 

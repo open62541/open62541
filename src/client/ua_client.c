@@ -762,7 +762,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
         if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
             /* Take the statuscode from the servicefault */
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
         } else {
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i."
@@ -776,7 +776,9 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType);
+    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
+                             rd->client->config.customDataTypesSize,
+                             rd->client->config.customDataTypes);
 
  finish:
     if(retval == UA_STATUSCODE_GOOD) {
@@ -792,7 +794,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
 }
 
 void
-__UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *requestType,
+__UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *requestType,
                     void *response, const UA_DataType *responseType) {
     UA_init(response, responseType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
@@ -806,24 +808,24 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
     }
 
     /* Handling request parameters */
-    //here const *r is 'violated'
-    UA_RequestHeader *request = (UA_RequestHeader*)(uintptr_t)r;
-    UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
-    request->timestamp = UA_DateTime_now();
-    request->requestHandle = ++client->requestHandle;
+    //here const *request is 'violated'
+    UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
+    UA_NodeId_copy(&client->authenticationToken, &rr->authenticationToken);
+    rr->timestamp = UA_DateTime_now();
+    rr->requestHandle = ++client->requestHandle;
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
-    retval = UA_SecureChannel_sendBinaryMessage(client->channel, requestId, request, requestType);
+    retval = UA_SecureChannel_sendBinaryMessage(client->channel, requestId, rr, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
         client->state = UA_CLIENTSTATE_ERRORED;
-        UA_NodeId_deleteMembers(&request->authenticationToken);
+        UA_NodeId_deleteMembers(&rr->authenticationToken);
         return;
     }
 
@@ -857,5 +859,5 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
         else
             UA_ByteString_deleteMembers(&reply);
     } while(!rd.processed);
-    UA_NodeId_deleteMembers(&request->authenticationToken);
+    UA_NodeId_deleteMembers(&rr->authenticationToken);
 }

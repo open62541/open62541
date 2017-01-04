@@ -188,19 +188,20 @@ addRepeatedJob(UA_Server *server, struct RepeatedJob * UA_RESTRICT rj) {
 
 UA_StatusCode
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 intervalMs, UA_Guid *jobId) {
+                         UA_UInt32 interval, UA_Guid *jobId) {
     /* the interval needs to be at least 5ms */
-    if(intervalMs < 5)
+    if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt64 interval = (UA_UInt64)intervalMs * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
+    UA_UInt64 interval_dt =
+        (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
     struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     /* done inside addRepeatedJob:
-     * rj->nextTime = UA_DateTime_nowMonotonic() + interval; */
-    rj->interval = interval;
+     * rj->nextTime = UA_DateTime_nowMonotonic() + interval_dt; */
+    rj->interval = interval_dt;
     rj->id = UA_Guid_random();
     rj->job = job;
 

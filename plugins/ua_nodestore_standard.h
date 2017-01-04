@@ -26,7 +26,7 @@ extern "C" {
 UA_EXPORT UA_NodestoreInterface UA_Nodestore_standard(void);
 
 /* Delete the new NodeStoreInterface for the open62541 standard nodestore*/
-UA_EXPORT void UA_Nodestore_standard_delete(UA_NodestoreInterface * nsi);
+UA_EXPORT void UA_Nodestore_standard_delete(UA_NodestoreInterface * nodestoreInterface);
 
 #ifdef __cplusplus
 } // extern "C"
