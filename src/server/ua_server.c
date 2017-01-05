@@ -406,6 +406,7 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
     /* Add namespaces */
     for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
         addNamespace(server, newNamespaces[i]);
+
     return UA_STATUSCODE_GOOD;
 }
 
