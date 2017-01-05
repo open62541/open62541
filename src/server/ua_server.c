@@ -50,23 +50,35 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    /* Override const attribute to get string (dirty hack) */
-    const UA_String nameString = (UA_String){.length = strlen(name),
-                                             .data = (UA_Byte*)(uintptr_t)name};
-
+UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
     /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i=0;i<server->namespacesSize;++i) {
-        if(UA_String_equal(&nameString, &server->namespaces[i]))
+        if(UA_String_equal(&name, &server->namespaces[i]))
             return i;
     }
 
-    /* Add a new namespace to the namespace array */
-    server->namespaces = UA_realloc(server->namespaces,
-                                    sizeof(UA_String) * (server->namespacesSize + 1));
-    UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
+    /* Make the array bigger */
+    UA_String *newNS = UA_realloc(server->namespaces,
+                                  sizeof(UA_String) * (server->namespacesSize + 1));
+    if(!newNS)
+        return 0;
+    server->namespaces = newNS;
+
+    /* Copy the namespace string */
+    UA_StatusCode retval = UA_String_copy(&name, &server->namespaces[server->namespacesSize]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return 0;
+
+    /* Announce the change (otherwise, the array appears unchanged) */
     ++server->namespacesSize;
     return (UA_UInt16)(server->namespacesSize - 1);
+}
+
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
+    /* Override const attribute to get string (dirty hack) */
+    const UA_String nameString = {.length = strlen(name),
+                                  .data = (UA_Byte*)(uintptr_t)name};
+    return addNamespace(server, nameString);
 }
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
@@ -358,6 +370,42 @@ readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
         value->hasSourceTimestamp = true;
         value->sourceTimestamp = UA_DateTime_now();
     }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
+                const UA_NumericRange *range) {
+    UA_Server *server = (UA_Server*)handle;
+
+    /* Check the data type */
+    if(data->type != &UA_TYPES[UA_TYPES_STRING])
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Check that the variant is not empty */
+    if(!data->data)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* TODO: Writing with a range is not implemented */
+    if(range)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_String *newNamespaces = data->data;
+    size_t newNamespacesSize = data->arrayLength;
+
+    /* Test if we append to the existing namespaces */
+    if(newNamespacesSize <= server->namespacesSize)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Test if the existing namespaces are unchanged */
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
+        if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Add namespaces */
+    for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
+        addNamespace(server, newNamespaces[i]);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -949,7 +997,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
     namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE;
     namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces,
-                                                        .write = NULL};
+                                                        .write = writeNamespaces};
     namespaceArray->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
