@@ -45,23 +45,31 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 /* Namespace Handling */
 /**********************/
 
-UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    /* Override const attribute to get string (dirty hack) */
-    const UA_String nameString = (UA_String){.length = strlen(name),
-                                             .data = (UA_Byte*)(uintptr_t)name};
-
+UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
     /* Check if the namespace already exists in the server's namespace array */
     for(UA_UInt16 i=0;i<server->namespacesSize;++i) {
-        if(UA_String_equal(&nameString, &server->namespaces[i]))
+        if(UA_String_equal(&name, &server->namespaces[i]))
             return i;
     }
 
     /* Add a new namespace to the namsepace array */
-    server->namespaces = UA_realloc(server->namespaces,
-                                    sizeof(UA_String) * (server->namespacesSize + 1));
-    UA_String_copy(&nameString, &server->namespaces[server->namespacesSize]);
+    UA_String *newNS = UA_realloc(server->namespaces,
+                                  sizeof(UA_String) * (server->namespacesSize + 1));
+    if(!newNS)
+        return 0;
+    server->namespaces = newNS;
+    UA_StatusCode retval = UA_String_copy(&name, &server->namespaces[server->namespacesSize]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return 0;
     ++server->namespacesSize;
     return (UA_UInt16)(server->namespacesSize - 1);
+}
+
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
+    /* Override const attribute to get string (dirty hack) */
+    const UA_String nameString = {.length = strlen(name),
+                                  .data = (UA_Byte*)(uintptr_t)name};
+    return addNamespace(server, nameString);
 }
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
@@ -374,15 +382,9 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Make a copy of the array and replace server->namespaces */
-    UA_String *newCopy;
-    UA_StatusCode retval = UA_Array_copy(newNamespaces, newNamespacesSize,
-                                         (void**)&newCopy, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
-    server->namespaces = newCopy;
-    server->namespacesSize = newNamespacesSize;
+    /* Add namespaces */
+    for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
+        addNamespace(server, newNamespaces[i]);
     return UA_STATUSCODE_GOOD;
 }
 

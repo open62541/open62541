@@ -149,6 +149,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
 UA_StatusCode
 parse_numericrange(const UA_String *str, UA_NumericRange *range);
 
+UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
+
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
