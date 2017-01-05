@@ -22,10 +22,45 @@ START_TEST(Server_addNamespace_ShallWork)
 }
 END_TEST
 
+START_TEST(Server_addNamespace_writeService)
+{
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_Server *server = UA_Server_new(config);
+
+    UA_Variant namespaces;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+                        &namespaces);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(namespaces.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    namespaces.data = realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
+    ++namespaces.arrayLength;
+    UA_String *ns = namespaces.data;
+    ns[namespaces.arrayLength-1] = UA_STRING_ALLOC("test");
+    size_t nsSize = namespaces.arrayLength;
+
+    retval = UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+                                  namespaces);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&namespaces);
+
+    /* Now read again */
+    UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+                        &namespaces);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(namespaces.arrayLength, nsSize);
+
+    UA_Variant_deleteMembers(&namespaces);
+	UA_Server_delete(server);
+}
+END_TEST
+
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
     TCase *tc_core = tcase_create("Core");
     tcase_add_test(tc_core, Server_addNamespace_ShallWork);
+    tcase_add_test(tc_core, Server_addNamespace_writeService);
 
     suite_add_tcase(s,tc_core);
     return s;

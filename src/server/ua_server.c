@@ -362,6 +362,48 @@ readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
 }
 
 static UA_StatusCode
+writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
+                const UA_NumericRange *range) {
+    UA_Server *server = (UA_Server*)handle;
+
+    /* Check the data type */
+    if(data->type != &UA_TYPES[UA_TYPES_STRING])
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Check that the variant is not empty */
+    if(!data->data)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* TODO: Writing with a range is not implemented */
+    if(range)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_String *newNamespaces = data->data;
+    size_t newNamespacesSize = data->arrayLength;
+
+    /* Test if we append to the existing namespaces */
+    if(newNamespacesSize <= server->namespacesSize)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Test if the existing namespaces are unchanged */
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
+        if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Make a copy of the array and replace server->namespaces */
+    UA_String *newCopy;
+    UA_StatusCode retval = UA_Array_copy(newNamespaces, newNamespacesSize,
+                                         (void**)&newCopy, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    server->namespaces = newCopy;
+    server->namespacesSize = newNamespacesSize;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
@@ -949,10 +991,11 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
     namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE;
     namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces,
-                                                        .write = NULL};
+                                                        .write = writeNamespaces};
     namespaceArray->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
+    namespaceArray->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     addNodeInternalWithType(server, (UA_Node*)namespaceArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasProperty, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
