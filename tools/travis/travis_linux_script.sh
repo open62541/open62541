@@ -119,7 +119,13 @@ else
 
     echo "Compile multithreaded version"
     mkdir -p build && cd build
-    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+    make -j
+    cd .. && rm build -rf
+
+    echo "Compile without discovery version"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
     cd .. && rm build -rf
 

@@ -38,6 +38,7 @@ init:
 
 # Install needed build dependencies
 install:
+  - git submodule update --init --recursive
   - if not exist "%CYG_ROOT%" mkdir "%CYG_ROOT%"
   - ps: echo "Installing Cygwin from $env:CYG_SETUP_URL to $env:CYG_ROOT/setup-x86.exe"
   - appveyor DownloadFile %CYG_SETUP_URL% -FileName %CYG_ROOT%/setup-x86.exe
@@ -48,7 +49,6 @@ install:
 before_build:
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  - set PATH=C:\MinGW\bin;%PATH%
 
 build_script:
   - cd c:\projects\open62541

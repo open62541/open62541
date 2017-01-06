@@ -68,6 +68,14 @@ typedef struct {
 extern UA_THREAD_LOCAL UA_Session* methodCallSession;
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY
+typedef struct registeredServer_list_entry {
+    LIST_ENTRY(registeredServer_list_entry) pointers;
+    UA_RegisteredServer registeredServer;
+    UA_DateTime lastSeen;
+} registeredServer_list_entry;
+#endif
+
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
@@ -80,6 +88,12 @@ struct UA_Server {
 
     /* Address Space */
     UA_NodeStore *nodestore;
+
+#ifdef UA_ENABLE_DISCOVERY
+    /* Discovery */
+    LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
+    size_t registeredServersSize;
+#endif
 
     size_t namespacesSize;
     UA_String *namespaces;
@@ -244,5 +258,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
 void Service_Call_single(UA_Server *server, UA_Session *session,
                          const UA_CallMethodRequest *request,
                          UA_CallMethodResult *result);
+
+/* Periodic task to clean up the discovery registry */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 #endif /* UA_SERVER_INTERNAL_H_ */

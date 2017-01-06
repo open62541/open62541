@@ -4,6 +4,7 @@
 #include "ua_config_standard.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
+#include "ua_accesscontrol_default.h"
 
 /*******************************/
 /* Default Connection Settings */
@@ -29,12 +30,18 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
-
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
-UA_UsernamePasswordLogin usernamePasswords[2] = {
+/* Access Control. The following definitions are defined as "extern" in
+   ua_accesscontrol_default.h */
+#define ENABLEANONYMOUSLOGIN true
+#define ENABLEUSERNAMEPASSWORDLOGIN true
+const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
+const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
+const size_t usernamePasswordsSize = 2;
+const UA_UsernamePasswordLogin *usernamePasswords = (UA_UsernamePasswordLogin[2]){
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 
@@ -65,15 +72,29 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrls = NULL },
     .serverCertificate = UA_STRING_STATIC_NULL,
 
+    /* Custom DataTypes */
+    .customDataTypesSize = 0,
+    .customDataTypes = NULL,
+
     /* Networking */
     .networkLayersSize = 0,
     .networkLayers = NULL,
 
-    /* Login */
-    .enableAnonymousLogin = true,
-    .enableUsernamePasswordLogin = true,
-    .usernamePasswordLogins = usernamePasswords,
-    .usernamePasswordLoginsSize = 2,
+    /* Access Control */
+    .accessControl = {
+        .enableAnonymousLogin = ENABLEANONYMOUSLOGIN,
+        .enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN,
+        .activateSession = activateSession_default,
+        .closeSession = closeSession_default,
+        .getUserRightsMask = getUserRightsMask_default,
+        .getUserAccessLevel = getUserAccessLevel_default,
+        .getUserExecutable = getUserExecutable_default,
+        .getUserExecutableOnObject = getUserExecutableOnObject_default,
+        .allowAddNode = allowAddNode_default,
+        .allowAddReference = allowAddReference_default,
+        .allowDeleteNode = allowDeleteNode_default,
+        .allowDeleteReference = allowDeleteReference_default
+    },
 
     /* Limits for SecureChannels */
     .maxSecureChannels = 40,
@@ -93,6 +114,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     /* Limits for MonitoredItems */
     .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
     .queueSizeLimits = { .max = 100, .min = 1 }
+
+#ifdef UA_ENABLE_DISCOVERY
+	,.discoveryCleanupTimeout = 60*60
+#endif
 };
 
 /***************************/
@@ -110,8 +135,13 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
         .maxMessageSize = 0, /* 0 -> unlimited */
         .maxChunkCount = 0 /* 0 -> unlimited */
     },
-    .connectionFunc = UA_ClientConnectionTCP
+    .connectionFunc = UA_ClientConnectionTCP,
+
+    /* Custom DataTypes */
+    .customDataTypesSize = 0,
+    .customDataTypes = NULL
 };
+
 /****************************************/
 /* Default Client Subscription Settings */
 /****************************************/

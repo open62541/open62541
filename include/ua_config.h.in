@@ -36,6 +36,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
+#cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_MULTITHREADING
 
 /**

@@ -6,6 +6,11 @@
 #include "ua_services.h"
 #include "ua_nodeids.h"
 
+#ifdef UA_ENABLE_DISCOVERY
+#include "ua_client.h"
+#include "ua_config_standard.h"
+#endif
+
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
 #endif
@@ -52,15 +57,19 @@ UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
             return i;
     }
 
-    /* Add a new namespace to the namsepace array */
+    /* Make the array bigger */
     UA_String *newNS = UA_realloc(server->namespaces,
                                   sizeof(UA_String) * (server->namespacesSize + 1));
     if(!newNS)
         return 0;
     server->namespaces = newNS;
+
+    /* Copy the namespace string */
     UA_StatusCode retval = UA_String_copy(&name, &server->namespaces[server->namespacesSize]);
     if(retval != UA_STATUSCODE_GOOD)
         return 0;
+
+    /* Announce the change (otherwise, the array appears unchanged) */
     ++server->namespacesSize;
     return (UA_UInt16)(server->namespacesSize - 1);
 }
@@ -101,10 +110,10 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
     char urlString[256];
-    if(url.length >= 256)
+    if(url->length >= 256)
         return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url.data, url.length);
-    urlString[url.length] = 0;
+    memcpy(urlString, url->data, url->length);
+    urlString[url->length] = 0;
 
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
@@ -114,7 +123,7 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
     ++server->externalNamespacesSize;
-    addNamespaceInternal(server, urlString);
+    UA_Server_addNamespace(server, urlString);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -237,6 +246,15 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
+#ifdef UA_ENABLE_DISCOVERY
+    registeredServer_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
+        LIST_REMOVE(current, pointers);
+        UA_RegisteredServer_deleteMembers(&current->registeredServer);
+        UA_free(current);
+    }
+#endif
+
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
 #endif
@@ -248,6 +266,9 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_Discovery_cleanupTimedOut(server, nowMonotonic);
+#endif
 }
 
 static UA_StatusCode
@@ -448,8 +469,10 @@ createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
-GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
-                  const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+GetMonitoredItems(void *handle, const UA_NodeId *objectId,
+                  const UA_NodeId *sessionId, void *sessionHandle,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Session* session = methodCallSession;
     UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
@@ -518,21 +541,21 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
         size_t policies = 0;
-        if(server->config.enableAnonymousLogin)
+        if(server->config.accessControl.enableAnonymousLogin)
             ++policies;
-        if(server->config.enableUsernamePasswordLogin)
+        if(server->config.accessControl.enableUsernamePasswordLogin)
             ++policies;
         endpoint->userIdentityTokensSize = policies;
         endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
         size_t currentIndex = 0;
-        if(server->config.enableAnonymousLogin) {
+        if(server->config.accessControl.enableAnonymousLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
             ++currentIndex;
         }
-        if(server->config.enableUsernamePasswordLogin) {
+        if(server->config.accessControl.enableUsernamePasswordLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
@@ -554,6 +577,12 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
                       .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
     UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+
+#ifdef UA_ENABLE_DISCOVERY
+    // Discovery service
+    LIST_INIT(&server->registeredServers);
+    server->registeredServersSize = 0;
+#endif
 
     server->startTime = UA_DateTime_now();
 
@@ -972,6 +1001,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     namespaceArray->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
+    namespaceArray->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     addNodeInternalWithType(server, (UA_Node*)namespaceArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasProperty, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
@@ -1343,3 +1373,111 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     return server;
 }
+
+#ifdef UA_ENABLE_DISCOVERY
+static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(client);
+        return retval;
+    }
+
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
+
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    request.server.isOnline = !isUnregister;
+
+    // copy all the required data from applicationDescription to request
+    retval |= UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
+    retval |= UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
+
+    request.server.serverNamesSize = 1;
+    request.server.serverNames = UA_malloc(sizeof(UA_LocalizedText));
+    if (!request.server.serverNames) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    retval |= UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
+    
+    request.server.serverType = server->config.applicationDescription.applicationType;
+    retval |= UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
+    // TODO where do we get the discoveryProfileUri for application data?
+
+    request.server.discoveryUrls = UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
+    if (!request.server.serverNames) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
+        retval |= UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
+    }
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* add the discoveryUrls from the networklayers */
+    UA_String *disc = UA_realloc(request.server.discoveryUrls,
+                                 sizeof(UA_String) * (request.server.discoveryUrlsSize + server->config.networkLayersSize));
+    if(!disc) {
+        UA_RegisteredServer_deleteMembers(&request.server);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    size_t existing = request.server.discoveryUrlsSize;
+    request.server.discoveryUrls = disc;
+    request.server.discoveryUrlsSize += server->config.networkLayersSize;
+
+    // TODO: Add nl only if discoveryUrl not already present
+    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &request.server.discoveryUrls[existing + i]);
+    }
+
+    if (semaphoreFilePath) {
+        request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
+    }
+
+    // now send the request
+    UA_RegisterServerResponse response;
+    UA_RegisterServerResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+
+    UA_RegisterServerRequest_deleteMembers(&request);
+
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+        UA_RegisterServerResponse_deleteMembers(&response);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return response.responseHeader.serviceResult;
+    }
+
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
+}
+
+UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
+}
+#endif
