@@ -124,7 +124,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     UA_String_copy(url, &server->externalNamespaces[size].url);
     ++server->externalNamespacesSize;
     UA_Server_addNamespace(server, urlString);
-
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
