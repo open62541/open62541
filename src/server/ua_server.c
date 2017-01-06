@@ -100,12 +100,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
-    char urlString[256];
-    if(url->length >= 256)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url->data, url->length);
-    urlString[url->length] = 0;
-
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
         UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
