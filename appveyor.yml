@@ -47,6 +47,8 @@ install:
   - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
 
 before_build:
+  # use MinGW64
+  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
 
