@@ -1372,7 +1372,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 }
 
 #ifdef UA_ENABLE_DISCOVERY
-static UA_StatusCode register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl, const UA_Boolean isUnregister, const char* semaphoreFilePath) {
+static UA_StatusCode
+register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
+                                      const UA_Boolean isUnregister, const char* semaphoreFilePath) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1389,8 +1391,8 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
     request.server.isOnline = !isUnregister;
 
     // copy all the required data from applicationDescription to request
-    retval |= UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
-    retval |= UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
+    UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
+    UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
 
     request.server.serverNamesSize = 1;
     request.server.serverNames = (UA_LocalizedText *)UA_malloc(sizeof(UA_LocalizedText));
@@ -1399,10 +1401,10 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         UA_Client_delete(client);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    retval |= UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
+    UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
     
     request.server.serverType = server->config.applicationDescription.applicationType;
-    retval |= UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
+    UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
     // TODO where do we get the discoveryProfileUri for application data?
 
     request.server.discoveryUrls = (UA_String *)UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
@@ -1413,7 +1415,7 @@ static UA_StatusCode register_server_with_discovery_server(UA_Server *server, co
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
-        retval |= UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
+        UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
     }
 
     /* add the discoveryUrls from the networklayers */
