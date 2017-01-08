@@ -23,7 +23,7 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
     /* anonymous login */
     if(enableAnonymousLogin &&
        userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        const UA_AnonymousIdentityToken *token = userIdentityToken->content.decoded.data;
+        const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken *)userIdentityToken->content.decoded.data;
 
         /* Compatibility notice: Siemens OPC Scout v10 provides an empty
          * policyId. This is not compliant. For compatibility we will assume
@@ -38,7 +38,7 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
     /* username and password */
     if(enableUsernamePasswordLogin &&
        userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *token = userIdentityToken->content.decoded.data;
+        const UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken *)userIdentityToken->content.decoded.data;
         if(!UA_String_equal(&token->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 

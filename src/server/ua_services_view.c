@@ -210,7 +210,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         real_maxrefs = node->referencesSize;
     else if(real_maxrefs > node->referencesSize)
         real_maxrefs = node->referencesSize;
-    result->references = UA_Array_new(real_maxrefs, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
+    result->references = (UA_ReferenceDescription *)UA_Array_new(real_maxrefs, &UA_TYPES[UA_TYPES_REFERENCEDESCRIPTION]);
     if(!result->references) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
@@ -273,7 +273,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     } else if(maxrefs != 0 && referencesCount >= maxrefs) {
         /* create a cp */
         if(session->availableContinuationPoints <= 0 ||
-           !(cp = UA_malloc(sizeof(struct ContinuationPointEntry)))) {
+           !(cp = (struct ContinuationPointEntry *)UA_malloc(sizeof(struct ContinuationPointEntry)))) {
             result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
             return;
         }
@@ -306,7 +306,7 @@ void Service_Browse(UA_Server *server, UA_Session *session, const UA_BrowseReque
     }
 
     size_t size = request->nodesToBrowseSize;
-    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    response->results = (UA_BrowseResult *)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -384,7 +384,7 @@ void Service_BrowseNext(UA_Server *server, UA_Session *session, const UA_BrowseN
         return;
     }
     size_t size = request->continuationPointsSize;
-    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    response->results = (UA_BrowseResult *)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -463,7 +463,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
             // add the browsetarget
             if(*target_count >= *targets_size) {
                 UA_BrowsePathTarget *newtargets;
-                newtargets = UA_realloc(targets, sizeof(UA_BrowsePathTarget) * (*targets_size) * 2);
+                newtargets = (UA_BrowsePathTarget *)UA_realloc(targets, sizeof(UA_BrowsePathTarget) * (*targets_size) * 2);
                 if(!newtargets) {
                     retval = UA_STATUSCODE_BADOUTOFMEMORY;
                     break;
@@ -504,7 +504,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     }
 
     size_t arraySize = 10;
-    result->targets = UA_malloc(sizeof(UA_BrowsePathTarget) * arraySize);
+    result->targets = (UA_BrowsePathTarget *)UA_malloc(sizeof(UA_BrowsePathTarget) * arraySize);
     if(!result->targets) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -540,7 +540,7 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
     }
 
     size_t size = request->browsePathsSize;
-    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
+    response->results = (UA_BrowsePathResult *)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

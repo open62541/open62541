@@ -32,7 +32,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     }
 
     retval = UA_STATUSCODE_BADNOTFOUND;
-    UA_String *ns = response.results[0].value.data;
+    UA_String *ns = (UA_String *)response.results[0].value.data;
     for(size_t i = 0; i < response.results[0].value.arrayLength; ++i){
         if(UA_String_equal(namespaceUri, &ns[i])) {
             *namespaceIndex = (UA_UInt16)i;
@@ -231,7 +231,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     UA_CallMethodRequest_init(&item);
     item.methodId = methodId;
     item.objectId = objectId;
-    item.inputArguments = (void*)(uintptr_t)input; // cast const...
+    item.inputArguments = (UA_Variant *)(void*)(uintptr_t)input; // cast const...
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
@@ -401,7 +401,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
         goto cleanup;
     }
 
-    *outArrayDimensions = res->value.data;
+    *outArrayDimensions = (UA_Int32 *)res->value.data;
     *outArrayDimensionsSize = res->value.arrayLength;
     UA_free(res->value.data);
     res->value.data = NULL;

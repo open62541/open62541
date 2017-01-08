@@ -79,7 +79,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     }
 
     /* Set up the channel */
-    channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
+    channel_list_entry *entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannel_init(&entry->channel);
