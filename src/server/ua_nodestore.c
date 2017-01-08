@@ -78,7 +78,7 @@ instantiateEntry(UA_NodeClass nodeClass) {
     default:
         return NULL;
     }
-    UA_NodeStoreEntry *entry = UA_calloc(1, size);
+    UA_NodeStoreEntry *entry = (UA_NodeStoreEntry *)UA_calloc(1, size);
     if(!entry)
         return NULL;
     entry->node.nodeClass = nodeClass;
@@ -152,7 +152,7 @@ expand(UA_NodeStore *ns) {
     UA_NodeStoreEntry **oentries = ns->entries;
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_UInt32 nsize = primes[nindex];
-    UA_NodeStoreEntry **nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
+    UA_NodeStoreEntry **nentries = (UA_NodeStoreEntry **)UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
     if(!nentries)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -179,13 +179,13 @@ expand(UA_NodeStore *ns) {
 
 UA_NodeStore *
 UA_NodeStore_new(void) {
-    UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
+    UA_NodeStore *ns = (UA_NodeStore *)UA_malloc(sizeof(UA_NodeStore));
     if(!ns)
         return NULL;
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
-    ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
+    ns->entries = (UA_NodeStoreEntry **)UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
     if(!ns->entries) {
         UA_free(ns);
         return NULL;
@@ -290,15 +290,15 @@ UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     if(!slot)
         return NULL;
     UA_NodeStoreEntry *entry = *slot;
-    UA_NodeStoreEntry *new = instantiateEntry(entry->node.nodeClass);
-    if(!new)
+    UA_NodeStoreEntry *newItem = instantiateEntry(entry->node.nodeClass);
+    if(!newItem)
         return NULL;
-    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
-        deleteEntry(new);
+    if(UA_Node_copyAnyNodeClass(&entry->node, &newItem->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(newItem);
         return NULL;
     }
-    new->orig = entry; // store the pointer to the original
-    return &new->node;
+    newItem->orig = entry; // store the pointer to the original
+    return &newItem->node;
 }
 
 UA_StatusCode
