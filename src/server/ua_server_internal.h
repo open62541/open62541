@@ -1,6 +1,10 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_server_external_ns.h"
@@ -261,5 +265,9 @@ void Service_Call_single(UA_Server *server, UA_Session *session,
 
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */

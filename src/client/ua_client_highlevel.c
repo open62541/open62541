@@ -382,12 +382,13 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
+    UA_DataValue *res = response.results;
+
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    UA_DataValue *res = response.results;
     if(res->hasStatus != UA_STATUSCODE_GOOD)
         retval = res->hasStatus;
     else if(!res->hasValue || UA_Variant_isScalar(&res->value))
