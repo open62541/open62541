@@ -3,6 +3,10 @@
 
 #include "ua_config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Assert */
 #include <assert.h>
 #define UA_assert(ignore) assert(ignore)
@@ -97,5 +101,9 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 # endif
 #endif
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_UTIL_H_ */

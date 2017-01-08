@@ -1,6 +1,10 @@
 #ifndef UA_SESSION_MANAGER_H_
 #define UA_SESSION_MANAGER_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "queue.h"
 #include "ua_server.h"
 #include "ua_util.h"
@@ -33,5 +37,9 @@ UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token);
 
 UA_Session *
 UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SESSION_MANAGER_H_ */

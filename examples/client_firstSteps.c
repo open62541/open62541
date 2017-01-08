@@ -2,7 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <stdio.h>
-#include <inttypes.h>
 
 #ifdef UA_NO_AMALGAMATION
 #include "ua_client.h"

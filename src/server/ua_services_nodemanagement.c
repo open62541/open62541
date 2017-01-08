@@ -271,7 +271,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         if(olm->constructor)
             UA_Server_editNode(server, session, nodeId,
                                (UA_EditNodeCallback)setObjectInstanceHandle,
-                               olm->constructor);
+                               (void*)olm->constructor);
     }
 
     /* Add a hasType reference */

@@ -425,14 +425,14 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
     return UA_STATUSCODE_GOOD;
 }
 
-static void copyNames(UA_Node *node, char *name) {
+static void copyNames(UA_Node *node, const char *name) {
     node->browseName = UA_QUALIFIEDNAME_ALLOC(0, name);
     node->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
     node->description = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
 }
 
 static void
-addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
+addDataTypeNode(UA_Server *server, const char* name, UA_UInt32 datatypeid,
                 UA_Boolean isAbstract, UA_UInt32 parent) {
     UA_DataTypeNode *datatype = UA_NodeStore_newDataTypeNode();
     copyNames((UA_Node*)datatype, name);
@@ -443,7 +443,7 @@ addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
 }
 
 static void
-addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
+addObjectTypeNode(UA_Server *server, const char* name, UA_UInt32 objecttypeid,
                   UA_UInt32 parent, UA_UInt32 parentreference) {
     UA_ObjectTypeNode *objecttype = UA_NodeStore_newObjectTypeNode();
     copyNames((UA_Node*)objecttype, name);
@@ -453,7 +453,7 @@ addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
 }
 
 static UA_VariableTypeNode*
-createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
+createVariableTypeNode(UA_Server *server, const char* name, UA_UInt32 variabletypeid,
                        UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = UA_NodeStore_newVariableTypeNode();
     copyNames((UA_Node*)variabletype, name);

@@ -65,14 +65,11 @@ extern "C" {
 #include "ms_stdint.h" /* Includes stdint.h or workaround for older Visual Studios */
 
 #ifndef __cplusplus
-# if defined(_MSC_VER) && _MSC_VER < 1800 
-    /* Workaround for old Visual Studios */
-    typedef uint8_t bool;
-#  define true 1
-#  define false 0
-# else
-#  include <stdbool.h> /* Default: C99 Boolean */
-# endif
+# include <stdbool.h> /* C99 Boolean */
+/* Manual Boolean:
+typedef uint8_t bool;
+#define true 1
+#define false 0 */
 #endif
 
 /* Manually define some function on libc */

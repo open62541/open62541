@@ -734,6 +734,10 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
+    /* Forward declaration for the goto */
+    size_t offset = 0;
+    UA_NodeId responseId;
+
     if(messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Server replied with the wrong message type");
@@ -753,8 +757,6 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Check that the response type matches */
-    size_t offset = 0;
-    UA_NodeId responseId;
     retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;

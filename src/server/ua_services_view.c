@@ -148,6 +148,7 @@ void
 Service_Browse_single(UA_Server *server, UA_Session *session,
                       struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
                       UA_UInt32 maxrefs, UA_BrowseResult *result) { 
+    /* TODO: Split this function and remove goto */
     size_t referencesCount = 0;
     size_t referencesIndex = 0;
     /* set the browsedescription if a cp is given */
@@ -204,6 +205,11 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Forward declare for goto */
+    size_t skipped = 0;
+    UA_Boolean isExternal = false;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     /* how many references can we return at most? */
     size_t real_maxrefs = maxrefs;
     if(real_maxrefs == 0)
@@ -217,9 +223,6 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     }
 
     /* loop over the node's references */
-    size_t skipped = 0;
-    UA_Boolean isExternal = false;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(; referencesIndex < node->referencesSize && referencesCount < real_maxrefs; ++referencesIndex) {
         isExternal = false;
         const UA_Node *current =

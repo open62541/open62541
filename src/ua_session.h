@@ -1,6 +1,10 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "queue.h"
 #include "ua_types.h"
 #include "ua_securechannel.h"
@@ -117,5 +121,9 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  (SESSION->channel ? SESSION->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA(SESSION->sessionId.identifier.guid), \
                  ##__VA_ARGS__);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SESSION_H_ */

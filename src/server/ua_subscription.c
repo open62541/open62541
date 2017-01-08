@@ -48,20 +48,14 @@ void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 
 static void
 ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
-    if(mon->currentQueueSize < mon->maxQueueSize) {
+    if(mon->currentQueueSize < mon->maxQueueSize)
         return;
-    }
-
-	MonitoredItem_queuedValue *queueItem =
-		TAILQ_LAST(&mon->queue, memberstruct(UA_MonitoredItem,QueueOfQueueDataValues));
-
-    if(mon->discardOldest) {
+    MonitoredItem_queuedValue *queueItem;
+    if(mon->discardOldest)
         queueItem = TAILQ_FIRST(&mon->queue);
-    } else {
-		queueItem = TAILQ_LAST(&mon->queue,
-		                       memberstruct(UA_MonitoredItem,QueueOfQueueDataValues));
-    }
-
+    else
+        queueItem = TAILQ_LAST(&mon->queue,
+                               memberstruct(UA_MonitoredItem,QueueOfQueueDataValues));
     UA_assert(queueItem); /* When the currentQueueSize > 0, then there is an item */
     TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
     UA_DataValue_deleteMembers(&queueItem->value);
@@ -89,9 +83,13 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
         value->hasSourcePicoseconds = false;
     }
 
-    /* Encode the data for comparison */
+    /* Forward declare before goto */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    size_t encodingOffset = 0;
+    size_t binsize;
+
+    /* Encode the data for comparison */
+    binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(binsize == 0) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
@@ -105,7 +103,6 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
     }
 
     /* Encode the value */
-    size_t encodingOffset = 0;
     retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
                              NULL, NULL, encoding, &encodingOffset);
     if(retval != UA_STATUSCODE_GOOD)
@@ -159,6 +156,9 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;
 
+    /* Forward declaration before goto */
+    MonitoredItem_queuedValue *newQueueItem;
+
     /* Has the value changed? */
     UA_Boolean changed = false;
     UA_StatusCode retval = detectValueChange(monitoredItem, &value,
@@ -167,7 +167,7 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         goto cleanup;
 
     /* Allocate the entry for the publish queue */
-    MonitoredItem_queuedValue *newQueueItem = (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
+    newQueueItem = (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newQueueItem) {
         UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                "Subscription %u | MonitoredItem %i | "
@@ -344,7 +344,7 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
        sub->retransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
         UA_NotificationMessageEntry *lastentry =
             TAILQ_LAST(&sub->retransmissionQueue,
-			           memberstruct(UA_Subscription,UA_ListOfNotificationMessages));
+                       memberstruct(UA_Subscription,UA_ListOfNotificationMessages));
         TAILQ_REMOVE(&sub->retransmissionQueue, lastentry, listEntry);
         --sub->retransmissionQueueSize;
         UA_NotificationMessage_deleteMembers(&lastentry->message);
@@ -383,8 +383,10 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
 
     /* Allocate Notification */
     UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-    if(!dcn)
-        goto cleanup;
+    if(!dcn) {
+        UA_NotificationMessage_deleteMembers(message);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     UA_ExtensionObject *data = message->notificationData;
     data->encoding = UA_EXTENSIONOBJECT_DECODED;
     data->content.decoded.data = dcn;
@@ -393,8 +395,10 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
     /* Allocate array of notifications */
     dcn->monitoredItems = (UA_MonitoredItemNotification *)
         UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
-    if(!dcn->monitoredItems)
-        goto cleanup;
+    if(!dcn->monitoredItems) {
+        UA_NotificationMessage_deleteMembers(message);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     dcn->monitoredItemsSize = notifications;
 
     /* Move notifications into the response .. the point of no return */
@@ -415,10 +419,6 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
         }
     }
     return UA_STATUSCODE_GOOD;
-    
- cleanup:
-    UA_NotificationMessage_deleteMembers(message);
-    return UA_STATUSCODE_BADOUTOFMEMORY;
 }
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
@@ -537,7 +537,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
     sub->currentLifetimeCount = 0;
-    
+
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
                     &UA_TYPES[UA_TYPES_UINT32]);
