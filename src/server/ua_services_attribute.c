@@ -176,13 +176,8 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                const UA_NumericRange *range, UA_Variant *editableValue) {
     /* Empty variant is only allowed for BaseDataType */
-    UA_NodeId basedatatype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-    if(!value->type) {
-        if(UA_NodeId_equal(targetDataTypeId, &basedatatype))
-            goto check_array;
-        else
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
+    if(!value->type)
+        goto check_array;
 
     /* See if the types match. The nodeid on the wire may be != the nodeid in
      * the node for opaque types, enums and bytestrings. value contains the
@@ -209,10 +204,8 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
     /* See if the array dimensions match. When arrayDimensions are defined, they
      * already hold the valuerank. */
     if(targetArrayDimensionsSize > 0)
-        return compatibleArrayDimensions(targetArrayDimensionsSize,
-                                         targetArrayDimensions,
-                                         value->arrayDimensionsSize,
-                                         value->arrayDimensions);
+        return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
+                                         value->arrayDimensionsSize, value->arrayDimensions);
 
     /* Check if the valuerank allows for the value dimension */
     return compatibleValueRankValue(targetValueRank, value);

@@ -128,12 +128,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
-    char urlString[256];
-    if(url->length >= 256)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    memcpy(urlString, url->data, url->length);
-    urlString[url->length] = 0;
-
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
         UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
@@ -143,7 +137,6 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     UA_String_copy(url, &server->externalNamespaces[size].url);
     ++server->externalNamespacesSize;
     UA_Server_addNamespace(server, urlString);
-
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
@@ -430,6 +423,7 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
     /* Add namespaces */
     for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
         addNamespace(server, newNamespaces[i]);
+
     return UA_STATUSCODE_GOOD;
 }
 
