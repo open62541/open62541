@@ -1165,24 +1165,10 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         bd.includeSubtypes = true;
         bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
 
-        /* browse type definitions with admin rights */
-        UA_BrowseResult result;
-        UA_BrowseResult_init(&result);
-        Service_Browse_single(server, &adminSession, NULL, &bd, 0, &result);
-        for(size_t i = 0; i < result.referencesSize; ++i) {
-            /* call the destructor */
-            UA_ReferenceDescription *rd = &result.references[i];
-            const UA_ObjectTypeNode *typenode =
-                (const UA_ObjectTypeNode*)UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
-            if(!typenode)
-                continue;
-            if(typenode->nodeClass != UA_NODECLASS_OBJECTTYPE || !typenode->lifecycleManagement.destructor)
-                continue;
-
-            /* if there are several types with lifecycle management, call all the destructors */
+        /* Call the destructor from the object type */
+        const UA_ObjectTypeNode *typenode = getObjectNodeType(server, (const UA_ObjectNode*)node);
+        if(typenode && typenode->lifecycleManagement.destructor)
             typenode->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
-        }
-        UA_BrowseResult_deleteMembers(&result);
     }
 
     /* remove references */
