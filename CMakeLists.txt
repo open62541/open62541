@@ -23,7 +23,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if(NOT ${OPEN62541_VER_COMMIT})
+if("${OPEN62541_VER_COMMIT}" STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
