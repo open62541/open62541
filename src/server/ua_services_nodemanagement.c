@@ -843,7 +843,7 @@ UA_Server_addDataSourceVariableNode(UA_Server *server, const UA_NodeId requested
     item.typeDefinition.nodeId = typeDefinition;
     item.parentNodeId.nodeId = parentNodeId;
     retval |= copyStandardAttributes((UA_Node*)node, &item, (const UA_NodeAttributes*)&editAttr);
-    retval |= copyCommonVariableAttributes(server, node, &item, &editAttr);
+    retval |= copyVariableNodeAttributes(server, node, &item, &editAttr);
     UA_DataValue_deleteMembers(&node->value.data.value);
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     node->value.dataSource = dataSource;
