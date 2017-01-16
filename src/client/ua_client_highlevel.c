@@ -342,16 +342,20 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         return retval;
     }
 
+    /* Set the StatusCode */
     UA_DataValue *res = response.results;
-    if(res->hasStatus != UA_STATUSCODE_GOOD)
-        retval = res->hasStatus;
-    else if(!res->hasValue)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(res->hasStatus)
+        retval = res->status;
+
+    /* Return early of no value is given */
+    if(!res->hasValue) {
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         UA_ReadResponse_deleteMembers(&response);
         return retval;
     }
 
+    /* Copy value into out */
     if(attributeId == UA_ATTRIBUTEID_VALUE) {
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
