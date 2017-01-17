@@ -1374,7 +1374,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
-                                      const UA_Boolean isUnregister, const char* semaphoreFilePath) {
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath) {
+    /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1382,94 +1384,72 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         return retval;
     }
 
+    /* Prepare the request. Do not cleanup the request after the service call,
+     * as the members are stack-allocated or point into the server config. */
+    /* TODO: where do we get the discoveryProfileUri for application data? */
     UA_RegisterServerRequest request;
     UA_RegisterServerRequest_init(&request);
-
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
 
     request.server.isOnline = !isUnregister;
-
-    // copy all the required data from applicationDescription to request
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
-    UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
-
-    request.server.serverNamesSize = 1;
-    request.server.serverNames = (UA_LocalizedText *)UA_malloc(sizeof(UA_LocalizedText));
-    if (!request.server.serverNames) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
-    
+    request.server.serverUri = server->config.applicationDescription.applicationUri;
+    request.server.productUri = server->config.applicationDescription.productUri;
     request.server.serverType = server->config.applicationDescription.applicationType;
-    UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
-    // TODO where do we get the discoveryProfileUri for application data?
+    request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
-    request.server.discoveryUrls = (UA_String *)UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
-    if (!request.server.serverNames) {
-        UA_RegisteredServer_deleteMembers(&request.server);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
-        UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
-    }
+    if(semaphoreFilePath)
+        request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 
-    /* add the discoveryUrls from the networklayers */
-    UA_String *disc = (UA_String *)UA_realloc(request.server.discoveryUrls, sizeof(UA_String) *
-                                                                           (request.server.discoveryUrlsSize + server->config.networkLayersSize));
-    if(!disc) {
-        UA_RegisteredServer_deleteMembers(&request.server);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    size_t existing = request.server.discoveryUrlsSize;
-    request.server.discoveryUrls = disc;
-    request.server.discoveryUrlsSize += server->config.networkLayersSize;
+    request.server.serverNames = &server->config.applicationDescription.applicationName;
+    request.server.serverNamesSize = 1;
 
-    // TODO: Add nl only if discoveryUrl not already present
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    /* Copy the discovery urls from the server config and the network layers*/
+    size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
+    size_t nl_discurls = server->config.networkLayersSize;
+    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * (config_discurls + nl_discurls));
+    request.server.discoveryUrlsSize = config_discurls + nl_discurls;
+
+    for(size_t i = 0; i < config_discurls; ++i)
+        request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
+
+    /* TODO: Add nl only if discoveryUrl not already present */
+    for(size_t i = 0; i < nl_discurls; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &request.server.discoveryUrls[existing + i]);
+        request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
-    if (semaphoreFilePath) {
-        request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
-    }
-
-    // now send the request
+    /* Call the service */
     UA_RegisterServerResponse response;
     UA_RegisterServerResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
-    UA_RegisterServerRequest_deleteMembers(&request);
+    /* Test the result and log on error */
+    retval = response.responseHeader.serviceResult;
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                    "RegisterServer failed with statuscode %s",
+                    UA_StatusCode_name(response.responseHeader.serviceResult));
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-        UA_RegisterServerResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
-    }
-
-
+    /* Cleanup */
+    UA_RegisterServerResponse_deleteMembers(&response);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
-UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
+UA_StatusCode
+UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+                             const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl,
+                                                 UA_FALSE, semaphoreFilePath);
 }
 
-UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
+UA_StatusCode
+UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
+    return register_server_with_discovery_server(server, discoveryServerUrl,
+                                                 UA_TRUE, NULL);
 }
+
 #endif
