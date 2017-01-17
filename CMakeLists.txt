@@ -432,6 +432,7 @@ if(WIN32)
     target_link_libraries(open62541 ws2_32)
     if (UA_ENABLE_DISCOVERY_MULTICAST)
         target_link_libraries(open62541 iphlpapi) # for GetAdaptersAddresses
+        list(APPEND open62541_LIBRARIES iphlpapi)
     endif()
 endif()
 
