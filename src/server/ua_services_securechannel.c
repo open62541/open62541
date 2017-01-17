@@ -10,26 +10,28 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_open(&server->secureChannelManager, connection, request, response);
 
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | SecureChannel %i | OpenSecureChannel: Opened SecureChannel",
                          connection->sockfd, response->securityToken.channelId);
-        else
+        } else {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | OpenSecureChannel: Opening a SecureChannel failed",
                          connection->sockfd);
+        }
     } else {
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_renew(&server->secureChannelManager, connection, request, response);
 
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | SecureChannel %i | OpenSecureChannel: SecureChannel renewed",
                          connection->sockfd, response->securityToken.channelId);
-        else
+        } else {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | OpenSecureChannel: Renewing SecureChannel failed",
                          connection->sockfd);
+        }
     }
 }
 

@@ -3,8 +3,10 @@
 
 #ifdef UA_ENABLE_DISCOVERY
 # ifdef _MSC_VER
-#  include <io.h> //access
-#  define access _access
+#  ifndef UNDER_CE
+#   include <io.h> //access
+#   define access _access
+#  endif
 # else
 #  include <unistd.h> //access
 # endif
@@ -86,7 +88,7 @@ copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *reques
 
     target->discoveryUrlsSize = registeredServer->discoveryUrlsSize;
     if (registeredServer->discoveryUrlsSize) {
-        target->discoveryUrls = UA_malloc(sizeof(UA_String) * registeredServer->discoveryUrlsSize);
+        target->discoveryUrls = (UA_String *)UA_malloc(sizeof(UA_String) * registeredServer->discoveryUrlsSize);
         if (!target->discoveryUrls) {
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
@@ -115,7 +117,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     // check if client only requested a specific set of servers
     if (request->serverUrisSize) {
 
-        foundServerFilteredPointer = UA_malloc(sizeof(UA_RegisteredServer*) * server->registeredServersSize);
+        foundServerFilteredPointer = (UA_RegisteredServer **)UA_malloc(sizeof(UA_RegisteredServer*) * server->registeredServersSize);
         if(!foundServerFilteredPointer) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -159,8 +161,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 #endif
 
-    if (foundServersSize) {
-        foundServers = UA_malloc(sizeof(UA_ApplicationDescription) * foundServersSize);
+    if(foundServersSize) {
+        foundServers = (UA_ApplicationDescription *)UA_malloc(sizeof(UA_ApplicationDescription) * foundServersSize);
         if (!foundServers) {
             if (foundServerFilteredPointer)
                 UA_free(foundServerFilteredPointer);
@@ -185,7 +187,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                 foundServers[0].applicationType = UA_APPLICATIONTYPE_SERVER;
 
             /* add the discoveryUrls from the networklayers */
-            UA_String* disc = UA_realloc(foundServers[0].discoveryUrls, sizeof(UA_String) *
+            UA_String* disc = (UA_String *)UA_realloc(foundServers[0].discoveryUrls, sizeof(UA_String) *
                                                                                    (foundServers[0].discoveryUrlsSize +
                                                                                     server->config.networkLayersSize));
             if (!disc) {
@@ -267,7 +269,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
 #ifdef NO_ALLOCA
     UA_Boolean relevant_endpoints[server->endpointDescriptionsSize];
 #else
-    UA_Boolean *relevant_endpoints = UA_alloca(sizeof(UA_Boolean) * server->endpointDescriptionsSize);
+    UA_Boolean *relevant_endpoints = (UA_Boolean *)UA_alloca(sizeof(UA_Boolean) * server->endpointDescriptionsSize);
 #endif
     memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
     size_t relevant_count = 0;
@@ -300,7 +302,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session, const UA_GetEn
         nl_endpointurl = true;
     }
 
-    response->endpoints = UA_Array_new(relevant_count * clone_times, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    response->endpoints = (UA_EndpointDescription *)UA_Array_new(relevant_count * clone_times, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->endpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -797,7 +799,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "Registering new server: %.*s",
                              (int)requestServer->serverUri.length, requestServer->serverUri.data);
 
-        registeredServer_entry = UA_malloc(sizeof(registeredServer_list_entry));
+        registeredServer_entry = (registeredServer_list_entry *)UA_malloc(sizeof(registeredServer_list_entry));
         if(!registeredServer_entry) {
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -863,12 +865,14 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
         UA_Boolean semaphoreDeleted = UA_FALSE;
 
         if (current->registeredServer.semaphoreFilePath.length) {
-            char* filePath = malloc(sizeof(char)*current->registeredServer.semaphoreFilePath.length+1);
+            char* filePath = (char *)malloc(sizeof(char)*current->registeredServer.semaphoreFilePath.length+1);
             memcpy( filePath, current->registeredServer.semaphoreFilePath.data, current->registeredServer.semaphoreFilePath.length );
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-
-#ifdef _MSC_VER
-            semaphoreDeleted = _access( filePath, 0 ) == -1;
+#ifdef UNDER_CE
+           FILE *fp = fopen(filePath,"rb");
+		   semaphoreDeleted = (fp==NULL);
+		   if (fp)
+		     fclose(fp);
 #else
             semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
@@ -1295,11 +1299,11 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         assert(adapter_addresses);
 
         DWORD error = GetAdaptersAddresses(
-            AF_UNSPEC, 
+            AF_UNSPEC,
             GAA_FLAG_SKIP_ANYCAST |
                 GAA_FLAG_SKIP_DNS_SERVER |
-                GAA_FLAG_SKIP_FRIENDLY_NAME, 
-            NULL, 
+                GAA_FLAG_SKIP_FRIENDLY_NAME,
+            NULL,
             adapter_addresses,
             &adapter_addresses_buffer_size);
 
@@ -1339,7 +1343,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
         // Parse all IPv4 and IPv6 addresses
         for (
-            IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress; 
+            IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
             NULL != address;
             address = address->Next)
         {

@@ -13,20 +13,20 @@
 /*****************/
 
 UA_MonitoredItem * UA_MonitoredItem_new() {
-    UA_MonitoredItem *new = UA_malloc(sizeof(UA_MonitoredItem));
-    new->subscription = NULL;
-    new->currentQueueSize = 0;
-    new->maxQueueSize = 0;
-    new->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY; /* currently hardcoded */
-    new->timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
-    UA_String_init(&new->indexRange);
-    TAILQ_INIT(&new->queue);
-    UA_NodeId_init(&new->monitoredNodeId);
-    new->lastSampledValue = UA_BYTESTRING_NULL;
-    memset(&new->sampleJobGuid, 0, sizeof(UA_Guid));
-    new->sampleJobIsRegistered = false;
-    new->itemId = 0;
-    return new;
+    UA_MonitoredItem *newItem = (UA_MonitoredItem *)UA_malloc(sizeof(UA_MonitoredItem));
+    newItem->subscription = NULL;
+    newItem->currentQueueSize = 0;
+    newItem->maxQueueSize = 0;
+    newItem->monitoredItemType = UA_MONITOREDITEMTYPE_CHANGENOTIFY; /* currently hardcoded */
+    newItem->timestampsToReturn = UA_TIMESTAMPSTORETURN_SOURCE;
+    UA_String_init(&newItem->indexRange);
+    TAILQ_INIT(&newItem->queue);
+    UA_NodeId_init(&newItem->monitoredNodeId);
+    newItem->lastSampledValue = UA_BYTESTRING_NULL;
+    memset(&newItem->sampleJobGuid, 0, sizeof(UA_Guid));
+    newItem->sampleJobIsRegistered = false;
+    newItem->itemId = 0;
+    return newItem;
 }
 
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
@@ -54,7 +54,8 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
     if(mon->discardOldest)
         queueItem = TAILQ_FIRST(&mon->queue);
     else
-        queueItem = TAILQ_LAST(&mon->queue, QueueOfQueueDataValues);
+        queueItem = TAILQ_LAST(&mon->queue,
+                               memberstruct(UA_MonitoredItem,QueueOfQueueDataValues));
     UA_assert(queueItem); /* When the currentQueueSize > 0, then there is an item */
     TAILQ_REMOVE(&mon->queue, queueItem, listEntry);
     UA_DataValue_deleteMembers(&queueItem->value);
@@ -82,9 +83,13 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
         value->hasSourcePicoseconds = false;
     }
 
-    /* Encode the data for comparison */
+    /* Forward declare before goto */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    size_t encodingOffset = 0;
+    size_t binsize;
+
+    /* Encode the data for comparison */
+    binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(binsize == 0) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
@@ -98,7 +103,6 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
     }
 
     /* Encode the value */
-    size_t encodingOffset = 0;
     retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
                              NULL, NULL, encoding, &encodingOffset);
     if(retval != UA_STATUSCODE_GOOD)
@@ -147,10 +151,13 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     Service_Read_single(server, sub->session, ts, &rvid, &value);
 
     /* Stack-allocate some memory for the value encoding */
-    UA_Byte *stackValueEncoding = UA_alloca(UA_VALUENCODING_MAXSTACK);
+    UA_Byte *stackValueEncoding = (UA_Byte *)UA_alloca(UA_VALUENCODING_MAXSTACK);
     UA_ByteString valueEncoding;
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;
+
+    /* Forward declaration before goto */
+    MonitoredItem_queuedValue *newQueueItem;
 
     /* Has the value changed? */
     UA_Boolean changed = false;
@@ -160,7 +167,7 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
         goto cleanup;
 
     /* Allocate the entry for the publish queue */
-    MonitoredItem_queuedValue *newQueueItem = UA_malloc(sizeof(MonitoredItem_queuedValue));
+    newQueueItem = (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
     if(!newQueueItem) {
         UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                "Subscription %u | MonitoredItem %i | "
@@ -246,23 +253,24 @@ UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredI
 /****************/
 
 UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
-    UA_Subscription *new = UA_malloc(sizeof(UA_Subscription));
-    if(!new)
+    UA_Subscription *newItem = (UA_Subscription *)UA_malloc(sizeof(UA_Subscription));
+    if(!newItem)
         return NULL;
-    new->session = session;
-    new->subscriptionID = subscriptionID;
-    new->sequenceNumber = 0;
-    new->maxKeepAliveCount = 0;
-    new->publishingEnabled = false;
-    memset(&new->publishJobGuid, 0, sizeof(UA_Guid));
-    new->publishJobIsRegistered = false;
-    new->currentKeepAliveCount = 0;
-    new->currentLifetimeCount = 0;
-    new->lastMonitoredItemId = 0;
-    new->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
-    LIST_INIT(&new->retransmissionQueue);
-    LIST_INIT(&new->MonitoredItems);
-    return new;
+    newItem->session = session;
+    newItem->subscriptionID = subscriptionID;
+    newItem->sequenceNumber = 0;
+    newItem->maxKeepAliveCount = 0;
+    newItem->publishingEnabled = false;
+    memset(&newItem->publishJobGuid, 0, sizeof(UA_Guid));
+    newItem->publishJobIsRegistered = false;
+    newItem->currentKeepAliveCount = 0;
+    newItem->currentLifetimeCount = 0;
+    newItem->lastMonitoredItemId = 0;
+    newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
+    LIST_INIT(&newItem->monitoredItems);
+    TAILQ_INIT(&newItem->retransmissionQueue);
+    newItem->retransmissionQueueSize = 0;
+    return newItem;
 }
 
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
@@ -270,24 +278,25 @@ void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *ser
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &subscription->MonitoredItems, listEntry, tmp_mon) {
+    LIST_FOREACH_SAFE(mon, &subscription->monitoredItems, listEntry, tmp_mon) {
         LIST_REMOVE(mon, listEntry);
         MonitoredItem_delete(server, mon);
     }
 
     /* Delete Retransmission Queue */
     UA_NotificationMessageEntry *nme, *nme_tmp;
-    LIST_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
-        LIST_REMOVE(nme, listEntry);
+    TAILQ_FOREACH_SAFE(nme, &subscription->retransmissionQueue, listEntry, nme_tmp) {
+        TAILQ_REMOVE(&subscription->retransmissionQueue, nme, listEntry);
         UA_NotificationMessage_deleteMembers(&nme->message);
         UA_free(nme);
     }
+    subscription->retransmissionQueueSize = 0;
 }
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->itemId == monitoredItemID)
             break;
     }
@@ -298,7 +307,7 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemID) {
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->itemId == monitoredItemID) {
             LIST_REMOVE(mon, listEntry);
             MonitoredItem_delete(server, mon);
@@ -313,7 +322,7 @@ countQueuedNotifications(UA_Subscription *sub, UA_Boolean *moreNotifications) {
     size_t notifications = 0;
     if(sub->publishingEnabled) {
         UA_MonitoredItem *mon;
-        LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
             MonitoredItem_queuedValue *qv;
             TAILQ_FOREACH(qv, &mon->queue, listEntry) {
                 if(notifications >= sub->notificationsPerPublish) {
@@ -327,36 +336,75 @@ countQueuedNotifications(UA_Subscription *sub, UA_Boolean *moreNotifications) {
     return notifications;
 }
 
+static void
+UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub,
+                                         UA_NotificationMessageEntry *entry) {
+    /* Release the oldest entry if there is not enough space */
+    if(server->config.maxRetransmissionQueueSize > 0 &&
+       sub->retransmissionQueueSize >= server->config.maxRetransmissionQueueSize) {
+        UA_NotificationMessageEntry *lastentry =
+            TAILQ_LAST(&sub->retransmissionQueue,
+                       memberstruct(UA_Subscription,UA_ListOfNotificationMessages));
+        TAILQ_REMOVE(&sub->retransmissionQueue, lastentry, listEntry);
+        --sub->retransmissionQueueSize;
+        UA_NotificationMessage_deleteMembers(&lastentry->message);
+        UA_free(lastentry);
+    }
+
+    /* Add entry */
+    TAILQ_INSERT_HEAD(&sub->retransmissionQueue, entry, listEntry);
+    ++sub->retransmissionQueueSize;
+}
+
+UA_StatusCode
+UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber) {
+    UA_NotificationMessageEntry *entry, *entry_tmp;
+    TAILQ_FOREACH_SAFE(entry, &sub->retransmissionQueue, listEntry, entry_tmp) {
+        if(entry->message.sequenceNumber != sequenceNumber)
+            continue;
+        TAILQ_REMOVE(&sub->retransmissionQueue, entry, listEntry);
+        --sub->retransmissionQueueSize;
+        UA_NotificationMessage_deleteMembers(&entry->message);
+        UA_free(entry);
+        return UA_STATUSCODE_GOOD;
+    }
+    return UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
+}
+
 static UA_StatusCode
 prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message,
                            size_t notifications) {
     /* Array of ExtensionObject to hold different kinds of notifications
        (currently only DataChangeNotifications) */
-    message->notificationData = UA_Array_new(1, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    message->notificationData = (UA_ExtensionObject *)UA_Array_new(1, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     if(!message->notificationData)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     message->notificationDataSize = 1;
 
     /* Allocate Notification */
     UA_DataChangeNotification *dcn = UA_DataChangeNotification_new();
-    if(!dcn)
-        goto cleanup;
+    if(!dcn) {
+        UA_NotificationMessage_deleteMembers(message);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     UA_ExtensionObject *data = message->notificationData;
     data->encoding = UA_EXTENSIONOBJECT_DECODED;
     data->content.decoded.data = dcn;
     data->content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION];
 
     /* Allocate array of notifications */
-    dcn->monitoredItems =
+    dcn->monitoredItems = (UA_MonitoredItemNotification *)
         UA_Array_new(notifications, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
-    if(!dcn->monitoredItems)
-        goto cleanup;
+    if(!dcn->monitoredItems) {
+        UA_NotificationMessage_deleteMembers(message);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     dcn->monitoredItemsSize = notifications;
 
     /* Move notifications into the response .. the point of no return */
     size_t l = 0;
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->MonitoredItems, listEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         MonitoredItem_queuedValue *qv, *qv_tmp;
         TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
             if(l >= notifications)
@@ -371,10 +419,6 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
         }
     }
     return UA_STATUSCODE_GOOD;
-    
- cleanup:
-    UA_NotificationMessage_deleteMembers(message);
-    return UA_STATUSCODE_BADOUTOFMEMORY;
 }
 
 void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
@@ -426,7 +470,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_NotificationMessageEntry *retransmission = NULL;
     if(notifications > 0) {
         /* Allocate the retransmission entry */
-        retransmission = malloc(sizeof(UA_NotificationMessageEntry));
+        retransmission = (UA_NotificationMessageEntry *)malloc(sizeof(UA_NotificationMessageEntry));
         if(!retransmission) {
             UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
                                    "Subscription %u | Could not allocate memory "
@@ -466,23 +510,20 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
          * be done here, so that the message itself is included in the available
          * sequence numbers for acknowledgement. */
         retransmission->message = response->notificationMessage;
-        LIST_INSERT_HEAD(&sub->retransmissionQueue, retransmission, listEntry);
+        UA_Subscription_addRetransmissionMessage(server, sub, retransmission);
     }
 
     /* Get the available sequence numbers from the retransmission queue */
-    size_t available = 0;
-    UA_NotificationMessageEntry *nme;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry)
-        ++available;
-    // cppcheck-suppress knownConditionTrueFalse
+    size_t available = sub->retransmissionQueueSize;
     if(available > 0) {
-        response->availableSequenceNumbers = UA_alloca(available * sizeof(UA_UInt32));
+        response->availableSequenceNumbers = (UA_UInt32 *)UA_alloca(available * sizeof(UA_UInt32));
         response->availableSequenceNumbersSize = available;
-    }
-    size_t i = 0;
-    LIST_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
-        response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
-        ++i;
+        size_t i = 0;
+        UA_NotificationMessageEntry *nme;
+        TAILQ_FOREACH(nme, &sub->retransmissionQueue, listEntry) {
+            response->availableSequenceNumbers[i] = nme->message.sequenceNumber;
+            ++i;
+        }
     }
 
     /* Send the response */
@@ -496,7 +537,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
     sub->currentKeepAliveCount = 0;
     sub->currentLifetimeCount = 0;
-    
+
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
                     &UA_TYPES[UA_TYPES_UINT32]);

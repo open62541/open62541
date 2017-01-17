@@ -1,6 +1,10 @@
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_server_external_ns.h"
@@ -186,7 +190,8 @@ typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, 
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                                    const UA_ByteString *message);
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
@@ -210,6 +215,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
 UA_StatusCode
 parse_numericrange(const UA_String *str, UA_NumericRange *range);
 
+UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
+
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
@@ -227,8 +234,9 @@ UA_StatusCode
 getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+/* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -240,13 +248,13 @@ getNodeType(UA_Server *server, const UA_Node *node);
 /***************************************/
 
 UA_StatusCode
-readValueAttribute(const UA_VariableNode *vn, UA_DataValue *v);
+readValueAttribute(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v);
 
 UA_StatusCode
-typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
-               UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
-               const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
-               const UA_NumericRange *range, UA_Variant *equivalent);
+typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+               UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
+               const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
+               const UA_NumericRange *range, UA_Variant *editableValue);
 
 UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
@@ -259,7 +267,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
 UA_StatusCode
-writeValueRankAttribute(UA_VariableNode *node, UA_Int32 valueRank,
+writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
                         UA_Int32 constraintValueRank);
 
 UA_StatusCode
@@ -304,7 +312,11 @@ void Service_Call_single(UA_Server *server, UA_Session *session,
                          UA_CallMethodResult *result);
 
 /* Periodic task to clean up the discovery registry */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 

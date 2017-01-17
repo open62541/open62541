@@ -40,13 +40,13 @@ int main(int argc, char** argv) {
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
-    UA_StatusCode retval = UA_Server_run_startup(server);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */
     UA_Boolean waitInternal = false;
+
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     while(running) {
         /* timeout is the maximum possible delay (in millisec) until the next

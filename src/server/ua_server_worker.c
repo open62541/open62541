@@ -30,6 +30,10 @@
  * [1] Fraser, K. 2003. Practical lock freedom. Ph.D. thesis. Computer Laboratory, University of Cambridge.
  * [2] Hart, T. E., McKenney, P. E., Brown, A. D., & Walpole, J. (2007). Performance of memory reclamation
  *     for lockless synchronization. Journal of Parallel and Distributed Computing, 67(12), 1270-1285.
+ *
+ * Future Plans: Use work-stealing to load-balance between cores.
+ * [3] Le, Nhat Minh, et al. "Correct and efficient work-stealing for weak
+ *     memory models." ACM SIGPLAN Notices. Vol. 48. No. 8. ACM, 2013.
  */
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -51,10 +55,12 @@ processJob(UA_Server *server, UA_Job *job) {
         UA_Connection_detachSecureChannel(job->job.closeConnection);
         break;
     case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+        {
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                        &job->job.binaryMessage.message);
         UA_Connection *connection = job->job.binaryMessage.connection;
         connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+        }
         break;
     case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
@@ -159,39 +165,51 @@ struct RepeatedJob {
 
 /* internal. call only from the main loop. */
 static void
-addRepeatedJob(UA_Server *server, struct RepeatedJob * UA_RESTRICT rj)
-{
-    /* search for matching entry */
-    struct RepeatedJob *lastRj = NULL; /* Add after this entry or at LIST_HEAD if NULL */
-    struct RepeatedJob *tempRj = LIST_FIRST(&server->repeatedJobs);
-    while(tempRj) {
-        if(tempRj->nextTime > rj->nextTime)
+addRepeatedJob(UA_Server *server, struct RepeatedJob * UA_RESTRICT rj) {
+    /* Search for the best position on the repeatedJobs sorted list. The goal is
+     * to have many repeated jobs with the same repetition interval in a
+     * "block". This helps to reduce the (linear) search to find the next entry
+     * in the repeatedJobs list when dispatching the repeated jobs.
+     * For this, we search between "nexttime_max - 1s" and "nexttime_max" for
+     * entries with the same repetition interval and adjust the "nexttime".
+     * Otherwise, add entry after the first element before "nexttime_max". */
+    UA_DateTime nextTime_max = UA_DateTime_nowMonotonic() + (UA_Int64) rj->interval;
+
+    struct RepeatedJob *afterRj = NULL;
+    struct RepeatedJob *tmpRj;
+    LIST_FOREACH(tmpRj, &server->repeatedJobs, next) {
+        if(tmpRj->nextTime >= nextTime_max)
             break;
-        lastRj = tempRj;
-        tempRj = LIST_NEXT(lastRj, next);
+        if(tmpRj->interval == rj->interval &&
+           tmpRj->nextTime > (nextTime_max - UA_SEC_TO_DATETIME))
+            nextTime_max = tmpRj->nextTime; /* break in the next iteration */
+        afterRj = tmpRj;
     }
 
     /* add the repeated job */
-    if(lastRj)
-        LIST_INSERT_AFTER(lastRj, rj, next);
+    rj->nextTime = nextTime_max;
+    if(afterRj)
+        LIST_INSERT_AFTER(afterRj, rj, next);
     else
         LIST_INSERT_HEAD(&server->repeatedJobs, rj, next);
 }
 
 UA_StatusCode
 UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 intervalMs, UA_Guid *jobId) {
+                         UA_UInt32 interval, UA_Guid *jobId) {
     /* the interval needs to be at least 5ms */
-    if(intervalMs < 5)
+    if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt64 interval = (UA_UInt64)intervalMs * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
+    UA_UInt64 interval_dt =
+        (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
-    struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
+    struct RepeatedJob *rj = (struct RepeatedJob *)UA_malloc(sizeof(struct RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    rj->nextTime = UA_DateTime_nowMonotonic() + (UA_Int64) interval;
-    rj->interval = interval;
+    /* done inside addRepeatedJob:
+     * rj->nextTime = UA_DateTime_nowMonotonic() + interval_dt; */
+    rj->interval = interval_dt;
     rj->id = UA_Guid_random();
     rj->job = job;
 
@@ -215,10 +233,12 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Returns the next datetime when a repeated job is scheduled */
+/* - Dispatches all repeated jobs that have timed out
+ * - Reinserts dispatched job at their new position in the sorted list
+ * - Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime
-processRepeatedJobs(UA_Server *server, UA_DateTime current) {
-    /* Find the last job that is executed after this iteration */
+processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatched) {
+    /* Find the last job that is executed in this iteration */
     struct RepeatedJob *lastNow = NULL, *tmp;
     LIST_FOREACH(tmp, &server->repeatedJobs, next) {
         if(tmp->nextTime > current)
@@ -226,23 +246,28 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
         lastNow = tmp;
     }
 
-    /* Iterate over the list of elements (sorted according to the next execution timestamp) */
+    /* Keep pointer to the previously dispatched job to avoid linear search for
+     * "batched" jobs with the same nexttime and interval */
+    struct RepeatedJob tmp_last;
+    tmp_last.nextTime = current-1; /* never matches. just to avoid if(last_added && ...) */
+    struct RepeatedJob *last_dispatched = &tmp_last;
+
+    /* Iterate over the list of elements (sorted according to the nextTime timestamp) */
     struct RepeatedJob *rj, *tmp_rj;
     LIST_FOREACH_SAFE(rj, &server->repeatedJobs, next, tmp_rj) {
         if(rj->nextTime > current)
             break;
 
-        UA_assert(lastNow); /* at least one element at the current time */
-
         /* Dispatch/process job */
 #ifdef UA_ENABLE_MULTITHREADING
         dispatchJob(server, &rj->job);
+        *dispatched = true;
 #else
         struct RepeatedJob **previousNext = rj->next.le_prev;
         processJob(server, &rj->job);
         /* See if the current job was deleted during processJob. That means the
-           le_next field of the previous repeated job (could also be the list
-           head) does no longer point to the current repeated job */
+         * le_next field of the previous repeated job (could also be the list
+         * head) does no longer point to the current repeated job */
         if((void*)*previousNext != (void*)rj) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "The current repeated job removed itself");
@@ -252,23 +277,40 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current) {
 
         /* Set the time for the next execution */
         rj->nextTime += (UA_Int64)rj->interval;
-        if(rj->nextTime < current)
-            rj->nextTime = current + 1; /* prevent to rerun the job right now
-                                           when the repeated jobs took more time
-                                           than rj->interval */
 
-        /* Keep the list sorted */
-        struct RepeatedJob *prev_rj = lastNow;
-        while(true) {
-            struct RepeatedJob *n = LIST_NEXT(prev_rj, next);
-            if(!n || n->nextTime >= rj->nextTime)
-                break;
-            prev_rj = n;
+        /* Prevent an infinite loop when the repeated jobs took more time than
+         * rj->interval */
+        if(rj->nextTime < current)
+            rj->nextTime = current + 1;
+
+        /* Find new position for rj to keep the list sorted */
+        struct RepeatedJob *prev_rj;
+        if(last_dispatched->nextTime == rj->nextTime) {
+            /* We "batch" repeatedJobs with the same interval in
+             * addRepeatedJobs. So this might occur quite often. */
+            UA_assert(last_dispatched != &tmp_last);
+            prev_rj = last_dispatched;
+        } else {
+            /* Find the position by a linear search starting at the first
+             * possible job */
+            UA_assert(lastNow); /* Not NULL. Otherwise, we never reach this point. */
+            prev_rj = lastNow;
+            while(true) {
+                struct RepeatedJob *n = LIST_NEXT(prev_rj, next);
+                if(!n || n->nextTime >= rj->nextTime)
+                    break;
+                prev_rj = n;
+            }
         }
+
+        /* Add entry */
         if(prev_rj != rj) {
             LIST_REMOVE(rj, next);
             LIST_INSERT_AFTER(prev_rj, rj, next);
         }
+
+        /* Update last_dispatched and loop */
+        last_dispatched = rj;
     }
 
     /* Check if the next repeated job is sooner than the usual timeout */
@@ -334,7 +376,7 @@ typedef struct UA_DelayedJob {
 
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
-    UA_DelayedJob *dj = UA_malloc(sizeof(UA_DelayedJob));
+    UA_DelayedJob *dj = (UA_DelayedJob *)UA_malloc(sizeof(UA_DelayedJob));
     if(!dj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     dj->job.type = UA_JOBTYPE_METHODCALL;
@@ -606,7 +648,8 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #endif
     /* Process repeated work */
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime nextRepeated = processRepeatedJobs(server, now);
+    UA_Boolean dispatched = false; /* to wake up worker threads */
+    UA_DateTime nextRepeated = processRepeatedJobs(server, now, &dispatched);
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
@@ -641,18 +684,21 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         for(size_t j = 0; j < jobsSize; ++j) {
 #ifdef UA_ENABLE_MULTITHREADING
             dispatchJob(server, &jobs[j]);
+            dispatched = true;
 #else
             processJob(server, &jobs[j]);
 #endif
         }
 
-        if(jobsSize > 0) {
 #ifdef UA_ENABLE_MULTITHREADING
-            /* Wake up worker threads */
+        /* Wake up worker threads */
+        if(dispatched)
             pthread_cond_broadcast(&server->dispatchQueue_condition);
 #endif
+
+        /* Clean up jobs list */
+        if(jobsSize > 0)
             UA_free(jobs);
-        }
     }
 
 #ifndef UA_ENABLE_MULTITHREADING

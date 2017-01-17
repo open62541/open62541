@@ -6,7 +6,6 @@
  */
 
 #include <stdio.h>
-#include <inttypes.h>
 #include <stdlib.h>
 
 #ifdef UA_NO_AMALGAMATION
@@ -246,7 +245,7 @@ int main(void) {
 
         UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
-        char* discoveryUrl = malloc(sizeof(char)*description->discoveryUrls[0].length+1);
+        char* discoveryUrl = (char*)malloc(sizeof(char)*description->discoveryUrls[0].length+1);
         memcpy( discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length );
         discoveryUrl[description->discoveryUrls[0].length] = '\0';
 

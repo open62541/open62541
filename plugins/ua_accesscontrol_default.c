@@ -10,8 +10,8 @@
 #define USERNAME_POLICY "open62541-username-policy"
 
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
-const UA_String ap = UA_STRING_STATIC(ANONYMOUS_POLICY);
-const UA_String up = UA_STRING_STATIC(USERNAME_POLICY);
+const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
+const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
 UA_StatusCode
 activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *userIdentityToken,
@@ -23,12 +23,12 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
     /* anonymous login */
     if(enableAnonymousLogin &&
        userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        const UA_AnonymousIdentityToken *token = userIdentityToken->content.decoded.data;
+        const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken *)userIdentityToken->content.decoded.data;
 
         /* Compatibility notice: Siemens OPC Scout v10 provides an empty
          * policyId. This is not compliant. For compatibility we will assume
          * that empty policyId == ANONYMOUS_POLICY */
-        if(token->policyId.data && !UA_String_equal(&token->policyId, &ap))
+        if(token->policyId.data && !UA_String_equal(&token->policyId, &anonymous_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         *sessionHandle = NULL;
@@ -38,8 +38,8 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
     /* username and password */
     if(enableUsernamePasswordLogin &&
        userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *token = userIdentityToken->content.decoded.data;
-        if(!UA_String_equal(&token->policyId, &up))
+        const UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken *)userIdentityToken->content.decoded.data;
+        if(!UA_String_equal(&token->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         /* empty username and password */

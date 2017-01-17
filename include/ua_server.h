@@ -98,29 +98,46 @@ typedef struct {
     void (*closeSession)(const UA_NodeId *sessionId, void *sessionHandle);
 
     /* Access control for all nodes*/
-    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId,
+                                   void *sessionHandle,
+                                   const UA_NodeId *nodeId);
 
     /* Additional access control for variable nodes */
-    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_NodeId *nodeId);
 
     /* Additional access control for method nodes */
-    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId);
+    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_NodeId *methodId);
 
-    /* Additional access control for calling a method node in the context of a specific object */
-    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId, void *sessionHandle,
-                                            const UA_NodeId *methodId, const UA_NodeId *objectId);
+    /* Additional access control for calling a method node in the context of a
+     * specific object */
+    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId,
+                                            void *sessionHandle,
+                                            const UA_NodeId *methodId,
+                                            const UA_NodeId *objectId);
 
     /* Allow adding a node */
-    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
+    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId,
+                               void *sessionHandle,
+                               const UA_AddNodesItem *item);
 
     /* Allow adding a reference */
-    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddReferencesItem *item);
+    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_AddReferencesItem *item);
 
     /* Allow deleting a node */
-    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteNodesItem *item);
+    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_DeleteNodesItem *item);
 
     /* Allow deleting a reference */
-    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteReferencesItem *item);
+    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId,
+                                       void *sessionHandle,
+                                       const UA_DeleteReferencesItem *item);
 } UA_AccessControl;
 
 /**
@@ -156,6 +173,10 @@ typedef struct {
     UA_String *serverCapabilities;
 #endif
 
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
+
     /* Networking */
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
@@ -176,10 +197,11 @@ typedef struct {
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
+    UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
 
     /* Limits for MonitoredItems */
     UA_DoubleRange samplingIntervalLimits;
-    UA_UInt32Range queueSizeLimits;
+    UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 
 #ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
@@ -190,7 +212,6 @@ typedef struct {
     // The server will still be removed depending on the state of the semaphore file.
     UA_UInt32 discoveryCleanupTimeout;
 #endif
-
 } UA_ServerConfig;
 
 /* Add a new namespace to the server. Returns the index of the new namespace */
@@ -398,7 +419,7 @@ UA_Server_readArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
 
 static UA_INLINE UA_StatusCode
 UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                          UA_UInt32 *outAccessLevel) {
+                          UA_Byte *outAccessLevel) {
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                             outAccessLevel);
 }
@@ -459,7 +480,7 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value);
 UA_StatusCode UA_EXPORT
 __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
-                  const UA_DataType *type, const void *value);
+                  const UA_DataType *attr_type, const void *attr);
 
 static UA_INLINE UA_StatusCode
 UA_Server_writeBrowseName(UA_Server *server, const UA_NodeId nodeId,
@@ -540,9 +561,9 @@ UA_Server_writeArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
 
 static UA_INLINE UA_StatusCode
 UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_UInt32 accessLevel) {
+                           const UA_Byte accessLevel) {
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                             &UA_TYPES[UA_TYPES_UINT32], &accessLevel);
+                             &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
 }
 
 static UA_INLINE UA_StatusCode
@@ -762,14 +783,37 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
 /**
+ * .. _value-callback:
+ *
  * Value Callback
  * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not-null, they are called before reading and after writing respectively. */
 typedef struct {
+    /* Pointer to user-provided data for the callback */
     void *handle;
+
+    /* Called before the value attribute is read. It is possible to write into the
+     * value attribute during onRead (using the write service). The node is
+     * re-opened afterwards so that changes are considered in the following read
+     * operation.
+     *
+     * @param handle Points to user-provided data for the callback.
+     * @param nodeid The identifier of the node.
+     * @param data Points to the current node value.
+     * @param range Points to the numeric range the client wants to read from
+     *        (or NULL). */
     void (*onRead)(void *handle, const UA_NodeId nodeid,
                    const UA_Variant *data, const UA_NumericRange *range);
+
+    /* Called after writing the value attribute. The node is re-opened after
+     * writing so that the new value is visible in the callback.
+     *
+     * @param handle Points to user-provided data for the callback.
+     * @param nodeid The identifier of the node.
+     * @param data Points to the current node value (after writing).
+     * @param range Points to the numeric range the client wants to write to (or
+     *        NULL). */
     void (*onWrite)(void *handle, const UA_NodeId nodeid,
                     const UA_Variant *data, const UA_NumericRange *range);
 } UA_ValueCallback;
@@ -820,12 +864,21 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
  * When creating dynamic node instances at runtime, chances are that you will
  * not care about the specific NodeId of the new node, as long as you can
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
- * the stack evaluates this as "select a randome free NodeId in that namespace".
- * To find out which NodeId was actually assigned to the new node, you may pass
- * a pointer `outNewNodeId`, which will (after a successfull node insertion)
- * contain the nodeId of the new node. You may also pass NULL pointer if this
- * result is not relevant. The namespace index for nodes you create should never
- * be 0, as that index is reserved for OPC UA's self-description (namespace 0). */
+ * the stack evaluates this as "select a random unassigned numeric NodeId in
+ * that namespace". To find out which NodeId was actually assigned to the new
+ * node, you may pass a pointer `outNewNodeId`, which will (after a successfull
+ * node insertion) contain the nodeId of the new node. You may also pass NULL
+ * pointer if this result is not relevant. The namespace index for nodes you
+ * create should never be 0, as that index is reserved for OPC UA's
+ * self-description (namespace * 0).
+ *
+ * The methods for node addition and deletion take mostly const arguments that
+ * are not modified. When creating a node, a deep copy of the node identifier,
+ * node attributes, etc. is created. Therefore, it is possible to call for
+ * example `UA_Server_addVariablenode` with a value attribute (a :ref:`variant`)
+ * pointing to a memory location on the stack. If you need changes to a variable
+ * value to manifest at a specific memory location, please use a
+ * :ref:`datasource` or a :ref:`value-callback`. */
 /* The instantiation callback is used to track the addition of new nodes. It is
  * also called for all sub-nodes contained in an object or variable type node
  * that is instantiated. */

@@ -407,7 +407,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     void *request = UA_alloca(requestType->memSize);
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
-    retval = UA_decodeBinary(msg, offset, request, requestType);
+    retval = UA_decodeBinary(msg, offset, request, requestType,
+                             server->config.customDataTypesSize,
+                             server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not decode the request");
         sendError(channel, msg, requestPos, responseType, requestId, retval);
@@ -421,7 +423,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
-        Service_CreateSession(server, channel, request, response);
+        Service_CreateSession(server, channel,
+			                  (const UA_CreateSessionRequest *)request,
+							  (UA_CreateSessionResponse *)response);
         goto send_response;
     }
 
@@ -441,7 +445,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             UA_deleteMembers(request, requestType);
             return;
         }
-        Service_ActivateSession(server, channel, session, request, response);
+        Service_ActivateSession(server, channel, session,
+			                    (const UA_ActivateSessionRequest*)request,
+								(UA_ActivateSessionResponse*)response);
         goto send_response;
     }
 
@@ -492,7 +498,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        Service_Publish(server, session, request, requestId);
+        Service_Publish(server, session,
+			            (const UA_PublishRequest*)request, requestId);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -587,8 +594,9 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             retval = UA_UInt32_decodeBinary(message, &offset, &channelId);
             if(retval != UA_STATUSCODE_GOOD)
                 connection->close(connection);
-            UA_ByteString offsetMessage = (UA_ByteString){
-                .data = message->data + 12, .length = message->length - 12};
+            UA_ByteString offsetMessage;
+			offsetMessage.data = message->data + 12;
+			offsetMessage.length = message->length - 12;
             processOPN(server, connection, channelId, &offsetMessage);
             break; }
         case UA_MESSAGETYPE_MSG:

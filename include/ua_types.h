@@ -20,7 +20,6 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
-#include <stdbool.h>
 
 /**
  * .. _types:
@@ -327,6 +326,9 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
 
+/* Returns a non-cryptographic hash for the NodeId */
+UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
+
 /** The following functions are shorthand for creating NodeIds. */
 static UA_INLINE UA_NodeId
 UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
@@ -510,15 +512,17 @@ typedef struct UA_NumericRange UA_NumericRange;
 
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
-typedef struct {
-    const UA_DataType *type;      /* The data type description */
-    enum {
+typedef enum {
         UA_VARIANT_DATA,          /* The data has the same lifecycle as the
                                      variant */
         UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and
                                      shall not be deleted at the end of the
                                      variant's lifecycle. */
-    } storageType;
+} UA_VariantStorageType;
+
+typedef struct {
+    const UA_DataType *type;      /* The data type description */
+    UA_VariantStorageType storageType;
     size_t arrayLength;           /* The number of elements in the data array */
     void *data;                   /* Points to the scalar or array data */
     size_t arrayDimensionsSize;   /* The number of dimensions */
@@ -654,8 +658,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
  * are described. If the received data type is unkown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
-typedef struct {
-    enum {
+typedef enum {
         UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
         UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
         UA_EXTENSIONOBJECT_ENCODED_XML        = 2,
@@ -663,7 +666,10 @@ typedef struct {
         UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4 /* Don't delete the content
                                                      together with the
                                                      ExtensionObject */
-    } encoding;
+} UA_ExtensionObjectEncoding;
+
+typedef struct {
+    UA_ExtensionObjectEncoding encoding;
     union {
         struct {
             UA_NodeId typeId;   /* The nodeid of the datatype */
@@ -757,8 +763,8 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */

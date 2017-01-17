@@ -38,9 +38,9 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
 
     client->state = UA_CLIENTSTATE_READY;
-    client->connection = UA_malloc(sizeof(UA_Connection));
+    client->connection = (UA_Connection*)UA_malloc(sizeof(UA_Connection));
     memset(client->connection, 0, sizeof(UA_Connection));
-    client->channel = UA_malloc(sizeof(UA_SecureChannel));
+    client->channel = (UA_SecureChannel*)UA_malloc(sizeof(UA_SecureChannel));
     UA_SecureChannel_init(client->channel);
     client->channel->connection = client->connection;
     client->authenticationMethod = UA_CLIENTAUTHENTICATION_NONE;
@@ -52,7 +52,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
 }
 
 UA_Client * UA_Client_new(UA_ClientConfig config) {
-    UA_Client *client = UA_calloc(1, sizeof(UA_Client));
+    UA_Client *client = (UA_Client*)UA_calloc(1, sizeof(UA_Client));
     if(!client)
         return NULL;
 
@@ -330,8 +330,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
-           to DateTime=Int64 we take 75% of lifetime to start renewing as
-           described in standard */
+         * to DateTime=Int64 we take 75% of lifetime to start renewing as
+         *  described in standard */
         client->scRenewAt = UA_DateTime_now() +
             (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
 
@@ -341,12 +341,13 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         UA_ByteString_deleteMembers(&client->channel->serverNonce);
         UA_ByteString_copy(&response.serverNonce, &client->channel->serverNonce);
 
-        if(renew)
+        if(renew) {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel renewed");
-        else
+        } else {
             UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "SecureChannel opened");
+        }
     } else {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "SecureChannel could not be opened / "
@@ -367,14 +368,14 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     //manual ExtensionObject encoding of the identityToken
     if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE) {
-        UA_AnonymousIdentityToken* identityToken = UA_malloc(sizeof(UA_AnonymousIdentityToken));
+        UA_AnonymousIdentityToken* identityToken = UA_AnonymousIdentityToken_new();
         UA_AnonymousIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
         request.userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN];
         request.userIdentityToken.content.decoded.data = identityToken;
     } else {
-        UA_UserNameIdentityToken* identityToken = UA_malloc(sizeof(UA_UserNameIdentityToken));
+        UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
         UA_UserNameIdentityToken_init(identityToken);
         UA_String_copy(&client->token.policyId, &identityToken->policyId);
         UA_String_copy(&client->username, &identityToken->userName);
@@ -455,20 +456,26 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
-        endpointFound = true;
+        
         /* endpoint with no security found */
+        endpointFound = true;
+       
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-            //anonymous authentication
-            if(client->authenticationMethod == UA_CLIENTAUTHENTICATION_NONE){
-                if(userToken->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
-                    continue;
-            }else{
-            //username authentication
-                if(userToken->tokenType != UA_USERTOKENTYPE_USERNAME)
-                    continue;
-            }
+
+            /* Usertokens also have a security policy... */
+            if(userToken->securityPolicyUri.length > 0 &&
+               !UA_String_equal(&userToken->securityPolicyUri, &securityNone))
+                continue;
+
+            /* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
+             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME
+             * TODO: Check equivalence for other types when adding the support */
+            if((int)client->authenticationMethod != (int)userToken->tokenType)
+                continue;
+
+            /* Endpoint with matching usertokenpolicy found */
             tokenFound = true;
             UA_UserTokenPolicy_copy(userToken, &client->token);
             break;
@@ -718,9 +725,18 @@ static void
 processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
+	const UA_NodeId expectedNodeId =
+        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+    const UA_NodeId serviceFaultNodeId =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
+
+    /* Forward declaration for the goto */
+    size_t offset = 0;
+    UA_NodeId responseId;
 
     if(messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -741,12 +757,6 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Check that the response type matches */
-    const UA_NodeId expectedNodeId =
-        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
-    const UA_NodeId serviceFaultNodeId =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
-    size_t offset = 0;
-    UA_NodeId responseId;
     retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;
@@ -754,7 +764,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
         if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
             /* Take the statuscode from the servicefault */
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
         } else {
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i."
@@ -768,7 +778,9 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType);
+    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
+                             rd->client->config.customDataTypesSize,
+                             rd->client->config.customDataTypes);
 
  finish:
     if(retval == UA_STATUSCODE_GOOD) {
@@ -784,7 +796,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
 }
 
 void
-__UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *requestType,
+__UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *requestType,
                     void *response, const UA_DataType *responseType) {
     UA_init(response, responseType);
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
@@ -798,31 +810,30 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
     }
 
     /* Handling request parameters */
-    //here const *r is 'violated'
-    UA_RequestHeader *request = (void*)(uintptr_t)r;
-    UA_NodeId_copy(&client->authenticationToken, &request->authenticationToken);
-    request->timestamp = UA_DateTime_now();
-    request->requestHandle = ++client->requestHandle;
+    //here const *request is 'violated'
+    UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
+    UA_NodeId_copy(&client->authenticationToken, &rr->authenticationToken);
+    rr->timestamp = UA_DateTime_now();
+    rr->requestHandle = ++client->requestHandle;
 
     /* Send the request */
     UA_UInt32 requestId = ++client->requestId;
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Sending a request of type %i", requestType->typeId.identifier.numeric);
-    retval = UA_SecureChannel_sendBinaryMessage(client->channel, requestId, request, requestType);
+    retval = UA_SecureChannel_sendBinaryMessage(client->channel, requestId, rr, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
         if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED)
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
         client->state = UA_CLIENTSTATE_ERRORED;
-        UA_NodeId_deleteMembers(&request->authenticationToken);
+        UA_NodeId_deleteMembers(&rr->authenticationToken);
         return;
     }
 
     /* Prepare the response and the structure we give into processServiceResponse */
     UA_init(response, responseType);
-    struct ResponseDescription rd = (struct ResponseDescription){
-        client, false, requestId, response, responseType};
+    struct ResponseDescription rd = {client, false, requestId, response, responseType};
 
     /* Retrieve the response */
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (client->config.timeout * UA_MSEC_TO_DATETIME);
@@ -850,5 +861,5 @@ __UA_Client_Service(UA_Client *client, const void *r, const UA_DataType *request
         else
             UA_ByteString_deleteMembers(&reply);
     } while(!rd.processed);
-    UA_NodeId_deleteMembers(&request->authenticationToken);
+    UA_NodeId_deleteMembers(&rr->authenticationToken);
 }

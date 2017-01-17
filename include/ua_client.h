@@ -55,6 +55,10 @@ typedef struct UA_ClientConfig {
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
+
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
 } UA_ClientConfig;
 
 /**

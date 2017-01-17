@@ -79,8 +79,10 @@ int main(int argc, char** argv) {
     UA_Int32 myInteger = 42;
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_DataSource dateDataSource = (UA_DataSource) {
-            .handle = &myInteger, .read = readInteger, .write = writeInteger};
+    UA_DataSource dateDataSource;
+	dateDataSource.handle = &myInteger;
+	dateDataSource.read = readInteger;
+	dateDataSource.write = writeInteger;
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     attr.description = UA_LOCALIZEDTEXT("en_US","the answer");

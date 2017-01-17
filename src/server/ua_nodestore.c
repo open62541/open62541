@@ -20,11 +20,9 @@ struct UA_NodeStore {
     UA_UInt32 sizePrimeIndex;
 };
 
-#include "ua_nodestore_hash.inc"
-
 /* The size of the hash-map is always a prime number. They are chosen to be
  * close to the next power of 2. So the size ca. doubles with each prime. */
-static hash_t const primes[] = {
+static UA_UInt32 const primes[] = {
     7,         13,         31,         61,         127,         251,
     509,       1021,       2039,       4093,       8191,        16381,
     32749,     65521,      131071,     262139,     524287,      1048573,
@@ -32,10 +30,13 @@ static hash_t const primes[] = {
     134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
 };
 
+static UA_UInt32 mod(UA_UInt32 h, UA_UInt32 size) { return h % size; }
+static UA_UInt32 mod2(UA_UInt32 h, UA_UInt32 size) { return 1 + (h % (size - 2)); }
+
 static UA_UInt16
-higher_prime_index(hash_t n) {
+higher_prime_index(UA_UInt32 n) {
     UA_UInt16 low  = 0;
-    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(hash_t));
+    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(UA_UInt32));
     while(low != high) {
         UA_UInt16 mid = (UA_UInt16)(low + ((high - low) / 2));
         if(n > primes[mid])
@@ -77,7 +78,7 @@ instantiateEntry(UA_NodeClass nodeClass) {
     default:
         return NULL;
     }
-    UA_NodeStoreEntry *entry = UA_calloc(1, size);
+    UA_NodeStoreEntry *entry = (UA_NodeStoreEntry *)UA_calloc(1, size);
     if(!entry)
         return NULL;
     entry->node.nodeClass = nodeClass;
@@ -93,10 +94,10 @@ deleteEntry(UA_NodeStoreEntry *entry) {
 /* returns slot of a valid node or null */
 static UA_NodeStoreEntry **
 findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -117,10 +118,10 @@ findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
 /* returns an empty slot or null if the nodeid exists */
 static UA_NodeStoreEntry **
 findSlot(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -151,7 +152,7 @@ expand(UA_NodeStore *ns) {
     UA_NodeStoreEntry **oentries = ns->entries;
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_UInt32 nsize = primes[nindex];
-    UA_NodeStoreEntry **nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
+    UA_NodeStoreEntry **nentries = (UA_NodeStoreEntry **)UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
     if(!nentries)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -178,13 +179,13 @@ expand(UA_NodeStore *ns) {
 
 UA_NodeStore *
 UA_NodeStore_new(void) {
-    UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
+    UA_NodeStore *ns = (UA_NodeStore *)UA_malloc(sizeof(UA_NodeStore));
     if(!ns)
         return NULL;
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
-    ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
+    ns->entries = (UA_NodeStoreEntry **)UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
     if(!ns->entries) {
         UA_free(ns);
         return NULL;
@@ -205,8 +206,8 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
 }
 
 UA_Node *
-UA_NodeStore_newNode(UA_NodeClass class) {
-    UA_NodeStoreEntry *entry = instantiateEntry(class);
+UA_NodeStore_newNode(UA_NodeClass nodeClass) {
+    UA_NodeStoreEntry *entry = instantiateEntry(nodeClass);
     if(!entry)
         return NULL;
     return &entry->node;
@@ -236,7 +237,7 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
             node->nodeId.namespaceIndex = 1;
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
-        hash_t increase = mod2(identifier, size);
+        UA_UInt32 increase = mod2(identifier, size);
         while(true) {
             node->nodeId.identifier.numeric = identifier;
             entry = findSlot(ns, &node->nodeId);
@@ -289,15 +290,15 @@ UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     if(!slot)
         return NULL;
     UA_NodeStoreEntry *entry = *slot;
-    UA_NodeStoreEntry *new = instantiateEntry(entry->node.nodeClass);
-    if(!new)
+    UA_NodeStoreEntry *newItem = instantiateEntry(entry->node.nodeClass);
+    if(!newItem)
         return NULL;
-    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
-        deleteEntry(new);
+    if(UA_Node_copyAnyNodeClass(&entry->node, &newItem->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(newItem);
         return NULL;
     }
-    new->orig = entry; // store the pointer to the original
-    return &new->node;
+    newItem->orig = entry; // store the pointer to the original
+    return &newItem->node;
 }
 
 UA_StatusCode

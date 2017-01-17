@@ -168,18 +168,18 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 
 static UA_INLINE UA_StatusCode
 UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_UInt32 *outAccessLevel) {
+                                   UA_Byte *outAccessLevel) {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                     outAccessLevel, &UA_TYPES[UA_TYPES_UINT32]);
+                                     outAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
 UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_UInt32 *outUserAccessLevel) {
+                                       UA_Byte *outUserAccessLevel) {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_USERACCESSLEVEL,
                                      outUserAccessLevel,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
+                                     &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
@@ -349,18 +349,18 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_UInt32 *newAccessLevel) {
+                                    const UA_Byte *newAccessLevel) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                      newAccessLevel, &UA_TYPES[UA_TYPES_UINT32]);
+                                      newAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_UInt32 *newUserAccessLevel) {
+                                        const UA_Byte *newUserAccessLevel) {
     return __UA_Client_writeAttribute(client, &nodeId,
                                       UA_ATTRIBUTEID_USERACCESSLEVEL,
                                       newUserAccessLevel,
-                                      &UA_TYPES[UA_TYPES_UINT32]);
+                                      &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
@@ -589,8 +589,8 @@ UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
                                          UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction hFunc,
-                                         void *handlingContext,
+                                         UA_MonitoredItemHandlingFunction hf,
+                                         void *hfContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT

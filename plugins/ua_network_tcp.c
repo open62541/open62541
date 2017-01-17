@@ -17,8 +17,13 @@
 #include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
+#if UNDER_CE
+#define errno WSAGetLastError()
+#endif
 #ifdef _WIN32
-# include <malloc.h>
+# ifndef __clang__
+#  include <malloc.h>
+# endif
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY
 #  undef SLIST_ENTRY
@@ -119,7 +124,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
 
 static UA_StatusCode
 socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
-    response->data = malloc(connection->localConf.recvBufferSize);
+    response->data = (UA_Byte *)malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
@@ -174,21 +179,24 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
                        connection->localConf.recvBufferSize, 0);
 #endif
 
+    /* server has closed the connection */
     if(ret == 0) {
-        /* server has closed the connection */
         UA_ByteString_deleteMembers(response);
         socket_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    } else if(ret < 0) {
+    }
+
+    /* error case */
+    if(ret < 0) {
         UA_ByteString_deleteMembers(response);
         if(errno__ == INTERRUPTED || (timeout > 0) ?
            false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
-        else {
-            socket_close(connection);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
+        socket_close(connection);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
+    
+    /* default case */
     response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
@@ -251,6 +259,11 @@ static void FreeConnectionCallback(UA_Server *server, void *ptr) {
 #define MAXBACKLOG 100
 
 typedef struct {
+  UA_Connection *connection;
+  UA_Int32 sockfd;
+} ConnectionMapping;
+
+typedef struct {
     UA_ConnectionConfig conf;
     UA_UInt16 port;
     UA_Logger logger; // Set during start
@@ -258,10 +271,7 @@ typedef struct {
     /* open sockets and connections */
     UA_Int32 serversockfd;
     size_t mappingsSize;
-    struct ConnectionMapping {
-        UA_Connection *connection;
-        UA_Int32 sockfd;
-    } *mappings;
+    ConnectionMapping *mappings;
 } ServerNetworkLayerTCP;
 
 static UA_StatusCode
@@ -308,7 +318,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
 #endif
 #if UA_LOGLEVEL <= 300
    //cppcheck-suppress unreadVariable
-    ServerNetworkLayerTCP *layer = connection->handle;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)connection->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                 "Connection %i | Force closing the connection",
                 connection->sockfd);
@@ -321,7 +331,7 @@ ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
 /* call only from the single networking thread */
 static UA_StatusCode
 ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
-    UA_Connection *c = malloc(sizeof(UA_Connection));
+    UA_Connection *c = (UA_Connection *)malloc(sizeof(UA_Connection));
     if(!c)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -331,7 +341,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     if(res == 0) {
         UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New connection over TCP from %s:%d",
-            newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+                    newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     } else {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Connection %i | New connection over TCP, "
@@ -348,8 +358,8 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     c->releaseSendBuffer = ServerNetworkLayerReleaseSendBuffer;
     c->releaseRecvBuffer = ServerNetworkLayerReleaseRecvBuffer;
     c->state = UA_CONNECTION_OPENING;
-    struct ConnectionMapping *nm;
-    nm = realloc(layer->mappings, sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
+    ConnectionMapping *nm;
+    nm  = (ConnectionMapping *)realloc(layer->mappings, sizeof(ConnectionMapping)*(layer->mappingsSize+1));
     if(!nm) {
         UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK, "No memory for a new Connection");
         free(c);
@@ -364,7 +374,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 
 static UA_StatusCode
 ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
-    ServerNetworkLayerTCP *layer = nl->handle;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
     layer->logger = logger;
 
     /* get the discovery url from the hostname */
@@ -408,9 +418,11 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     }
 
     /* Bind socket to address */
-    const struct sockaddr_in serv_addr = {
-        .sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(layer->port), .sin_zero = {0}};
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(layer->port);
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    memset(&(serv_addr.sin_zero), '\0', 8);
     if(bind(newsock, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Error during binding of the server socket");
@@ -435,7 +447,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
 
 static size_t
 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout) {
-    ServerNetworkLayerTCP *layer = nl->handle;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
     fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
@@ -460,7 +472,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
             /* Send messages directly and do wait to merge packets (disable
                Nagle's algorithm) */
             int i = 1;
-            setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (void *)&i, sizeof(i));
+            setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&i, sizeof(i));
             ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd);
         }
     }
@@ -469,7 +481,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
        resulted socket */
     if(resultsize == 0)
         return 0;
-    UA_Job *js = malloc(sizeof(UA_Job) * (size_t)resultsize * 2);
+    UA_Job *js = (UA_Job*)malloc(sizeof(UA_Job) * (size_t)resultsize * 2);
     if(!js)
         return 0;
 
@@ -515,13 +527,13 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
 
 static size_t
 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
-    ServerNetworkLayerTCP *layer = nl->handle;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
     UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                 "Shutting down the TCP network layer with %d open connection(s)",
                 layer->mappingsSize);
     shutdown((SOCKET)layer->serversockfd,2);
     CLOSESOCKET(layer->serversockfd);
-    UA_Job *items = malloc(sizeof(UA_Job) * layer->mappingsSize * 2);
+    UA_Job *items = (UA_Job *)malloc(sizeof(UA_Job) * layer->mappingsSize * 2);
     if(!items)
         return 0;
     for(size_t i = 0; i < layer->mappingsSize; ++i) {
@@ -541,7 +553,7 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
 
 /* run only when the server is stopped */
 static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
-    ServerNetworkLayerTCP *layer = nl->handle;
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
     free(layer->mappings);
     free(layer);
     UA_String_deleteMembers(&nl->discoveryUrl);
@@ -558,7 +570,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    ServerNetworkLayerTCP *layer = calloc(1,sizeof(ServerNetworkLayerTCP));
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
     
@@ -606,7 +618,7 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
+UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
                        UA_Logger logger) {
 #ifdef _WIN32
     WORD wVersionRequested;
@@ -618,8 +630,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig localConf, const char *endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_OPENING;
-    connection.localConf = localConf;
-    connection.remoteConf = localConf;
+    connection.localConf = conf;
+    connection.remoteConf = conf;
     connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;
