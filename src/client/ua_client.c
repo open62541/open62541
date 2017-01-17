@@ -449,8 +449,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
-        //NODE: Siemens returns empty ProfileUrl, we will accept it as binary
-        if(endpoint->transportProfileUri.length!=0 &&
+        /* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
+        if(endpoint->transportProfileUri.length != 0 &&
            !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
         /* look out for an endpoint without security */
@@ -488,12 +488,11 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     if(!endpointFound) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(!tokenFound) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    } else if(!tokenFound) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "No anonymous token found");
-        return UA_STATUSCODE_BADINTERNALERROR;
+                     "No suitable UserTokenPolicy found for the possible endpoints");
+        retval = UA_STATUSCODE_BADINTERNALERROR;
     }
     return retval;
 }
