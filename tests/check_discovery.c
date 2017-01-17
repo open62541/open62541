@@ -346,7 +346,7 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
     ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
 
     for (size_t i=0; i<expectedServerNamesSize; i++) {
-        char* serverName = malloc(sizeof(char)*serverOnNetwork[i].serverName.length+1);
+        char* serverName = malloc(sizeof(char) * serverOnNetwork[i].serverName.length+1);
         memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
         serverName[serverOnNetwork[i].serverName.length] = '\0';
         ck_assert_str_eq(serverName, expectedServerNames[i]);
@@ -411,9 +411,10 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
 
     ck_assert_uint_eq(endpointArraySize , expectedEndpointUrlsSize);
 
-    for(size_t j = 0; j < endpointArraySize; j++) {
+    for(size_t j = 0; j < endpointArraySize && j < expectedEndpointUrlsSize; j++) {
         UA_EndpointDescription* endpoint = &endpointArray[j];
         char *eu = UA_String_to_char_alloc(&endpoint->endpointUrl);
+        ck_assert_ptr_ne(eu, NULL); // clang static analysis fix
         ck_assert_str_eq(eu, expectedEndpointUrls[j]);
         free(eu);
     }
