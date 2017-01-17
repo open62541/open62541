@@ -69,8 +69,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 	UA_STRING_STATIC_NULL, /* .serverCertificate */
 #ifdef UA_ENABLE_DISCOVERY
 	UA_STRING_STATIC_NULL, /* mdnsServerName */
-	NULL, /* serverCapabilities */
 	0, /* serverCapabilitiesSize */
+	NULL, /* serverCapabilities */
 #endif
 
 	/* Custom DataTypes */
