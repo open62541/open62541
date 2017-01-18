@@ -1,6 +1,12 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
-#include "queue.h"
+
+#ifdef _WIN32
+/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY
+# endif
+#endif
 
 /**
  * There are four types of job execution:
