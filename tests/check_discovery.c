@@ -345,12 +345,12 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
     // only the discovery server is expected
     ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
 
-    if (serverOnNetworkSize > 0) {
+    if (expectedServerNamesSize > 0) {
         ck_assert_ptr_ne(serverOnNetwork, NULL);
     }
 
     for (size_t i=0; i<expectedServerNamesSize; i++) {
-        char* serverName = malloc(sizeof(char) * serverOnNetwork[i].serverName.length+1);
+        char* serverName = malloc(sizeof(char) * (serverOnNetwork[i].serverName.length+1));
         memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
         serverName[serverOnNetwork[i].serverName.length] = '\0';
         ck_assert_str_eq(serverName, expectedServerNames[i]);
