@@ -1,5 +1,6 @@
 #include "ua_util.h"
 #include "ua_server_internal.h"
+#include "queue.h"
 
 /**
  * There are four types of job execution:
