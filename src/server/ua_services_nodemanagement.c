@@ -701,7 +701,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         UA_InstantiationCallback *instantiationCallback) {
     /* Create the node from the attributes*/
-    UA_Node *node;
+    UA_Node *node = NULL;
     result->statusCode = createNodeFromAttributes(server, item, &node);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
