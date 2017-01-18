@@ -23,7 +23,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if(NOT ${OPEN62541_VER_COMMIT})
+if("${OPEN62541_VER_COMMIT}" STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
@@ -42,6 +42,7 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -113,7 +114,7 @@ mark_as_advanced(UA_COMPILE_AS_CXX)
 
 list(APPEND open62541_LIBRARIES "") # Collect libraries
 
-if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
@@ -186,10 +187,10 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
@@ -247,6 +248,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
                 ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+                ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
@@ -265,6 +267,9 @@ if(UA_ENABLE_GENERATE_NAMESPACE0)
   list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
+if(UA_ENABLE_EXTERNAL_NAMESPACES)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
+endif()
 if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
 endif()

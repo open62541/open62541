@@ -15,11 +15,11 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL;
-const UA_ByteString UA_BYTESTRING_NULL;
-const UA_Guid UA_GUID_NULL;
-const UA_NodeId UA_NODEID_NULL;
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+const UA_String UA_STRING_NULL = {0, NULL};
+const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
+const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
+const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
 /* TODO: The standard-defined types are ordered. See if binary search is more
  * efficient. */
@@ -589,7 +589,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
     uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
     if(nextrange.dimensionsSize == 0) {
         /* no nextrange */
-        if(src->type->fixedSize) {
+        if(src->type->pointerFree) {
             for(size_t i = 0; i < block_count; ++i) {
                 memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
                 nextdst += block * elem_size;
@@ -682,7 +682,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     size_t elem_size = v->type->memSize;
     uintptr_t nextdst = (uintptr_t)v->data + (first * elem_size);
     uintptr_t nextsrc = (uintptr_t)array;
-    if(v->type->fixedSize || !copy) {
+    if(v->type->pointerFree || !copy) {
         for(size_t i = 0; i < block_count; ++i) {
             memcpy((void*)nextdst, (void*)nextsrc, elem_size * block);
             nextsrc += block * elem_size;
@@ -701,7 +701,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
     }
 
     /* If members were moved, initialize original array to prevent reuse */
-    if(!copy && !v->type->fixedSize)
+    if(!copy && !v->type->pointerFree)
         memset(array, 0, sizeof(elem_size)*arraySize);
 
     return retval;
@@ -1001,7 +1001,7 @@ UA_Array_copy(const void *src, size_t size,
     if(!*dst)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    if(type->fixedSize) {
+    if(type->pointerFree) {
         memcpy(*dst, src, type->memSize * size);
         return UA_STATUSCODE_GOOD;
     }
@@ -1023,7 +1023,7 @@ UA_Array_copy(const void *src, size_t size,
 
 void
 UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
-    if(!type->fixedSize) {
+    if(!type->pointerFree) {
         uintptr_t ptr = (uintptr_t)p;
         for(size_t i = 0; i < size; ++i) {
             UA_deleteMembers((void*)ptr, type);

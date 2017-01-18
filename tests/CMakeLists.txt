@@ -11,7 +11,7 @@ if(UA_ENABLE_VALGRIND_UNIT_TESTS)
     find_package(Valgrind REQUIRED)
 endif()
 
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES} open62541)
 if(NOT WIN32)
   list(APPEND LIBS pthread m)
   if(NOT APPLE)
@@ -52,6 +52,10 @@ add_test_valgrind(types_memory ${CMAKE_CURRENT_BINARY_DIR}/check_types_memory)
 add_executable(check_types_range check_types_range.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_types_range ${LIBS})
 add_test_valgrind(types_range ${CMAKE_CURRENT_BINARY_DIR}/check_types_range)
+
+add_executable(check_types_custom check_types_custom.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_types_custom ${LIBS})
+add_test_valgrind(types_custom ${CMAKE_CURRENT_BINARY_DIR}/check_types_custom)
 
 add_executable(check_chunking check_chunking.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_chunking ${LIBS})
@@ -94,6 +98,10 @@ add_test_valgrind(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_job
 add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_server_userspace ${LIBS})
 add_test_valgrind(check_server_userspace ${CMAKE_CURRENT_BINARY_DIR}/check_server_userspace)
+
+add_executable(check_discovery check_discovery.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_discovery ${LIBS})
+add_test_valgrind(discovery ${CMAKE_CURRENT_BINARY_DIR}/check_discovery)
 
 # Test server with network dumps from files
 

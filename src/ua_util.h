@@ -3,12 +3,23 @@
 
 #include "ua_config.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Assert */
 #include <assert.h>
 #define UA_assert(ignore) assert(ignore)
 
 /* BSD Queue Macros */
 #include "queue.h"
+
+/* C++ Access to datatypes defined inside structs (for queue.h) */
+#ifdef __cplusplus
+# define memberstruct(container,member) container::member
+#else
+# define memberstruct(container,member) member
+#endif
 
 /* container_of */
 #define container_of(ptr, type, member) \
@@ -90,5 +101,9 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 # endif
 #endif
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_UTIL_H_ */

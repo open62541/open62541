@@ -1,6 +1,10 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
@@ -105,5 +109,9 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
                  (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SECURECHANNEL_H_ */

@@ -38,7 +38,7 @@ static UA_ByteString loadCertificate(void) {
 
     fseek(fp, 0, SEEK_END);
     certificate.length = (size_t)ftell(fp);
-    certificate.data = malloc(certificate.length*sizeof(UA_Byte));
+    certificate.data = (UA_Byte*)malloc(certificate.length*sizeof(UA_Byte));
     if(!certificate.data)
         return certificate;
 
@@ -77,7 +77,8 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
-helloWorld(void *methodHandle, const UA_NodeId objectId,
+helloWorld(void *methodHandle, const UA_NodeId *objectId,
+           const UA_NodeId *sessionId, void *sessionHandle,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
@@ -85,7 +86,7 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
     UA_String hello = UA_STRING("Hello ");
     UA_String greet;
     greet.length = hello.length + name->length;
-    greet.data = malloc(greet.length);
+    greet.data = (UA_Byte*)malloc(greet.length);
     memcpy(greet.data, hello.data, hello.length);
     memcpy(greet.data + hello.length, name->data, name->length);
     UA_Variant_setScalarCopy(output, &greet, &UA_TYPES[UA_TYPES_STRING]);
@@ -94,16 +95,18 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
 }
 
 static UA_StatusCode
-noargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+noargMethod(void *methodHandle, const UA_NodeId *objectId,
+            const UA_NodeId *sessionId, void *sessionHandle,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-outargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+outargMethod(void *methodHandle, const UA_NodeId *objectId,
+            const UA_NodeId *sessionId, void *sessionHandle,
+             size_t inputSize, const UA_Variant *input,
+             size_t outputSize, UA_Variant *output) {
     UA_Int32 out = 42;
     UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_INT32]);
     return UA_STATUSCODE_GOOD;
@@ -140,7 +143,10 @@ int main(int argc, char** argv) {
     UA_Variant_deleteMembers(&myVar.value);
 
     /* add a variable with the datetime data source */
-    UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
+    UA_DataSource dateDataSource;
+	dateDataSource.handle = NULL;
+	dateDataSource.read = readTimeData;
+	dateDataSource.write = NULL;
     UA_VariableAttributes v_attr;
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
@@ -265,7 +271,7 @@ int main(int argc, char** argv) {
 
         /* add an matrix node for every built-in type */
         void* myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
-        attr.value.arrayDimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+        attr.value.arrayDimensions = (UA_UInt32*)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
         attr.value.arrayDimensions[1] = 3;
         attr.value.arrayDimensionsSize = 2;

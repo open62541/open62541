@@ -72,7 +72,7 @@ START_TEST(encodeShallYieldDecode) {
 
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
-    pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
+    pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i], 0, NULL); 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
@@ -110,7 +110,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     void *obj2 = UA_new(&UA_TYPES[_i]);
     msg1.length = pos / 2;
     pos = 0;
-    retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
+    retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i], 0, NULL); 
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg1);
@@ -143,7 +143,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES[_i].typeId.identifier.numeric);
         // finally
@@ -177,7 +177,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 

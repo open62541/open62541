@@ -763,8 +763,8 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */
