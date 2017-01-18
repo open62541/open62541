@@ -195,12 +195,12 @@ START_TEST(DeleteObjectAndReferences) {
     
     UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
-    UA_Boolean found = false;
+    size_t refCount = 0;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
-            found = true;
+            refCount++;
     }
-    ck_assert_int_eq(found, true);
+    ck_assert_int_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 
     /* Delete the object */
@@ -209,12 +209,32 @@ START_TEST(DeleteObjectAndReferences) {
     /* Browse again, this time we expect that no reference is found */
     br = UA_Server_browse(server, 0, &bd);
     ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
-    found = false;
+    refCount = 0;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
-            found = true;
+            refCount++;
     }
-    ck_assert_int_eq(found, false);
+    ck_assert_int_eq(refCount, 0);
+    UA_BrowseResult_deleteMembers(&br);
+
+    /* Add an object the second time */
+    UA_ObjectAttributes_init(&attr);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US","my object");
+    objectid = UA_NODEID_NUMERIC(0, 23372337);
+    res = UA_Server_addObjectNode(server, objectid, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_QUALIFIEDNAME(0, ""),
+                                  UA_NODEID_NULL, attr, NULL, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Browse again, this time we expect that a single reference to the node is found */
+    refCount = 0;
+    br = UA_Server_browse(server, 0, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < br.referencesSize; ++i) {
+        if(UA_NodeId_equal(&br.references[i].nodeId.nodeId, &objectid))
+            refCount++;
+    }
+    ck_assert_int_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
 
     UA_Server_delete(server);
