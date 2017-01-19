@@ -116,19 +116,34 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_RCU_LOCK();
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
     if(!parent) {
         UA_RCU_UNLOCK();
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
-    for(size_t i = 0; i < parent->referencesSize; ++i) {
-        UA_ReferenceNode *ref = &parent->references[i];
+
+    /* TODO: We need to do an ugly copy of the references array since users may
+     * delete references from within the callback. In single-threaded mode this
+     * changes the same node we point at here. In multi-threaded mode, this
+     * creates a new copy as nodes are truly immutable. */
+    UA_ReferenceNode *refs = NULL;
+    size_t refssize = parent->referencesSize;
+    UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
+                                         (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_RCU_UNLOCK();
+        return retval;
+    }
+
+    for(size_t i = parent->referencesSize; i > 0; --i) {
+        UA_ReferenceNode *ref = &refs[i-1];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
     UA_RCU_UNLOCK();
+
+    UA_Array_delete(refs, refssize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     return retval;
 }
 
