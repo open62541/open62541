@@ -44,7 +44,7 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
     for(size_t i = 0; i < argReqsSize; ++i)
         retval |= typeCheckValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
                                  argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                                 &args[i], NULL, args);
+                                 &args[i], NULL, &args[i]);
     return retval;
 }
 
@@ -134,7 +134,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     const UA_VariableNode *outputArguments =
         getArgumentsVariableNode(server, methodCalled, UA_STRING("OutputArguments"));
     if(outputArguments) {
-        result->outputArguments = UA_Array_new(outputArguments->value.data.value.value.arrayLength,
+        result->outputArguments = (UA_Variant*)UA_Array_new(outputArguments->value.data.value.value.arrayLength,
                                                &UA_TYPES[UA_TYPES_VARIANT]);
         if(!result->outputArguments) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -167,7 +167,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    response->results = (UA_CallMethodResult*)UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

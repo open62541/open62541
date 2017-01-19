@@ -23,8 +23,8 @@ if [ ! -e "$TAG.zip" ]; then
     cat head.txt rawtable.txt foot.txt > index.html
 
     #create a zip for single-file release and copy the files
-    cp ../../open62541.c .
-    cp ../../open62541.h .
+    cp ../../../open62541.c .
+    cp ../../../open62541.h .
     cp ../../../doc_latex/open62541.pdf .
     zip -r "$TAG.zip" open62541.c open62541.h open62541.pdf
     rm open62541.c

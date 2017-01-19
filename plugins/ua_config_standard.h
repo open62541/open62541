@@ -4,13 +4,13 @@
 #ifndef UA_CONFIG_STANDARD_H_
 #define UA_CONFIG_STANDARD_H_
 
-#include "ua_server.h"
-#include "ua_client.h"
-#include "ua_client_highlevel.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "ua_server.h"
+#include "ua_client.h"
+#include "ua_client_highlevel.h"
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;

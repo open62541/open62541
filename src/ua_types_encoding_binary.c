@@ -968,7 +968,7 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
         return retval;
     if(encodingByte == 0)
         return UA_STATUSCODE_GOOD; /* empty Variant (was already _inited) */
-    UA_Boolean isArray = encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
+    UA_Boolean isArray = (encodingByte & UA_VARIANT_ENCODINGMASKTYPE_ARRAY) > 0;
     size_t typeIndex = (size_t)((encodingByte & UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
     if(typeIndex > 24) /* the type must be builtin (maybe wrapped in an extensionobject) */
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1040,9 +1040,11 @@ Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
 static UA_StatusCode
 DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     UA_Byte encodingMask = (UA_Byte)
-        (src->hasValue | (src->hasStatus << 1) | (src->hasSourceTimestamp << 2) |
-         (src->hasServerTimestamp << 3) | (src->hasSourcePicoseconds << 4) |
-         (src->hasServerPicoseconds << 5));
+        ((UA_Byte)src->hasValue | ((UA_Byte)src->hasStatus << 1) |
+		((UA_Byte)src->hasSourceTimestamp << 2) |
+        ((UA_Byte)src->hasServerTimestamp << 3) |
+		((UA_Byte)src->hasSourcePicoseconds << 4) |
+        ((UA_Byte)src->hasServerPicoseconds << 5));
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
     if(src->hasValue)
         retval |= Variant_encodeBinary(&src->value, NULL);
@@ -1101,9 +1103,9 @@ DataValue_decodeBinary(UA_DataValue *dst, const UA_DataType *_) {
 static UA_StatusCode
 DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_) {
     UA_Byte encodingMask = (UA_Byte)
-        (src->hasSymbolicId | (src->hasNamespaceUri << 1) |
-         (src->hasLocalizedText << 2) | (src->hasLocale << 3) |
-         (src->hasAdditionalInfo << 4) | (src->hasInnerDiagnosticInfo << 5));
+        ((UA_Byte)src->hasSymbolicId | ((UA_Byte)src->hasNamespaceUri << 1) |
+         ((UA_Byte)src->hasLocalizedText << 2) | ((UA_Byte)src->hasLocale << 3) |
+         ((UA_Byte)src->hasAdditionalInfo << 4) | ((UA_Byte)src->hasInnerDiagnosticInfo << 5));
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
     if(src->hasSymbolicId)
         retval |= Int32_encodeBinary(&src->symbolicId);
