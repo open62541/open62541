@@ -1141,6 +1141,23 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
 /* Delete Nodes */
 /****************/
 
+/* In the single-threaded case, references are removed in the node (even though
+ * it appears to be const here). We always delete the last element. And then
+ * reread the node. */
+static void
+removeReferences(UA_Server *server, UA_Session *session, const volatile UA_Node *node) {
+    UA_DeleteReferencesItem item;
+    UA_DeleteReferencesItem_init(&item);
+    item.sourceNodeId = node->nodeId;
+    item.deleteBidirectional = true;
+    for(size_t refs = node->referencesSize; refs > 0; --refs) {
+        item.isForward = !node->references[refs - 1].isInverse;
+        item.targetNodeId.nodeId = node->references[refs - 1].targetId.nodeId;
+        item.referenceTypeId = node->references[refs - 1].referenceTypeId;
+        Service_DeleteReferences_single(server, session, &item);
+    }
+}
+
 UA_StatusCode
 Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
                            const UA_NodeId *nodeId, UA_Boolean deleteReferences) {
@@ -1148,7 +1165,9 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-    /* destroy an object before removing it */
+    /* TODO: check if consistency is violated */
+
+    /* Destroy an object before removing it */
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
         /* find the object type(s) */
         UA_BrowseDescription bd;
@@ -1165,18 +1184,10 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
             typenode->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
     }
 
-    /* remove references */
-    /* TODO: check if consistency is violated */
-    if(deleteReferences == true) { 
-        for(size_t i = 0; i < node->referencesSize; ++i) {
-            UA_DeleteReferencesItem item;
-            UA_DeleteReferencesItem_init(&item);
-            item.isForward = node->references[i].isInverse;
-            item.sourceNodeId = node->references[i].targetId.nodeId;
-            item.targetNodeId.nodeId = node->nodeId;
-            UA_Server_editNode(server, session, &node->references[i].targetId.nodeId,
-                               (UA_EditNodeCallback)deleteOneWayReference, &item);
-        }
+    /* Remove references */
+    if(deleteReferences) {
+        removeReferences(server, session, node);
+        UA_assert(node->referencesSize == 0);
     }
 
     return UA_NodeStore_remove(server->nodestore, nodeId);
@@ -1265,6 +1276,7 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
     secondItem.isForward = !item->isForward;
     secondItem.sourceNodeId = item->targetNodeId.nodeId;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    secondItem.referenceTypeId = item->referenceTypeId;
     return UA_Server_editNode(server, session, &secondItem.sourceNodeId,
                               (UA_EditNodeCallback)deleteOneWayReference, &secondItem);
 }

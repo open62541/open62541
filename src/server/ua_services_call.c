@@ -44,7 +44,7 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
     for(size_t i = 0; i < argReqsSize; ++i)
         retval |= typeCheckValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
                                  argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                                 &args[i], NULL, args);
+                                 &args[i], NULL, &args[i]);
     return retval;
 }
 
