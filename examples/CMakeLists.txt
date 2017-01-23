@@ -1,6 +1,15 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+#######
+
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
 else()
