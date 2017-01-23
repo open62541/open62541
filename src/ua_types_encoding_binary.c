@@ -778,31 +778,10 @@ findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
 /* ExtensionObject */
 static UA_StatusCode
 ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_) {
-    UA_StatusCode retval;
     UA_Byte encoding = src->encoding;
-    if(encoding > UA_EXTENSIONOBJECT_ENCODED_XML) {
-        if(!src->content.decoded.type || !src->content.decoded.data)
-            return UA_STATUSCODE_BADENCODINGERROR;
-        UA_NodeId typeId = src->content.decoded.type->typeId;
-        if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-            return UA_STATUSCODE_BADENCODINGERROR;
-        typeId.identifier.numeric= src->content.decoded.type->binaryEncodingId;
-        encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-        retval = NodeId_encodeBinary(&typeId, NULL);
-        retval |= Byte_encodeBinary(&encoding, NULL);
-        UA_Byte *old_pos = pos; /* save the position to encode the length afterwards */
-        pos += 4; /* jump over the length field */
-        const UA_DataType *type = src->content.decoded.type;
-        size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-        retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, type);
-        /* jump back, encode the length, jump back forward */
-        UA_Int32 length = (UA_Int32)(((uintptr_t)pos - (uintptr_t)old_pos) / sizeof(UA_Byte)) - 4;
-        UA_Byte *new_pos = pos;
-        pos = old_pos;
-        retval |= Int32_encodeBinary(&length);
-        pos = new_pos;
-    } else {
-        retval = NodeId_encodeBinary(&src->content.encoded.typeId, NULL);
+    /* No content or already encoded content */
+    if(encoding <= UA_EXTENSIONOBJECT_ENCODED_XML) {
+        UA_StatusCode retval = NodeId_encodeBinary(&src->content.encoded.typeId, NULL);
         retval |= Byte_encodeBinary(&encoding, NULL);
         switch (src->encoding) {
         case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
@@ -812,9 +791,37 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
             retval |= ByteString_encodeBinary(&src->content.encoded.body);
             break;
         default:
-            return UA_STATUSCODE_BADINTERNALERROR;
+            retval = UA_STATUSCODE_BADINTERNALERROR;
         }
+        return retval;
     }
+
+    /* Cannot encode with no data or no type description */
+    if(!src->content.decoded.type || !src->content.decoded.data)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    /* Write the NodeId for the binary encoded type */
+    UA_NodeId typeId = src->content.decoded.type->typeId;
+    if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    typeId.identifier.numeric = src->content.decoded.type->binaryEncodingId;
+    UA_StatusCode retval = NodeId_encodeBinary(&typeId, NULL);
+
+    /* Write the encoding byte */
+    encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+    retval |= Byte_encodeBinary(&encoding, NULL);
+
+    /* Write the length of the following content */
+    const UA_DataType *type = src->content.decoded.type;
+    size_t len = UA_calcSizeBinary(src->content.decoded.data, type);
+    if(len > UA_INT32_MAX)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    UA_Int32 signed_len = (UA_Int32)len;
+    retval |= Int32_encodeBinary(&signed_len);
+
+    /* Encode the content */
+    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
+    retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, type);
     return retval;
 }
 
@@ -909,7 +916,7 @@ Variant_encodeBinary(UA_Variant const *src, const UA_DataType *_) {
     } else {
         /* Wrap not-builtin elements into an extensionobject */
         if(src->arrayDimensionsSize > UA_INT32_MAX)
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return UA_STATUSCODE_BADENCODINGERROR;
         size_t length = 1;
         if(isArray) {
             length = src->arrayLength;
