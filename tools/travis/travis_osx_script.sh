@@ -18,7 +18,7 @@ else
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_DOCUMENTATION=ON -DUA_GENERATE_SELFSIGNED=ON ..
     make -j8
-    tar -pczf open62541-osx.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md ../bin/examples/server ../bin/examples/client libopen62541.a open62541.h open62541.c
+    tar -pczf open62541-osx.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md ../bin/examples/server ../bin/examples/client ../bin/libopen62541.a open62541.h open62541.c
     cp open62541-osx.tar.gz ..
     cp open62541.h .. #copy single file-release
     cp open62541.c .. #copy single file-release
