@@ -1,64 +1,9 @@
 #include "ua_nodestore_switch.h"
 #include "ua_util.h"
+#include "ua_server_internal.h"
 
-//returns true if NSIndex is ok.
-static UA_Boolean //TODO return the nodeStoreIndex instead (-1 for wrong namespaceindex)
-checkNSIndex(UA_NodestoreSwitch* nodestoreSwitch, const UA_UInt16 nsi_index) {
-    return (UA_Boolean) (nodestoreSwitch->nodestoreInterfacesSize > nsi_index);
-}
-
-UA_NodestoreSwitch *
-UA_NodestoreSwitch_new(){
-    UA_NodestoreSwitch* nodestoreSwitch = UA_malloc(sizeof(UA_NodestoreSwitch));
-    nodestoreSwitch->nodestoreInterfacesSize = 0;
-    nodestoreSwitch->nodestoreInterfaces = NULL;
-    return nodestoreSwitch;
-}
-
-void
-UA_NodestoreSwitch_delete(UA_NodestoreSwitch* nodestoreSwitch){
-    UA_UInt16 size = nodestoreSwitch->nodestoreInterfacesSize;
-    for(UA_UInt16 i = 0; i < size; i++) {
-        nodestoreSwitch->nodestoreInterfaces[i]->deleteNodeStore(
-        nodestoreSwitch->nodestoreInterfaces[i]->handle);
-    }
-    UA_free(nodestoreSwitch->nodestoreInterfaces);
-    UA_free(nodestoreSwitch);
-}
-
-
-UA_Boolean
-UA_NodestoreSwitch_add(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface) {
-    if(!nodestoreInterface){
-        return UA_FALSE;
-    }
-    size_t size = nodestoreSwitch->nodestoreInterfacesSize;
-    UA_NodestoreInterface** new_nsis =
-            UA_realloc(nodestoreSwitch->nodestoreInterfaces,
-               sizeof(UA_NodestoreInterface*) * (size + 1));
-    if(!new_nsis) {
-        return UA_FALSE;//UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    nodestoreSwitch->nodestoreInterfaces = new_nsis;
-    nodestoreSwitch->nodestoreInterfaces[size] = nodestoreInterface;
-    nodestoreSwitch->nodestoreInterfacesSize++;
-    return UA_TRUE;//UA_STATUSCODE_GOOD;
-}
-
-UA_Boolean
-UA_NodestoreSwitch_change(UA_NodestoreSwitch* nodestoreSwitch, UA_NodestoreInterface *nodestoreInterface, UA_UInt16 nodestoreInterfaceIndex) {
-    if(nodestoreInterface && checkNSIndex(nodestoreSwitch, nodestoreInterfaceIndex)){
-        return UA_FALSE;
-    }
-    nodestoreSwitch->nodestoreInterfaces[nodestoreInterfaceIndex] = nodestoreInterface;
-    return UA_TRUE;//UA_STATUSCODE_GOOD;
-}
-UA_NodestoreInterface *
-UA_NodestoreSwitch_getNodestoreForNamespace(UA_NodestoreSwitch* nodestoreSwitch, UA_UInt16 namespaceIndex){
-    if(checkNSIndex(nodestoreSwitch, namespaceIndex)){
-        return nodestoreSwitch->nodestoreInterfaces[namespaceIndex];
-    }
-    return NULL;
+static UA_Boolean checkNSIndex(UA_Server* server, UA_UInt16 nsIdx){
+    return (UA_Boolean) (nsIdx < (UA_UInt16)server->namespacesSize);
 }
 
 /*
@@ -66,70 +11,70 @@ UA_NodestoreSwitch_getNodestoreForNamespace(UA_NodestoreSwitch* nodestoreSwitch,
  */
 
 UA_Node *
-UA_NodestoreSwitch_newNode(UA_NodestoreSwitch* nodestoreSwitch, UA_NodeClass nodeClass, UA_UInt16 namespaceIndex) {
-    if(!checkNSIndex(nodestoreSwitch, namespaceIndex)){
+UA_NodestoreSwitch_newNode(UA_Server* server, UA_NodeClass nodeClass, UA_UInt16 namespaceIndex) {
+    if(!checkNSIndex(server, namespaceIndex)){
         return NULL;
     }
-    return nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->newNode(nodeClass);
+    return server->namespaces[namespaceIndex].nodestore->newNode(nodeClass);
 }
 
 void
-UA_NodestoreSwitch_deleteNode(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node){
-    if(checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
-        nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->deleteNode(node);
+UA_NodestoreSwitch_deleteNode(UA_Server* server, UA_Node *node){
+    if(checkNSIndex(server, node->nodeId.namespaceIndex)){
+        return server->namespaces[node->nodeId.namespaceIndex].nodestore->deleteNode(node);
     }
 }
 
 UA_StatusCode
-UA_NodestoreSwitch_insert(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node,
-        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
-    if(!checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
+UA_NodestoreSwitch_insertNode(UA_Server* server, UA_Node *node,
+        UA_NodeId *addedNodeId) {
+    if(!checkNSIndex(server, node->nodeId.namespaceIndex)){
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    return nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->insert(
-            nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node, parentNodeId, addedNodeId);
+    return server->namespaces[node->nodeId.namespaceIndex].nodestore->insertNode(
+            server->namespaces[node->nodeId.namespaceIndex].nodestore->handle, node, addedNodeId);
 }
 const UA_Node *
-UA_NodestoreSwitch_get(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *nodeId) {
-    if(!checkNSIndex(nodestoreSwitch, nodeId->namespaceIndex)){
+UA_NodestoreSwitch_getNode(UA_Server* server, const UA_NodeId *nodeId) {
+    if(!checkNSIndex(server, nodeId->namespaceIndex)){
         return NULL;
     }
-    return nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->get(
-                    nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->handle, nodeId);
+    return server->namespaces[nodeId->namespaceIndex].nodestore->getNode(
+            server->namespaces[nodeId->namespaceIndex].nodestore->handle, nodeId);
 }
 UA_Node *
-UA_NodestoreSwitch_getCopy(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *nodeId) {
-    if(!checkNSIndex(nodestoreSwitch, nodeId->namespaceIndex)){
+UA_NodestoreSwitch_getNodeCopy(UA_Server* server, const UA_NodeId *nodeId) {
+    if(!checkNSIndex(server, nodeId->namespaceIndex)){
         return NULL;
     }
-    return nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->getCopy(
-            nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->handle, nodeId);
+    return server->namespaces[nodeId->namespaceIndex].nodestore->getNodeCopy(
+            server->namespaces[nodeId->namespaceIndex].nodestore->handle, nodeId);
 }
 UA_StatusCode
-UA_NodestoreSwitch_replace(UA_NodestoreSwitch* nodestoreSwitch, UA_Node *node) {
-    if(!checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
+UA_NodestoreSwitch_replaceNode(UA_Server* server, UA_Node *node) {
+    if(!checkNSIndex(server, node->nodeId.namespaceIndex)){
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    return nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->replace(
-            nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node);
+    return server->namespaces[node->nodeId.namespaceIndex].nodestore->replaceNode(
+            server->namespaces[node->nodeId.namespaceIndex].nodestore->handle, node);
 }
 UA_StatusCode
-UA_NodestoreSwitch_remove(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *nodeId) {
-    if(!checkNSIndex(nodestoreSwitch, nodeId->namespaceIndex)){
+UA_NodestoreSwitch_removeNode(UA_Server* server, const UA_NodeId *nodeId) {
+    if(!checkNSIndex(server, nodeId->namespaceIndex)){
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    return nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->remove(
-            nodestoreSwitch->nodestoreInterfaces[nodeId->namespaceIndex]->handle, nodeId);
+    return server->namespaces[nodeId->namespaceIndex].nodestore->removeNode(
+            server->namespaces[nodeId->namespaceIndex].nodestore->handle, nodeId);
 }
-void UA_NodestoreSwitch_iterate(UA_NodestoreSwitch* nodestoreSwitch, UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex){
-    if(checkNSIndex(nodestoreSwitch, namespaceIndex)){
-        nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->iterate(
-                nodestoreSwitch->nodestoreInterfaces[namespaceIndex]->handle, visitor);
+void UA_NodestoreSwitch_iterate(UA_Server* server, UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex){
+    if(checkNSIndex(server, namespaceIndex)){
+        server->namespaces[namespaceIndex].nodestore->iterate(
+                server->namespaces[namespaceIndex].nodestore->handle, visitor);
     }
 }
-void UA_NodestoreSwitch_release(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *node){
-    if(node && checkNSIndex(nodestoreSwitch, node->nodeId.namespaceIndex)){
-        nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->release(
-                nodestoreSwitch->nodestoreInterfaces[node->nodeId.namespaceIndex]->handle, node);
+void UA_NodestoreSwitch_releaseNode(UA_Server* server, const UA_Node *node){
+    if(node && checkNSIndex(server, node->nodeId.namespaceIndex)){
+        server->namespaces[node->nodeId.namespaceIndex].nodestore->releaseNode(
+                server->namespaces[node->nodeId.namespaceIndex].nodestore->handle, node);
     }
 }

@@ -80,6 +80,8 @@ struct UA_Client {
     
     /* Config */
     UA_ClientConfig config;
+    size_t namespacesSize;
+    UA_Namespace *namespaces;
     UA_DateTime scRenewAt;
 };
 

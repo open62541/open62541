@@ -187,7 +187,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
 
     /* Has the value a subtype of the required type? */
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(isNodeInTree(server->nodestoreSwitch, &value->type->typeId, targetDataTypeId, &subtypeId, 1))
+    if(isNodeInTree(server, &value->type->typeId, targetDataTypeId, &subtypeId, 1))
         goto check_array;
 
     /* Try to convert to a matching value if this is wanted */
@@ -254,11 +254,11 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_VariableNode *node,
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Array dimensions in the variable type do not match");
-            UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vt);
+            UA_NodestoreSwitch_releaseNode(server, (const UA_Node*)vt);
             return retval;
         }
     }
-    UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vt);
+    UA_NodestoreSwitch_releaseNode(server, (const UA_Node*)vt);
 
     /* Check if the current value is compatible with the array dimensions */
     UA_DataValue value;
@@ -300,7 +300,7 @@ writeValueRankAttributeWithVT(UA_Server *server, UA_VariableNode *node,
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_StatusCode retVal = writeValueRankAttribute(server, node, valueRank, vt->valueRank);
-    UA_NodestoreSwitch_release(server->nodestoreSwitch,(const UA_Node*)vt);
+    UA_NodestoreSwitch_releaseNode(server,(const UA_Node*)vt);
     return retVal;
 }
 
@@ -374,7 +374,7 @@ writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_StatusCode retVal = writeDataTypeAttribute(server, node, dataType, &vt->dataType);
-    UA_NodestoreSwitch_release(server->nodestoreSwitch,(const UA_Node*)vt);
+    UA_NodestoreSwitch_releaseNode(server,(const UA_Node*)vt);
     return retVal;
 }
 
@@ -390,7 +390,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
 
     /* Does the new type match the constraints of the variabletype? */
     UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(!isNodeInTree(server->nodestoreSwitch, dataType,
+    if(!isNodeInTree(server, dataType,
                      constraintDataType, &subtypeId, 1))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
@@ -435,8 +435,8 @@ readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn, UA_Data
                                        vn->nodeId, &vn->value.data.value.value, rangeptr);
 #ifdef UA_ENABLE_MULTITHREADING
         /* Reopen the node to see the changes (multithreading only) */
-        UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*) vn);
-        vn = (const UA_VariableNode*)UA_NodestoreSwitch_get(server->nodestoreSwitch, &vn->nodeId);
+        UA_NodestoreSwitch_releaseNode(server, (const UA_Node*) vn);
+        vn = (const UA_VariableNode*)UA_NodestoreSwitch_getNode(server, &vn->nodeId);
 #endif
     }
     if(rangeptr)
@@ -578,10 +578,10 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
         /* Callback after writing */
         if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite) {
             /* Reopen the node to see the changes */
-            const UA_VariableNode *writtenNode = (const UA_VariableNode*)UA_NodestoreSwitch_get(server->nodestoreSwitch, &node->nodeId);
+            const UA_VariableNode *writtenNode = (const UA_VariableNode*)UA_NodestoreSwitch_getNode(server, &node->nodeId);
             writtenNode->value.data.callback.onWrite(writtenNode->value.data.callback.handle, writtenNode->nodeId,
                                                      &writtenNode->value.data.value.value, rangeptr);
-            UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*) writtenNode);
+            UA_NodestoreSwitch_releaseNode(server, (const UA_Node*) writtenNode);
         }
     } else {
         if(node->value.dataSource.write)
@@ -681,7 +681,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     }
 
     /* Get the node */
-    const UA_Node *node = UA_NodestoreSwitch_get(server->nodestoreSwitch, &id->nodeId);
+    const UA_Node *node = UA_NodestoreSwitch_getNode(server, &id->nodeId);
     if(!node) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -788,7 +788,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
-    UA_NodestoreSwitch_release(server->nodestoreSwitch, node);
+    UA_NodestoreSwitch_releaseNode(server, node);
 
     /* Return error code when reading has failed */
     if(retval != UA_STATUSCODE_GOOD) {

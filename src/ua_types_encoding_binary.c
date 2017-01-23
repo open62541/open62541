@@ -50,8 +50,9 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-UA_THREAD_LOCAL size_t customTypesArraySize;
-UA_THREAD_LOCAL const UA_DataType *customTypesArray;
+UA_THREAD_LOCAL UA_Namespace* namespaces;
+UA_THREAD_LOCAL size_t namespacesSize;
+
 
 /* We give pointers to the current position and the last position in the buffer
  * instead of a string with an offset. */
@@ -771,12 +772,22 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 static UA_StatusCode
 findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
-    const UA_DataType *types = UA_TYPES;
-    size_t typesSize = UA_TYPES_COUNT;
-    if(typeId->namespaceIndex != 0) {
-        types = customTypesArray;
-        typesSize = customTypesArraySize;
+    const UA_DataType *types = NULL;
+    size_t typesSize;
+    if(typeId->namespaceIndex != 0){
+        if(namespaces == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        for(size_t i = 0; i < namespacesSize; ++i){
+            if(namespaces[i].index == typeId->namespaceIndex){
+                types = namespaces[i].dataTypes;
+                typesSize = namespaces[i].dataTypesSize;
+                break;
+            }
+        }
+    }else{
+        types = UA_TYPES;
+        typesSize = UA_TYPES_COUNT;
     }
+    if(types == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
     for(size_t i = 0; i < typesSize; ++i) {
         if(types[i].binaryEncodingId == typeId->identifier.numeric) {
             // cppcheck-suppress autoVariables
@@ -1315,15 +1326,15 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) {
+                const UA_DataType *type,
+                size_t newNamespacesSize, UA_Namespace *newNamespaces) {
     /* Initialize the destination */
     memset(dst, 0, type->memSize);
 
     /* Store the pointers to the custom datatypes. They might be needed during
      * decoding of variants. */
-    customTypesArraySize = customTypesSize;
-    customTypesArray = customTypes;
+    namespaces = newNamespaces;
+    namespacesSize = newNamespacesSize;
 
     /* Set the (thread-local) position and end pointers to save function
      * arguments */

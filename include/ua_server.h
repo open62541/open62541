@@ -29,6 +29,7 @@ extern "C" {
 #include "ua_job.h"
 #include "ua_connection.h"
 #include "ua_nodestore_interface.h"
+#include "ua_namespace.h"
 
 /**
  * .. _server:
@@ -169,17 +170,13 @@ typedef struct {
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
 
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
-
     /* Networking */
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
-    /* NS0 and NS1 NodeStore */
-    UA_NodestoreInterface *nodestore0;
-    UA_NodestoreInterface *nodestore1;
+    /* Namespace add server startup */
+    size_t namespacesSize;
+    UA_Namespace *namespaces;
 
     /* Access Control */
     UA_AccessControl accessControl;
@@ -214,11 +211,21 @@ typedef struct {
 #endif
 } UA_ServerConfig;
 
-/* Add a new namespace to the server using the NS1 Nodestore. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+/* Add a new namespace to the server using the Nodestore of namespace 1 and no custom datatypes.
+ * Returns the index of the new or already existing namespace */
+UA_UInt16 UA_EXPORT
+UA_Server_addNamespace(UA_Server *server, const char* namespaceUri);
 
-/* Add a new namespace to the server using the defined Nodestore. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace_Nodestore(UA_Server *server, const char* name, UA_NodestoreInterface* nodestore);
+/* Add a new namespace or change an existing one using custom DataType and Nodestores.
+ * If newCustomDataTypes or nodestore is a NULL pointer the old value is not overwridden.
+ * Returns the statuscode of the operation.
+ * The namespace uri is copied. The DataTypes are copied. The Nodestoreinterface is linked.
+*/
+UA_StatusCode UA_EXPORT
+UA_Server_addNamespace_full(UA_Server *server, UA_Namespace * namespace);
+/* Delete a namespace from the server. The data type encodings and nodestores will also be deleted. */
+UA_StatusCode UA_EXPORT
+UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri);
 
 /**
  * Server Lifecycle

@@ -99,24 +99,27 @@ static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
 static UA_StatusCode Nodestore_remove(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
-static void Nodestore_release(UA_ObjectNode *ns, const UA_Node *node){
-}
+//Not implemented/used functions
+static void Nodestore_pass(void){};
 
 /* Create new nodestore interface for the example nodestore */
 static UA_NodestoreInterface
 Nodestore_Example_new(void){
     UA_NodestoreInterface nsi;
-    nsi.handle =        &nodes;
-    nsi.deleteNodeStore =(UA_NodestoreInterface_delete)     Nodestore_delete;
-    nsi.newNode =       (UA_NodestoreInterface_newNode)     Nodestore_newNode;
-    nsi.deleteNode =    (UA_NodestoreInterface_deleteNode)  Nodestore_deleteNode;
-    nsi.insert =        (UA_NodestoreInterface_insert)      Nodestore_insert;
-    nsi.get =           (UA_NodestoreInterface_get)         Nodestore_get;
-    nsi.getCopy =       (UA_NodestoreInterface_getCopy)     Nodestore_get;
-    nsi.replace =       (UA_NodestoreInterface_replace)     Nodestore_replace;
-    nsi.remove =        (UA_NodestoreInterface_remove)      Nodestore_remove;
-    nsi.release =        (UA_NodestoreInterface_release)    Nodestore_release;
-    //nsi.iterate =       (UA_NodestoreInterface_iterate)     Nodestore_iterate;
+    nsi.handle =            &nodes;
+    nsi.deleteNodestore =   (UA_NodestoreInterface_deleteNodeStore) Nodestore_delete;
+    nsi.newNode =           (UA_NodestoreInterface_newNode)         Nodestore_newNode;
+    nsi.deleteNode =        (UA_NodestoreInterface_deleteNode)      Nodestore_deleteNode;
+    nsi.insertNode =        (UA_NodestoreInterface_insertNode)      Nodestore_insert;
+    nsi.getNode =           (UA_NodestoreInterface_getNode)         Nodestore_get;
+    nsi.getNodeCopy =       (UA_NodestoreInterface_getNodeCopy)     Nodestore_get;
+    nsi.replaceNode =       (UA_NodestoreInterface_replaceNode)     Nodestore_replace;
+    nsi.removeNode =        (UA_NodestoreInterface_removeNode)      Nodestore_remove;
+
+    nsi.releaseNode =       (UA_NodestoreInterface_releaseNode)     Nodestore_pass;
+    nsi.linkNamespace =     (UA_NodestoreInterface_linkNamespace)   Nodestore_pass;
+    nsi.unlinkNamespace =   (UA_NodestoreInterface_unlinkNamespace) NULL;
+    nsi.iterate =           (UA_NodestoreInterface_iterate)         NULL;
     return nsi;
 }
 
@@ -130,37 +133,70 @@ int main(void) {
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
 
-    //Add the default NodeStore as Nodestore for NS0 and NS1
+    //Add a second standard nodeStore from userland as nodestore for namespace1
     UA_NodestoreInterface nsi = UA_Nodestore_standard();
-    config.nodestore0 = &nsi;
-    config.nodestore1 = &nsi;
+    UA_Namespace* namespace1 = UA_Namespace_new(&config.applicationDescription.applicationUri);
+    namespace1->nodestore = &nsi;
+    config.namespacesSize = 1;
+    config.namespaces = namespace1;
+
     UA_Server *server = UA_Server_new(config);
 
     //Add a new namespace with same nodestore
-    UA_Server_addNamespace_Nodestore(server, "Namespace3Nodestore_standard",&nsi);
+    UA_Namespace* namespace2 = UA_Namespace_newFromChar("Namespace2_Nodestore_standard");
+    namespace2->nodestore = &nsi;
+    if(UA_Server_addNamespace_full(server, namespace2) == UA_STATUSCODE_GOOD){
+        //Add a test node
+        UA_VariableAttributes myVar;
+        UA_VariableAttributes_init(&myVar);
+        myVar.description = UA_LOCALIZEDTEXT("en_US", "This is a node of the standard nodestore in namespace 2 and resides in nsi.");
+        myVar.displayName = UA_LOCALIZEDTEXT("en_US", "Testnode_Namespace2");
+        myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        UA_Int32 myInteger = 42;
+        UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+        const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(namespace2->index, "Testnode_Namespace2");
+        const UA_NodeId myIntegerNodeId = UA_NODEID_NUMERIC(namespace2->index, 0);
+        UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
+            myIntegerName, UA_NODEID_NULL, myVar, NULL, NULL);
+        UA_Variant_deleteMembers(&myVar.value);
+    }
+    //Add a namespace to test the add/delete namespace function
+    UA_Server_addNamespace(server, "TestAddDeleteNamespace");
 
     //Add the example nodestore
     UA_NodestoreInterface nsi2 = Nodestore_Example_new();
-    nsIdx = UA_Server_addNamespace_Nodestore(server, "Namespace4Nodestore_example",&nsi2);
-    //Create a new node and reference it
-    UA_Node * rootNode = Nodestore_newNode(UA_NODECLASS_OBJECT);
-    rootNode->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"RootNode");
-    rootNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","RootNode_Nodestore_Example");
-    rootNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the root node of the nodestore example and resides in Nodestore.");
-    UA_Server_addReference(server,
-            UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTSFOLDER),
-            UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
-            UA_EXPANDEDNODEID_NUMERIC(nsIdx,0),
-            true);
-    UA_Node * node1 = Nodestore_newNode(UA_NODECLASS_OBJECT);
-    node1->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"Node1");
-    node1->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","Node1_Nodestore_Example");
-    node1->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the node1 of the nodestore example.");
-    UA_Server_addReference(server,
-            UA_NODEID_NUMERIC(nsIdx,0),
-            UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
-            UA_EXPANDEDNODEID_NUMERIC(nsIdx,1),
-            true);
+    UA_Namespace* namespace3 = UA_Namespace_newFromChar("Namespace3_Nodestore_example");
+    namespace3->nodestore = &nsi2;
+    if(UA_Server_addNamespace_full(server, namespace3) == UA_STATUSCODE_GOOD){
+        nsIdx = namespace3->index;
+            //Create a new node and reference it
+        UA_Node * rootNode = Nodestore_newNode(UA_NODECLASS_OBJECT);
+        rootNode->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"RootNode");
+        rootNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","RootNode_Nodestore_Example");
+        rootNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the root node of the nodestore example and resides in nsi2.");
+        UA_Server_addReference(server,
+                UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTSFOLDER),
+                UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
+                UA_EXPANDEDNODEID_NUMERIC(nsIdx,0),
+                true);
+        UA_Node * node1 = Nodestore_newNode(UA_NODECLASS_OBJECT);
+        node1->browseName = UA_QUALIFIEDNAME_ALLOC(nsIdx,"Node1");
+        node1->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","Node1_Nodestore_Example");
+        node1->description = UA_LOCALIZEDTEXT_ALLOC("en_US","This is the node1 of the nodestore example.");
+        UA_Server_addReference(server,
+                UA_NODEID_NUMERIC(nsIdx,0),
+                UA_NODEID_NUMERIC(0,UA_NS0ID_ORGANIZES),
+                UA_EXPANDEDNODEID_NUMERIC(nsIdx,1),
+                true);
+    }
+
+    //Delete the namespace for the test of add/delete namespace function
+    UA_Server_deleteNamespace(server, "TestAddDeleteNamespace");
+    if(UA_Server_addNamespace_full(server,namespace3) == UA_STATUSCODE_GOOD){
+        nsIdx = namespace3->index; //TODO
+    }
 
     //Run and stop the server
     UA_Server_run(server, &running);

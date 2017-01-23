@@ -415,15 +415,19 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
-
+''' + (' #include "ua_types_generated.h"\n' if outname != "ua_types" else '')+'''
+#else
+ #include "open62541.h"
+#endif
+''')
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
 printh("#define " + outname.upper() + "_COUNT %s" % (str(len(selected_types))))
-printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
+printh("extern UA_EXPORT UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
 for t in iter_types(types):
@@ -491,7 +495,6 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
 #include "stddef.h"
-#include "ua_types.h"
 #include "''' + outname + '''_generated.h"''')
 
 for t in iter_types(types):
@@ -499,7 +502,7 @@ for t in iter_types(types):
     printc("/* " + t.name + " */")
     printc(t.members_c())
 
-printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+printc("UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in iter_types(types):
     printc("")
     printc("/* " + t.name + " */")
@@ -514,7 +517,9 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
+#ifdef UA_NO_AMALGAMATION
 #include "ua_types_encoding_binary.h"
+#endif
 #include "''' + outname + '''_generated.h"''')
 
 for t in iter_types(types):

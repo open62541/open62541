@@ -95,8 +95,7 @@ struct UA_Server {
 #endif
 
     size_t namespacesSize;
-    UA_String *namespaces;
-    UA_NodestoreSwitch *nodestoreSwitch;
+    UA_Namespace *namespaces;
     UA_NodestoreInterface *nodestore_std;
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
@@ -161,9 +160,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
 UA_StatusCode
 parse_numericrange(const UA_String *str, UA_NumericRange *range);
 
-UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
-UA_UInt16 addNamespace_nodestore(UA_Server *server, const UA_String name,
-                                 UA_NodestoreInterface* nodestore);
+UA_StatusCode
+addNamespace(UA_Server *server, UA_Namespace * newNs);
 
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
@@ -179,12 +177,12 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
  * hasSubType reference. Since multi-inheritance is possible, we test for
  * duplicates and return evey nodeid at most once. */
 UA_StatusCode
-getTypeHierarchy(UA_NodestoreSwitch* nodestoreSwitch, const UA_Node *rootRef, UA_Boolean inverse,
+getTypeHierarchy(UA_Server* server, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodestoreSwitch* nodestoreSwitch, const UA_NodeId *leafNode,
+isNodeInTree(UA_Server* server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 

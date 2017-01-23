@@ -151,11 +151,11 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_Double samplingInterval = params->samplingInterval;
     if(mon->attributeID == UA_ATTRIBUTEID_VALUE) {
         const UA_VariableNode *vn = (const UA_VariableNode*)
-           UA_NodestoreSwitch_get(server->nodestoreSwitch, &mon->monitoredNodeId);
+           UA_NodestoreSwitch_getNode(server, &mon->monitoredNodeId);
         if(vn && vn->nodeClass == UA_NODECLASS_VARIABLE &&
            samplingInterval <  vn->minimumSamplingInterval)
             samplingInterval = vn->minimumSamplingInterval;
-        UA_NodestoreSwitch_release(server->nodestoreSwitch, (const UA_Node*)vn);
+        UA_NodestoreSwitch_releaseNode(server, (const UA_Node*)vn);
     } else if(mon->attributeID == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: events should not need a samplinginterval */
         samplingInterval = 10000.0f; // 10 seconds to reduce the load

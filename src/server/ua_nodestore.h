@@ -46,7 +46,7 @@ void UA_NodeStore_deleteNode(UA_Node *node);
 /* Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
  * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
  * deleted. */
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId);
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_NodeId *addedNodeId);
 
 /* The returned node is immutable. */
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid);

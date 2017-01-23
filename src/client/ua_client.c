@@ -45,6 +45,22 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel->connection = client->connection;
     client->authenticationMethod = UA_CLIENTAUTHENTICATION_NONE;
     client->config = config;
+    //delete old namespaces
+    for(size_t i = 0; i<client->namespacesSize; ++i){
+        UA_Namespace_deleteMembers(&client->namespaces[i]);
+    }
+    UA_free(client->namespaces);
+    //Add namespace 0, because it is always supported
+    client->namespaces = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
+    //TODO Namespace_0 as define/std config in ua_namespace?
+    client->namespaces->dataTypes = UA_TYPES;
+    client->namespaces->dataTypesSize = UA_TYPES_COUNT;
+    client->namespaces->index = 0;
+    client->namespacesSize = 1;
+    //Add other supported namespaces from config
+    for(size_t i = 0; i < config.namespacesSize; ++i){
+        UA_Client_addNamespace(client, &config.namespaces[i]);
+    }
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&client->pendingNotificationsAcks);
     LIST_INIT(&client->subscriptions);
@@ -74,6 +90,10 @@ static void UA_Client_deleteMembers(UA_Client* client) {
         UA_String_deleteMembers(&client->username);
     if(client->password.data)
            UA_String_deleteMembers(&client->password);
+    for(size_t i = 0 ; i < client->namespacesSize ; i++){
+        UA_Namespace_deleteMembers(&client->namespaces[i]);
+    }
+    UA_free(client->namespaces);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -401,6 +421,34 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
     return retval;
 }
 
+static UA_StatusCode UpdateNamespaceIndices(UA_Client* client){
+    if(client->state != UA_CLIENTSTATE_CONNECTED){
+        return UA_STATUSCODE_BADNOTCONNECTED;
+    }
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+
+    UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), &value);
+    if(retval != UA_STATUSCODE_GOOD){
+        return retval;
+    }
+    for(size_t i = 0; i < client->namespacesSize; i++){
+        client->namespaces[i].index = UA_NAMESPACE_UNDEFINED;
+        //Search if namespace is in Server
+        for(size_t newIdx = 0; newIdx< value.arrayLength; newIdx++){
+            if(UA_String_equal(&client->namespaces[i].uri,&(((UA_String*)value.data)[newIdx]))){
+                // Update index of supported namespace
+                client->namespaces[i].index = (UA_UInt16)i;
+                break;
+            }
+        }
+        UA_Namespace_updateDataTypes(&client->namespaces[i],NULL);
+    }
+    UA_Variant_deleteMembers(&value);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
 static UA_StatusCode
 GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
@@ -593,6 +641,42 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     return retval;
 }
 
+static void changeNamespace_client(UA_Client *client, UA_Namespace* namespace, size_t nsArrayIdx){
+    //update namespace array indices
+    if(UpdateNamespaceIndices(client) == UA_STATUSCODE_GOOD){
+        namespace->index = client->namespaces[nsArrayIdx].index;
+    }else{
+        namespace->index = UA_NAMESPACE_UNDEFINED;
+    }
+    //Overwrite values from given namespace
+    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx],namespace);
+}
+
+UA_StatusCode
+UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespace){
+    /* Check if the namespace already exists in the server's namespace array */
+    for(size_t i = 0; i < client->namespacesSize; ++i) {
+        if(UA_String_equal(&namespace->uri, &client->namespaces[i].uri)){
+            changeNamespace_client(client, namespace, i);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    /* Namespace doesn't exist alloc space in namespaces array */
+    UA_Namespace *newNsArray = UA_realloc(client->namespaces,
+                                      sizeof(UA_Namespace) * (client->namespacesSize + 1));
+    if(!newNsArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    client->namespaces = newNsArray;
+
+    /* Fill new namespace with values */
+    client->namespaces[client->namespacesSize] = *UA_Namespace_new(&namespace->uri);
+    changeNamespace_client(client, namespace, client->namespacesSize);
+
+    /* Announce the change (otherwise, the array appears unchanged) */
+    client->namespacesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
@@ -678,6 +762,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     if(retval == UA_STATUSCODE_GOOD) {
         client->connection->state = UA_CONNECTION_ESTABLISHED;
         client->state = UA_CLIENTSTATE_CONNECTED;
+        retval = UpdateNamespaceIndices(client);
     } else {
         goto cleanup;
     }
@@ -777,8 +862,8 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
 
     /* Decode the response */
     retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypesSize,
-                             rd->client->config.customDataTypes);
+                             rd->client->namespacesSize,
+                             rd->client->namespaces);
 
  finish:
     if(retval == UA_STATUSCODE_GOOD) {

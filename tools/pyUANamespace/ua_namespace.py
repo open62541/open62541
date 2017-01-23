@@ -407,6 +407,8 @@ class opcua_namespace():
         remove.append(n)
     if not len(remove) == 0:
       logger.warn(str(len(remove)) + " nodes will be removed because they failed sanitation.")
+    #  for n in remove:
+    #      self.nodes.remove(n)
     # FIXME: Some variable ns=0 nodes fail because they don't have DataType fields...
     #        How should this be handles!?
     logger.warn("Not actually removing nodes... it's unclear if this is valid or not")
@@ -643,10 +645,11 @@ class opcua_namespace():
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append(  '#include "server/ua_server_internal.h"')
-    header.append(  '#include "ua_nodes.h"')
+    #header.append(  '#include "server/ua_server_internal.h"')
     header.append('  #include "ua_util.h"')
-    header.append('  #include "ua_types.h"')
+    #header.append('  #include "ua_types.h"')
+    #header.append('  #include "ua_nodes.h"')
+    header.append('  #include "ua_server.h"')
     header.append('  #include "ua_types_encoding_binary.h"')
     header.append('  #include "ua_types_generated_encoding_binary.h"')
     header.append('  #include "ua_transport_generated_encoding_binary.h"')
@@ -674,18 +677,36 @@ class opcua_namespace():
     header.append('#endif')
     
     code.append('#include "'+outfilename+'.h"')
-    code.append("UA_INLINE UA_StatusCode "+outfilename+"(UA_Server *server) {")
-    code.append('UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
-    code.append('if(retval == UA_STATUSCODE_GOOD){retval = UA_STATUSCODE_GOOD;} //ensure that retval is used');
-
+    code.append('UA_INLINE UA_StatusCode '+outfilename+'(UA_Server *server){')
+    code.append(' return '+outfilename+'_returnIndices(server, NULL, NULL, NULL, NULL);\n}\n')
+    code.append('UA_INLINE UA_StatusCode '+outfilename+'_returnIndices(UA_Server *server,'+
+                ' UA_UInt16 *namespacesSize,'+
+                ' UA_UInt16 **oldNameSpaceIndices,')
+    code.append('    UA_UInt16 **newNameSpaceIndices,'
+                ' UA_String **nameSpaceUri) {')
+    
     # Before printing nodes, we need to request additional namespace arrays from the server
+    code.append('  UA_UInt16* oldNsIdx = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_UInt16));')
+    code.append('  UA_UInt16* newNsIdx = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_UInt16));')
+    code.append('  UA_String* nsUri = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_String*));\n')
+    nameSpacesCount = 0
     for nsid in self.namespaceIdentifiers:
-      if nsid == 0 or nsid==1:
-        continue
-      else:
-        name =  self.namespaceIdentifiers[nsid]
-        name = name.replace("\"","\\\"")
-        code.append("if (UA_Server_addNamespace(server, \"{0}\") != {1})\n    return UA_STATUSCODE_BADUNEXPECTEDERROR;".format(name, nsid))
+      name = self.namespaceIdentifiers[nsid]
+      name = name.replace("\"","\\\"")
+      code.append('  //Adding namespace for old namespace index = {0} with uri: {1}'.format(nsid,name))
+      code.append('  UA_UInt16 nsIdx_{0} = UA_Server_addNamespace(server, "{1}");'.format(nsid,name))
+      code.append('  oldNsIdx['+str(nameSpacesCount)+'] = '+str(nsid)+';')
+      code.append('  newNsIdx['+str(nameSpacesCount)+'] = nsIdx_'+str(nsid)+';')
+      code.append('  if(nameSpaceUri) nsUri['+str(nameSpacesCount)+'] = UA_STRING_ALLOC("'+name+'");\n')
+      nameSpacesCount = nameSpacesCount +1
+    
+    code.append('  //Writing back desired new and old namespace values')  
+    code.append('  if(namespacesSize) *namespacesSize = {0};'.format(nameSpacesCount))
+    code.append('  if(oldNameSpaceIndices) *oldNameSpaceIndices = oldNsIdx;')
+    code.append('  if(newNameSpaceIndices) *newNameSpaceIndices = newNsIdx;')
+    code.append('  if(nameSpaceUri) *nameSpaceUri = nsUri;')
+    code.append('  UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
+    code.append('  if(retval == UA_STATUSCODE_GOOD){retval = UA_STATUSCODE_GOOD;} //ensure that retval is used');
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
@@ -707,9 +728,12 @@ class opcua_namespace():
     logger.debug(str(len(refsUsed)) + " reference types are used in the namespace, which will now get bootstrapped.")
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
-
-    header.append("extern UA_StatusCode "+outfilename+"(UA_Server *server);\n")
-    header.append("#endif /* "+outfilename.upper()+"_H_ */")
+    
+    header.append('\nextern UA_StatusCode '+outfilename+'(UA_Server *server);')
+    header.append('extern UA_StatusCode '+outfilename+'_returnIndices(UA_Server *server,')
+    header.append('   UA_UInt16 *namespacesSize, UA_UInt16 **oldNameSpaceIndices,')
+    header.append('   UA_UInt16 **newNameSpaceIndices, UA_String **nameSpaceUri);\n')
+    header.append('#endif /* '+outfilename.upper()+'_H_ */')
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.
@@ -820,9 +844,14 @@ class testing_open62541_header:
     code = self.namespace.printOpen62541Header()
 
     codeout = open("./open62541_namespace.c", "w+")
-    for line in code:
+    for line in code[0]:
       codeout.write(line + "\n")
     codeout.close()
+
+    headerout = open("./open62541_namespace.h", "w+")
+    for line in code[1]:
+      headerout.write(line + "\n")
+    headerout.close()
     return
 
 # Call testing routine if invoked standalone.

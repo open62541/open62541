@@ -223,8 +223,7 @@ UA_NodeStore_deleteNode(UA_Node *node) {
 }
 
 UA_StatusCode
-UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node,
-        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
+UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
     if(ns->size * 3 <= ns->count * 4) {
         if(expand(ns) != UA_STATUSCODE_GOOD){
             return UA_STATUSCODE_BADINTERNALERROR;

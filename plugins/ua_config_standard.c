@@ -72,17 +72,13 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .discoveryUrls = NULL },
     .serverCertificate = UA_STRING_STATIC_NULL,
 
-    /* Custom DataTypes */
-    .customDataTypesSize = 0,
-    .customDataTypes = NULL,
-
     /* Networking */
     .networkLayersSize = 0,
     .networkLayers = NULL,
 
-    /* NS0 and NS1 NodeStore */
-    .nodestore0 = NULL,
-    .nodestore1 = NULL,
+    /* NS0 and NS1 */
+    .namespaces = NULL,
+    .namespacesSize = 0,
 
     /* Access Control */
     .accessControl = {
@@ -142,8 +138,8 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     .connectionFunc = UA_ClientConnectionTCP,
 
     /* Custom DataTypes */
-    .customDataTypesSize = 0,
-    .customDataTypes = NULL
+    .namespacesSize = 0,
+    .namespaces = NULL
 };
 
 /****************************************/
