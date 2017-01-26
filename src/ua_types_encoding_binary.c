@@ -18,9 +18,6 @@
  * encoding. This enables fast sending of large messages as spurious copying is
  * avoided. */
 
-/* There is no robust way to detect float endianness in clang. This warning can
- * be removed if the target is known to be little endian with floats in the IEEE
- * 754 format. */
 #if defined(__clang__)
 # pragma GCC diagnostic push
 # pragma GCC diagnostic warning "-W#warnings"
@@ -29,6 +26,9 @@
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
 # warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
 #endif
+
+/* There is no robust way to detect float endianness in clang. This warning can be removed
+ * if the target is known to be little endian with floats in the IEEE 754 format. */
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # warning Float endianness could not be detected to be little endian in the IEEE 754 format. Use slow generic encoding.
 #endif
@@ -48,13 +48,15 @@ typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA
 extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
 /* We give pointers to the current position and the last position in the buffer
-   instead of a string with an offset. */
+ * instead of a string with an offset. */
 UA_THREAD_LOCAL UA_Byte * pos;
 UA_THREAD_LOCAL UA_Byte * end;
 
-/* The code UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is returned only when the
- * end of the buffer is reached. This error is caught. We then try to send the
- * current chunk and continue with the next. */
+/* The code UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is returned only when the end of the
+ * buffer is reached. When this StatusCode is received, we try to send the current chunk,
+ * replace the buffer and continue encoding. That way, memory-constrained servers need to
+ * allocate only the memory for the current chunk. And we avoid needless copying. Note:
+ * The only place where this is used from is UA_SecureChannel_sendBinaryMessage. */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
 UA_THREAD_LOCAL UA_ByteString *encodeBuf; /* the original buffer */
@@ -67,7 +69,7 @@ exchangeBuffer(void) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* store context variables since chunk-sending might call UA_encode itself */
+    /* Store context variables since chunk-sending might call UA_encode itself */
     UA_ByteString *store_encodeBuf = encodeBuf;
     UA_exchangeEncodeBuffer store_exchangeBufferCallback = exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
@@ -75,12 +77,14 @@ exchangeBuffer(void) {
     size_t offset = ((uintptr_t)pos - (uintptr_t)encodeBuf->data) / sizeof(UA_Byte);
     UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, encodeBuf, offset);
 
-    /* restore context variables */
+    /* Restore context variables. This restores the pointer to the buffer, not the buffer
+     * itself. This is required so that a call to UA_encode can be made from within the
+     * exchangeBufferCallback. For example to encode the chunk header */
     encodeBuf = store_encodeBuf;
     exchangeBufferCallback = store_exchangeBufferCallback;
     exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
 
-    /* set pos and end in order to continue encoding */
+    /* Set pos and end in order to continue encoding */
     pos = encodeBuf->data;
     end = &encodeBuf->data[encodeBuf->length];
     return retval;
