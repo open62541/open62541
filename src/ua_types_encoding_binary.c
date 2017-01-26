@@ -5,7 +5,6 @@
 
 /* Type Encoding
  * -------------
-
  * This file contains encoding functions for the builtin data types and generic
  * functions that operate on all types and arrays. This requires the type
  * description from a UA_DataType structure. Note that some internal (static)
@@ -91,7 +90,7 @@ exchangeBuffer(void) {
 /* Integer Types */
 /*****************/
 
-#ifndef UA_BINARY_OVERLAYABLE_INTEGER
+#if !UA_BINARY_OVERLAYABLE_INTEGER
 
 /* These en/decoding functions are only used when the architecture isn't little-endian. */
 static void
@@ -145,7 +144,7 @@ UA_decode64(const UA_Byte buf[8], UA_UInt64 *v) {
                     (((UA_UInt64)buf[7]) << 56));
 }
 
-#endif /* UA_BINARY_OVERLAYABLE_INTEGER */
+#endif /* !UA_BINARY_OVERLAYABLE_INTEGER */
 
 /* Boolean */
 static UA_StatusCode
