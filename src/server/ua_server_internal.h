@@ -16,7 +16,11 @@ extern "C" {
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
-/* liburcu includes */
+/* The general idea of RCU is to delay freeing nodes (or any callback invoked
+ * with call_rcu) until all threads have left their critical section. Thus we
+ * can delete nodes safely in concurrent operations. The macros UA_RCU_LOCK and
+ * UA_RCU_UNLOCK are used to test during debugging that we do not nest read-side
+ * critical sections (although this is generally allowed). */
 #ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
 # include <urcu.h>
@@ -37,7 +41,7 @@ extern "C" {
 #   define UA_RCU_UNLOCK() do {                   \
         UA_ASSERT_RCU_LOCKED();                   \
         rcu_locked = false;                       \
-        rcu_read_lock(); } while(0)
+        rcu_read_unlock(); } while(0)
 # endif
 #else
 # define UA_RCU_LOCK()
@@ -47,8 +51,8 @@ extern "C" {
 #endif
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/** Mapping of namespace-id and url to an external nodestore. For namespaces
-    that have no mapping defined, the internal nodestore is used by default. */
+/* Mapping of namespace-id and url to an external nodestore. For namespaces that
+ * have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
     UA_UInt16 index;
     UA_String url;

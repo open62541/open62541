@@ -179,7 +179,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
             connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        /* Hide the header of the buffer, so that the ensuing encoding does not overwrite anything */
+        /* Forward the data pointer so that the payload is encoded after the message header.
+         * TODO: This works but is a bit too clever. Instead, we could return an offset to the
+         * binary encoding exchangeBuffer function. */
         dst->data = &dst->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
         dst->length = connection->localConf.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
     }
