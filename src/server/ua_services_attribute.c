@@ -202,11 +202,20 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
     if(range) /* array dimensions are checked later when writing the range */
         return UA_STATUSCODE_GOOD;
 
+    size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
+    UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
+    UA_UInt32 tempArrayDimensions;
+    if(valueArrayDimensions == 0 && !UA_Variant_isScalar(value)) {
+        valueArrayDimensionsSize = 1;
+        tempArrayDimensions = (UA_UInt32)value->arrayLength;
+        valueArrayDimensions = &tempArrayDimensions;
+    }
+
     /* See if the array dimensions match. When arrayDimensions are defined, they
      * already hold the valuerank. */
     if(targetArrayDimensionsSize > 0)
         return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
-                                         value->arrayDimensionsSize, value->arrayDimensions);
+                                         valueArrayDimensionsSize, valueArrayDimensions);
 
     /* Check if the valuerank allows for the value dimension */
     return compatibleValueRankValue(targetValueRank, value);
