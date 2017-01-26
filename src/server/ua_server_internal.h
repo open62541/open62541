@@ -120,6 +120,7 @@ struct UA_Server {
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
+    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 

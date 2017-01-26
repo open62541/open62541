@@ -99,10 +99,6 @@ workerLoop(UA_Worker *worker) {
     UA_random_seed((uintptr_t)worker);
     rcu_register_thread();
 
-    pthread_mutex_t mutex; // required for the condition variable
-    pthread_mutex_init(&mutex, 0);
-    pthread_mutex_lock(&mutex);
-
     while(*running) {
         struct DispatchJob *dj = (struct DispatchJob*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -111,13 +107,13 @@ workerLoop(UA_Worker *worker) {
             UA_free(dj);
         } else {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
-            pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
+            pthread_mutex_lock(&server->dispatchQueue_mutex);
+            pthread_cond_wait(&server->dispatchQueue_condition, &server->dispatchQueue_mutex);
+            pthread_mutex_unlock(&server->dispatchQueue_mutex);
         }
         UA_atomic_add(counter, 1);
     }
 
-    pthread_mutex_unlock(&mutex);
-    pthread_mutex_destroy(&mutex);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
     rcu_unregister_thread();
@@ -537,6 +533,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
+    pthread_mutex_init(&server->dispatchQueue_mutex, 0);
     server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;

@@ -266,6 +266,7 @@ void UA_Server_delete(UA_Server *server) {
 
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
+    pthread_mutex_destroy(&server->dispatchQueue_mutex);
 #endif
     UA_free(server);
 }
