@@ -773,7 +773,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
         }
 
         if (server->registerServerCallback) {
-            server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
+            server->registerServerCallback(requestServer, server->registerServerCallbackData);
         }
 
         // server found, remove from list
@@ -813,7 +813,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
 #endif
 
         if (server->registerServerCallback) {
-            server->registerServerCallback(&registeredServer_entry->registeredServer, server->registerServerCallbackData);
+            server->registerServerCallback(requestServer, server->registerServerCallbackData);
         }
 
     } else {
