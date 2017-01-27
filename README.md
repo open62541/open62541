@@ -1,13 +1,9 @@
-License change: LGPL (Static Linking Exception) -> MPLv2
-=========
-We are planning to change the license of open62541 project. It should be licensed under the [Mozilla Public license v2](https://www.mozilla.org/en-US/MPL/2.0/) instead of our old LGPL with static linking exception. The MPLv2 license offers a broader vantage than the LGPL, as it is a standard license, thus legally easier to accept and more compatible with the juristic matters. Our intentions of changing our licensing is to expand and have a wider acceptance especially from corporates. For questions please refer to issue [#846](https://github.com/open62541/open62541/issues/846).
-
 open62541
 =========
 
 open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. The library is distributed as a single pair of [header](https://github.com/open62541/open62541/releases/download/v0.2.0-RC1/open62541.h) and [source](https://github.com/open62541/open62541/releases/download/v0.2.0-RC1/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
 
-open62541 is licensed under the LGPL with a static linking exception. So the **open62541 library can be used in projects that are not open source**. However, changes to the open62541 library itself need to published under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+open62541 is licensed under the MPLv2. So the **open62541 library can be used in projects that are not open source**. However, changes to the open62541 library itself need to published under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
