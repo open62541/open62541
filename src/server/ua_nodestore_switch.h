@@ -83,13 +83,6 @@ UA_StatusCode UA_NodestoreSwitch_replaceNode(UA_Server* server, UA_Node *node);
 UA_StatusCode UA_NodestoreSwitch_removeNode(UA_Server* server, const UA_NodeId *nodeId);
 
 /**
- * Iteration
- * ^^^^^^^^^
- * The following definitions are used to call a callback for every node in the
- * nodestore. */
-void UA_NodestoreSwitch_iterate(UA_Server* server, UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex);
-
-/**
  * Release
  * ^^^^^^^
  * Indicates that the reference to a node, which was fetched from the nodestore via the "get" method, is not used anymore.

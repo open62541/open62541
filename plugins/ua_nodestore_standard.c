@@ -16,8 +16,8 @@ UA_Nodestore_standard() {
     nsi.removeNode =        (UA_NodestoreInterface_removeNode)      UA_NodeStore_remove,
     nsi.iterate =           (UA_NodestoreInterface_iterate)         UA_NodeStore_iterate;
     nsi.releaseNode =       (UA_NodestoreInterface_releaseNode)     UA_NodeStore_release;
-    nsi.linkNamespace =     (UA_NodestoreInterface_linkNamespace)   NULL;
-    nsi.unlinkNamespace =   (UA_NodestoreInterface_unlinkNamespace) NULL;
+    nsi.linkNamespace =     (UA_NodestoreInterface_linkNamespace)   UA_NodeStore_linkNamespace;
+    nsi.unlinkNamespace =   (UA_NodestoreInterface_unlinkNamespace) UA_NodeStore_unlinkNamespace;
     return nsi;
 }
 
@@ -25,7 +25,7 @@ void
 UA_Nodestore_standard_delete(UA_NodestoreInterface * nodestoreInterface){
     //No RCU Lock available, defined in server_interal
     //UA_RCU_LOCK();
-    nodestoreInterface->deleteNodestore(nodestoreInterface->handle);
+    nodestoreInterface->deleteNodestore(nodestoreInterface->handle, UA_UINT16_MAX);
     //UA_RCU_UNLOCK();
     UA_free(nodestoreInterface->handle);
 }

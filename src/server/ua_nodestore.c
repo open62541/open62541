@@ -19,6 +19,8 @@ struct UA_NodeStore {
     UA_UInt32 size;
     UA_UInt32 count;
     UA_UInt32 sizePrimeIndex;
+    UA_UInt16 * linkedNamespaces;
+    size_t    linkedNamespacesLength;
 };
 
 /* The size of the hash-map is always a prime number. They are chosen to be
@@ -174,6 +176,23 @@ expand(UA_NodeStore *ns) {
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+initNodestore(UA_NodeStore * ns){
+    if(!ns)
+        return;
+    ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
+    ns->size = primes[ns->sizePrimeIndex];
+    ns->count = 0;
+    ns->linkedNamespacesLength = 0;
+    ns->linkedNamespaces = NULL;
+    ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
+    if(!ns->entries) {
+        UA_free(ns);
+        ns = NULL;
+    }
+}
+
+
 /**********************/
 /* Exported functions */
 /**********************/
@@ -181,22 +200,18 @@ expand(UA_NodeStore *ns) {
 UA_NodeStore *
 UA_NodeStore_new(void) {
     UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
-    if(!ns)
-        return NULL;
-    ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
-    ns->size = primes[ns->sizePrimeIndex];
-    ns->count = 0;
-    ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
-    if(!ns->entries) {
-        UA_free(ns);
-        return NULL;
-    }
+    initNodestore(ns);
     return ns;
 }
 
 void
-UA_NodeStore_delete(UA_NodeStore *ns) {
-    if(ns->size == 0) return; //ns already deleted
+UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex) {
+    if(UA_NodeStore_unlinkNamespace(ns, namespaceIndex) != UA_STATUSCODE_GOOD)
+        return;
+    //Delete all nodes if all namespaces are unlinked
+    if(ns->linkedNamespacesLength > 0) return;
+    UA_free(ns->linkedNamespaces);
+    ns->linkedNamespaces = NULL;
     UA_UInt32 size = ns->size;
     UA_NodeStoreEntry **entries = ns->entries;
     for(UA_UInt32 i = 0; i < size; ++i) {
@@ -204,8 +219,44 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
             deleteEntry(entries[i]);
     }
     UA_free(ns->entries);
-    ns->size = 0;
 }
+
+UA_StatusCode
+UA_NodeStore_linkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
+    UA_UInt16 * newLinkedNs = UA_realloc(ns->linkedNamespaces, sizeof(UA_UInt16)*(ns->linkedNamespacesLength + 1));
+    if(!newLinkedNs){
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    ns->linkedNamespaces = newLinkedNs;
+    ns->linkedNamespaces[ns->linkedNamespacesLength] = namespaceIndex;
+    ns->linkedNamespacesLength = ns->linkedNamespacesLength + 1;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
+    size_t lNsLength = ns->linkedNamespacesLength;
+    if(lNsLength == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt16 * newLinkedNs = UA_malloc(sizeof(UA_UInt16) * (lNsLength -1));
+    if(!newLinkedNs)
+        return UA_STATUSCODE_BADNOTFOUND;
+    size_t j = 0;
+    for(size_t i = 0; i < lNsLength ; ++i) {
+        if(namespaceIndex != ns->linkedNamespaces[i]){
+            if(j == lNsLength){
+                UA_free(newLinkedNs);
+                return UA_STATUSCODE_BADNOTFOUND;
+            }
+            newLinkedNs[j++] = ns->linkedNamespaces[i];
+        }
+    }
+    ns->linkedNamespacesLength = lNsLength - 1;
+    UA_free(ns->linkedNamespaces);
+    ns->linkedNamespaces = newLinkedNs;
+    return UA_STATUSCODE_GOOD;
+}
+
 
 UA_Node *
 UA_NodeStore_newNode(UA_NodeClass nodeClass) {
@@ -322,10 +373,10 @@ UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 }
 
 void
-UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
+UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle , UA_NodestoreInterface_nodeVisitor visitor) {
     for(UA_UInt32 i = 0; i < ns->size; ++i) {
         if(ns->entries[i] > UA_NODESTORE_TOMBSTONE)
-            visitor((UA_Node*)&ns->entries[i]->node);
+            visitor(visitorHandle,(UA_Node*)&ns->entries[i]->node);
     }
 }
 

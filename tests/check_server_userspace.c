@@ -29,7 +29,7 @@ START_TEST(Server_addNamespace_writeService)
 
     UA_Variant namespaces;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                         &namespaces);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_ptr_eq(namespaces.type, &UA_TYPES[UA_TYPES_STRING]);
@@ -46,7 +46,7 @@ START_TEST(Server_addNamespace_writeService)
     UA_Variant_deleteMembers(&namespaces);
 
     /* Now read again */
-    UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+    retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                         &namespaces);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(namespaces.arrayLength, nsSize);

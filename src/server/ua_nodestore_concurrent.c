@@ -79,7 +79,7 @@ UA_NodeStore * UA_NodeStore_new() {
 }
 
 /* do not call with read-side critical section held!! */
-void UA_NodeStore_delete(UA_NodeStore *ns) {
+void UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex) {
     if(ns->isDeleted) return;
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = ns->ht;
@@ -111,7 +111,7 @@ void UA_NodeStore_deleteNode(UA_Node *node) {
 }
 
 UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node,
-        const UA_NodeId *parentNodeId, UA_NodeId *addedNodeId) {
+                                  UA_NodeId *addedNodeId) {
     UA_ASSERT_RCU_LOCKED();
     struct nodeEntry *entry = container_of(node, struct nodeEntry, node);
     struct cds_lfht *ht = ns->ht;
@@ -228,17 +228,28 @@ UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     return &new->node;
 }
 
-void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
+void UA_NodeStore_iterate(UA_NodeStore *ns, void* visitorHandle, UA_NodestoreInterface_nodeVisitor visitor) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = ns->ht;
     struct cds_lfht_iter iter;
     cds_lfht_first(ht, &iter);
     while(iter.node != NULL) {
         struct nodeEntry *found_entry = (struct nodeEntry*)iter.node;
-        visitor(&found_entry->node);
+        visitor(visitorHandle, &found_entry->node);
         cds_lfht_next(ht, &iter);
     }
 }
+
+UA_StatusCode
+UA_NodeStore_linkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
+    return UA_STATUSCODE_GOOD;
+}
+
 void
 UA_NodeStore_release(void *handle, const UA_Node *node){};
 

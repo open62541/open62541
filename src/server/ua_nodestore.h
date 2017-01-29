@@ -7,6 +7,7 @@ extern "C" {
 
 #include "ua_types_generated.h"
 #include "ua_nodes.h"
+#include "ua_nodestore_interface.h"
 
 /**
  * Nodestore
@@ -24,7 +25,12 @@ UA_NodeStore * UA_NodeStore_new(void);
 
 /* Delete the nodestore and all nodes in it. Do not call from a read-side
    critical section (multithreading). */
-void UA_NodeStore_delete(UA_NodeStore *ns);
+void UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
+
+/* Link a namespace index to this nodestore*/
+UA_StatusCode UA_NodeStore_linkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
+
+UA_StatusCode UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
 
 /**
  * Node Lifecycle
@@ -70,8 +76,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
  * ^^^^^^^^^
  * The following definitions are used to call a callback for every node in the
  * nodestore. */
-typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
-void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
+void UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle, UA_NodestoreInterface_nodeVisitor visitor);
 
 /**
  * Release

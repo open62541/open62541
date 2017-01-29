@@ -676,37 +676,38 @@ class opcua_namespace():
     header.append('  #define UA_free(_p_ptr) free(_p_ptr)')
     header.append('#endif')
     
-    code.append('#include "'+outfilename+'.h"')
-    code.append('UA_INLINE UA_StatusCode '+outfilename+'(UA_Server *server){')
-    code.append(' return '+outfilename+'_returnIndices(server, NULL, NULL, NULL, NULL);\n}\n')
-    code.append('UA_INLINE UA_StatusCode '+outfilename+'_returnIndices(UA_Server *server,'+
-                ' UA_UInt16 *namespacesSize,'+
-                ' UA_UInt16 **oldNameSpaceIndices,')
-    code.append('    UA_UInt16 **newNameSpaceIndices,'
-                ' UA_String **nameSpaceUri) {')
-    
-    # Before printing nodes, we need to request additional namespace arrays from the server
-    code.append('  UA_UInt16* oldNsIdx = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_UInt16));')
-    code.append('  UA_UInt16* newNsIdx = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_UInt16));')
-    code.append('  UA_String* nsUri = UA_malloc('+str(len(self.namespaceIdentifiers))+'*sizeof(UA_String*));\n')
-    nameSpacesCount = 0
+    code.append('''#include "{0}.h"
+UA_INLINE UA_StatusCode {0}(UA_Server *server){{
+  return {0}_returnNamespaces(server, NULL, NULL);
+}}
+
+UA_INLINE UA_StatusCode {0}_returnNamespaces(
+        UA_Server *server, UA_UInt16 *namespacesSize, UA_Namespace **namespaces) {{
+  UA_StatusCode retval = UA_STATUSCODE_GOOD;
+  UA_Namespace** nsArray = UA_malloc({1} * sizeof(UA_Namespace*));
+'''.format(outfilename,len(self.namespaceIdentifiers)))
+    namespacesCount = 0
     for nsid in self.namespaceIdentifiers:
       name = self.namespaceIdentifiers[nsid]
       name = name.replace("\"","\\\"")
-      code.append('  //Adding namespace for old namespace index = {0} with uri: {1}'.format(nsid,name))
-      code.append('  UA_UInt16 nsIdx_{0} = UA_Server_addNamespace(server, "{1}");'.format(nsid,name))
-      code.append('  oldNsIdx['+str(nameSpacesCount)+'] = '+str(nsid)+';')
-      code.append('  newNsIdx['+str(nameSpacesCount)+'] = nsIdx_'+str(nsid)+';')
-      code.append('  if(nameSpaceUri) nsUri['+str(nameSpacesCount)+'] = UA_STRING_ALLOC("'+name+'");\n')
-      nameSpacesCount = nameSpacesCount +1
+      code.append('''
+  //Adding namespace for old namespace index = {0} with uri: {2}
+  nsArray[{1}] = UA_Namespace_newFromChar("{2}");
+  retval |= UA_Server_addNamespace_full(server, nsArray[{1}]);
+  UA_UInt16 nsIdx_{0} = nsArray[{1}]->index;'''.format(nsid, namespacesCount, name))
+      namespacesCount = namespacesCount +1
     
-    code.append('  //Writing back desired new and old namespace values')  
-    code.append('  if(namespacesSize) *namespacesSize = {0};'.format(nameSpacesCount))
-    code.append('  if(oldNameSpaceIndices) *oldNameSpaceIndices = oldNsIdx;')
-    code.append('  if(newNameSpaceIndices) *newNameSpaceIndices = newNsIdx;')
-    code.append('  if(nameSpaceUri) *nameSpaceUri = nsUri;')
-    code.append('  UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
-    code.append('  if(retval == UA_STATUSCODE_GOOD){retval = UA_STATUSCODE_GOOD;} //ensure that retval is used');
+    code.append('''  //Writing back desired namespace values')
+  if(namespacesSize) {{*namespacesSize = {0};}};
+  if(namespaces) {{namespaces = nsArray;}}
+  else {{
+    for(size_t i = 0 ; i < {0} ; ++i){{
+      UA_Namespace_deleteMembers(nsArray[i]);
+      UA_free(nsArray[i]);
+    }}
+  }}
+  if(retval == UA_STATUSCODE_GOOD){{retval = UA_STATUSCODE_GOOD;}} //ensure that retval is used
+  '''.format(namespacesCount));
 
     # Find all references necessary to create the namespace and
     # "Bootstrap" them so all other nodes can safely use these referencetypes whenever
@@ -729,11 +730,11 @@ class opcua_namespace():
     for r in refsUsed:
       code = code + r.printOpen62541CCode(unPrintedNodes, unPrintedRefs);
     
-    header.append('\nextern UA_StatusCode '+outfilename+'(UA_Server *server);')
-    header.append('extern UA_StatusCode '+outfilename+'_returnIndices(UA_Server *server,')
-    header.append('   UA_UInt16 *namespacesSize, UA_UInt16 **oldNameSpaceIndices,')
-    header.append('   UA_UInt16 **newNameSpaceIndices, UA_String **nameSpaceUri);\n')
-    header.append('#endif /* '+outfilename.upper()+'_H_ */')
+    header.append('''
+  extern UA_StatusCode {0}(UA_Server *server);
+  extern UA_StatusCode {0}_returnNamespaces(UA_Server *server,
+          UA_UInt16 *namespacesSize, UA_Namespace **namspaces);
+#endif /* {1}_H_ */'''.format(outfilename,outfilename.upper()))
 
     # Note to self: do NOT - NOT! - try to iterate over unPrintedNodes!
     #               Nodes remove themselves from this list when printed.

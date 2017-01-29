@@ -26,7 +26,17 @@ UA_Namespace_newFromChar(const char * namespaceUri);
 void UA_EXPORT
 UA_Namespace_deleteMembers(UA_Namespace* namespaceUri);
 
-void UA_Namespace_updateDataTypes(UA_Namespace * namespaceToUpdate, UA_Namespace * namespaceNewDataTypes);
+void
+UA_Namespace_updateDataTypes(UA_Namespace * namespaceToUpdate,
+                             UA_Namespace * namespaceNewDataTypes, UA_UInt16 newNamespaceIndex);
+void
+UA_Namespace_changeNodestore(UA_Namespace * namespacesToUpdate,
+                             UA_Namespace * namespaceNewNodestore,
+                             UA_NodestoreInterface * defaultNodestore,
+                             UA_UInt16 newNsIdx);
+void
+UA_Namespace_updateNodestores(UA_Namespace * namespacesToUpdate, size_t namespacesToUpdateSize,
+                              size_t* oldNsIdxToNewNsIdx, size_t oldNsIdxToNewNsIdxSize);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -66,12 +66,6 @@ UA_NodestoreSwitch_removeNode(UA_Server* server, const UA_NodeId *nodeId) {
     return server->namespaces[nodeId->namespaceIndex].nodestore->removeNode(
             server->namespaces[nodeId->namespaceIndex].nodestore->handle, nodeId);
 }
-void UA_NodestoreSwitch_iterate(UA_Server* server, UA_Nodestore_nodeVisitor visitor, UA_UInt16 namespaceIndex){
-    if(checkNSIndex(server, namespaceIndex)){
-        server->namespaces[namespaceIndex].nodestore->iterate(
-                server->namespaces[namespaceIndex].nodestore->handle, visitor);
-    }
-}
 void UA_NodestoreSwitch_releaseNode(UA_Server* server, const UA_Node *node){
     if(node && checkNSIndex(server, node->nodeId.namespaceIndex)){
         server->namespaces[node->nodeId.namespaceIndex].nodestore->releaseNode(

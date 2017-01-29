@@ -258,25 +258,20 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
     return false;
 }
 
-/* For mulithreading: make a copy of the node, edit and replace.
- * For singletrheading: edit the original */
+/* Make a copy of the node, edit and replace. */
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
                    const void *data) {
     UA_StatusCode retval;
-    UA_Int16 failCounts = 0;
-    do {
-        UA_Node *copy = UA_NodestoreSwitch_getNodeCopy(server, nodeId);
-        if(!copy)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        retval = callback(server, session, copy, data);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_NodestoreSwitch_deleteNode(server, copy);
-            return retval;
-        }
-        retval = UA_NodestoreSwitch_replaceNode(server, copy);
-        failCounts++;
-    } while(retval != UA_STATUSCODE_GOOD && failCounts < 10); //TODO FailCounts as attribute from Server.config ?
+    UA_Node *copy = UA_NodestoreSwitch_getNodeCopy(server, nodeId);
+    if(!copy)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    retval = callback(server, session, copy, data);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodestoreSwitch_deleteNode(server, copy);
+        return retval;
+    }
+    retval = UA_NodestoreSwitch_replaceNode(server, copy);
     return UA_STATUSCODE_GOOD;
 }

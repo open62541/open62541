@@ -16,7 +16,7 @@
 
 int zeroCnt = 0;
 int visitCnt = 0;
-static void checkZeroVisitor(const UA_Node* node) {
+static void checkZeroVisitor(void *visitorHandle, const UA_Node* node) {
     visitCnt++;
     if (node == NULL) zeroCnt++;
 }
@@ -47,7 +47,7 @@ START_TEST(replaceExistingNode) {
     
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -75,7 +75,7 @@ START_TEST(replaceOldNode) {
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     
     //UA_Node_deleteMembersAnyNodeClass(n3);
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -96,7 +96,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     // then
     ck_assert_int_eq((uintptr_t)n1, (uintptr_t)nr);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -120,7 +120,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     // then
     ck_assert_int_eq((uintptr_t)nr, 0);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -153,7 +153,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     // then
     ck_assert_int_eq((uintptr_t)nr, (uintptr_t)n3);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -183,12 +183,12 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
     // when
     zeroCnt = 0;
     visitCnt = 0;
-    UA_NodeStore_iterate(ns,checkZeroVisitor);
+    UA_NodeStore_iterate(ns, NULL, checkZeroVisitor);
     // then
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 6);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -215,7 +215,7 @@ START_TEST(findNodeInExpandedNamespace) {
     ck_assert_int_eq(nr->nodeId.identifier.numeric,n2->nodeId.identifier.numeric);
     // finally
     UA_NodeStore_deleteNode(n2);
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -238,12 +238,12 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
     // when
     zeroCnt = 0;
     visitCnt = 0;
-    UA_NodeStore_iterate(ns,checkZeroVisitor);
+    UA_NodeStore_iterate(ns, NULL, checkZeroVisitor);
     // then
     ck_assert_int_eq(zeroCnt, 0);
     ck_assert_int_eq(visitCnt, 200);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -275,7 +275,7 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
     // then
     ck_assert_int_eq((uintptr_t)nr, 0);
     // finally
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RCU_UNLOCK();
@@ -353,7 +353,7 @@ START_TEST(profileGetDelete) {
     printf("Time for single-threaded %d create/get/delete in a namespace: %fs.\n", N, (double)(end - begin) / CLOCKS_PER_SEC);
 #endif
 
-    UA_NodeStore_delete(ns);
+    UA_NodeStore_delete(ns, 0);
     UA_free(ns);
 
 #ifdef UA_ENABLE_MULTITHREADING

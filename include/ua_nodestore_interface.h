@@ -37,16 +37,15 @@ extern "C" {
  * Is called, when Server will be deleted.
  * Do not call from a read-sidecritical section (multithreading).
  */
-typedef void (*UA_NodestoreInterface_deleteNodeStore)(void *handle);
-
+typedef void (*UA_NodestoreInterface_deleteNodeStore)(void *handle, UA_UInt16 namespaceIndex);
 /*
- * Optional functions (only called, if not NULL):
- * Link and unlink a namespace to a nodestore.
- * If the namespace is unlinked, all nodes from this namespace, may be deleted in the nodestore.
- * If no namespace is linked, the server doesn't use this nodestore anymore and it may be deleted.
- * */
-typedef void (*UA_NodestoreInterface_linkNamespace)(void *handle, UA_UInt16 namespaceIndex);
-typedef void (*UA_NodestoreInterface_unlinkNamespace)(void *handle, UA_UInt16 namespaceIndex);
+ * Is called, when the Server uses this nodestore for a namespace with this namespaceIndex.
+ */
+typedef UA_StatusCode (*UA_NodestoreInterface_linkNamespace)(void *handle, UA_UInt16 namespaceIndex);
+/*
+ * Is called, when the Server doesn't use this nodestore for a namespace with this namespaceIndex anymore.
+ */
+typedef UA_StatusCode (*UA_NodestoreInterface_unlinkNamespace)(void *handle, UA_UInt16 namespaceIndex);
 
 
 /**
@@ -91,8 +90,8 @@ typedef UA_StatusCode (*UA_NodestoreInterface_removeNode)(void *handle, const UA
  * ^^^^^^^^^
  * The following definitions are used to call a callback for every node in the
  * nodestore. */
-typedef void (*UA_Nodestore_nodeVisitor)(const UA_Node *node);
-typedef void (*UA_NodestoreInterface_iterate)(void *handle, UA_Nodestore_nodeVisitor visitor);
+typedef void (*UA_NodestoreInterface_nodeVisitor)(void *visitorHandle, const UA_Node *node);
+typedef void (*UA_NodestoreInterface_iterate)(void *handle, void* visitorHandle, UA_NodestoreInterface_nodeVisitor visitor);
 
 /**
  * Release
@@ -130,7 +129,7 @@ typedef struct UA_NodestoreInterface {
     UA_NodestoreInterface_releaseNode   releaseNode;
     
     //insert --> remove
-    UA_NodestoreInterface_removeNode       removeNode;
+    UA_NodestoreInterface_removeNode    removeNode;
 
     UA_NodestoreInterface_iterate       iterate;
 }UA_NodestoreInterface;

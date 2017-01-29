@@ -27,6 +27,7 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
+#define NS0_URI "http://opcfoundation.org/UA/"
 
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
@@ -44,6 +45,24 @@ const size_t usernamePasswordsSize = 2;
 const UA_UsernamePasswordLogin *usernamePasswords = (UA_UsernamePasswordLogin[2]){
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
+
+/* UA namespace 0 (Basic information model and data types) and namespace 1 as default user namespace.
+ * Both will be initialized with nodestore_std */
+//Add NS0
+#define UA_NAMESPACE0 {                         \
+            .uri = UA_STRING_STATIC(NS0_URI),   \
+            .dataTypes = UA_TYPES,              \
+            .dataTypesSize = UA_TYPES_COUNT,    \
+            .nodestore = NULL,                  \
+            .index = UA_NAMESPACE_UNDEFINED}
+//Add NS1
+#define UA_NAMESPACE1 {                                 \
+            .uri = UA_STRING_STATIC(APPLICATION_URI),   \
+            .nodestore = NULL,                          \
+            .dataTypes = NULL,                          \
+            .dataTypesSize = 0,                         \
+            .nodestore = NULL,                          \
+            .index = UA_NAMESPACE_UNDEFINED}
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .nThreads = 1,
@@ -77,8 +96,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .networkLayers = NULL,
 
     /* NS0 and NS1 */
-    .namespaces = NULL,
-    .namespacesSize = 0,
+    .namespaces = (UA_Namespace[2]){ UA_NAMESPACE0, UA_NAMESPACE1},
+    .namespacesSize = 2,
 
     /* Access Control */
     .accessControl = {
@@ -138,8 +157,8 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     .connectionFunc = UA_ClientConnectionTCP,
 
     /* Custom DataTypes */
-    .namespacesSize = 0,
-    .namespaces = NULL
+    .namespacesSize = 1,
+    .namespaces = (UA_Namespace[1]) {UA_NAMESPACE1}
 };
 
 /****************************************/

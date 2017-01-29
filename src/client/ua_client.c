@@ -443,7 +443,7 @@ static UA_StatusCode UpdateNamespaceIndices(UA_Client* client){
                 break;
             }
         }
-        UA_Namespace_updateDataTypes(&client->namespaces[i],NULL);
+        UA_Namespace_updateDataTypes(&client->namespaces[i], NULL, (UA_UInt16)i);
     }
     UA_Variant_deleteMembers(&value);
     return UA_STATUSCODE_GOOD;
@@ -642,14 +642,15 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 }
 
 static void changeNamespace_client(UA_Client *client, UA_Namespace* namespace, size_t nsArrayIdx){
+    UA_UInt16 newNsIdx = UA_NAMESPACE_UNDEFINED;
     //update namespace array indices
     if(UpdateNamespaceIndices(client) == UA_STATUSCODE_GOOD){
-        namespace->index = client->namespaces[nsArrayIdx].index;
-    }else{
-        namespace->index = UA_NAMESPACE_UNDEFINED;
+        newNsIdx = client->namespaces[nsArrayIdx].index;
     }
     //Overwrite values from given namespace
-    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx],namespace);
+    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx], namespace, newNsIdx);
+    namespace->index = newNsIdx;
+    client->namespaces[nsArrayIdx].index = newNsIdx;
 }
 
 UA_StatusCode
@@ -669,7 +670,7 @@ UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespace){
     client->namespaces = newNsArray;
 
     /* Fill new namespace with values */
-    client->namespaces[client->namespacesSize] = *UA_Namespace_new(&namespace->uri);
+    UA_Namespace_init(&client->namespaces[client->namespacesSize], &namespace->uri);
     changeNamespace_client(client, namespace, client->namespacesSize);
 
     /* Announce the change (otherwise, the array appears unchanged) */
