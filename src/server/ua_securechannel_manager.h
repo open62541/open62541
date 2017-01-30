@@ -1,5 +1,12 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "ua_util.h"
 #include "ua_server.h"
@@ -41,5 +48,9 @@ UA_SecureChannelManager_get(UA_SecureChannelManager *cm, UA_UInt32 channelId);
 
 UA_StatusCode
 UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_CHANNEL_MANAGER_H_ */

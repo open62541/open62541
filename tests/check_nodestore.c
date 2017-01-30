@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -39,6 +42,7 @@ START_TEST(replaceExistingNode) {
     UA_RCU_LOCK();
 #endif
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0, 2253);
@@ -60,6 +64,7 @@ START_TEST(replaceOldNode) {
     UA_RCU_LOCK();
 #endif
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
@@ -89,6 +94,7 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
@@ -110,6 +116,7 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
 
     UA_Node* n1 = createNode(0,2255);
     UA_NodeStore_insert(ns, n1, NULL);
@@ -134,6 +141,7 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
@@ -167,6 +175,7 @@ START_TEST(iterateOverUA_NodeStoreShallNotVisitEmptyNodes) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
@@ -202,6 +211,7 @@ START_TEST(findNodeInExpandedNamespace) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n;
     UA_Int32 i=0;
     for (; i<200; i++) {
@@ -229,6 +239,7 @@ START_TEST(iterateOverExpandedNamespaceShallNotVisitEmptyNodes) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n;
     UA_Int32 i=0;
     for (; i<200; i++) {
@@ -257,6 +268,7 @@ START_TEST(failToFindNonExistantNodeInUA_NodeStoreWithSeveralEntries) {
 #endif
     // given
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node* n1 = createNode(0,2253);
     UA_NodeStore_insert(ns, n1, NULL);
     UA_Node* n2 = createNode(0,2255);
@@ -321,6 +333,7 @@ START_TEST(profileGetDelete) {
 
 #define N 1000000
     UA_NodeStore *ns = UA_NodeStore_new();
+    UA_NodeStore_linkNamespace(ns,0);
     UA_Node *n;
     for (int i=0; i<N; i++) {
         n = createNode(0,i);

@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_util.h"
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
@@ -52,7 +55,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     UA_free(client->namespaces);
     //Add namespace 0, because it is always supported
     client->namespaces = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
-    //TODO Namespace_0 as define/std config in ua_namespace?
+    //TODO Namespace_0 as define/std config in ua_namespace? (Watchout will overwrite index with undefined value)
     client->namespaces->dataTypes = UA_TYPES;
     client->namespaces->dataTypesSize = UA_TYPES_COUNT;
     client->namespaces->index = 0;
@@ -497,8 +500,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     for(size_t i = 0; i < endpointArraySize; ++i) {
         UA_EndpointDescription* endpoint = &endpointArray[i];
         /* look out for binary transport endpoints */
-        //NODE: Siemens returns empty ProfileUrl, we will accept it as binary
-        if(endpoint->transportProfileUri.length!=0 &&
+        /* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
+        if(endpoint->transportProfileUri.length != 0 &&
            !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
             continue;
         /* look out for an endpoint without security */
@@ -536,12 +539,11 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     if(!endpointFound) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "No suitable endpoint found");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(!tokenFound) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    } else if(!tokenFound) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "No anonymous token found");
-        return UA_STATUSCODE_BADINTERNALERROR;
+                     "No suitable UserTokenPolicy found for the possible endpoints");
+        retval = UA_STATUSCODE_BADINTERNALERROR;
     }
     return retval;
 }
@@ -641,37 +643,37 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     return retval;
 }
 
-static void changeNamespace_client(UA_Client *client, UA_Namespace* namespace, size_t nsArrayIdx){
+static void changeNamespace_client(UA_Client *client, UA_Namespace* namespacePtr, size_t nsArrayIdx){
     UA_UInt16 newNsIdx = UA_NAMESPACE_UNDEFINED;
     //update namespace array indices
     if(UpdateNamespaceIndices(client) == UA_STATUSCODE_GOOD){
         newNsIdx = client->namespaces[nsArrayIdx].index;
     }
     //Overwrite values from given namespace
-    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx], namespace, newNsIdx);
-    namespace->index = newNsIdx;
+    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx], namespacePtr, newNsIdx);
+    namespacePtr->index = newNsIdx;
     client->namespaces[nsArrayIdx].index = newNsIdx;
 }
 
 UA_StatusCode
-UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespace){
+UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespacePtr){
     /* Check if the namespace already exists in the server's namespace array */
     for(size_t i = 0; i < client->namespacesSize; ++i) {
-        if(UA_String_equal(&namespace->uri, &client->namespaces[i].uri)){
-            changeNamespace_client(client, namespace, i);
+        if(UA_String_equal(&namespacePtr->uri, &client->namespaces[i].uri)){
+            changeNamespace_client(client, namespacePtr, i);
             return UA_STATUSCODE_GOOD;
         }
     }
     /* Namespace doesn't exist alloc space in namespaces array */
-    UA_Namespace *newNsArray = UA_realloc(client->namespaces,
+    UA_Namespace *newNsArray = (UA_Namespace*)UA_realloc(client->namespaces,
                                       sizeof(UA_Namespace) * (client->namespacesSize + 1));
     if(!newNsArray)
             return UA_STATUSCODE_BADOUTOFMEMORY;
     client->namespaces = newNsArray;
 
     /* Fill new namespace with values */
-    UA_Namespace_init(&client->namespaces[client->namespacesSize], &namespace->uri);
-    changeNamespace_client(client, namespace, client->namespacesSize);
+    UA_Namespace_init(&client->namespaces[client->namespacesSize], &namespacePtr->uri);
+    changeNamespace_client(client, namespacePtr, client->namespacesSize);
 
     /* Announce the change (otherwise, the array appears unchanged) */
     client->namespacesSize++;
@@ -820,6 +822,10 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
+    /* Forward declaration for the goto */
+    size_t offset = 0;
+    UA_NodeId responseId;
+
     if(messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Server replied with the wrong message type");
@@ -839,8 +845,6 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Check that the response type matches */
-    size_t offset = 0;
-    UA_NodeId responseId;
     retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;

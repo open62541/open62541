@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include <stdlib.h>
 
 #include "ua_types.h"
@@ -27,25 +30,25 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(strlen(hostname), 0);
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path, NULL);
+    ck_assert(path == NULL);
 
     // only hostname
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_str_eq(hostname,"hostname");
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path, NULL);
+    ck_assert(path == NULL);
 
     // empty port
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_str_eq(hostname,"hostname");
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path, NULL);
+    ck_assert(path == NULL);
 
     // specific port
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_str_eq(hostname,"hostname");
     ck_assert_uint_eq(port, 1234);
-    ck_assert_ptr_eq(path, NULL);
+    ck_assert(path == NULL);
 
     // IPv6
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path", hostname, &port, &path), UA_STATUSCODE_GOOD);
@@ -57,13 +60,13 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://:", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(strlen(hostname),0);
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path, NULL);
+    ck_assert(path == NULL);
 
     // empty hostname and no port
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp:///", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(strlen(hostname),0);
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path,0);
+    ck_assert(path == NULL);
 
     // overlength port
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:12345678", hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
@@ -78,7 +81,7 @@ START_TEST(EndpointUrl_split) {
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname/", hostname, &port, &path), UA_STATUSCODE_GOOD);
     ck_assert_str_eq(hostname,"hostname");
     ck_assert_uint_eq(port, 0);
-    ck_assert_ptr_eq(path, 0);
+    ck_assert(path == NULL);
 
     // port and path
     ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234/path", hostname, &port, &path), UA_STATUSCODE_GOOD);

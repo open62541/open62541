@@ -79,22 +79,21 @@ class Type(object):
         binaryEncodingId = "0"
         if self.name in typedescriptions:
             description = typedescriptions[self.name]
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}" % (description.namespaceid, description.nodeid)
+            typeid = "{%s, UA_NODEIDTYPE_NUMERIC, {%s}}" % (description.namespaceid, description.nodeid)
             xmlEncodingId = description.xmlEncodingId
             binaryEncodingId = description.binaryEncodingId
         else:
-            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}"
-        return "{ .typeId = " + typeid + \
-            ",\n  .typeIndex = " + self.typeIndex + \
-            ",\n#ifdef UA_ENABLE_TYPENAMES\n  .typeName = \"%s\",\n#endif\n" % self.name + \
-            "  .memSize = sizeof(UA_" + self.name + ")" + \
-            ",\n  .builtin = " + self.builtin + \
-            ",\n  .pointerFree = " + self.pointerfree + \
-            ",\n  .overlayable = " + self.overlayable + \
-            ",\n  .binaryEncodingId = " + binaryEncodingId + \
-            ",\n  .membersSize = " + str(len(self.members)) + \
-            ",\n  .members = %s_members" % self.name + " }"
-            #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
+            typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
+        return "{\n#ifdef UA_ENABLE_TYPENAMES\n    \"%s\", /* .typeName */\n#endif\n" % self.name + \
+            "    " + typeid + ", /* .typeId */\n" + \
+            "    sizeof(UA_" + self.name + "), /* .memSize */\n" + \
+            "    " + self.typeIndex + ", /* .typeIndex */\n" + \
+            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
+            "    " + self.builtin + ", /* .builtin */\n" + \
+            "    " + self.pointerfree + ", /* .pointerFree */\n" + \
+            "    " + self.overlayable + ", /* .overlayable */ \n" + \
+            "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
+            "    %s_members" % self.name + " /* .members */ }"
 
     def members_c(self):
         if len(self.members)==0:
@@ -102,12 +101,11 @@ class Type(object):
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
         for index, member in enumerate(self.members):
-            m = "\n  { .memberTypeIndex = %s_%s,\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
-            m += "#ifdef UA_ENABLE_TYPENAMES\n    .memberName = \"%s\",\n#endif\n" % member.name
-            m += "    .namespaceZero = %s,\n" % member.memberType.ns0
-            m += "    .padding = "
+            m = "\n{\n#ifdef UA_ENABLE_TYPENAMES\n    \"%s\", /* .memberName */\n#endif\n" % member.name
+            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
+            m += "    "
             if not before:
-                m += "0,\n"
+                m += "0,"
             else:
                 if member.isArray:
                     m += "offsetof(UA_%s, %sSize)" % (self.name, member.name)
@@ -115,11 +113,13 @@ class Type(object):
                     m += "offsetof(UA_%s, %s)" % (self.name, member.name)
                 m += " - offsetof(UA_%s, %s)" % (self.name, before.name)
                 if before.isArray:
-                    m += " - sizeof(void*),\n"
+                    m += " - sizeof(void*),"
                 else:
-                    m += " - sizeof(UA_%s),\n" % before.memberType.name
-            m += "    .isArray = " + ("true" if member.isArray else "false")
-            members += m + "\n  },"
+                    m += " - sizeof(UA_%s)," % before.memberType.name
+            m += " /* .padding */\n"
+            m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
+            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n},"
+            members += m
             before = member
         return members + "};"
 
@@ -415,12 +415,8 @@ printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 extern "C" {
 #endif
 
-#ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-''' + (' #include "ua_types_generated.h"\n' if outname != "ua_types" else '')+'''
-#else
- #include "open62541.h"
-#endif
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '')+'''
 ''')
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.

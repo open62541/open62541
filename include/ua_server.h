@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 /*
  * Copyright (C) 2014 the contributors as stated in the AUTHORS file
  *
@@ -222,7 +225,7 @@ UA_Server_addNamespace(UA_Server *server, const char* namespaceUri);
  * The namespace uri is copied. The DataTypes are copied. The Nodestoreinterface is linked.
 */
 UA_StatusCode UA_EXPORT
-UA_Server_addNamespace_full(UA_Server *server, UA_Namespace * namespace);
+UA_Server_addNamespace_full(UA_Server *server, UA_Namespace * namespacePtr);
 /* Delete a namespace from the server. The data type encodings and nodestores will also be deleted. */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri);
@@ -686,6 +689,8 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
 /**
+ * .. _value-callback:
+ *
  * Value Callback
  * ~~~~~~~~~~~~~~
  * Value Callbacks can be attached to variable and variable type nodes. If
@@ -725,12 +730,21 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
  * When creating dynamic node instances at runtime, chances are that you will
  * not care about the specific NodeId of the new node, as long as you can
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
- * the stack evaluates this as "select a randome free NodeId in that namespace".
- * To find out which NodeId was actually assigned to the new node, you may pass
- * a pointer `outNewNodeId`, which will (after a successfull node insertion)
- * contain the nodeId of the new node. You may also pass NULL pointer if this
- * result is not relevant. The namespace index for nodes you create should never
- * be 0, as that index is reserved for OPC UA's self-description (namespace 0). */
+ * the stack evaluates this as "select a random unassigned numeric NodeId in
+ * that namespace". To find out which NodeId was actually assigned to the new
+ * node, you may pass a pointer `outNewNodeId`, which will (after a successfull
+ * node insertion) contain the nodeId of the new node. You may also pass NULL
+ * pointer if this result is not relevant. The namespace index for nodes you
+ * create should never be 0, as that index is reserved for OPC UA's
+ * self-description (namespace * 0).
+ *
+ * The methods for node addition and deletion take mostly const arguments that
+ * are not modified. When creating a node, a deep copy of the node identifier,
+ * node attributes, etc. is created. Therefore, it is possible to call for
+ * example `UA_Server_addVariablenode` with a value attribute (a :ref:`variant`)
+ * pointing to a memory location on the stack. If you need changes to a variable
+ * value to manifest at a specific memory location, please use a
+ * :ref:`datasource` or a :ref:`value-callback`. */
 /* The instantiation callback is used to track the addition of new nodes. It is
  * also called for all sub-nodes contained in an object or variable type node
  * that is instantiated. */

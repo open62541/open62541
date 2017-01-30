@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_nodestore.h"
 #include "ua_server_internal.h"
 #include "ua_util.h"
@@ -81,7 +84,7 @@ instantiateEntry(UA_NodeClass nodeClass) {
     default:
         return NULL;
     }
-    UA_NodeStoreEntry *entry = UA_calloc(1, size);
+    UA_NodeStoreEntry *entry = (UA_NodeStoreEntry *)UA_calloc(1, size);
     if(!entry)
         return NULL;
     entry->node.nodeClass = nodeClass;
@@ -155,7 +158,7 @@ expand(UA_NodeStore *ns) {
     UA_NodeStoreEntry **oentries = ns->entries;
     UA_UInt32 nindex = higher_prime_index(count * 2);
     UA_UInt32 nsize = primes[nindex];
-    UA_NodeStoreEntry **nentries = UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
+    UA_NodeStoreEntry **nentries = (UA_NodeStoreEntry **)UA_calloc(nsize, sizeof(UA_NodeStoreEntry*));
     if(!nentries)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -176,20 +179,21 @@ expand(UA_NodeStore *ns) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_NodeStore *
 initNodestore(UA_NodeStore * ns){
     if(!ns)
-        return;
+        return NULL;
     ns->sizePrimeIndex = higher_prime_index(UA_NODESTORE_MINSIZE);
     ns->size = primes[ns->sizePrimeIndex];
     ns->count = 0;
     ns->linkedNamespacesLength = 0;
     ns->linkedNamespaces = NULL;
-    ns->entries = UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
+    ns->entries = (UA_NodeStoreEntry **) UA_calloc(ns->size, sizeof(UA_NodeStoreEntry*));
     if(!ns->entries) {
         UA_free(ns);
-        ns = NULL;
+        return NULL;
     }
+    return ns;
 }
 
 
@@ -199,9 +203,8 @@ initNodestore(UA_NodeStore * ns){
 
 UA_NodeStore *
 UA_NodeStore_new(void) {
-    UA_NodeStore *ns = UA_malloc(sizeof(UA_NodeStore));
-    initNodestore(ns);
-    return ns;
+    UA_NodeStore *ns = (UA_NodeStore*)UA_malloc(sizeof(UA_NodeStore));
+    return initNodestore(ns);
 }
 
 void
@@ -223,7 +226,7 @@ UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex) {
 
 UA_StatusCode
 UA_NodeStore_linkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
-    UA_UInt16 * newLinkedNs = UA_realloc(ns->linkedNamespaces, sizeof(UA_UInt16)*(ns->linkedNamespacesLength + 1));
+    UA_UInt16 * newLinkedNs = (UA_UInt16*)UA_realloc(ns->linkedNamespaces, sizeof(UA_UInt16)*(ns->linkedNamespacesLength + 1));
     if(!newLinkedNs){
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -238,7 +241,7 @@ UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
     size_t lNsLength = ns->linkedNamespacesLength;
     if(lNsLength == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt16 * newLinkedNs = UA_malloc(sizeof(UA_UInt16) * (lNsLength -1));
+    UA_UInt16 * newLinkedNs = (UA_UInt16*)UA_malloc(sizeof(UA_UInt16) * (lNsLength -1));
     if(!newLinkedNs)
         return UA_STATUSCODE_BADNOTFOUND;
     size_t j = 0;
@@ -347,15 +350,15 @@ UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     if(!slot)
         return NULL;
     UA_NodeStoreEntry *entry = *slot;
-    UA_NodeStoreEntry *new = instantiateEntry(entry->node.nodeClass);
-    if(!new)
+    UA_NodeStoreEntry *newItem = instantiateEntry(entry->node.nodeClass);
+    if(!newItem)
         return NULL;
-    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
-        deleteEntry(new);
+    if(UA_Node_copyAnyNodeClass(&entry->node, &newItem->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(newItem);
         return NULL;
     }
-    new->orig = entry; // store the pointer to the original
-    return &new->node;
+    newItem->orig = entry; // store the pointer to the original
+    return &newItem->node;
 }
 
 UA_StatusCode

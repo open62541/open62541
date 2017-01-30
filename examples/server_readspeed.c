@@ -20,6 +20,7 @@
 # define UA_SERVER_H_
 # define UA_CONNECTION_H_
 # define UA_TYPES_GENERATED_H_
+# define UA_NAMESPACE_H_
 #endif
 
 #include "server/ua_services.h"

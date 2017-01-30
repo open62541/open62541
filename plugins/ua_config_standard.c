@@ -11,11 +11,11 @@
 /*******************************/
 
 const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
-    .protocolVersion = 0,
-    .sendBufferSize = 65535, /* 64k per chunk */
-    .recvBufferSize = 65535, /* 64k per chunk */
-    .maxMessageSize = 0, /* 0 -> unlimited */
-    .maxChunkCount = 0 /* 0 -> unlimited */
+	0, /* .protocolVersion */
+    65535, /* .sendBufferSize, 64k per chunk */
+    65535, /* .recvBufferSize, 64k per chunk */
+    0, /* .maxMessageSize, 0 -> unlimited */
+    0 /* .maxChunkCount, 0 -> unlimited */
 };
 
 /***************************/
@@ -42,100 +42,79 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
 const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
 const size_t usernamePasswordsSize = 2;
-const UA_UsernamePasswordLogin *usernamePasswords = (UA_UsernamePasswordLogin[2]){
+
+UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
+const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
 
 /* UA namespace 0 (Basic information model and data types) and namespace 1 as default user namespace.
  * Both will be initialized with nodestore_std */
 //Add NS0
-#define UA_NAMESPACE0 {                         \
-            .uri = UA_STRING_STATIC(NS0_URI),   \
-            .dataTypes = UA_TYPES,              \
-            .dataTypesSize = UA_TYPES_COUNT,    \
-            .nodestore = NULL,                  \
-            .index = UA_NAMESPACE_UNDEFINED}
+#define UA_NAMESPACE0 {UA_NAMESPACE_UNDEFINED, UA_STRING_STATIC(NS0_URI),\
+                       NULL, UA_TYPES, UA_TYPES_COUNT}
 //Add NS1
-#define UA_NAMESPACE1 {                                 \
-            .uri = UA_STRING_STATIC(APPLICATION_URI),   \
-            .nodestore = NULL,                          \
-            .dataTypes = NULL,                          \
-            .dataTypesSize = 0,                         \
-            .nodestore = NULL,                          \
-            .index = UA_NAMESPACE_UNDEFINED}
+#define UA_NAMESPACE1 {UA_NAMESPACE_UNDEFINED, UA_STRING_STATIC(APPLICATION_URI),\
+                       NULL, NULL, 0}
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
-    .nThreads = 1,
-    .logger = UA_Log_Stdout,
+	1, /* .nThreads */
+    UA_Log_Stdout, /* .logger */
 
     /* Server Description */
-    .buildInfo = {
-        .productUri = UA_STRING_STATIC(PRODUCT_URI),
-        .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
-        .productName = UA_STRING_STATIC(PRODUCT_NAME),
-        .softwareVersion = UA_STRING_STATIC(VERSION(UA_OPEN62541_VER_MAJOR,
-                                                    UA_OPEN62541_VER_MINOR,
-                                                    UA_OPEN62541_VER_PATCH,
-                                                    UA_OPEN62541_VER_LABEL)),
-        .buildNumber = UA_STRING_STATIC(__DATE__ " " __TIME__),
-        .buildDate = 0 },
-    .applicationDescription = {
-        .applicationUri = UA_STRING_STATIC(APPLICATION_URI),
-        .productUri = UA_STRING_STATIC(PRODUCT_URI),
-        .applicationName = { .locale = UA_STRING_STATIC("en"),
-                             .text = UA_STRING_STATIC(APPLICATION_NAME) },
-        .applicationType = UA_APPLICATIONTYPE_SERVER,
-        .gatewayServerUri = UA_STRING_STATIC_NULL,
-        .discoveryProfileUri = UA_STRING_STATIC_NULL,
-        .discoveryUrlsSize = 0,
-        .discoveryUrls = NULL },
-    .serverCertificate = UA_STRING_STATIC_NULL,
+    {UA_STRING_STATIC(PRODUCT_URI),
+     UA_STRING_STATIC(MANUFACTURER_NAME),
+     UA_STRING_STATIC(PRODUCT_NAME),
+     UA_STRING_STATIC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
+                              UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL)),
+     UA_STRING_STATIC(__DATE__ " " __TIME__), 0 }, /* .buildInfo */
+	 
+    {UA_STRING_STATIC(APPLICATION_URI),
+     UA_STRING_STATIC(PRODUCT_URI),
+     {UA_STRING_STATIC("en"),UA_STRING_STATIC(APPLICATION_NAME) },
+      UA_APPLICATIONTYPE_SERVER,
+      UA_STRING_STATIC_NULL,
+      UA_STRING_STATIC_NULL,
+      0, NULL }, /* .applicationDescription */
+    UA_STRING_STATIC_NULL, /* .serverCertificate */
 
     /* Networking */
-    .networkLayersSize = 0,
-    .networkLayers = NULL,
+    0, /* networklayerSize */
+    NULL,/* networklayers */
 
     /* NS0 and NS1 */
-    .namespaces = (UA_Namespace[2]){ UA_NAMESPACE0, UA_NAMESPACE1},
-    .namespacesSize = 2,
+    2, /* namespacesSize */
+    (UA_Namespace[2]){UA_NAMESPACE0, UA_NAMESPACE1}, /* namespaces */
 
     /* Access Control */
-    .accessControl = {
-        .enableAnonymousLogin = ENABLEANONYMOUSLOGIN,
-        .enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN,
-        .activateSession = activateSession_default,
-        .closeSession = closeSession_default,
-        .getUserRightsMask = getUserRightsMask_default,
-        .getUserAccessLevel = getUserAccessLevel_default,
-        .getUserExecutable = getUserExecutable_default,
-        .getUserExecutableOnObject = getUserExecutableOnObject_default,
-        .allowAddNode = allowAddNode_default,
-        .allowAddReference = allowAddReference_default,
-        .allowDeleteNode = allowDeleteNode_default,
-        .allowDeleteReference = allowDeleteReference_default
-    },
+    {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,
+     activateSession_default, closeSession_default,
+     getUserRightsMask_default, getUserAccessLevel_default,
+     getUserExecutable_default, getUserExecutableOnObject_default,
+     allowAddNode_default, allowAddReference_default,
+     allowDeleteNode_default, allowDeleteReference_default},
 
     /* Limits for SecureChannels */
-    .maxSecureChannels = 40,
-    .maxSecurityTokenLifetime = 10 * 60 * 1000, /* 10 minutes */
+    40, /* .maxSecureChannels */
+    10 * 60 * 1000, /* .maxSecurityTokenLifetime, 10 minutes */
 
     /* Limits for Sessions */
-    .maxSessions = 100,
-    .maxSessionTimeout = 60.0 * 60.0 * 1000.0, /* 1h */
+    100, /* .maxSessions */
+    60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
 
     /* Limits for Subscriptions */
-    .publishingIntervalLimits = { .min = 100.0, .max = 3600.0 * 1000.0 },
-    .lifeTimeCountLimits = { .max = 15000, .min = 3 },
-    .keepAliveCountLimits = { .max = 100, .min = 1 },
-    .maxNotificationsPerPublish = 1000,
-    .maxRetransmissionQueueSize = 0, /* unlimited */
+    {100.0,3600.0 * 1000.0 }, /* .publishingIntervalLimits */
+    {3, 15000 }, /* .lifeTimeCountLimits */
+    {1,100}, /* .keepAliveCountLimits */
+    1000, /* .maxNotificationsPerPublish */
+    0, /* .maxRetransmissionQueueSize, unlimited */
 
     /* Limits for MonitoredItems */
-    .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
-    .queueSizeLimits = { .max = 100, .min = 1 }
+    {50.0, 24.0 * 3600.0 * 1000.0 }, /* .samplingIntervalLimits */
+    {1,100} /* .queueSizeLimits */
 
 #ifdef UA_ENABLE_DISCOVERY
-	,.discoveryCleanupTimeout = 60*60
+	, 60*60 /* .discoveryCleanupTimeout */
 #endif
 };
 
@@ -144,21 +123,20 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 /***************************/
 
 const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
-    .timeout = 5000, /* 5 seconds */
-    .secureChannelLifeTime = 10 * 60 * 1000, /* 10 minutes */
-    .logger = UA_Log_Stdout,
-    .localConnectionConfig = {
-        .protocolVersion = 0,
-        .sendBufferSize = 65535, /* 64k per chunk */
-        .recvBufferSize  = 65535, /* 64k per chunk */
-        .maxMessageSize = 0, /* 0 -> unlimited */
-        .maxChunkCount = 0 /* 0 -> unlimited */
-    },
-    .connectionFunc = UA_ClientConnectionTCP,
+    5000, /* .timeout, 5 seconds */
+    10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
+    UA_Log_Stdout, /* .logger */
+    /* .localConnectionConfig */
+    {0, /* .protocolVersion */
+     65535, /* .sendBufferSize, 64k per chunk */
+     65535, /* .recvBufferSize, 64k per chunk */
+     0, /* .maxMessageSize, 0 -> unlimited */
+     0 }, /* .maxChunkCount, 0 -> unlimited */
+    UA_ClientConnectionTCP, /* .connectionFunc */
 
-    /* Custom DataTypes */
-    .namespacesSize = 1,
-    .namespaces = (UA_Namespace[1]) {UA_NAMESPACE1}
+    /* Namespaces */
+    0, /*namespacesSize*/
+    NULL /*namespaces*/
 };
 
 /****************************************/
@@ -168,12 +146,12 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
 const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
-    .requestedPublishingInterval = 500.0,
-    .requestedLifetimeCount = 10000,
-    .requestedMaxKeepAliveCount = 1,
-    .maxNotificationsPerPublish = 10,
-    .publishingEnabled = true,
-    .priority = 0
+    500.0, /* .requestedPublishingInterval */
+    10000, /* .requestedLifetimeCount */
+    1, /* .requestedMaxKeepAliveCount */
+    10, /* .maxNotificationsPerPublish */
+    true, /* .publishingEnabled */
+    0 /* .priority */
 };
 
 #endif

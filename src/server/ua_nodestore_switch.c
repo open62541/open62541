@@ -21,7 +21,7 @@ UA_NodestoreSwitch_newNode(UA_Server* server, UA_NodeClass nodeClass, UA_UInt16 
 void
 UA_NodestoreSwitch_deleteNode(UA_Server* server, UA_Node *node){
     if(checkNSIndex(server, node->nodeId.namespaceIndex)){
-        return server->namespaces[node->nodeId.namespaceIndex].nodestore->deleteNode(node);
+        server->namespaces[node->nodeId.namespaceIndex].nodestore->deleteNode(node);
     }
 }
 

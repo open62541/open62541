@@ -1,34 +1,35 @@
 #include "ua_namespace.h"
 #include "ua_types_generated_handling.h"
 
-void UA_Namespace_init(UA_Namespace * namespace, const UA_String * namespaceUri){
-    namespace->dataTypesSize = 0;
-    namespace->dataTypes = NULL;
-    namespace->nodestore = NULL;
-    namespace->index = UA_NAMESPACE_UNDEFINED;
-    UA_String_copy(namespaceUri, &namespace->uri);
+void UA_Namespace_init(UA_Namespace * namespacePtr, const UA_String * namespaceUri){
+    namespacePtr->dataTypesSize = 0;
+    namespacePtr->dataTypes = NULL;
+    namespacePtr->nodestore = NULL;
+    namespacePtr->index = UA_NAMESPACE_UNDEFINED;
+    UA_String_copy(namespaceUri, &namespacePtr->uri);
 }
 
 UA_Namespace* UA_Namespace_new(const UA_String * namespaceUri){
-    UA_Namespace* ns = UA_malloc(sizeof(UA_Namespace));
+    UA_Namespace* ns = (UA_Namespace*)UA_malloc(sizeof(UA_Namespace));
     UA_Namespace_init(ns,namespaceUri);
     return ns;
 }
 
 UA_Namespace* UA_Namespace_newFromChar(const char * namespaceUri){
     // Override const attribute to get string (dirty hack) /
-    const UA_String nameString = {.length = strlen(namespaceUri),
-                                  .data = (UA_Byte*)(uintptr_t)namespaceUri};
+    UA_String nameString;
+    nameString.length = (size_t) strlen(namespaceUri);
+    nameString.data = (UA_Byte*)(uintptr_t)namespaceUri;
     return UA_Namespace_new(&nameString);
 }
 
 
-void UA_Namespace_deleteMembers(UA_Namespace* namespace){
-    if(namespace->nodestore){
-        namespace->nodestore->deleteNodestore(
-                namespace->nodestore->handle, namespace->index);
+void UA_Namespace_deleteMembers(UA_Namespace* namespacePtr){
+    if(namespacePtr->nodestore){
+        namespacePtr->nodestore->deleteNodestore(
+                namespacePtr->nodestore->handle, namespacePtr->index);
     }
-    UA_String_deleteMembers(&namespace->uri);
+    UA_String_deleteMembers(&namespacePtr->uri);
 }
 
 void UA_Namespace_updateDataTypes(UA_Namespace * namespaceToUpdate,
@@ -106,7 +107,7 @@ static void updateNodeNamespaceIndexCallback(struct updateNodeNamespaceIndexHand
     handle->nextNode->node = handle->nsi->getNode(handle->nsi->handle, &node->nodeId);
 
     //set pointer to node in listentry and set list pointer one step further
-    handle->nextNode->next = UA_malloc(sizeof(struct nodeListEntry));
+    handle->nextNode->next = (struct nodeListEntry*)UA_malloc(sizeof(struct nodeListEntry));
     if(handle->nextNode->next){
         handle->nextNode->next->node = NULL;
         handle->nextNode->next->next = NULL;
@@ -118,15 +119,15 @@ static void updateNodeNamespaceIndexCallback(struct updateNodeNamespaceIndexHand
 
 static void updateNodestoreNamespaceIndex(UA_NodestoreInterface* nodestore,
                                                 size_t* newNsIndices, size_t newNsIndicesSize) {
-    struct nodeListEntry* nodeEntry = UA_malloc(sizeof(struct nodeListEntry));
+    struct nodeListEntry* nodeEntry = (struct nodeListEntry*)UA_malloc(sizeof(struct nodeListEntry));
     nodeEntry->node = NULL;
     nodeEntry->next = NULL;
 
-    struct updateNodeNamespaceIndexHandle handle = {
-        .nsi =  nodestore,
-        .nextNode = nodeEntry,
-        .result = UA_STATUSCODE_GOOD
-    };
+    struct updateNodeNamespaceIndexHandle handle;
+    handle.nsi = nodestore;
+    handle.nextNode = nodeEntry;
+    handle.result = UA_STATUSCODE_GOOD;
+
     nodestore->iterate(nodestore->handle, &handle,
                        (UA_NodestoreInterface_nodeVisitor)updateNodeNamespaceIndexCallback);
     while(nodeEntry) {
@@ -163,13 +164,14 @@ void UA_Namespace_changeNodestore(UA_Namespace * namespacesToUpdate,
                 namespacesToUpdate->nodestore->handle, namespacesToUpdate->index);
        }
        namespacesToUpdate->nodestore = namespaceNewNodestore->nodestore;
+       namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
     }
     if(!namespacesToUpdate->nodestore){
         //Set default nodestore if not already set
         namespacesToUpdate->nodestore = defaultNodestore;
-
+        namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
     }
-    namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
+
 }
 
 

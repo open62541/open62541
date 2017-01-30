@@ -1,5 +1,12 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "queue.h"
 #include "ua_types.h"
@@ -117,5 +124,9 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  (SESSION->channel ? SESSION->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA(SESSION->sessionId.identifier.guid), \
                  ##__VA_ARGS__);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SESSION_H_ */

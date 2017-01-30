@@ -1,5 +1,12 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #ifndef UA_CONNECTION_INTERNAL_H_
 #define UA_CONNECTION_INTERNAL_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "ua_connection.h"
 
@@ -41,5 +48,9 @@ void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_S
  * @return UA_STATUSCODE_BADOUTOFRANGE if url too long, UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with 'opc.tcp://', UA_STATUSCODE_GOOD on success
  */
 UA_StatusCode UA_EXPORT UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname, const char ** port, const char ** path);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_CONNECTION_INTERNAL_H_ */

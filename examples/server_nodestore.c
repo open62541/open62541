@@ -57,9 +57,9 @@ static void Nodestore_deleteNode(UA_Node *node){
 static UA_Node * Nodestore_newNode(UA_NodeClass nodeClass){
     if(nodeClass != UA_NODECLASS_OBJECT)
         return NULL;
-    UA_Node * node = UA_calloc(1, sizeof(UA_ObjectNode));
+    UA_ObjectNode * node = (UA_ObjectNode*)UA_calloc(1, sizeof(UA_ObjectNode));
     node->nodeClass = UA_NODECLASS_OBJECT;
-    return node;
+    return (UA_Node*)node;
 }
 static const UA_Node * Nodestore_get(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     if(nodeid->identifier.numeric < nodesCount //Node not instanciatet in nodestore
@@ -89,12 +89,12 @@ static UA_Node * Nodestore_getCopy(UA_ObjectNode *ns, const UA_NodeId *nodeid){
     const UA_Node * original = Nodestore_get(ns,nodeid);
     if(!original)
         return NULL;
-    UA_Node* copy = malloc(sizeof(UA_ObjectNode));
+    UA_ObjectNode * copy = (UA_ObjectNode*)UA_calloc(1, sizeof(UA_ObjectNode));
     copy->nodeClass = UA_NODECLASS_OBJECT;
-    if(UA_Node_copyAnyNodeClass(original, copy) != UA_STATUSCODE_GOOD){
+    if(UA_Node_copyAnyNodeClass(original, (UA_Node*)copy) != UA_STATUSCODE_GOOD){
         return NULL;
     }
-    return copy;
+    return (UA_Node*)copy;
 }
 static UA_StatusCode Nodestore_replace(UA_ObjectNode *ns, UA_Node *node){
     if(node->nodeClass != UA_NODECLASS_OBJECT)

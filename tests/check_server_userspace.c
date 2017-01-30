@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -32,7 +35,7 @@ START_TEST(Server_addNamespace_writeService)
     retval = UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                         &namespaces);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(namespaces.type, &UA_TYPES[UA_TYPES_STRING]);
+    ck_assert(namespaces.type == &UA_TYPES[UA_TYPES_STRING]);
 
     namespaces.data = realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
     ++namespaces.arrayLength;
@@ -42,7 +45,7 @@ START_TEST(Server_addNamespace_writeService)
 
     retval = UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                   namespaces);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOODEDITED);
     UA_Variant_deleteMembers(&namespaces);
 
     /* Now read again */

@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_util.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -9,55 +12,57 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
 
-UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                              UA_Boolean * UA_RESTRICT realloced) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+static UA_StatusCode
+prependIncomplete(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                  UA_Boolean * UA_RESTRICT realloced) {
+    UA_assert(connection->incompleteMessage.length > 0);
 
-    /* We have a stored an incomplete chunk. Concat the received message to the end.
-     * After this block, connection->incompleteMessage is always empty. */
-    if(connection->incompleteMessage.length > 0) {
-        size_t length = connection->incompleteMessage.length + message->length;
-        UA_Byte *data = (UA_Byte*)UA_realloc(connection->incompleteMessage.data, length);
-        if(!data) {
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto cleanup;
-        }
-        memcpy(&data[connection->incompleteMessage.length], message->data, message->length);
+    /* Allocate the new message buffer */
+    size_t length = connection->incompleteMessage.length + message->length;
+    UA_Byte *data = (UA_Byte*)UA_realloc(connection->incompleteMessage.data, length);
+    if(!data) {
+        UA_ByteString_deleteMembers(&connection->incompleteMessage);
         connection->releaseRecvBuffer(connection, message);
-        message->data = data;
-        message->length = length;
-        *realloced = true;
-        connection->incompleteMessage = UA_BYTESTRING_NULL;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Loop over the chunks in the received buffer */
-    size_t complete_until = 0; /* the received complete chunks end at this point */
-    UA_Boolean garbage_end = false; /* garbage after the last complete message */
+    /* Copy / release the current message buffer */
+    memcpy(&data[connection->incompleteMessage.length], message->data, message->length);
+    connection->releaseRecvBuffer(connection, message);
+    message->length = length;
+    message->data = data;
+    connection->incompleteMessage = UA_BYTESTRING_NULL;
+    *realloced = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+completeChunksUntil(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                    UA_Boolean *garbage_end) {
+    size_t complete_until = 0;
+
+    /* At least 8 byte needed for the header... */
     while(message->length - complete_until >= 8) {
         /* Check the message type */
         UA_UInt32 msgtype = (UA_UInt32)message->data[complete_until] +
-            ((UA_UInt32)message->data[complete_until+1] << 8) +
-            ((UA_UInt32)message->data[complete_until+2] << 16);
+                           ((UA_UInt32)message->data[complete_until+1] << 8) +
+                           ((UA_UInt32)message->data[complete_until+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
            msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
            msgtype != ('C' + ('L' << 8) + ('O' << 16))) {
-            garbage_end = true; /* the message type is not recognized */
+            *garbage_end = true; /* the message type is not recognized */
             break;
         }
 
-        /* Decode the length of the chunk */
+        /* Decoding failed or the message size is not allowed. The remaining
+         * message is garbage. */
         UA_UInt32 chunk_length = 0;
         size_t length_pos = complete_until + 4;
-        UA_StatusCode decode_retval = UA_UInt32_decodeBinary(message, &length_pos, &chunk_length);
-
-        /* The message size is not allowed. Throw the remaining bytestring away */
-        if(decode_retval != UA_STATUSCODE_GOOD ||
-           chunk_length < 16 ||
-           chunk_length > connection->localConf.recvBufferSize) {
-            garbage_end = true;
+        if(UA_UInt32_decodeBinary(message, &length_pos, &chunk_length) != UA_STATUSCODE_GOOD ||
+           chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize) {
+            *garbage_end = true;
             break;
         }
 
@@ -65,52 +70,85 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
         if(chunk_length + complete_until > message->length)
             break;
 
-        complete_until += chunk_length; /* Go to the next chunk */
+        /* Continue to the next chunk */
+        complete_until += chunk_length;
     }
 
-    /* Separate incomplete chunks */
-    if(complete_until != message->length) {
-        /* Garbage after the last good chunk. No need to keep a buffer */
-        if(garbage_end) {
-            if(complete_until == 0)
-                goto cleanup; /* All garbage, only happens on messages from the network layer */
-            message->length = complete_until;
-            return UA_STATUSCODE_GOOD;
-        }
+    UA_assert(complete_until <= message->length);
+    return complete_until;
+}
 
-        /* No good chunk, only an incomplete one */
-        if(complete_until == 0) {
-            if(!*realloced) {
-                retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, message->length);
-                if(retval != UA_STATUSCODE_GOOD)
-                    goto cleanup;
-                memcpy(connection->incompleteMessage.data, message->data, message->length);
-                connection->releaseRecvBuffer(connection, message);
-                *realloced = true;
-            } else {
-                connection->incompleteMessage = *message;
-                *message = UA_BYTESTRING_NULL;
-            }
-            return UA_STATUSCODE_GOOD;
-        }
+static UA_StatusCode
+separateIncompleteChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                        size_t complete_until, UA_Boolean garbage_end, UA_Boolean *realloced) {
+    UA_assert(complete_until < message->length);
 
-        /* At least one good chunk and an incomplete one */
-        size_t incomplete_length = message->length - complete_until;
-        retval = UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        memcpy(connection->incompleteMessage.data,
-               &message->data[complete_until], incomplete_length);
+    /* Garbage after the last good chunk. No need to keep an incomplete message. */
+    if(garbage_end) {
+        if(complete_until == 0) /* All garbage */
+            return UA_STATUSCODE_BADDECODINGERROR;
         message->length = complete_until;
+        return UA_STATUSCODE_GOOD;
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* No good chunk, buffer the entire message */
+    if(complete_until == 0) {
+        if(!*realloced) {
+            UA_StatusCode retval =
+                UA_ByteString_allocBuffer(&connection->incompleteMessage, message->length);
+            if(retval != UA_STATUSCODE_GOOD)
+                return retval;
+            memcpy(connection->incompleteMessage.data, message->data, message->length);
+            connection->releaseRecvBuffer(connection, message);
+            *realloced = true;
+        } else {
+            connection->incompleteMessage = *message;
+            *message = UA_BYTESTRING_NULL;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
 
- cleanup:
-    if(!*realloced)
-        connection->releaseRecvBuffer(connection, message);
-    UA_ByteString_deleteMembers(&connection->incompleteMessage);
-    return retval;
+    /* At least one good chunk and an incomplete one */
+    size_t incomplete_length = message->length - complete_until;
+    UA_StatusCode retval =
+        UA_ByteString_allocBuffer(&connection->incompleteMessage, incomplete_length);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    memcpy(connection->incompleteMessage.data, &message->data[complete_until], incomplete_length);
+    message->length = complete_until;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                              UA_Boolean * UA_RESTRICT realloced) {
+    /* If we have a stored an incomplete chunk, prefix to the received message.
+     * After this block, connection->incompleteMessage is always empty. The
+     * message and the buffer is released if allocating the memory fails. */
+    if(connection->incompleteMessage.length > 0) {
+        UA_StatusCode retval = prependIncomplete(connection, message, realloced);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Find the end of the last complete chunk */
+    UA_Boolean garbage_end = false; /* garbage after the last complete message */
+    size_t complete_until = completeChunksUntil(connection, message, &garbage_end);
+
+    /* Buffer incomplete chunk (at the end of the message) in the connection and
+     * adjust the size of the message. */
+    if(complete_until < message->length) {
+        UA_StatusCode retval = separateIncompleteChunk(connection, message, complete_until,
+                                                       garbage_end, realloced);
+        if(retval != UA_STATUSCODE_GOOD) {
+            if(*realloced)
+                UA_ByteString_deleteMembers(message);
+            else
+                connection->releaseRecvBuffer(connection, message);
+            return retval;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
@@ -123,8 +161,7 @@ void UA_Connection_detachSecureChannel(UA_Connection *connection) {
 
 // TODO: Return an error code
 void
-UA_Connection_attachSecureChannel(UA_Connection *connection,
-                                  UA_SecureChannel *channel) {
+UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel) {
     if(UA_atomic_cmpxchg((void**)&channel->connection, NULL, connection) == NULL)
         UA_atomic_xchg((void**)&connection->channel, (void*)channel);
 }

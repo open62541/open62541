@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
@@ -15,11 +18,11 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL;
-const UA_ByteString UA_BYTESTRING_NULL;
-const UA_Guid UA_GUID_NULL;
-const UA_NodeId UA_NODEID_NULL;
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+const UA_String UA_STRING_NULL = {0, NULL};
+const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
+const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
+const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
 /* TODO: The standard-defined types are ordered. See if binary search is more
  * efficient. */

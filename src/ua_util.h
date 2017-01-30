@@ -1,7 +1,14 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
 #include "ua_config.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Assert */
 #include <assert.h>
@@ -9,6 +16,13 @@
 
 /* BSD Queue Macros */
 #include "queue.h"
+
+/* C++ Access to datatypes defined inside structs (for queue.h) */
+#ifdef __cplusplus
+# define memberstruct(container,member) container::member
+#else
+# define memberstruct(container,member) member
+#endif
 
 /* container_of */
 #define container_of(ptr, type, member) \
@@ -90,5 +104,9 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 # endif
 #endif
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_UTIL_H_ */

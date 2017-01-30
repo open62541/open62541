@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
@@ -96,7 +99,7 @@ START_TEST(parseCustomScalar) {
     offset = 0;
     retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT],1, &namespace1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(var2.type, &PointType);
+    ck_assert(var2.type == &PointType);
 
     Point *p2 = (Point*)var2.data;
     ck_assert(p.x == p2->x);
@@ -131,12 +134,12 @@ START_TEST(parseCustomArray) {
     offset = 0;
     retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &namespace1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(var2.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_int_eq(var2.arrayLength, 10);
 
     UA_ExtensionObject *eo = (UA_ExtensionObject*)var2.data;
     ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
-    ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
+    ck_assert(eo->content.decoded.type == &PointType);
     Point *p2 = (Point*)eo->content.decoded.data;
     ck_assert(p2->x == 0.0);
         

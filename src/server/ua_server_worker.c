@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
@@ -49,10 +52,12 @@ processJob(UA_Server *server, UA_Job *job) {
         UA_Connection_detachSecureChannel(job->job.closeConnection);
         break;
     case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+        {
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                        &job->job.binaryMessage.message);
         UA_Connection *connection = job->job.binaryMessage.connection;
         connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+        }
         break;
     case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
@@ -97,10 +102,6 @@ workerLoop(UA_Worker *worker) {
     UA_random_seed((uintptr_t)worker);
     rcu_register_thread();
 
-    pthread_mutex_t mutex; // required for the condition variable
-    pthread_mutex_init(&mutex, 0);
-    pthread_mutex_lock(&mutex);
-
     while(*running) {
         struct DispatchJob *dj = (struct DispatchJob*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -109,13 +110,13 @@ workerLoop(UA_Worker *worker) {
             UA_free(dj);
         } else {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
-            pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
+            pthread_mutex_lock(&server->dispatchQueue_mutex);
+            pthread_cond_wait(&server->dispatchQueue_condition, &server->dispatchQueue_mutex);
+            pthread_mutex_unlock(&server->dispatchQueue_mutex);
         }
         UA_atomic_add(counter, 1);
     }
 
-    pthread_mutex_unlock(&mutex);
-    pthread_mutex_destroy(&mutex);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
     rcu_unregister_thread();
@@ -196,7 +197,7 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
         (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
-    struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
+    struct RepeatedJob *rj = (struct RepeatedJob *)UA_malloc(sizeof(struct RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     /* done inside addRepeatedJob:
@@ -368,7 +369,7 @@ typedef struct UA_DelayedJob {
 
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
-    UA_DelayedJob *dj = UA_malloc(sizeof(UA_DelayedJob));
+    UA_DelayedJob *dj = (UA_DelayedJob *)UA_malloc(sizeof(UA_DelayedJob));
     if(!dj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     dj->job.type = UA_JOBTYPE_METHODCALL;
@@ -535,6 +536,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
+    pthread_mutex_init(&server->dispatchQueue_mutex, 0);
     server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;

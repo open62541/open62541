@@ -18,13 +18,13 @@ typedef struct UA_Namespace{
 }UA_Namespace;
 
 void UA_EXPORT
-UA_Namespace_init(UA_Namespace * namespace, const UA_String * namespaceUri);
+UA_Namespace_init(UA_Namespace * namespacePtr, const UA_String * namespaceUri);
 UA_Namespace UA_EXPORT *
 UA_Namespace_new(const UA_String * namespaceUri);
 UA_Namespace UA_EXPORT *
 UA_Namespace_newFromChar(const char * namespaceUri);
 void UA_EXPORT
-UA_Namespace_deleteMembers(UA_Namespace* namespaceUri);
+UA_Namespace_deleteMembers(UA_Namespace* namespacePtr);
 
 void
 UA_Namespace_updateDataTypes(UA_Namespace * namespaceToUpdate,
@@ -33,7 +33,7 @@ void
 UA_Namespace_changeNodestore(UA_Namespace * namespacesToUpdate,
                              UA_Namespace * namespaceNewNodestore,
                              UA_NodestoreInterface * defaultNodestore,
-                             UA_UInt16 newNsIdx);
+                             UA_UInt16 newIdx);
 void
 UA_Namespace_updateNodestores(UA_Namespace * namespacesToUpdate, size_t namespacesToUpdateSize,
                               size_t* oldNsIdxToNewNsIdx, size_t oldNsIdxToNewNsIdxSize);

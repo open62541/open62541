@@ -1,3 +1,6 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+* License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #ifdef UA_ENABLE_NONSTANDARD_STATELESS
@@ -175,9 +178,11 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                const UA_NumericRange *range, UA_Variant *editableValue) {
-    /* Empty variant is only allowed for BaseDataType */
+    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+   
+	/* Empty variant always matches... */
     if(!value->type)
-        goto check_array;
+        return UA_STATUSCODE_GOOD;
 
     /* See if the types match. The nodeid on the wire may be != the nodeid in
      * the node for opaque types, enums and bytestrings. value contains the
@@ -186,7 +191,6 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
         goto check_array;
 
     /* Has the value a subtype of the required type? */
-    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(isNodeInTree(server, &value->type->typeId, targetDataTypeId, &subtypeId, 1))
         goto check_array;
 
@@ -201,11 +205,20 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
     if(range) /* array dimensions are checked later when writing the range */
         return UA_STATUSCODE_GOOD;
 
+    size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
+    UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
+    UA_UInt32 tempArrayDimensions;
+    if(valueArrayDimensions == 0 && !UA_Variant_isScalar(value)) {
+        valueArrayDimensionsSize = 1;
+        tempArrayDimensions = (UA_UInt32)value->arrayLength;
+        valueArrayDimensions = &tempArrayDimensions;
+    }
+
     /* See if the array dimensions match. When arrayDimensions are defined, they
      * already hold the valuerank. */
     if(targetArrayDimensionsSize > 0)
         return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
-                                         value->arrayDimensionsSize, value->arrayDimensions);
+                                         valueArrayDimensionsSize, valueArrayDimensions);
 
     /* Check if the valuerank allows for the value dimension */
     return compatibleValueRankValue(targetValueRank, value);
@@ -834,7 +847,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
     }
 
     size_t size = request->nodesToReadSize;
-    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    response->results = (UA_DataValue *)UA_Array_new(size, &UA_TYPES[UA_TYPES_DATAVALUE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -958,7 +971,7 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
        attributeId == UA_ATTRIBUTEID_ARRAYDIMENSIONS) {
         /* Return the entire variant */
         if(dv.value.storageType == UA_VARIANT_DATA_NODELETE) {
-            retval = UA_Variant_copy(&dv.value, v);
+            retval = UA_Variant_copy(&dv.value,(UA_Variant *) v);
         } else {
             /* storageType is UA_VARIANT_DATA. Copy the entire variant
              * (including pointers and all) */
@@ -1032,19 +1045,19 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(2);
         CHECK_DATATYPE_SCALAR(QUALIFIEDNAME);
         UA_QualifiedName_deleteMembers(&node->browseName);
-        UA_QualifiedName_copy(value, &node->browseName);
+        UA_QualifiedName_copy((const UA_QualifiedName *)value, &node->browseName);
         break;
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(6);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
         UA_LocalizedText_deleteMembers(&node->displayName);
-        UA_LocalizedText_copy(value, &node->displayName);
+        UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->displayName);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(5);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
         UA_LocalizedText_deleteMembers(&node->description);
-        UA_LocalizedText_copy(value, &node->description);
+        UA_LocalizedText_copy((const UA_LocalizedText *)value, &node->description);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
         CHECK_USERWRITEMASK(20);
@@ -1067,7 +1080,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(10);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
         UA_LocalizedText_deleteMembers(&((UA_ReferenceTypeNode*)node)->inverseName);
-        UA_LocalizedText_copy(value, &((UA_ReferenceTypeNode*)node)->inverseName);
+        UA_LocalizedText_copy((const UA_LocalizedText *)value, &((UA_ReferenceTypeNode*)node)->inverseName);
         break;
     case UA_ATTRIBUTEID_CONTAINSNOLOOPS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VIEW);
@@ -1114,7 +1127,7 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_DATATYPE_ARRAY(UINT32);
         retval = writeArrayDimensionsAttribute(server, (UA_VariableNode*)node,
                                                wvalue->value.value.arrayLength,
-                                               wvalue->value.value.data);
+                                               (UA_UInt32 *)wvalue->value.value.data);
         break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
@@ -1159,7 +1172,7 @@ Service_Write(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->nodesToWriteSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    response->results = (UA_StatusCode *)UA_Array_new(request->nodesToWriteSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

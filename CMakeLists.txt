@@ -6,6 +6,20 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
 
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+
+#################
+# Cmake modules #
+#################
+
+include(AssignSourceGroup)
+
 ###########
 # Version #
 ###########
@@ -23,7 +37,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if(NOT ${OPEN62541_VER_COMMIT})
+if("${OPEN62541_VER_COMMIT}" STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
@@ -117,7 +131,7 @@ mark_as_advanced(UA_COMPILE_AS_CXX)
 
 list(APPEND open62541_LIBRARIES "") # Collect libraries
 
-if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
@@ -199,7 +213,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h
+)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -219,7 +234,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+)
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -263,7 +279,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_standard.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
-                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
+                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
+)
                 ##TODO: make client stuff optional
 
 if(UA_ENABLE_EMBEDDED_LIBC)
@@ -388,6 +405,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
 # Build the Library #
 #####################
 
+assign_source_group(${lib_sources})
+assign_source_group(${internal_headers})
+assign_source_group(${exported_headers})
+
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
@@ -492,3 +513,13 @@ set(CPACK_PACKAGE_VERSION_PATCH "0")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
 
 include(CPack)
+
+##################################
+# Visual studio solution folders #
+##################################
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
+
+set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
+set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
