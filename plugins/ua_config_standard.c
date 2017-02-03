@@ -27,7 +27,6 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
-#define NS0_URI "http://opcfoundation.org/UA/"
 
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
@@ -47,15 +46,6 @@ UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
 const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
-
-/* UA namespace 0 (Basic information model and data types) and namespace 1 as default user namespace.
- * Both will be initialized with nodestore_std */
-//Add NS0
-#define UA_NAMESPACE0 {UA_NAMESPACE_UNDEFINED, UA_STRING_STATIC(NS0_URI),\
-                       NULL, UA_TYPES, UA_TYPES_COUNT}
-//Add NS1
-#define UA_NAMESPACE1 {UA_NAMESPACE_UNDEFINED, UA_STRING_STATIC(APPLICATION_URI),\
-                       NULL, NULL, 0}
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 	1, /* .nThreads */
@@ -83,8 +73,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     NULL,/* networklayers */
 
     /* NS0 and NS1 */
-    2, /* namespacesSize */
-    (UA_Namespace[2]){UA_NAMESPACE0, UA_NAMESPACE1}, /* namespaces */
+    0, /* namespacesSize */
+    NULL, /* namespaces */
 
     /* Access Control */
     {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,

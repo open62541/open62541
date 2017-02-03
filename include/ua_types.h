@@ -1,18 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public 
-* License, v. 2.0. If a copy of the MPL was not distributed with this 
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
-/* Copyright (C) 2013-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. */
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -23,6 +12,9 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
+
+
+typedef struct UA_Namespace UA_Namespace;
 
 /**
  * .. _types:
@@ -781,8 +773,9 @@ struct UA_DataType {
  * following method to retrieve the data type description. */
 /* Returns the data type description for the type's identifier or NULL if no
  * matching data type was found. */
+
 const UA_DataType UA_EXPORT *
-UA_findDataType(const UA_NodeId *typeId);
+UA_findDataType(const UA_NodeId *typeId, const UA_Namespace* namespaces, const size_t namespacesSize);
 
 /** The following functions are used for generic handling of data types. */
 

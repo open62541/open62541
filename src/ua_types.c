@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public 
-* License, v. 2.0. If a copy of the MPL was not distributed with this 
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
@@ -8,6 +9,7 @@
 
 #include "pcg_basic.h"
 #include "libc_time.h"
+#include "ua_namespace.h"
 
 /* Datatype Handling
  * -----------------
@@ -27,10 +29,25 @@ const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}
 /* TODO: The standard-defined types are ordered. See if binary search is more
  * efficient. */
 const UA_DataType *
-UA_findDataType(const UA_NodeId *typeId) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
-            return &UA_TYPES[i];
+UA_findDataType(const UA_NodeId *typeId, const UA_Namespace* namespaces, const size_t namespacesSize) {
+    const UA_DataType *types = NULL;
+    size_t typesSize = 0;
+    if(typeId->namespaceIndex != 0){
+        if(namespaces == NULL) return NULL;
+        for(size_t i = 0; i < namespacesSize; ++i){
+            if(namespaces[i].index == typeId->namespaceIndex){
+                types = namespaces[i].dataTypes;
+                typesSize = namespaces[i].dataTypesSize;
+                break;
+            }
+        }
+    }else{
+        types = UA_TYPES;
+        typesSize = UA_TYPES_COUNT;
+    }
+    for(size_t i = 0; i < typesSize; ++i) {
+        if(types[i].typeId.identifier.numeric == typeId->identifier.numeric)
+            return &types[i];
     }
     return NULL;
 }

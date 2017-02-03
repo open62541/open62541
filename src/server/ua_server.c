@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public 
-* License, v. 2.0. If a copy of the MPL was not distributed with this 
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_types.h"
 #include "ua_server_internal.h"
 #include "ua_securechannel_manager.h"
@@ -668,6 +669,19 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     server->nodestore_std = (UA_NodestoreInterface*)UA_malloc(sizeof(UA_NodestoreInterface));
     *server->nodestore_std = UA_Nodestore_standard();
     /* Namespace0 and Namespace1 initialization*/
+    //TODO move to UA_ServerConfig_standard as namespace array of size2
+    UA_Namespace *ns0 = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
+    ns0->dataTypes = UA_TYPES;
+    ns0->dataTypesSize = UA_TYPES_COUNT;
+    UA_Server_addNamespace_full(server, ns0);
+    UA_Namespace_deleteMembers(ns0);
+    UA_free(ns0);
+
+    UA_Namespace *ns1 = UA_Namespace_new(&config.applicationDescription.applicationUri);
+    UA_Server_addNamespace_full(server, ns1);
+    UA_Namespace_deleteMembers(ns1);
+    UA_free(ns1);
+    /* Custom configuration of Namespaces at beginning*/
     for(size_t i = 0 ; i < config.namespacesSize ; ++i){
 
         UA_Server_addNamespace_full(server, &config.namespaces[i]);
@@ -1323,8 +1337,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)currenttime, "CurrentTime");
     currenttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     currenttime->valueSource = UA_VALUESOURCE_DATASOURCE;
-    currenttime->value.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,
-                                                     .write = NULL};
+    currenttime->value.dataSource.handle = NULL;
+    currenttime->value.dataSource.read = readCurrentTime;
+    currenttime->value.dataSource.write = NULL;
     addNodeInternalWithType(server, (UA_Node*)currenttime,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));

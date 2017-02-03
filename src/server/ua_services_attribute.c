@@ -1,6 +1,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public 
-* License, v. 2.0. If a copy of the MPL was not distributed with this 
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */ 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #ifdef UA_ENABLE_NONSTANDARD_STATELESS
@@ -134,7 +135,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
 static const UA_Variant *
 convertToMatchingValue(UA_Server *server, const UA_Variant *value,
                        const UA_NodeId *targetDataTypeId, UA_Variant *editableValue) {
-    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId);
+    const UA_DataType *targetDataType = UA_findDataType(targetDataTypeId, server->namespaces, server->namespacesSize);
     if(!targetDataType)
         return NULL;
 
