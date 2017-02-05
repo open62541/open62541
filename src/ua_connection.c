@@ -11,7 +11,7 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
 
 UA_StatusCode
 UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                              UA_Boolean * UA_RESTRICT realloced) {
+                               UA_Boolean * UA_RESTRICT realloced) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* We have a stored an incomplete chunk. Concat the received message to the end.
