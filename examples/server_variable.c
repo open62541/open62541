@@ -1,17 +1,19 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <signal.h>
+/**
+ * Adding variables to a server
+ * ----------------------------
+ *
+ * This tutorial shows how to add variable nodes to a server and how these can
+ * be connected to a physical process in the background.
+ *
+ * This is the code for a server with a single variable node holding an integer.
+ * We will take this example to explain some of the fundamental concepts of
+ * open62541. */
 
-#ifdef UA_NO_AMALGAMATION
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_config_standard.h"
-#include "ua_network_tcp.h"
-#include "ua_log_stdout.h"
-#else
+#include <signal.h>
 #include "open62541.h"
-#endif
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;

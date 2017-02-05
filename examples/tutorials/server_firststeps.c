@@ -21,15 +21,9 @@
  *
  * Now create a new C source-file called ``myServer.c`` with the following
  * content. */
-#include <signal.h>
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-#else
-# include "open62541.h"
-#endif
+#include <signal.h>
+#include "open62541.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -41,8 +35,8 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl;
-    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    UA_ServerNetworkLayer nl =
+        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
