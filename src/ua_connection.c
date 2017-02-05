@@ -10,8 +10,8 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
 }
 
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                               UA_Boolean * UA_RESTRICT realloced) {
+UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString *message,
+                               UA_Boolean *realloced) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* We have a stored an incomplete chunk. Concat the received message to the end.
@@ -112,6 +112,34 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
     return retval;
 }
+
+UA_StatusCode
+UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *chunks,
+                                    UA_Boolean *realloced, UA_UInt32 timeout) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + (timeout * UA_MSEC_TO_DATETIME);
+    *realloced = false;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(true) {
+        /* Listen for messages to arrive */
+        retval = connection->recv(connection, chunks, timeout);
+
+        /* Get complete chunks and return */
+        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+        if(retval != UA_STATUSCODE_GOOD || chunks->length > 0)
+            break;
+
+        /* We received a message. But the chunk is incomplete. Compute the
+         * remaining timeout. */
+        now = UA_DateTime_nowMonotonic();
+        if(now > maxDate)
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
+    }
+    return retval;
+}
+
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_SecureChannel *channel = connection->channel;
