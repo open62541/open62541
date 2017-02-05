@@ -1,9 +1,7 @@
 #include "ua_client.h"
-#include "ua_nodeids.h"
 #include "ua_client_highlevel.h"
-#include "ua_types_encoding_binary.h"
 #include "ua_util.h"
-#include "ua_types.h"
+#include "ua_nodeids.h"
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
