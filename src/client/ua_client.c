@@ -9,25 +9,6 @@
 #include "ua_util.h"
 #include "ua_nodeids.h"
 
-/* Listen with a timeout until at least one complete chunk is received */
-static UA_StatusCode
-Connection_receiveChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                        UA_Boolean * UA_RESTRICT realloced, UA_UInt32 timeout) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    *realloced = false;
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_MSEC_TO_DATETIME);
-    /* Receive packets until one complete message is assembled */
-    do {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        if(now > maxDate)
-            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-        UA_UInt32 thisTimeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
-        retval = connection->recv(connection, message, thisTimeout);
-        retval |= UA_Connection_completeMessages(connection, message, realloced);
-    } while(retval == UA_STATUSCODE_GOOD && message->length == 0);
-    return retval;
-}
-
 /*********************/
 /* Create and Delete */
 /*********************/
@@ -138,7 +119,8 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     /* Loop until we have a complete chunk */
     UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
-    retval = Connection_receiveChunk(conn, &reply, &realloced, client->config.timeout);
+    retval = UA_Connection_receiveChunksBlocking(conn, &reply, &realloced,
+                                                 client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
@@ -259,7 +241,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
 
     UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
-    retval = Connection_receiveChunk(conn, &reply, &realloced, client->config.timeout);
+    retval = UA_Connection_receiveChunksBlocking(conn, &reply, &realloced,
+                                                 client->config.timeout);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Receiving OpenSecureChannelResponse failed");
@@ -816,7 +799,7 @@ __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *r
         UA_DateTime now = UA_DateTime_nowMonotonic();
         if(now < maxDate) {
             UA_UInt32 timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
-            retval = Connection_receiveChunk(&client->connection, &reply, &realloced, timeout);
+            retval = UA_Connection_receiveChunksBlocking(&client->connection, &reply, &realloced, timeout);
         } else {
             retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         }
