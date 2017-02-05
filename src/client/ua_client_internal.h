@@ -59,13 +59,13 @@ struct UA_Client {
     UA_ClientConfig config;
 
     /* Connection */
-    UA_Connection *connection;
+    UA_Connection connection;
     UA_String endpointUrl;
 
     /* SecureChannel */
-    UA_SecureChannel *channel;
+    UA_SecureChannel channel;
     UA_UInt32 requestId;
-    UA_DateTime scRenewAt;
+    UA_DateTime nextChannelRenewal;
 
     /* Authentication */
     UA_Client_Authentication authenticationMethod;
