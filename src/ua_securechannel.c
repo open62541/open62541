@@ -15,8 +15,9 @@
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     memset(channel, 0, sizeof(UA_SecureChannel));
-    LIST_INIT(&channel->sessions);
-    LIST_INIT(&channel->chunks);
+    /* Linked lists are also initialized by zeroing out */
+    /* LIST_INIT(&channel->sessions); */
+    /* LIST_INIT(&channel->chunks); */
 }
 
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {

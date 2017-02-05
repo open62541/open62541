@@ -379,7 +379,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Client requested a subscription, " \
                                 "but those are not enabled in the build");
         } else {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Unknown request %i",
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                                "Unknown request with type identifier %i",
                                 requestTypeId.identifier.numeric);
         }
         sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
@@ -400,7 +401,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                              server->config.customDataTypesSize,
                              server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not decode the request");
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Could not decode the request");
         sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
@@ -505,8 +507,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
-                             "the SecureChannel with error code 0x%08x", retval);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Could not send the message over the SecureChannel "
+                            "with StatusCode %s", UA_StatusCode_name(retval));
 
     /* Clean up */
     UA_deleteMembers(request, requestType);
@@ -557,8 +560,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             UA_SecureChannel_processChunks(channel, message,
                  (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
         if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                                 "Procesing chunkgs resulted in error code 0x%08x", retval);
+            UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
+                                 "resulted in error code %s", UA_StatusCode_name(retval));
     } else {
         /* Process messages without a channel and no chunking */
         size_t offset = 0;
