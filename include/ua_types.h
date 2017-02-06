@@ -13,7 +13,8 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_constants.h"
 
-
+/* Forward declaration. See UA_Namespace.h for full definition */
+struct UA_Namespace;
 typedef struct UA_Namespace UA_Namespace;
 
 /**

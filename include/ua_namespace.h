@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef UA_NAMESPACE_H_
 #define UA_NAMESPACE_H_
 
@@ -9,13 +13,13 @@ extern "C" {
 
 #define UA_NAMESPACE_UNDEFINED UA_UINT16_MAX
 
-typedef struct UA_Namespace{
+struct UA_Namespace{
     UA_UInt16 index;
     UA_String uri;
     UA_NodestoreInterface* nodestore;
     UA_DataType* dataTypes;
     size_t dataTypesSize;
-}UA_Namespace;
+};
 
 void UA_EXPORT
 UA_Namespace_init(UA_Namespace * namespacePtr, const UA_String * namespaceUri);
