@@ -230,7 +230,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Processing a publish response on subscription %u with %u notifications",
-                 sub->SubscriptionID, response->notificationMessage.notificationDataSize);
+                 sub->subscriptionID, response->notificationMessage.notificationDataSize);
 
     /* Check if the server has acknowledged any of the sent ACKs */
     for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
