@@ -154,9 +154,11 @@ int main(int argc, char** argv) {
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_NodeId dataSourceId;
-    UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, &dataSourceId);
+    UA_Server_addVariableNode_begin(server, UA_NODEID_NULL, dateName, v_attr, &dataSourceId);
+    /* Set the data source */
+    UA_Server_setVariableNode_dataSource(server, dataSourceId, dateDataSource);
+    UA_Server_addNode_finish(server, dataSourceId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NULL, NULL);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS

@@ -44,8 +44,9 @@ int main(void) {
     otAttr.description = UA_LOCALIZEDTEXT("en_US", "A mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MamalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000), 
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                                UA_QUALIFIEDNAME(1, "MamalType"), otAttr, NULL, NULL);
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                UA_NODEID_NULL, UA_QUALIFIEDNAME(1, "MamalType"),
+                                otAttr, NULL, NULL);
   
     UA_VariableAttributes   vAttr;
     UA_VariableAttributes_init(&vAttr);
@@ -61,7 +62,7 @@ int main(void) {
     otAttr.description = UA_LOCALIZEDTEXT("en_US", "A dog, subtype of mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en_US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10002), 
-                                UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NULL,
                                 UA_QUALIFIEDNAME(1, "DogType"), otAttr, NULL, NULL);
     
     UA_VariableAttributes_init(&vAttr);

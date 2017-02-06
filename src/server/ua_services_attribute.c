@@ -71,9 +71,18 @@ typeEquivalence(const UA_DataType *t) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
+UA_Boolean
+compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
+                   const UA_NodeId *constraintDataType) {
+    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    return UA_NodeId_isNull(constraintDataType) ||
+        UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
+        isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
+}
+
 /* Test whether a valurank and the given arraydimensions are compatible. zero
  * array dimensions indicate a scalar */
-static UA_StatusCode
+UA_StatusCode
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize) {
     switch(valueRank) {
     case -3: /* the value can be a scalar or a one dimensional array */
@@ -97,6 +106,32 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
          * need to be caught before. */
         if(arrayDimensionsSize != (size_t)valueRank)
             return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
+    /* Check if the valuerank of the variabletype allows the change. */
+    switch(constraintValueRank) {
+    case -3: /* the value can be a scalar or a one dimensional array */
+        if(valueRank != -1 && valueRank != 1)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case -2: /* the value can be a scalar or an array with any number of dimensions */
+        break;
+    case -1: /* the value is a scalar */
+        if(valueRank != -1)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    case 0: /* the value is an array with one or more dimensions */
+        if(valueRank < 0)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
+    default: /* >= 1: the value is an array with the specified number of dimensions */
+        if(valueRank != constraintValueRank)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        break;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -139,8 +174,8 @@ convertToMatchingValue(UA_Server *server, const UA_Variant *value,
     if(!targetDataType)
         return NULL;
 
-    /* A string is written to a byte array. the valuerank and array
-       dimensions are checked later */
+    /* A string is written to a byte array. the valuerank and array dimensions
+     * are checked later */
     if(targetDataType == &UA_TYPES[UA_TYPES_BYTE] &&
        value->type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
        UA_Variant_isScalar(value)) {
@@ -179,31 +214,23 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                const UA_NumericRange *range, UA_Variant *editableValue) {
-    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-   
-	/* Empty variant always matches... */
+    /* Empty variant is only allowed for BaseDataType */
     if(!value->type)
         return UA_STATUSCODE_GOOD;
 
-    /* See if the types match. The nodeid on the wire may be != the nodeid in
-     * the node for opaque types, enums and bytestrings. value contains the
-     * correct type definition after the following paragraph */
-    if(UA_NodeId_equal(&value->type->typeId, targetDataTypeId))
-        goto check_array;
+    /* Has the value a subtype of the required type? BaseDataType (Variant) can
+     * be anything... */
+    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId)) {
+        /* Convert to a matching value if possible */
+        if(!editableValue)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        value = convertToMatchingValue(server, value, targetDataTypeId, editableValue);
+        if(!value)
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
-    /* Has the value a subtype of the required type? */
-    if(isNodeInTree(server->nodestore, &value->type->typeId, targetDataTypeId, &subtypeId, 1))
-        goto check_array;
-
-    /* Try to convert to a matching value if this is wanted */
-    if(!editableValue)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    value = convertToMatchingValue(server, value, targetDataTypeId, editableValue);
-    if(!value)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
- check_array:
-    if(range) /* array dimensions are checked later when writing the range */
+    /* Array dimensions are checked later when writing the range */
+    if(range)
         return UA_STATUSCODE_GOOD;
 
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
@@ -216,7 +243,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
     }
 
     /* See if the array dimensions match. When arrayDimensions are defined, they
-     * already hold the valuerank. */
+     * already match the valuerank. */
     if(targetArrayDimensionsSize > 0)
         return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
                                          valueArrayDimensionsSize, valueArrayDimensions);
@@ -324,31 +351,13 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if the valuerank of the variabletype allows the change. */
-    switch(constraintValueRank) {
-    case -3: /* the value can be a scalar or a one dimensional array */
-        if(valueRank != -1 && valueRank != 1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
-    case -2: /* the value can be a scalar or an array with any number of dimensions */
-        break;
-    case -1: /* the value is a scalar */
-        if(valueRank != -1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
-    case 0: /* the value is an array with one or more dimensions */
-        if(valueRank < 0)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
-    default: /* >= 1: the value is an array with the specified number of dimensions */
-        if(valueRank != constraintValueRank)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        break;
-    }
+    UA_StatusCode retval = compatibleValueRanks(valueRank, constraintValueRank);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Check if the new valuerank is compatible with the array dimensions. Use
      * the read service to handle data sources. */
     size_t arrayDims = node->arrayDimensionsSize;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(arrayDims == 0) {
         /* the value could be an array with no arrayDimensions defined.
            dimensions zero indicate a scalar for compatibleValueRankArrayDimensions. */
@@ -378,16 +387,6 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
 /**********************/
 
 static UA_StatusCode
-writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType) {
-    const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
-    if(!vt)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return writeDataTypeAttribute(server, node, dataType, &vt->dataType);
-}
-
-/* constraintDataType can be NULL, then we retrieve the vt */
-UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
                        const UA_NodeId *dataType, const UA_NodeId *constraintDataType) {
     /* If this is a variabletype, there must be no instances or subtypes of it
@@ -397,9 +396,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Does the new type match the constraints of the variabletype? */
-    UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(!isNodeInTree(server->nodestore, dataType,
-                     constraintDataType, &subtypeId, 1))
+    if(!compatibleDataType(server, dataType, constraintDataType))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
@@ -429,6 +426,15 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
     }
     UA_NodeId_deleteMembers(&dtCopy);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
+                       const UA_NodeId *dataType) {
+    const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
+    if(!vt)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return writeDataTypeAttribute(server, node, dataType, &vt->dataType);
 }
 
 /*******************/
@@ -541,7 +547,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                     const UA_DataValue *value, const UA_String *indexRange) {
     /* Parse the range */
@@ -1157,7 +1163,8 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     }
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "WriteRequest returned status code 0x%08x", retval);
+                            "WriteRequest returned status code %s",
+                            UA_StatusCode_name(retval));
     return retval;
 }
 

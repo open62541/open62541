@@ -41,7 +41,7 @@ static void printVisitor(const UA_Node* node) {
 }
 
 static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
-    UA_Node *p = (UA_Node *)UA_NodeStore_newVariableNode();
+    UA_Node *p = (UA_Node *)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE);
     p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
     p->nodeId.namespaceIndex = nsid;
     p->nodeId.identifier.numeric = id;

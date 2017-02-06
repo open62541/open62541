@@ -158,17 +158,6 @@ UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback cal
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
-/* Add an existing node. The node is assumed to be "finished", i.e. no
- * instantiation from inheritance is necessary. Instantiationcallback and
- * addedNodeId may be NULL. */
-UA_StatusCode
-Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId,
-                          const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *addedNodeId);
-
 /*********************/
 /* Utility Functions */
 /*********************/
@@ -201,8 +190,8 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-const UA_Node *
-getNodeType(UA_Server *server, const UA_Node *node);
+void
+getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
 
 /***************************************/
 /* Check Information Model Consistency */
@@ -218,29 +207,31 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_NumericRange *range, UA_Variant *editableValue);
 
 UA_StatusCode
-writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType, const UA_NodeId *constraintDataType);
-
-UA_StatusCode
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
-UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
-                        UA_Int32 constraintValueRank);
+UA_Boolean
+compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
+                   const UA_NodeId *constraintDataType);
 
 UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_VariableNode *node,
-                    const UA_DataValue *value, const UA_String *indexRange);
+compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
+
+UA_StatusCode
+writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
+                        UA_Int32 valueRank, UA_Int32 constraintValueRank);
+
+UA_StatusCode
+compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 /*******************/
 /* Single-Services */
 /*******************/
 
 /* Some services take an array of "independent" requests. The single-services
-   are stored here to keep ua_services.h clean for documentation purposes. */
+ * are stored here to keep ua_services.h clean for documentation purposes. */
 
 UA_StatusCode
 Service_AddReferences_single(UA_Server *server, UA_Session *session,

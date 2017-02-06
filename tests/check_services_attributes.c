@@ -52,11 +52,14 @@ makeTestSequence(void) {
         (UA_DataSource) {.handle = NULL, .read = readCPUTemperature, .write = NULL};
     vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
     vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
-    retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
-                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                                 UA_QUALIFIEDNAME(1, "cpu temperature"),
-                                                 UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
+    UA_NodeId temperatureNodeId = UA_NODEID_STRING(1, "cpu.temperature");
+    retval = UA_Server_addVariableNode_begin(server, temperatureNodeId,
+                                             UA_QUALIFIEDNAME(1, "cpu temperature"), vattr, NULL);
+    retval |= UA_Server_setVariableNode_dataSource(server, temperatureNodeId, temperatureDataSource);
+    retval |= UA_Server_addNode_finish(server, temperatureNodeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_NODEID_NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* VariableNode with array */
@@ -116,26 +119,6 @@ makeTestSequence(void) {
 #endif
 
     return server;
-}
-
-static UA_VariableNode* makeCompareSequence(void) {
-    UA_VariableNode *node = UA_NodeStore_newVariableNode();
-
-    UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    node->value.data.value.hasValue = true;
-
-    const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_QualifiedName_copy(&myIntegerName,&node->browseName);
-
-    const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->displayName);
-    UA_LocalizedText_copy(&myIntegerDisplName, &node->description);
-
-    const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId_copy(&myIntegerNodeId,&node->nodeId);
-
-    return node;
 }
 
 START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
@@ -242,14 +225,12 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
 
     UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
     const UA_LocalizedText comp = UA_LOCALIZEDTEXT("locale", "the answer");
-    UA_VariableNode* compNode = makeCompareSequence();
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
-    ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
+    ck_assert(UA_String_equal(&comp.locale, &respval->locale));
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -263,13 +244,12 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     
     UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
-    UA_VariableNode* compNode = makeCompareSequence();
+    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("locale", "the answer");
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT], resp.value.type);
-    ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
-    ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
+    ck_assert(UA_String_equal(&comp.locale, &respval->locale));
+    ck_assert(UA_String_equal(&comp.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 
@@ -504,13 +484,10 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     
     UA_Double* respval = (UA_Double*) resp.value.data;
-    UA_VariableNode *compNode = makeCompareSequence();
-    UA_Double comp = (UA_Double) compNode->minimumSamplingInterval;
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
-    ck_assert(*respval == comp);
+    ck_assert(*respval == 1.0);
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
     UA_Server_delete(server);
 } END_TEST
 
