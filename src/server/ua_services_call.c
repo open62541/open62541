@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_services.h"
 #include "ua_server_internal.h"
 
@@ -63,8 +67,8 @@ Service_Call_single(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
-    if(!methodCalled->executable || !methodCalled->userExecutable || !methodCalled->attachedMethod) {
-        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
+    if(!methodCalled->attachedMethod) {
+        result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
@@ -77,6 +81,17 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     }
     if(withObject->nodeClass != UA_NODECLASS_OBJECT && withObject->nodeClass != UA_NODECLASS_OBJECTTYPE) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
+        return;
+    }
+
+    /* Verify access rights */
+    UA_Boolean executable = methodCalled->executable;
+    if(session != &adminSession)
+        executable = executable &&
+            server->config.accessControl.getUserExecutableOnObject(&session->sessionId, session->sessionHandle,
+                                                                   &request->objectId, &request->methodId);
+    if(!executable) {
+        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
         return;
     }
 
@@ -123,7 +138,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     const UA_VariableNode *outputArguments =
         getArgumentsVariableNode(server, methodCalled, UA_STRING("OutputArguments"));
     if(outputArguments) {
-        result->outputArguments = UA_Array_new(outputArguments->value.data.value.value.arrayLength,
+        result->outputArguments = (UA_Variant*)UA_Array_new(outputArguments->value.data.value.value.arrayLength,
                                                &UA_TYPES[UA_TYPES_VARIANT]);
         if(!result->outputArguments) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -136,7 +151,8 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = session;
 #endif
-    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, withObject->nodeId,
+    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, &withObject->nodeId,
+                                                      &session->sessionId, session->sessionHandle,
                                                       request->inputArgumentsSize, request->inputArguments,
                                                       result->outputArgumentsSize, result->outputArguments);
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
@@ -155,7 +171,7 @@ void Service_Call(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    response->results = (UA_CallMethodResult*)UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

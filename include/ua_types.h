@@ -1,15 +1,7 @@
-/* Copyright (C) 2013-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. */
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -763,8 +755,8 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */

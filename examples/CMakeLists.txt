@@ -1,6 +1,15 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+#######
+
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
 else()
@@ -20,62 +29,56 @@ if(UA_ENABLE_MULTITHREADING)
   list(APPEND LIBS urcu-cds urcu urcu-common)
 endif(UA_ENABLE_MULTITHREADING)
 
+macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
+  add_executable(${EXAMPLE_NAME} $<TARGET_OBJECTS:open62541-object> ${EXAMPLE_SOURCE})
+  target_link_libraries(${EXAMPLE_NAME} ${LIBS})
+  assign_source_group(${EXAMPLE_SOURCE})
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
+  if(UA_COMPILE_AS_CXX)
+    set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
+  endif()
+endmacro()
+
 ##################
 # Example Server #
 ##################
 
-add_executable(server server.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server ${LIBS})
-
-if(UA_ENABLE_NONSTANDARD_UDP)
-  add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.c)
-  target_link_libraries(server_udp ${LIBS})
-endif()
+add_example(server server.c)
 
 ##################
 # Example Client #
 ##################
 
-add_executable(client client.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(client ${LIBS})
+add_example(client client.c)
 
 ####################
 # Feature Examples #
 ####################
 
-add_executable(server_variable server_variable.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_variable ${LIBS})
+add_example(server_variable server_variable.c)
 
-add_executable(server_mainloop server_mainloop.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_mainloop ${LIBS})
+add_example(server_mainloop server_mainloop.c)
 
-add_executable(server_datasource server_datasource.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_datasource ${LIBS})
+add_example(server_datasource server_datasource.c)
 
-add_executable(server_firstSteps server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_firstSteps ${LIBS})
+add_example(server_firstSteps server_firstSteps.c)
 
-add_executable(client_firstSteps client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(client_firstSteps ${LIBS})
+add_example(server_instantiation server_instantiation.c)
 
-add_executable(server_instantiation server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_instantiation ${LIBS})
+add_example(server_repeated_job server_repeated_job.c)
 
-add_executable(server_repeated_job server_repeated_job.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_repeated_job ${LIBS})
+add_example(server_readspeed server_readspeed.c)
+target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 
-add_executable(server_inheritance server_inheritance.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_inheritance ${LIBS})
+add_example(server_inheritance server_inheritance.c)
 
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c $<TARGET_OBJECTS:open62541-object>)
-  target_link_libraries(server_nodeset ${LIBS})
+  add_executable(server_nodeset "server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c")
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 endif()
 
 if(UA_ENABLE_METHODCALLS)
-  add_executable(server_method server_method.c $<TARGET_OBJECTS:open62541-object>)
-  target_link_libraries(server_method ${LIBS})
+  add_example(server_method server_method.c)
 endif()
 
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
@@ -84,13 +87,17 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
                      COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
                      DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
                              ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
-                             
   add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
-
   add_executable(server_certificate server_certificate.c $<TARGET_OBJECTS:open62541-object> server_cert.der ca.crt)
   target_link_libraries(server_certificate ${LIBS})
 endif()
 
-add_executable(server_readspeed server_readspeed.c $<TARGET_OBJECTS:open62541-object>)
-target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-target_link_libraries(server_readspeed ${LIBS})
+if(UA_ENABLE_DISCOVERY)
+    add_example(discovery_server_discovery discovery/server_discovery.c)
+
+    add_example(discovery_server_register discovery/server_register.c)
+
+    add_example(discovery_client_find_servers discovery/client_find_servers.c)
+endif()
+
+add_example(client_firstSteps client_firstSteps.c)

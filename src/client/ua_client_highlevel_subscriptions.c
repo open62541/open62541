@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
 #include "ua_util.h"
@@ -18,13 +22,15 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 
     UA_CreateSubscriptionResponse response = UA_Client_Service_createSubscription(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CreateSubscriptionResponse_deleteMembers(&response);
+        return retval;
+    }
 
-    UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
+    UA_Client_Subscription *newSub = (UA_Client_Subscription *)UA_malloc(sizeof(UA_Client_Subscription));
     if(!newSub) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
+        UA_CreateSubscriptionResponse_deleteMembers(&response);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     LIST_INIT(&newSub->monitoredItems);
@@ -39,9 +45,8 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     if(newSubscriptionId)
         *newSubscriptionId = newSub->subscriptionID;
 
- cleanup:
     UA_CreateSubscriptionResponse_deleteMembers(&response);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* remove the subscription remotely */
@@ -142,7 +147,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     }
 
     /* Create the handler */
-    UA_Client_MonitoredItem *newMon = UA_malloc(sizeof(UA_Client_MonitoredItem));
+    UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
     newMon->monitoringMode = UA_MONITORINGMODE_REPORTING;
     UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
     newMon->attributeID = attributeID;
@@ -258,7 +263,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         if(msg->notificationData[k].content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION])
             continue;
 
-        UA_DataChangeNotification *dataChangeNotification = msg->notificationData[k].content.decoded.data;
+        UA_DataChangeNotification *dataChangeNotification = (UA_DataChangeNotification *)msg->notificationData[k].content.decoded.data;
         for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
             UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
             UA_Client_MonitoredItem *mon;
@@ -276,7 +281,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     }
 
     /* Add to the list of pending acks */
-    UA_Client_NotificationsAckNumber *tmpAck = UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+    UA_Client_NotificationsAckNumber *tmpAck = (UA_Client_NotificationsAckNumber *)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
     tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
     tmpAck->subAck.subscriptionId = sub->subscriptionID;
     LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
@@ -298,7 +303,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             ++request.subscriptionAcknowledgementsSize;
         if(request.subscriptionAcknowledgementsSize > 0) {
             request.subscriptionAcknowledgements =
-                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
+                (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
                 return UA_STATUSCODE_GOOD;
         }

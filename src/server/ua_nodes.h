@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef UA_NODES_H_
 #define UA_NODES_H_
 
@@ -51,7 +55,6 @@ extern "C" {
     UA_LocalizedText displayName;               \
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
-    UA_UInt32 userWriteMask;                    \
     size_t referencesSize;                      \
     UA_ReferenceNode *references;
 
@@ -152,7 +155,6 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
-    UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing; /* currently unsupported */
 } UA_VariableNode;
@@ -196,7 +198,6 @@ typedef struct {
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean executable;
-    UA_Boolean userExecutable;
 
     /* Members specific to open62541 */
     void *methodHandle;

@@ -17,10 +17,10 @@ environment:
           CC_SHORTNAME: mingw
           MAKE: mingw32-make
           FORCE_CXX: OFF
-        # - CC_NAME: Visual Studio 9 2008
-        #   CC_SHORTNAME: vs2008
-        #   MAKE: msbuild open62541.sln /m
-        #   FORCE_CXX: ON
+        - CC_NAME: Visual Studio 9 2008
+          CC_SHORTNAME: vs2008
+          MAKE: msbuild open62541.sln /m
+          FORCE_CXX: ON
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           MAKE: msbuild open62541.sln /m
@@ -38,6 +38,7 @@ init:
 
 # Install needed build dependencies
 install:
+  - git submodule update --init --recursive
   - if not exist "%CYG_ROOT%" mkdir "%CYG_ROOT%"
   - ps: echo "Installing Cygwin from $env:CYG_SETUP_URL to $env:CYG_ROOT/setup-x86.exe"
   - appveyor DownloadFile %CYG_SETUP_URL% -FileName %CYG_ROOT%/setup-x86.exe
@@ -46,9 +47,10 @@ install:
   - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
 
 before_build:
+  # use MinGW64
+  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  - set PATH=C:\MinGW\bin;%PATH%
 
 build_script:
   - cd c:\projects\open62541

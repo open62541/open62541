@@ -35,8 +35,10 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(config);
 
     /* add a repeated job to the server */
-    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = testCallback, .data = NULL} };
+    UA_Job job;
+    job.type = UA_JOBTYPE_METHODCALL;
+    job.job.methodCall.data = NULL;
+    job.job.methodCall.method = testCallback;
     UA_Server_addRepeatedJob(server, job, 2000, NULL); // call every 2 sec
 
     UA_StatusCode retval = UA_Server_run(server, &running);

@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
@@ -49,10 +53,12 @@ processJob(UA_Server *server, UA_Job *job) {
         UA_Connection_detachSecureChannel(job->job.closeConnection);
         break;
     case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+        {
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                        &job->job.binaryMessage.message);
         UA_Connection *connection = job->job.binaryMessage.connection;
         connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+        }
         break;
     case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
@@ -192,7 +198,7 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
         (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
 
     /* Create and fill the repeated job structure */
-    struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
+    struct RepeatedJob *rj = (struct RepeatedJob *)UA_malloc(sizeof(struct RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     /* done inside addRepeatedJob:
@@ -364,7 +370,7 @@ typedef struct UA_DelayedJob {
 
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
-    UA_DelayedJob *dj = UA_malloc(sizeof(UA_DelayedJob));
+    UA_DelayedJob *dj = (UA_DelayedJob *)UA_malloc(sizeof(UA_DelayedJob));
     if(!dj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     dj->job.type = UA_JOBTYPE_METHODCALL;
