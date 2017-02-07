@@ -873,6 +873,22 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         size_t inputArgumentsSize, const UA_Argument* inputArguments,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId) {
+    return UA_Server_addMethodNodeWithNodeIds(server, requestedNewNodeId,
+                        parentNodeId, referenceTypeId,
+                        browseName,attr,
+                        method, handle,
+                        inputArgumentsSize, inputArguments, UA_NODEID_NULL,
+                        outputArgumentsSize, outputArguments, UA_NODEID_NULL,
+                        outNewNodeId, NULL, NULL);
+}
+UA_StatusCode
+UA_Server_addMethodNodeWithNodeIds(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method, void *handle,
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments, const UA_NodeId requestedNewNodeIdInputArgs,
+                        size_t outputArgumentsSize, const UA_Argument* outputArguments, const UA_NodeId requestedNewNodeIdOutputArgs,
+                        UA_NodeId *outNewNodeId, UA_NodeId * outNewNodeIdInputArgs, UA_NodeId * outNewNodeIdOutputArgs) {
     UA_MethodNode *node = UA_NodeStore_newMethodNode();
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -911,15 +927,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         /* UAExport creates a monitoreditem on inputarguments ... */
         inputArgumentsVariableNode->minimumSamplingInterval = 10000.0f;
 
-        //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
-        //actually we need to change the signature to pass UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS
-        //and UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS into the function :/
-        if(newMethodId.namespaceIndex == 0 &&
-           newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
-            inputArgumentsVariableNode->nodeId =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS);
-        }
+        inputArgumentsVariableNode->nodeId = requestedNewNodeIdInputArgs;
         UA_Variant_setArrayCopy(&inputArgumentsVariableNode->value.data.value.value,
                                 inputArguments, inputArgumentsSize,
                                 &UA_TYPES[UA_TYPES_ARGUMENT]);
@@ -927,7 +935,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)inputArgumentsVariableNode,
-                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, outNewNodeIdInputArgs);
         UA_RCU_UNLOCK();
     }
 
@@ -939,13 +947,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         outputArgumentsVariableNode->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
         outputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "OutputArguments");
         outputArgumentsVariableNode->valueRank = 1;
-        //FIXME: comment in line 882
-        if(newMethodId.namespaceIndex == 0 &&
-           newMethodId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-           newMethodId.identifier.numeric == UA_NS0ID_SERVER_GETMONITOREDITEMS) {
-            outputArgumentsVariableNode->nodeId =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS);
-        }
+        outputArgumentsVariableNode->nodeId = requestedNewNodeIdOutputArgs;
         UA_Variant_setArrayCopy(&outputArgumentsVariableNode->value.data.value.value,
                                 outputArguments, outputArgumentsSize,
                                 &UA_TYPES[UA_TYPES_ARGUMENT]);
@@ -953,7 +955,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         UA_RCU_LOCK();
         // todo: check if adding succeeded
         Service_AddNodes_existing(server, &adminSession, (UA_Node*)outputArgumentsVariableNode,
-                                  &newMethodId, &hasproperty, &propertytype, NULL, NULL);
+                                  &newMethodId, &hasproperty, &propertytype, NULL, outNewNodeIdOutputArgs);
         UA_RCU_UNLOCK();
     }
 
