@@ -1,6 +1,3 @@
-.. role:: ccode(code)
-      :language: c
-
 Adding variables to a server
 ----------------------------
 
@@ -24,11 +21,10 @@ used as a container type. A variant can hold any other datatype as a scalar
 dimensionality of the data (e.g. a 2x3 matrix) in an additional integer array.
 
 The `UA_VariableAttributes` type contains a variant member `value`. The command
-:ccode:`UA_Variant_setScalar(&attr.value, &myInteger,
-&UA_TYPES[UA_TYPES_INT32])` sets the variant to point to the integer. Note that
-this does not make a copy of the integer (for which `UA_Variant_setScalarCopy`
-can be used). The variant (and its content) is then copied into the newly
-created node.
+`UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32])` sets
+the variant to point to the integer. Note that this does not make a copy of the
+integer (for which `UA_Variant_setScalarCopy` can be used). The variant (and its
+content) is then copied into the newly created node.
 
 The above code could have used allocations by making copies of all entries of
 the attribute variant. Then, of course, the variant content needs to be deleted
