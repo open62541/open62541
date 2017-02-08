@@ -105,8 +105,6 @@ END_TEST
 
 START_TEST(readNumber) {
     UA_UInt32 result;
-    ck_assert_uint_eq(UA_readNumber(NULL, 0, NULL), 0);
-
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"x", 1, &result), 0);
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"1x", 2, &result), 1);
