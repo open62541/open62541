@@ -313,14 +313,14 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
 }
 
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
-    if (!buf)
-        return 0;
+    UA_assert(buf);
+    UA_assert(number);
     UA_UInt32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         UA_Byte c = buf[progress];
-        if('0' > c || '9' < c)
+        if(c < '0' || c > '9')
             break;
         n = (n*10) + (UA_UInt32)(c-'0');
         ++progress;

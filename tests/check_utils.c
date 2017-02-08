@@ -6,6 +6,7 @@
 
 #include "ua_types.h"
 #include "ua_client.h"
+#include "ua_util.h"
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {

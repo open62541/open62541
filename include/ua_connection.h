@@ -125,12 +125,6 @@ UA_StatusCode UA_EXPORT
 UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
                      UA_UInt16 * port, const char ** path);
 
-/* Convert given byte string to a positive number. Returns the number of valid
- * digits. Stops if a non-digit char is found and returns the number of digits
- * up to that point. */
-size_t UA_EXPORT
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
-
 #ifdef __cplusplus
 } // extern "C"
 #endif
