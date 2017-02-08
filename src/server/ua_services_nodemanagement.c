@@ -413,6 +413,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                           const UA_NodeId *typeDefinition,
                           UA_InstantiationCallback *instantiationCallback,
                           UA_NodeId *addedNodeId) {
+    UA_ASSERT_RCU_LOCKED();
+
     /* Check the namespaceindex */
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Namespace invalid");

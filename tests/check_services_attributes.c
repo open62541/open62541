@@ -15,11 +15,6 @@
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
 
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-#include <urcu.h>
-#endif
-
 static UA_StatusCode
 readCPUTemperature(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                    const UA_NumericRange *range, UA_DataValue *dataValue) {

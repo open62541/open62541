@@ -86,8 +86,9 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         }
         cds_lfht_next(ht, &iter);
     }
+    UA_RCU_UNLOCK();
     cds_lfht_destroy(ht, NULL);
-    UA_free(ns);
+    UA_RCU_LOCK();
 }
 
 UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
@@ -157,8 +158,10 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 
     /* We try to replace an obsolete version of the node */
     struct nodeEntry *oldEntry = (struct nodeEntry*)iter.node;
-    if(oldEntry != entry->orig)
+    if(oldEntry != entry->orig) {
+        deleteEntry(&entry->rcu_head);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
     
     cds_lfht_node_init(&entry->htn);
     if(cds_lfht_replace(ht, &iter, h, compare, &node->nodeId, &entry->htn) != 0) {

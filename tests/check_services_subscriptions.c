@@ -88,6 +88,11 @@ START_TEST(Server_publishCallback) {
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
 
     UA_Server_run_iterate(server, false);
+#ifdef UA_ENABLE_MULTITHREADING
+    usleep((useconds_t)(publishingInterval * 1000) + 1000);
+    UA_Server_run_iterate(server, false);
+    usleep((useconds_t)(publishingInterval * 1000) + 1000);
+#endif
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
