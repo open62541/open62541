@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include <stdarg.h>
 #include "ua_config.h"
 
 /**
@@ -62,47 +63,71 @@ typedef enum {
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
                           const char *msg, ...);
 
+static inline void
+UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
-#define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_TRACE, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_TRACE, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static inline void
+UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 200
-#define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_DEBUG, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_DEBUG, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static inline void
+UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
-#define UA_LOG_INFO(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_INFO, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_INFO(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_INFO, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static inline void
+UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
-#define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_WARNING, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_WARNING, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static inline void
+UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
-#define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_ERROR, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_ERROR, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static inline void
+UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
-#define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_FATAL, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_FATAL, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
 /**
  * Convenience macros for complex types
