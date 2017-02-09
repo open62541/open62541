@@ -2,25 +2,16 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
+#define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
 #endif
 
-#ifdef UA_NO_AMALGAMATION
-# include <time.h>
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
 
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "open62541.h"
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;

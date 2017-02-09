@@ -8,15 +8,7 @@
 
 #include <stdio.h>
 #include <signal.h>
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-#else
-# include "open62541.h"
-#endif
+#include "open62541.h"
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
@@ -29,12 +21,14 @@ int main(void) {
 
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config.applicationDescription.applicationUri = UA_String_fromChars("open62541.example.local_discovery_server");
-    // timeout in seconds when to automatically remove a registered server from the list,
-    // if it doesn't re-register within the given time frame. A value of 0 disables automatic removal.
-    // Default is 60 Minutes (60*60). Must be bigger than 10 seconds, because cleanup is only triggered approximately
-    // ervery 10 seconds.
-    // The server will still be removed depending on the state of the semaphore file.
+    config.applicationDescription.applicationUri =
+        UA_String_fromChars("open62541.example.local_discovery_server");
+    /* timeout in seconds when to automatically remove a registered server from
+     * the list, if it doesn't re-register within the given time frame. A value
+     * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
+     * bigger than 10 seconds, because cleanup is only triggered approximately
+     * ervery 10 seconds. The server will still be removed depending on the
+     * state of the semaphore file. */
     // config.discoveryCleanupTimeout = 60*60;
     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
