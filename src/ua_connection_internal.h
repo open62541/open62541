@@ -28,8 +28,8 @@ extern "C" {
  * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs, the ingoing message
  *         and the current buffer in the connection are freed. */
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString *message,
-                               UA_Boolean *realloced);
+UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                               UA_Boolean * UA_RESTRICT realloced);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout.
