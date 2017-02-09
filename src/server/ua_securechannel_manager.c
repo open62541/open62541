@@ -70,11 +70,47 @@ static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
 }
 
 UA_StatusCode
+UA_SecureChannelManager_prepare(UA_SecureChannelManager* const cm,
+                                UA_SecureChannel** const pp_channel,
+                                UA_Connection* const connection)
+{
+    if (pp_channel == NULL)
+    {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_SecureChannel* channel = UA_malloc(sizeof(UA_SecureChannel));
+    
+    if (channel == NULL)
+    {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_SecureChannel_init(channel);
+    channel->notInPreparation = UA_FALSE;
+    channel->securityToken.createdAt = UA_DateTime_now();
+    channel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
+    
+    channel->connection = connection;
+
+    (*pp_channel) = channel;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              const UA_OpenSecureChannelRequest *request,
-                             UA_OpenSecureChannelResponse *response) {
+                             UA_OpenSecureChannelResponse *response,
+                             UA_SecureChannel* preparedChannel) {
     if(request->securityMode != UA_MESSAGESECURITYMODE_NONE)
         return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
+    if (preparedChannel->notInPreparation)
+    {
+        UA_LOG_ERROR(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Trying to open a channel with an already opened channel.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     //check if there exists a free SC, otherwise try to purge one SC without a session
     //the purge has been introduced to pass CTT, it is not clear what strategy is expected here
@@ -86,7 +122,12 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     channel_list_entry *entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_SecureChannel_init(&entry->channel);
+    entry->channel = *preparedChannel;
+    UA_free(preparedChannel);
+    entry->channel.connection = NULL;
+    entry->channel.notInPreparation = UA_TRUE;
+    
+    //UA_SecureChannel_init(&entry->channel);
     entry->channel.securityToken.channelId = cm->lastChannelId++;
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
     entry->channel.securityToken.createdAt = UA_DateTime_now();

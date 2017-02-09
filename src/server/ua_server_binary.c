@@ -255,7 +255,8 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 /* OPN -> Open up/renew the securechannel */
 static void
 processOPN(UA_Server *server, UA_Connection *connection,
-           UA_UInt32 channelId, const UA_ByteString *msg) {
+           UA_UInt32 channelId, const UA_ByteString *msg,
+           UA_SecureChannel* preparedChannel) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Called before HEL */
     if(connection->state != UA_CONNECTION_ESTABLISHED)
@@ -290,7 +291,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
     /* Call the service */
     UA_OpenSecureChannelResponse p;
     UA_OpenSecureChannelResponse_init(&p);
-    Service_OpenSecureChannel(server, connection, &r, &p);
+    Service_OpenSecureChannel(server, connection, &r, &p, preparedChannel);
     UA_OpenSecureChannelRequest_deleteMembers(&r);
 
     /* Opening the channel failed */
@@ -342,6 +343,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     resp_msg.length = respHeader.messageHeader.messageSize;
     connection->send(connection, &resp_msg);
+    // TODO: use the secure channel functions to send the data. encryption should only need to be implemented there.
 
     /* Clean up */
     UA_OpenSecureChannelResponse_deleteMembers(&p);
@@ -531,7 +533,7 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
                              "Process an OPN on an open channel");
-        processOPN(server, channel->connection, channel->securityToken.channelId, message);
+        processOPN(server, channel->connection, channel->securityToken.channelId, message, channel);
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
@@ -582,6 +584,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         case UA_MESSAGETYPE_OPN: {
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Process OPN message", connection->sockfd);
+            /*
             UA_UInt32 channelId = 0;
             retval = UA_UInt32_decodeBinary(message, &offset, &channelId);
             if(retval != UA_STATUSCODE_GOOD)
@@ -590,7 +593,24 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 			offsetMessage.data = message->data + 12;
 			offsetMessage.length = message->length - 12;
             processOPN(server, connection, channelId, &offsetMessage);
-            break; }
+            break; 
+            */
+            // Prepare a temporary channel that will be extended to a full channel as soon as the openSecureChannel service succeeds
+            UA_SecureChannel* channel = NULL;
+            retval = UA_SecureChannelManager_prepare(&server->secureChannelManager, &channel, connection);
+
+            retval = UA_SecureChannel_processChunks(channel,
+                                                    message,
+                                                    (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage,
+                                                    server);
+            if (retval != UA_STATUSCODE_GOOD)
+            {
+                UA_free(channel); // TODO: replace with removePrepared call?
+                UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
+                                     "resulted in error code %s", UA_StatusCode_name(retval));
+            }
+            break;
+            }
         case UA_MESSAGETYPE_MSG:
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Processing a MSG message not possible "

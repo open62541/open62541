@@ -41,6 +41,7 @@ typedef struct {
 } UA_ChunkInfo;
 
 struct UA_SecureChannel {
+    UA_Boolean notInPreparation; // this flag is set to true if the channel is fully opened.
     UA_MessageSecurityMode  securityMode;
     UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken
     UA_ChannelSecurityToken nextSecurityToken; // the channelId is contained in the securityToken

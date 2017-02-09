@@ -10,8 +10,10 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
 #include "ua_transport_generated_handling.h"
+#include <stdio.h>
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
+#define UA_BITMASK_MESSAGETYPE 0x00ffffff
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     memset(channel, 0, sizeof(UA_SecureChannel));
@@ -370,8 +372,8 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        /* Is the channel attached to connection? */
-        if(header.secureChannelId != channel->securityToken.channelId) {
+        /* Is the channel attached to connection and not in preparation? */
+        if(header.secureChannelId != channel->securityToken.channelId && channel->notInPreparation) {
             //Service_CloseSecureChannel(server, channel);
             //connection->close(connection);
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
@@ -381,10 +383,12 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         UA_SequenceHeader sequenceHeader;
         UA_SequenceHeader_init(&sequenceHeader);
 
-        if((header.messageHeader.messageTypeAndChunkType & 0x00ffffff) != UA_MESSAGETYPE_OPN) {
+        if((header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE) != UA_MESSAGETYPE_OPN) {
             /* Check the symmetric security header (not for OPN) */
             UA_UInt32 tokenId = 0;
             retval |= UA_UInt32_decodeBinary(chunks, &offset, &tokenId);
+
+            // TODO: Decryption and verification needed.
             retval |= UA_SequenceHeader_decodeBinary(chunks, &offset, &sequenceHeader);
             if(retval != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADCOMMUNICATIONERROR;
@@ -400,6 +404,14 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
             if(retval != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        }
+        if ((header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE) == UA_MESSAGETYPE_OPN)
+        {
+            // TODO: handle chunked opn messages.
+            // We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
+            // the processOPN function. An alternative would be to prepend them to the de-chunked message.
+            // This would not requrie any changes to processOPN.
+            printf("Debug message");
         }
 
         /* Process chunk */
