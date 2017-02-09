@@ -10,23 +10,15 @@ file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_variables.rst")
 list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_method.rst")
-list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_server_firstSteps.rst")
-list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst")
 file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_variables.rst"
                "${DOC_SRC_DIR}/tutorial_server_variables.rst")
 configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_method.rst"
                "${DOC_SRC_DIR}/tutorial_server_method.rst")
-configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_server_firstSteps.rst"
-               "${DOC_SRC_DIR}/tutorial_server_firstSteps.rst")
-configure_file("${PROJECT_SOURCE_DIR}/doc/tutorial_client_firstSteps.rst"
-               "${DOC_SRC_DIR}/tutorial_client_firstSteps.rst")
 
 # Copy example code
-set(EXAMPLES ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c
-             ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
-             ${PROJECT_SOURCE_DIR}/examples/server_variable.c
+set(EXAMPLES ${PROJECT_SOURCE_DIR}/examples/server_variable.c
              ${PROJECT_SOURCE_DIR}/examples/server_method.c)
 file(COPY ${EXAMPLES} DESTINATION ${DOC_SRC_DIR})
                
@@ -47,6 +39,11 @@ generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/servi
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
 
+generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorials/client_firststeps.c
+             ${DOC_SRC_DIR}/tutorial_client_firststeps.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorials/server_firststeps.c
+             ${DOC_SRC_DIR}/tutorial_server_firststeps.rst)
+
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
@@ -54,6 +51,8 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
           ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
+          ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -72,5 +71,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
           ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
+          ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
