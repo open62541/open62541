@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_securechannel.h"
 #include "ua_session.h"
@@ -11,8 +15,9 @@
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     memset(channel, 0, sizeof(UA_SecureChannel));
-    LIST_INIT(&channel->sessions);
-    LIST_INIT(&channel->chunks);
+    /* Linked lists are also initialized by zeroing out */
+    /* LIST_INIT(&channel->sessions); */
+    /* LIST_INIT(&channel->chunks); */
 }
 
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
@@ -179,7 +184,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
             connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        /* Hide the header of the buffer, so that the ensuing encoding does not overwrite anything */
+        /* Forward the data pointer so that the payload is encoded after the message header.
+         * TODO: This works but is a bit too clever. Instead, we could return an offset to the
+         * binary encoding exchangeBuffer function. */
         dst->data = &dst->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
         dst->length = connection->localConf.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
     }

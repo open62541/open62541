@@ -1,7 +1,12 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include <stdlib.h>
 
 #include "ua_types.h"
 #include "ua_client.h"
+#include "ua_util.h"
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {
@@ -100,8 +105,6 @@ END_TEST
 
 START_TEST(readNumber) {
     UA_UInt32 result;
-    ck_assert_uint_eq(UA_readNumber(NULL, 0, NULL), 0);
-
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"x", 1, &result), 0);
 
     ck_assert_uint_eq(UA_readNumber((UA_Byte*)"1x", 2, &result), 1);

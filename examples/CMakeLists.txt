@@ -1,6 +1,15 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
+#######
+
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
 else()
@@ -23,6 +32,8 @@ endif(UA_ENABLE_MULTITHREADING)
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} $<TARGET_OBJECTS:open62541-object> ${EXAMPLE_SOURCE})
   target_link_libraries(${EXAMPLE_NAME} ${LIBS})
+  assign_source_group(${EXAMPLE_SOURCE})
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   if(UA_COMPILE_AS_CXX)
     set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
   endif()

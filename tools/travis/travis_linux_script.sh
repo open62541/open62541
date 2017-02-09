@@ -69,7 +69,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
-        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win32.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ../bin/examples/server.exe ../bin/examples/client.exe ../bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win32.zip ..
         cd .. && rm build -rf
 
@@ -77,7 +77,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-mingw64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
-        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md examples/server.exe examples/client.exe libopen62541.dll.a open62541.h open62541.c
+        zip -r open62541-win64.zip ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ../bin/examples/server.exe ../bin/examples/client.exe ../bin/libopen62541.dll.a open62541.h open62541.c
         cp open62541-win64.zip ..
         cd .. && rm build -rf
 
@@ -85,7 +85,7 @@ else
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-gcc-m32.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
-        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-linux32.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ../bin/examples/server ../bin/examples/client ../bin/libopen62541.a open62541.h open62541.c
         cp open62541-linux32.tar.gz ..
         cd .. && rm build -rf
 
@@ -95,7 +95,7 @@ else
         export PATH=$PATH:./tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
         cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
         make -j
-        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
+        tar -pczf open62541-raspberrypi.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ../bin/examples/server ../bin/examples/client ../bin/libopen62541.a open62541.h open62541.c
         cp open62541-raspberrypi.tar.gz ..
         cd .. && rm build -rf
     fi
@@ -104,7 +104,7 @@ else
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Release -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
-    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
+    tar -pczf open62541-linux64.tar.gz ../../doc_latex/open62541.pdf ../LICENSE ../AUTHORS ../README.md ../bin/examples/server ../bin/examples/client ../bin/libopen62541.a open62541.h open62541.c
     cp open62541-linux64.tar.gz ..
     cp open62541.h ../.. # copy single file-release
     cp open62541.c ../.. # copy single file-release
@@ -139,11 +139,11 @@ else
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
-    (valgrind --leak-check=yes --error-exitcode=3 ./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+    (valgrind --leak-check=yes --error-exitcode=3 ../bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # without valgrind
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON ..
     make -j && make test ARGS="-V"
-    (./examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+    (../bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo "-> Current repo: ${TRAVIS_REPO_SLUG}"
     if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then

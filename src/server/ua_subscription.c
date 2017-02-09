@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_subscription.h"
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -435,7 +439,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         if(sub->currentKeepAliveCount < sub->maxKeepAliveCount)
             return;
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Sending a keepalive on subscription %u",
+                             "Subscription %u | Sending a KeepAlive",
                              sub->subscriptionID)
     }
 
@@ -450,7 +454,7 @@ void UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Cannot publish without a response */
     if(!pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                             "Cannot send a publish response on subscription %u, "
+                             "Subscription %u | Cannot send a publish response "
                              "since the publish queue is empty", sub->subscriptionID)
         if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
@@ -553,6 +557,9 @@ Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
     if(sub->publishJobIsRegistered)
         return UA_STATUSCODE_GOOD;
 
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | Register subscription publishing callback",
+                         sub->subscriptionID);
     UA_Job job;
     job.type = UA_JOBTYPE_METHODCALL;
     job.job.methodCall.method = (UA_ServerCallback)UA_Subscription_publishCallback;
@@ -569,6 +576,9 @@ UA_StatusCode
 Subscription_unregisterPublishJob(UA_Server *server, UA_Subscription *sub) {
     if(!sub->publishJobIsRegistered)
         return UA_STATUSCODE_GOOD;
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | Unregister subscription publishing callback",
+                         sub->subscriptionID);
     sub->publishJobIsRegistered = false;
     return UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
 }

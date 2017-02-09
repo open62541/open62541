@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_types.h"
 #include "ua_server_internal.h"
 #include "ua_securechannel_manager.h"
@@ -126,19 +130,34 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_RCU_LOCK();
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
     if(!parent) {
         UA_RCU_UNLOCK();
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
-    for(size_t i = 0; i < parent->referencesSize; ++i) {
-        UA_ReferenceNode *ref = &parent->references[i];
+
+    /* TODO: We need to do an ugly copy of the references array since users may
+     * delete references from within the callback. In single-threaded mode this
+     * changes the same node we point at here. In multi-threaded mode, this
+     * creates a new copy as nodes are truly immutable. */
+    UA_ReferenceNode *refs = NULL;
+    size_t refssize = parent->referencesSize;
+    UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
+                                         (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_RCU_UNLOCK();
+        return retval;
+    }
+
+    for(size_t i = parent->referencesSize; i > 0; --i) {
+        UA_ReferenceNode *ref = &refs[i-1];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
     UA_RCU_UNLOCK();
+
+    UA_Array_delete(refs, refssize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     return retval;
 }
 
@@ -282,6 +301,7 @@ void UA_Server_delete(UA_Server *server) {
 
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
+    pthread_mutex_destroy(&server->dispatchQueue_mutex);
 #endif
     UA_free(server);
 }
@@ -1425,7 +1445,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
-                                      const UA_Boolean isUnregister, const char* semaphoreFilePath) {
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath) {
+    /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1440,23 +1462,10 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     request.requestHeader.timeoutHint = 10000;
 
     request.server.isOnline = !isUnregister;
-
-    // copy all the required data from applicationDescription to request
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &request.server.serverUri);
-    UA_String_copy(&server->config.applicationDescription.productUri, &request.server.productUri);
-
-    request.server.serverNamesSize = 1;
-    request.server.serverNames = (UA_LocalizedText *)UA_malloc(sizeof(UA_LocalizedText));
-    if (!request.server.serverNames) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    UA_LocalizedText_copy(&server->config.applicationDescription.applicationName, &request.server.serverNames[0]);
-    
+    request.server.serverUri = server->config.applicationDescription.applicationUri;
+    request.server.productUri = server->config.applicationDescription.productUri;
     request.server.serverType = server->config.applicationDescription.applicationType;
-    UA_String_copy(&server->config.applicationDescription.gatewayServerUri, &request.server.gatewayServerUri);
-    // TODO where do we get the discoveryProfileUri for application data?
+    request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
     request.server.discoveryUrls = (UA_String *)UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
     if (!request.server.discoveryUrls) {
@@ -1469,23 +1478,22 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
     }
 
-    /* add the discoveryUrls from the networklayers */
-    UA_String *disc = (UA_String *)UA_realloc(request.server.discoveryUrls, sizeof(UA_String) *
-                                                                           (request.server.discoveryUrlsSize + server->config.networkLayersSize));
-    if(!disc) {
-        UA_RegisteredServer_deleteMembers(&request.server);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    size_t existing = request.server.discoveryUrlsSize;
-    request.server.discoveryUrls = disc;
-    request.server.discoveryUrlsSize += server->config.networkLayersSize;
+    request.server.serverNames = &server->config.applicationDescription.applicationName;
+    request.server.serverNamesSize = 1;
 
-    // TODO: Add nl only if discoveryUrl not already present
-    for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+    /* Copy the discovery urls from the server config and the network layers*/
+    size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
+    size_t nl_discurls = server->config.networkLayersSize;
+    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * (config_discurls + nl_discurls));
+    request.server.discoveryUrlsSize = config_discurls + nl_discurls;
+
+    for(size_t i = 0; i < config_discurls; ++i)
+        request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
+
+    /* TODO: Add nl only if discoveryUrl not already present */
+    for(size_t i = 0; i < nl_discurls; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_String_copy(&nl->discoveryUrl, &request.server.discoveryUrls[existing + i]);
+        request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
     if (semaphoreFilePath) {
@@ -1573,11 +1581,10 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
+UA_StatusCode
+UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
+    return register_server_with_discovery_server(server, discoveryServerUrl,
+                                                 UA_TRUE, NULL);
 }
 
-UA_StatusCode UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
-}
 #endif

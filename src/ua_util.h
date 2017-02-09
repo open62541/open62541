@@ -1,7 +1,11 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#include "ua_config.h"
+#include "ua_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -101,6 +105,14 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 # endif
 #endif
 }
+
+/* Utility Functions
+ * ----------------- */
+
+/* Convert given byte string to a positive number. Returns the number of valid
+ * digits. Stops if a non-digit char is found and returns the number of digits
+ * up to that point. */
+size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 #ifdef __cplusplus
 } // extern "C"

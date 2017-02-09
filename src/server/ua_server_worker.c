@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_server_internal.h"
 
@@ -112,10 +116,6 @@ workerLoop(UA_Worker *worker) {
     UA_random_seed((uintptr_t)worker);
     rcu_register_thread();
 
-    pthread_mutex_t mutex; // required for the condition variable
-    pthread_mutex_init(&mutex, 0);
-    pthread_mutex_lock(&mutex);
-
     while(*running) {
         struct DispatchJob *dj = (struct DispatchJob*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
@@ -124,16 +124,17 @@ workerLoop(UA_Worker *worker) {
             UA_free(dj);
         } else {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
-            pthread_cond_wait(&server->dispatchQueue_condition, &mutex);
+            pthread_mutex_lock(&server->dispatchQueue_mutex);
+            pthread_cond_wait(&server->dispatchQueue_condition, &server->dispatchQueue_mutex);
+            pthread_mutex_unlock(&server->dispatchQueue_mutex);
         }
         UA_atomic_add(counter, 1);
     }
 
-    pthread_mutex_unlock(&mutex);
-    pthread_mutex_destroy(&mutex);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
     rcu_unregister_thread();
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Worker shut down");
     return NULL;
 }
 
@@ -550,6 +551,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
+    pthread_mutex_init(&server->dispatchQueue_mutex, 0);
     server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -697,18 +699,16 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #endif
         }
 
-#ifdef UA_ENABLE_MULTITHREADING
-        /* Wake up worker threads */
-        if(dispatched)
-            pthread_cond_broadcast(&server->dispatchQueue_condition);
-#endif
-
         /* Clean up jobs list */
         if(jobsSize > 0)
             UA_free(jobs);
     }
 
-#ifndef UA_ENABLE_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
+    /* Wake up worker threads */
+    if(dispatched)
+        pthread_cond_broadcast(&server->dispatchQueue_condition);
+#else
     processDelayedCallbacks(server);
 #endif
 
@@ -746,18 +746,22 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     }
 
 #ifdef UA_ENABLE_MULTITHREADING
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Shutting down %u worker thread(s)", server->config.nThreads);
-    /* Wait for all worker threads to finish */
-    for(size_t i = 0; i < server->config.nThreads; ++i)
-        server->workers[i].running = false;
-    pthread_cond_broadcast(&server->dispatchQueue_condition);
-    for(size_t i = 0; i < server->config.nThreads; ++i)
-        pthread_join(server->workers[i].thr, NULL);
-    UA_free(server->workers);
+    /* Ensure that run_shutdown can be called multiple times */
+    if(server->workers) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Shutting down %u worker thread(s)", server->config.nThreads);
+        /* Wait for all worker threads to finish */
+        for(size_t i = 0; i < server->config.nThreads; ++i)
+            server->workers[i].running = false;
+        pthread_cond_broadcast(&server->dispatchQueue_condition);
+        for(size_t i = 0; i < server->config.nThreads; ++i)
+            pthread_join(server->workers[i].thr, NULL);
+        /* Free the worker structures */
+        UA_free(server->workers);
+        server->workers = NULL;
+    }
 
-    /* Manually finish the work still enqueued.
-       This especially contains delayed frees */
+    /* Manually finish the work still enqueued */
     emptyDispatchQueue(server);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete

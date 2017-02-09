@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -148,6 +152,34 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *chunks,
+                                    UA_Boolean *realloced, UA_UInt32 timeout) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + (timeout * UA_MSEC_TO_DATETIME);
+    *realloced = false;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(true) {
+        /* Listen for messages to arrive */
+        retval = connection->recv(connection, chunks, timeout);
+
+        /* Get complete chunks and return */
+        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+        if(retval != UA_STATUSCODE_GOOD || chunks->length > 0)
+            break;
+
+        /* We received a message. But the chunk is incomplete. Compute the
+         * remaining timeout. */
+        now = UA_DateTime_nowMonotonic();
+        if(now > maxDate)
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
+    }
+    return retval;
+}
+
+
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_SecureChannel *channel = connection->channel;
     if(channel)
@@ -281,14 +313,14 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
 }
 
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
-    if (!buf)
-        return 0;
+    UA_assert(buf);
+    UA_assert(number);
     UA_UInt32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
         UA_Byte c = buf[progress];
-        if('0' > c || '9' < c)
+        if(c < '0' || c > '9')
             break;
         n = (n*10) + (UA_UInt32)(c-'0');
         ++progress;

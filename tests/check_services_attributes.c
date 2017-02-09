@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -10,11 +14,6 @@
 #include "ua_types.h"
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-#include <urcu.h>
-#endif
 
 static UA_StatusCode
 readCPUTemperature(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,

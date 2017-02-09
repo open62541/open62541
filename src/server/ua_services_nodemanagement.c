@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
@@ -409,6 +413,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                           const UA_NodeId *typeDefinition,
                           UA_InstantiationCallback *instantiationCallback,
                           UA_NodeId *addedNodeId) {
+    UA_ASSERT_RCU_LOCKED();
+
     /* Check the namespaceindex */
     if(node->nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Namespace invalid");
@@ -696,7 +702,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         UA_InstantiationCallback *instantiationCallback) {
     /* Create the node from the attributes*/
-    UA_Node *node;
+    UA_Node *node = NULL;
     result->statusCode = createNodeFromAttributes(server, item, &node);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
@@ -1141,6 +1147,19 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
 /* Delete Nodes */
 /****************/
 
+static void
+removeReferences(UA_Server *server, UA_Session *session, const UA_Node *node) {
+    UA_DeleteReferencesItem item;
+    UA_DeleteReferencesItem_init(&item);
+    item.targetNodeId.nodeId = node->nodeId;
+    for(size_t i = 0; i < node->referencesSize; ++i) {
+        item.isForward = node->references[i].isInverse;
+        item.sourceNodeId = node->references[i].targetId.nodeId;
+        item.referenceTypeId = node->references[i].referenceTypeId;
+        Service_DeleteReferences_single(server, session, &item);
+    }
+}
+
 UA_StatusCode
 Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
                            const UA_NodeId *nodeId, UA_Boolean deleteReferences) {
@@ -1148,36 +1167,20 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
-    /* destroy an object before removing it */
-    if(node->nodeClass == UA_NODECLASS_OBJECT) {
-        /* find the object type(s) */
-        UA_BrowseDescription bd;
-        UA_BrowseDescription_init(&bd);
-        bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
-        bd.nodeId = *nodeId;
-        bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-        bd.includeSubtypes = true;
-        bd.nodeClassMask = UA_NODECLASS_OBJECTTYPE;
+    /* TODO: check if the information model consistency is violated */
 
+    /* Destroy an object before removing it */
+    if(node->nodeClass == UA_NODECLASS_OBJECT) {
         /* Call the destructor from the object type */
         const UA_ObjectTypeNode *typenode = getObjectNodeType(server, (const UA_ObjectNode*)node);
         if(typenode && typenode->lifecycleManagement.destructor)
             typenode->lifecycleManagement.destructor(*nodeId, ((const UA_ObjectNode*)node)->instanceHandle);
     }
 
-    /* remove references */
-    /* TODO: check if consistency is violated */
-    if(deleteReferences == true) { 
-        for(size_t i = 0; i < node->referencesSize; ++i) {
-            UA_DeleteReferencesItem item;
-            UA_DeleteReferencesItem_init(&item);
-            item.isForward = node->references[i].isInverse;
-            item.sourceNodeId = node->references[i].targetId.nodeId;
-            item.targetNodeId.nodeId = node->nodeId;
-            UA_Server_editNode(server, session, &node->references[i].targetId.nodeId,
-                               (UA_EditNodeCallback)deleteOneWayReference, &item);
-        }
-    }
+    /* Remove references to the node (not the references in the node that will
+     * be deleted anyway) */
+    if(deleteReferences)
+        removeReferences(server, session, node);
 
     return UA_NodeStore_remove(server->nodestore, nodeId);
 }
@@ -1225,18 +1228,17 @@ static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
     UA_Boolean edited = false;
-    for(size_t i = node->referencesSize-1; ; --i) {
-        if(i > node->referencesSize)
-            break; /* underflow after i == 0 */
-        if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &node->references[i].targetId.nodeId))
+    for(size_t i = node->referencesSize; i > 0; --i) {
+        UA_ReferenceNode *ref = &node->references[i-1];
+        if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &ref->targetId.nodeId))
             continue;
-        if(!UA_NodeId_equal(&item->referenceTypeId, &node->references[i].referenceTypeId))
+        if(!UA_NodeId_equal(&item->referenceTypeId, &ref->referenceTypeId))
             continue;
-        if(item->isForward == node->references[i].isInverse)
+        if(item->isForward == ref->isInverse)
             continue;
+        UA_ReferenceNode_deleteMembers(ref);
         /* move the last entry to override the current position */
-        UA_ReferenceNode_deleteMembers(&node->references[i]);
-        node->references[i] = node->references[node->referencesSize-1];
+        node->references[i-1] = node->references[node->referencesSize-1];
         --node->referencesSize;
         edited = true;
         break;
@@ -1265,6 +1267,7 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
     secondItem.isForward = !item->isForward;
     secondItem.sourceNodeId = item->targetNodeId.nodeId;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
+    secondItem.referenceTypeId = item->referenceTypeId;
     return UA_Server_editNode(server, session, &secondItem.sourceNodeId,
                               (UA_EditNodeCallback)deleteOneWayReference, &secondItem);
 }

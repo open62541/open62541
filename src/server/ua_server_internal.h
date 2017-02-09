@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
@@ -20,7 +24,11 @@ extern "C" {
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
-/* liburcu includes */
+/* The general idea of RCU is to delay freeing nodes (or any callback invoked
+ * with call_rcu) until all threads have left their critical section. Thus we
+ * can delete nodes safely in concurrent operations. The macros UA_RCU_LOCK and
+ * UA_RCU_UNLOCK are used to test during debugging that we do not nest read-side
+ * critical sections (although this is generally allowed). */
 #ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
 # include <urcu.h>
@@ -41,7 +49,7 @@ extern "C" {
 #   define UA_RCU_UNLOCK() do {                   \
         UA_ASSERT_RCU_LOCKED();                   \
         rcu_locked = false;                       \
-        rcu_read_lock(); } while(0)
+        rcu_read_unlock(); } while(0)
 # endif
 #else
 # define UA_RCU_LOCK()
@@ -51,8 +59,8 @@ extern "C" {
 #endif
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/** Mapping of namespace-id and url to an external nodestore. For namespaces
-    that have no mapping defined, the internal nodestore is used by default. */
+/* Mapping of namespace-id and url to an external nodestore. For namespaces that
+ * have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
     UA_UInt16 index;
     UA_String url;
@@ -168,6 +176,7 @@ struct UA_Server {
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
+    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
