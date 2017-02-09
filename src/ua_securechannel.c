@@ -14,6 +14,7 @@
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
+#define UA_BITMASK_CHUNKTYPE 0xff000000
 
 void UA_SecureChannel_init(UA_SecureChannel *channel) {
     memset(channel, 0, sizeof(UA_SecureChannel));
@@ -416,7 +417,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
 
         /* Process chunk */
         size_t processed_header = offset - initial_offset;
-        switch(header.messageHeader.messageTypeAndChunkType & 0xff000000) {
+        switch(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
         case UA_CHUNKTYPE_INTERMEDIATE:
             UA_SecureChannel_appendChunk(channel, sequenceHeader.requestId, chunks, offset,
                                          header.messageHeader.messageSize - processed_header);
