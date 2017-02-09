@@ -498,6 +498,7 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -I${PROJECT_SOURCE_DIR}/src/server
                   -I${PROJECT_SOURCE_DIR}/src/client
                   -I${PROJECT_BINARY_DIR}/src_generated
+                  -DUA_NO_AMALGAMATION
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)

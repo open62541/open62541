@@ -65,7 +65,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response);
 
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime now);
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 /* Registers a remote server in the local discovery service. */
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,

@@ -1491,10 +1491,6 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
-    if (semaphoreFilePath) {
-        request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
-    }
-
     UA_MdnsDiscoveryConfiguration mdnsConfig;
     UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
 
@@ -1518,6 +1514,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
     UA_RegisterServer2Response_deleteMembers(&response);
+
+    UA_ExtensionObject_delete(request.discoveryConfiguration);
 
 
     if (serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {

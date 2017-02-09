@@ -380,7 +380,7 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
         return NULL;
 
     // not yet in list, create new one
-    struct serverOnNetwork_list_entry* listEntry = malloc(sizeof(struct serverOnNetwork_list_entry));
+    struct serverOnNetwork_list_entry* listEntry = (serverOnNetwork_list_entry*)malloc(sizeof(struct serverOnNetwork_list_entry));
     listEntry->created = UA_DateTime_now();
     listEntry->pathTmp = NULL;
     listEntry->txtSet = UA_FALSE;
@@ -388,7 +388,7 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
     listEntry->serverOnNetwork.recordId = server->serverOnNetworkRecordIdCounter;
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
-    listEntry->serverOnNetwork.serverName.data = malloc(serverNameLen);
+    listEntry->serverOnNetwork.serverName.data = (UA_Byte*)malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
     #  ifndef UA_ENABLE_MULTITHREADING
     server->serverOnNetworkRecordIdCounter++;
@@ -399,7 +399,7 @@ mdns_record_add_or_get(UA_Server *server, const char* record, const char* server
         server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
     // add to hash
-    struct serverOnNetwork_hash_entry* newHashEntry = malloc(sizeof(struct serverOnNetwork_hash_entry));
+    struct serverOnNetwork_hash_entry* newHashEntry = (struct serverOnNetwork_hash_entry*)malloc(sizeof(struct serverOnNetwork_hash_entry));
     newHashEntry->next = server->serverOnNetworkHash[hashIdx];
     server->serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
@@ -453,7 +453,7 @@ static void mdns_record_remove(UA_Server *server, const char* record,
 
 static void mdns_append_path_to_url(UA_String* url, const char* path) {
     size_t pathLen = strlen(path);
-    char *newUrl = malloc(url->length + pathLen);
+    char *newUrl = (char *)malloc(url->length + pathLen);
     memcpy(newUrl,url->data, url->length);
     memcpy(newUrl+url->length,path,pathLen);
     url->length = url->length + pathLen;
@@ -468,7 +468,7 @@ static void mdns_append_path_to_url(UA_String* url, const char* path) {
 static void mdns_record_received(const struct resource* r, void* data) {
     UA_Server *server = (UA_Server *) data;
     // we only need SRV and TXT records
-    if ((r->class != QCLASS_IN && r->class != QCLASS_IN + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
+    if ((r->clazz != QCLASS_IN && r->clazz != QCLASS_IN + 32768) || (r->type != QTYPE_SRV && r->type != QTYPE_TXT))
         return;
 
     // we only handle '_opcua-tcp._tcp.' records
@@ -489,7 +489,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
     if (entry == NULL)
         // TTL is 0 and entry not yet in list
         return;
-    else if (r->ttl == 0) {
+    if (r->ttl == 0) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Multicast DNS: remove server (TTL=0): %.*s",
                     entry->serverOnNetwork.discoveryUrl.length,
@@ -532,14 +532,14 @@ static void mdns_record_received(const struct resource* r, void* data) {
             }
             // set capabilities
             entry->serverOnNetwork.serverCapabilitiesSize = capsCount;
-            entry->serverOnNetwork.serverCapabilities = UA_Array_new(capsCount, &UA_TYPES[UA_TYPES_STRING]);
+            entry->serverOnNetwork.serverCapabilities = (UA_String*)UA_Array_new(capsCount, &UA_TYPES[UA_TYPES_STRING]);
             for (size_t i=0; i<capsCount; i++) {
 
                 char* nextStr = strchr(caps, ',');
 
                 size_t len = nextStr ? (size_t)(nextStr - caps) : strlen(caps);
                 entry->serverOnNetwork.serverCapabilities[i].length = len;
-                entry->serverOnNetwork.serverCapabilities[i].data = malloc(len);
+                entry->serverOnNetwork.serverCapabilities[i].data = (UA_Byte *)malloc(len);
                 memcpy(entry->serverOnNetwork.serverCapabilities[i].data, caps, len);
                 if (nextStr)
                     caps = nextStr+1;
@@ -555,7 +555,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
         size_t srvNameLen = strlen(r->known.srv.name);
         if (srvNameLen > 0 && r->known.srv.name[srvNameLen-1] == '.')
             srvNameLen--;
-        char *newUrl = malloc(10 + srvNameLen + 8);
+        char *newUrl = (char *)malloc(10 + srvNameLen + 8);
         sprintf(newUrl, "opc.tcp://%.*s:%d",(int)srvNameLen, r->known.srv.name, r->known.srv.port);
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: found server: %s", newUrl);
         entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
@@ -588,7 +588,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     UA_ServerOnNetwork** filtered = NULL;
     if (recordCount > 0) {
-        filtered = UA_malloc(sizeof(UA_ServerOnNetwork*) * recordCount);
+        filtered = (UA_ServerOnNetwork**)UA_malloc(sizeof(UA_ServerOnNetwork*) * recordCount);
         if (!filtered) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -633,7 +633,7 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     }
     response->serversSize = recordCount;
     if (recordCount > 0) {
-        response->servers = UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
+        response->servers = (UA_ServerOnNetwork *)UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
         if (!response->servers) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             free(filtered);
@@ -672,13 +672,13 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
     const UA_String* mdnsServerName = NULL;
     if (requestDiscoveryConfigurationSize) {
         *responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
-        *responseConfigurationResults = UA_Array_new(requestDiscoveryConfigurationSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        *responseConfigurationResults = (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
         for (size_t i =0; i<requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
             if (!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED || object->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE)
                 && (object->content.decoded.type == &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION])) {
                 // yayy, we have a known extension object type
-                mdnsConfig = object->content.decoded.data;
+                mdnsConfig = (UA_MdnsDiscoveryConfiguration *)object->content.decoded.data;
 
                 mdnsServerName = &mdnsConfig->mdnsServerName;
 
@@ -704,7 +704,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
     }
 
     if (requestServer->semaphoreFilePath.length) {
-        char* filePath = malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        char* filePath = (char *)malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         memcpy( filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if (access( filePath, 0 ) == -1) {
@@ -718,7 +718,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
 
-        char* mdnsServer = malloc(sizeof(char) * mdnsServerName->length + 1);
+        char* mdnsServer = (char *)malloc(sizeof(char) * mdnsServerName->length + 1);
         memcpy(mdnsServer, mdnsServerName->data, mdnsServerName->length);
         mdnsServer[mdnsServerName->length] = '\0';
 
@@ -727,7 +727,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session, const UA_RequestH
             char hostname[256]; hostname[0] = '\0';
             const char *path = NULL;
             {
-                char* uri = malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
+                char* uri = (char *)malloc(sizeof(char) * requestServer->discoveryUrls[i].length + 1);
                 strncpy(uri, (char*) requestServer->discoveryUrls[i].data, requestServer->discoveryUrls[i].length);
                 uri[requestServer->discoveryUrls[i].length] = '\0';
                 UA_StatusCode retval;
@@ -963,8 +963,8 @@ static void periodicServerRegister(UA_Server *server, void *data) {
         // as long as next retry is smaller than default interval, retry
         if (nextInterval < retryJob->default_interval) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Retrying registration in %d seconds", nextInterval);
-            struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
-            newRetryJob->job = malloc(sizeof(UA_Job));
+            struct PeriodicServerRegisterJob *newRetryJob = (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
+            newRetryJob->job = (UA_Job *)malloc(sizeof(UA_Job));
             newRetryJob->default_interval = retryJob->default_interval;
             newRetryJob->is_main_job = UA_FALSE;
             newRetryJob->this_interval = nextInterval;
@@ -997,10 +997,12 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const ch
 
     // registering the server should be done periodically. Approx. every 10 minutes. The first call will be in 10 Minutes.
 
-    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-            .job.methodCall = {.method = periodicServerRegister, .data = NULL} };
+    UA_Job job;
+    job.type = UA_JOBTYPE_METHODCALL;
+    job.job.methodCall.method = periodicServerRegister;
+    job.job.methodCall.data = NULL;
 
-    server->periodicServerRegisterJob = UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+    server->periodicServerRegisterJob = (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
     server->periodicServerRegisterJob->job = &job;
     server->periodicServerRegisterJob->this_interval = 0;
     server->periodicServerRegisterJob->is_main_job = UA_TRUE;
@@ -1023,8 +1025,8 @@ UA_StatusCode UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const ch
         // Register the server with the discovery server.
         // Delay this first registration until the server is fully initialized
         // will be freed in the callback
-        struct PeriodicServerRegisterJob *newRetryJob = malloc(sizeof(struct PeriodicServerRegisterJob));
-        newRetryJob->job = malloc(sizeof(UA_Job));
+        struct PeriodicServerRegisterJob *newRetryJob = (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
+        newRetryJob->job = (UA_Job*)malloc(sizeof(UA_Job));
         newRetryJob->this_interval = 1;
         newRetryJob->is_main_job = UA_FALSE;
         newRetryJob->default_interval = intervalMs;
@@ -1091,9 +1093,9 @@ static int discovery_createMulticastSocket(void) {
 
     mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
     mc.imr_interface.s_addr = htonl(INADDR_ANY);
-    setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (void*)&mc, sizeof(mc));
-    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&ttl, sizeof(ttl));
-    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (void*)&ittl, sizeof(ittl));
+    setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&mc, sizeof(mc));
+    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl));
+    setsockopt(s, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ittl, sizeof(ittl));
 
     socket_mdns_set_nonblocking(s);
     return s;
@@ -1134,7 +1136,7 @@ static char* create_fullServiceDomain(const char* servername, const char* hostna
         }
     }
 
-    char *fullServiceDomain = malloc(servernameLen + 1 + hostnameLen + 23 + 2);
+    char *fullServiceDomain = (char *)malloc(servernameLen + 1 + hostnameLen + 23 + 2);
     if (!fullServiceDomain) {
         return NULL;
     }
@@ -1222,7 +1224,8 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
     // use a limit for the hostname length to make sure full string fits into 63 chars (limited by DNS spec)
     if (hostnameLen == 0 || servernameLen == 0) {
         return UA_STATUSCODE_BADOUTOFRANGE;
-    } else if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
+    }
+	if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Combination of hostname+servername exceeds maximum of 62 chars. It will be truncated.");
     } else if (hostnameLen > 63) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Hostname length exceeds maximum of 63 chars. It will be truncated.");
@@ -1272,7 +1275,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
 
     // hostname.
     size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
-    char *localDomain = malloc(maxHostnameLen+2);
+    char *localDomain = (char *)malloc(maxHostnameLen+2);
     if (!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1457,7 +1460,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
             if (path[0]=='/')
                 allocPath = STRDUP(path);
             else {
-                allocPath = malloc(strlen(path)+2);
+                allocPath = (char *)malloc(strlen(path)+2);
                 allocPath[0] = '/';
                 memcpy(allocPath+1, path, strlen(path));
                 allocPath[strlen(path)+1] = '\0';
@@ -1477,7 +1480,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* ho
         char* caps = NULL;
         if (capsLen) {
             // freed when xht_free is called
-            caps = malloc(sizeof(char) * capsLen);
+            caps = (char *)malloc(sizeof(char) * capsLen);
             size_t idx = 0;
             for (size_t i = 0; i < *capabilitiesSize; i++) {
                 strncpy(caps + idx, (const char *)capabilites[i].data, capabilites[i].length);
@@ -1515,8 +1518,9 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     size_t servernameLen = strlen(servername);
     // use a limit for the hostname length to make sure full string fits into 63 chars (limited by DNS spec)
     if (hostnameLen == 0 || servernameLen == 0) {
-        return UA_STATUSCODE_BADOUTOFRANGE;
-    } else if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
+		return UA_STATUSCODE_BADOUTOFRANGE;
+	}
+    if (hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER, "Multicast DNS: Combination of hostname+servername exceeds maximum of 62 chars. It will be truncated.");
     }
 
@@ -1631,13 +1635,14 @@ UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server) {
 #  endif // UA_ENABLE_DISCOVERY_MULTICAST && UA_ENABLE_MULTITHREADING
 
 UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn) {
-    struct timeval next_sleep = {.tv_sec = 0, .tv_usec = 0};
+    struct timeval next_sleep = { 0, 0};
     unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket, processIn, true, &next_sleep);
     if (retVal == 1) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not read from socket. %s", strerror(errno));
-        return UA_STATUSCODE_BADNOCOMMUNICATION;
-    } else if (retVal == 2) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+					 "Multicast error: Can not read from socket. %s", strerror(errno));
+		return UA_STATUSCODE_BADNOCOMMUNICATION;
+	}
+    if (retVal == 2) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not write to socket. %s", strerror(errno));
         return UA_STATUSCODE_BADNOCOMMUNICATION;
