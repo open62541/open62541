@@ -1,5 +1,6 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_BINARY_DIR})
 
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
@@ -27,6 +28,10 @@ endif(UA_ENABLE_MULTITHREADING)
 add_executable(server server.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server ${LIBS})
 
+add_executable(server_firststeps tutorials/server_firststeps.c $<TARGET_OBJECTS:open62541-object>)
+add_dependencies(server_firststeps open625451_amalgamation)
+target_link_libraries(server_firststeps ${LIBS})
+
 if(UA_ENABLE_NONSTANDARD_UDP)
   add_executable(server_udp server_udp.c $<TARGET_OBJECTS:open62541-object> ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.c)
   target_link_libraries(server_udp ${LIBS})
@@ -38,6 +43,10 @@ endif()
 
 add_executable(client client.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(client ${LIBS})
+
+add_executable(client_firststeps tutorials/client_firststeps.c $<TARGET_OBJECTS:open62541-object>)
+add_dependencies(client_firststeps open625451_amalgamation)
+target_link_libraries(client_firststeps ${LIBS})
 
 ####################
 # Feature Examples #
@@ -51,12 +60,6 @@ target_link_libraries(server_mainloop ${LIBS})
 
 add_executable(server_datasource server_datasource.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_datasource ${LIBS})
-
-add_executable(server_firstSteps server_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(server_firstSteps ${LIBS})
-
-add_executable(client_firstSteps client_firstSteps.c $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(client_firstSteps ${LIBS})
 
 add_executable(server_instantiation server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(server_instantiation ${LIBS})
