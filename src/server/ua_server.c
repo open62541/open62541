@@ -1451,13 +1451,16 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
     UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
         UA_Client_delete(client);
         return retval;
     }
 
+    /* Prepare the request. Do not cleanup the request after the service call,
+     * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
     UA_RegisterServer2Request_init(&request);
-
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
 
@@ -1467,16 +1470,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     request.server.serverType = server->config.applicationDescription.applicationType;
     request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
-    request.server.discoveryUrls = (UA_String *)UA_malloc(sizeof(UA_String) * server->config.applicationDescription.discoveryUrlsSize);
-    if (!request.server.discoveryUrls) {
-        UA_RegisteredServer_deleteMembers(&request.server);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    for (size_t i = 0; i<server->config.applicationDescription.discoveryUrlsSize; i++) {
-        UA_String_copy(&server->config.applicationDescription.discoveryUrls[i], &request.server.discoveryUrls[i]);
-    }
+    if(semaphoreFilePath)
+        request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;
@@ -1500,8 +1495,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         request.server.semaphoreFilePath = UA_String_fromChars(semaphoreFilePath);
     }
 
-    UA_MdnsDiscoveryConfiguration *mdnsConfig = UA_MdnsDiscoveryConfiguration_new();
-    UA_MdnsDiscoveryConfiguration_init(mdnsConfig);
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
 
     request.discoveryConfigurationSize = 0;
     request.discoveryConfigurationSize = 1;
@@ -1509,19 +1504,11 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
     request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
-    request.discoveryConfiguration[0].content.decoded.data = mdnsConfig;
+    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
 
-    UA_String_copy(&server->config.mdnsServerName, &mdnsConfig->mdnsServerName);
-    retval |= UA_Array_copy(&server->config.serverCapabilities, server->config.serverCapabilitiesSize, (void**)&mdnsConfig->serverCapabilities, &UA_TYPES[UA_TYPES_STRING]);
-    mdnsConfig->serverCapabilitiesSize = server->config.serverCapabilitiesSize;
-
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Could not initialize RegisterServer request");
-        UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
-        UA_RegisterServer2Request_deleteMembers(&request);
-        return retval;
-    }
+    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
+    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
+    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
@@ -1529,7 +1516,11 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
-    if (response.responseHeader.serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || response.responseHeader.serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
+    UA_StatusCode serviceResult = response.responseHeader.serviceResult;
+    UA_RegisterServer2Response_deleteMembers(&response);
+
+
+    if (serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
         // try RegisterServer
         UA_RegisterServerResponse response_fallback;
         UA_RegisterServerResponse_init(&response_fallback);
@@ -1538,10 +1529,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         UA_RegisterServerRequest request_fallback;
         UA_RegisterServerRequest_init(&request_fallback);
 
-        UA_RequestHeader_copy(&request.requestHeader, &request_fallback.requestHeader);
-        UA_RegisteredServer_copy(&request.server, &request_fallback.server);
-
-        UA_RegisterServer2Request_deleteMembers(&request);
+        request_fallback.requestHeader = request.requestHeader;
+        request_fallback.server = request.server;
 
         __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                             &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
@@ -1550,35 +1539,32 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
         if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "RegisterServer failed with statuscode 0x%08x", response_fallback.responseHeader.serviceResult);
-            UA_StatusCode serviceResult = response_fallback.responseHeader.serviceResult;
-            UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
-            UA_RegisterServer2Response_deleteMembers(&response);
+                         "RegisterServer failed with statuscode %s", UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
+            serviceResult = response_fallback.responseHeader.serviceResult;
             UA_RegisterServerResponse_deleteMembers(&response_fallback);
             UA_Client_disconnect(client);
             UA_Client_delete(client);
             return serviceResult;
         }
-    } else if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    } else if(serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer2 failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-        UA_StatusCode serviceResult = response.responseHeader.serviceResult;
-        UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
-        UA_RegisterServer2Request_deleteMembers(&request);
-        UA_RegisterServer2Response_deleteMembers(&response);
+                     "RegisterServer2 failed with statuscode %s", UA_StatusCode_name(serviceResult));
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return serviceResult;
     }
 
-    UA_MdnsDiscoveryConfiguration_delete(mdnsConfig);
-    UA_RegisterServer2Request_deleteMembers(&request);
-    UA_RegisterServer2Response_deleteMembers(&response);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+                             const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl,
+                                                 UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode
