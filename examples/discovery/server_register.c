@@ -5,31 +5,18 @@
  * Before shutdown it has to unregister itself.
  */
 
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #ifdef _MSC_VER
 # include <io.h> //access
 #else
 # include <unistd.h> //access
 #endif
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "open62541.h"
 
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
-
-
-UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
-
+UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;

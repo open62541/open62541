@@ -1,20 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_client.h"
-# include "ua_client_highlevel.h"
-# include "ua_nodeids.h"
-# include "ua_network_tcp.h"
-# include "ua_config_standard.h"
-#else
-# include "open62541.h"
-# include <string.h>
-# include <stdlib.h>
-#endif
-
 #include <stdio.h>
+#include "open62541.h"
 
 static void
 handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {

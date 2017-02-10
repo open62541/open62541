@@ -5,30 +5,19 @@
 #define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
 #endif
 
-#ifdef UA_NO_AMALGAMATION
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_config_standard.h"
-#include "ua_network_tcp.h"
-#include "ua_log_stdout.h"
-#else
-#include "open62541.h"
-#endif
-
-#include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <signal.h>
+#include <errno.h> // errno, EINTR
 #include <stdlib.h>
+#include "open62541.h"
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
 
 static UA_ByteString loadCertificate(void) {
     UA_ByteString certificate = UA_STRING_NULL;
-    FILE *fp = NULL;
     //FIXME: a potiential bug of locating the certificate, we need to get the path from the server's config
-    fp=fopen("server_cert.der", "rb");
-
+    FILE *fp = fopen("server_cert.der", "rb");
     if(!fp) {
         errno = 0; // we read errno also from the tcp layer...
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not open certificate file");
