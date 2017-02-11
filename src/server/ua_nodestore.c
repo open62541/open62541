@@ -250,13 +250,14 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     } else {
         entry = findSlot(ns, &node->nodeId);
         if(!entry) {
-            deleteEntry(container_of(node, UA_NodeStoreEntry, node));
+            UA_NodeStore_deleteNode(node);
             return UA_STATUSCODE_BADNODEIDEXISTS;
         }
     }
 
     *entry = container_of(node, UA_NodeStoreEntry, node);
     ++ns->count;
+    UA_assert(&(*entry)->node == node);
     return UA_STATUSCODE_GOOD;
 }
 
