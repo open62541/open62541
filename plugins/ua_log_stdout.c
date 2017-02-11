@@ -15,6 +15,12 @@ static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
 const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
 const char *LogCategoryNames[6] = {"network", "channel", "session", "server", "client", "userland"};
 
+#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || \
+    defined(__clang__)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#endif
+
 void
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args) {
@@ -23,10 +29,15 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
     pthread_mutex_lock(&printf_mutex);
 #endif
     printf("[%.23s] %s/%s\t", t.data, LogLevelNames[level], LogCategoryNames[category]);
-    UA_ByteString_deleteMembers(&t);
     vprintf(msg, args);
     printf("\n");
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_unlock(&printf_mutex);
 #endif
+    UA_ByteString_deleteMembers(&t);
 }
+
+#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || \
+    defined(__clang__)
+# pragma GCC diagnostic pop
+#endif
