@@ -61,7 +61,7 @@ typedef enum {
  * Do not use the logger directly but make use of the following macros that take
  * the minimum log-level defined in ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
-                          const char *msg, ...);
+                          const char *msg, va_list args);
 
 static inline void
 UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
