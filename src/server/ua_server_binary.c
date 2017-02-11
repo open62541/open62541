@@ -505,6 +505,8 @@ static void
 UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                                       UA_MessageType messagetype, UA_UInt32 requestId,
                                       const UA_ByteString *message) {
+    UA_assert(channel);
+    UA_assert(channel->connection);
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
