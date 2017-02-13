@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_types.h"
 #include "ua_types_encoding_binary.h"
@@ -16,7 +16,8 @@ size_t bufIndex;
 size_t counter;
 size_t dataCount;
 
-static UA_StatusCode sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
+static UA_StatusCode
+sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
     bufIndex++;
     dst->data = buffers[bufIndex].data;
     dst->length = buffers[bufIndex].length;
@@ -48,7 +49,9 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     UA_Variant v;
     UA_Variant_setArrayCopy(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
 
-    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],
+                                           (UA_exchangeEncodeBuffer)sendChunkMockUp,
+                                           &ci,&workingBuffer,&offset);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
