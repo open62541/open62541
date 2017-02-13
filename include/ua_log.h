@@ -1,7 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_LOG_H_
 #define UA_LOG_H_
@@ -51,9 +50,9 @@ typedef enum {
  * Do not use the logger directly but make use of the following macros that take
  * the minimum log-level defined in ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
-                          const char *msg, ...);
+                          const char *msg, va_list args);
 
-static inline void
+static UA_INLINE void
 UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
     if(logger) {
@@ -64,7 +63,7 @@ UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 200
     if(logger) {
@@ -75,7 +74,7 @@ UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
     if(logger) {
@@ -86,7 +85,7 @@ UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
     if(logger) {
@@ -97,7 +96,7 @@ UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) 
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
     if(logger) {
@@ -108,7 +107,7 @@ UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
     if(logger) {
