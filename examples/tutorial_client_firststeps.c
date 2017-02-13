@@ -2,12 +2,13 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * Building a simple client
+ * Building a Simple Client
  * ------------------------
 
  * You should already have a basic server from the previous tutorials. open62541
  * provides both a server- and clientside API, so creating a client is as easy as
  * creating a server. Copy the following into a file `myClient.c`: */
+
 #include <stdio.h>
 #include "open62541.h"
 
