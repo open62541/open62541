@@ -52,7 +52,7 @@ typedef enum {
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
                           const char *msg, va_list args);
 
-static inline void
+static UA_INLINE void
 UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
     if(logger) {
@@ -63,7 +63,7 @@ UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 200
     if(logger) {
@@ -74,7 +74,7 @@ UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
     if(logger) {
@@ -85,7 +85,7 @@ UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
     if(logger) {
@@ -96,7 +96,7 @@ UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) 
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
     if(logger) {
@@ -107,7 +107,7 @@ UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static inline void
+static UA_INLINE void
 UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
     if(logger) {
