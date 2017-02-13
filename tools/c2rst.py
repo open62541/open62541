@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 import sys
 import os
 import binascii
@@ -57,7 +61,7 @@ def last_line(c):
     for i in range(last-1,1,-1):
         if len(c[i].strip()) > 0:
             return i
-    return 1
+    return len(c)-1
 
 if len(sys.argv) < 2:
     print("Usage: python c2rst.py input.c/h output.rst")
