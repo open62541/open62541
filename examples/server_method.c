@@ -3,20 +3,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
-
-#ifdef UA_NO_AMALGAMATION
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_config_standard.h"
-#include "ua_network_tcp.h"
-#include "ua_log_stdout.h"
-#else
 #include "open62541.h"
-#endif
-
-UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
-
 
 /* Example 1 */
 static UA_StatusCode
@@ -33,7 +20,7 @@ helloWorldMethod(void *handle, const UA_NodeId *objectId,
     }
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_deleteMembers(&tmp);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Hello World was called");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Hello World was called");
     return UA_STATUSCODE_GOOD;
 }
 
@@ -66,12 +53,13 @@ fooBarMethod(void *handle, const UA_NodeId *objectId,
     }
     UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_deleteMembers(&tmp);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "FooBar was called");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "FooBar was called");
     return UA_STATUSCODE_GOOD;
 }
 
+UA_Boolean running = true;
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = 0;
 }
 

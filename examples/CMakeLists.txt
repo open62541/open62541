@@ -1,20 +1,14 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_BINARY_DIR})
 
 #############################
 # Compiled binaries folders #
 #############################
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/examples)
-#######
-
-if(UA_ENABLE_AMALGAMATION)
-    include_directories(${PROJECT_BINARY_DIR}) # contain open62541.h
-else()
-    add_definitions(-DUA_NO_AMALGAMATION)
-endif()
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
 
 list(APPEND LIBS ${open62541_LIBRARIES})
 if(NOT WIN32)
@@ -33,6 +27,7 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} $<TARGET_OBJECTS:open62541-object> ${EXAMPLE_SOURCE})
   target_link_libraries(${EXAMPLE_NAME} ${LIBS})
   assign_source_group(${EXAMPLE_SOURCE})
+  add_dependencies(${EXAMPLE_NAME} open625451_amalgamation)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   if(UA_COMPILE_AS_CXX)
     set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
@@ -45,11 +40,15 @@ endmacro()
 
 add_example(server server.c)
 
+add_example(server_firststeps tutorials/server_firststeps.c)
+
 ##################
 # Example Client #
 ##################
 
 add_example(client client.c)
+
+add_example(client_firststeps tutorials/client_firststeps.c)
 
 ####################
 # Feature Examples #
@@ -60,8 +59,6 @@ add_example(server_variable server_variable.c)
 add_example(server_mainloop server_mainloop.c)
 
 add_example(server_datasource server_datasource.c)
-
-add_example(server_firstSteps server_firstSteps.c)
 
 add_example(server_instantiation server_instantiation.c)
 
@@ -99,5 +96,3 @@ if(UA_ENABLE_DISCOVERY)
 
     add_example(discovery_client_find_servers discovery/client_find_servers.c)
 endif()
-
-add_example(client_firstSteps client_firstSteps.c)
