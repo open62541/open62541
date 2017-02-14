@@ -58,14 +58,13 @@ else
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.doc\\r'
 
-    echo "Full Namespace 0 Generation"  && echo -en 'travis_fold:start:script.build.ns0\\r'
+    echo "Full Namespace 0 Generation"&& echo -en 'travis_fold:start:script.build.ns0\\r'
     mkdir -p build
     cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_GENERATE_NAMESPACE0=On -DUA_BUILD_EXAMPLES=ON  ..
     make -j
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.ns0\\r'
-
     # cross compilation only with gcc
     if [ "$CC" = "gcc" ]; then
         echo "Cross compile release build for MinGW 32 bit"  && echo -en 'travis_fold:start:script.build.cross_mingw32\\r'
@@ -131,8 +130,9 @@ else
     cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
     cd .. && rm build -rf
+	echo -en 'travis_fold:end:script.build.multithread\\r'
 
-    echo "Compile without discovery version"
+    echo "Compile without discovery version" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
     mkdir -p build && cd build
     cmake -DUA_ENABLE_DISCOVERY=OFF -DUA_ENABLE_DISCOVERY_MULTICAST=OFF -DUA_BUILD_EXAMPLES=ON ..
     make -j
