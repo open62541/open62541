@@ -9,12 +9,12 @@ include_directories(${CHECK_INCLUDE_DIRS})
 # Compiled binaries folders #
 #############################
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/tests)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 ###
 
-set(TESTS_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin/tests)
+set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)
