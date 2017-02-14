@@ -361,19 +361,21 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
 UA_StatusCode
 UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
                                        size_t* const offset,
-                                       UA_SequenceHeader* const sequenceHeader,
+                                       UA_UInt32* const requestId,
                                        UA_SecureChannel* const channel)
 {
     // TODO: Eliminate some parameters maybe and generally make this a little prettier.
 
+	UA_SequenceHeader sequenceHeader;
+	UA_SequenceHeader_init(&sequenceHeader);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* Check the symmetric security header (not for OPN) */
+    /* Check the symmetric security header */
     UA_UInt32 tokenId = 0;
     retval |= UA_UInt32_decodeBinary(chunk, offset, &tokenId);
 
     // TODO: Decryption and verification needed.
-    retval |= UA_SequenceHeader_decodeBinary(chunk, offset, sequenceHeader);
+    retval |= UA_SequenceHeader_decodeBinary(chunk, offset, &sequenceHeader);
     if (retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
@@ -385,11 +387,28 @@ UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
     }
 
     /* Does the sequence number match? */
-    retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader->sequenceNumber);
+    retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
     if (retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannel_processAsymmetricChunk(const UA_ByteString* const chunk,
+										size_t* const offset)
+{
+	// TODO: handle chunked opn messages.
+	// We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
+	// the processOPN function. An alternative would be to prepend them to the de-chunked message.
+	// This would not requrie any changes to processOPN.
+	printf("Debug message");
+
+	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+
+	//UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, offset, &asymHeader);
+
+	return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -414,24 +433,23 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
         }
 
-        /* Use requestId = 0 with OPN as argument for the callback */
-        UA_SequenceHeader sequenceHeader;
-        UA_SequenceHeader_init(&sequenceHeader);
+		UA_UInt32 requestId = 0;
 
         // Process the chunk.
         switch (header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE)
         {
         case UA_MESSAGETYPE_OPN:
         {
-            // TODO: handle chunked opn messages.
-            // We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
-            // the processOPN function. An alternative would be to prepend them to the de-chunked message.
-            // This would not requrie any changes to processOPN.
-            printf("Debug message");
+			retval |= UA_SecureChannel_processAsymmetricChunk(chunks, &offset);
+
+			if(retval != UA_STATUSCODE_GOOD)
+			{
+				return retval;
+			}
             break;
         }
         default:
-            retval |= UA_SecureChannel_processSymmetricChunk(chunks, &offset, &sequenceHeader, channel);
+            retval |= UA_SecureChannel_processSymmetricChunk(chunks, &offset, &requestId, channel);
 
             if (retval != UA_STATUSCODE_GOOD)
             {
@@ -444,24 +462,24 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         size_t processed_header = offset - initial_offset;
         switch(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
         case UA_CHUNKTYPE_INTERMEDIATE:
-            UA_SecureChannel_appendChunk(channel, sequenceHeader.requestId, chunks, offset,
+            UA_SecureChannel_appendChunk(channel, requestId, chunks, offset,
                                          header.messageHeader.messageSize - processed_header);
             break;
         case UA_CHUNKTYPE_FINAL: {
             UA_Boolean realloced = false;
             UA_ByteString message =
-                UA_SecureChannel_finalizeChunk(channel, sequenceHeader.requestId, chunks, offset,
+                UA_SecureChannel_finalizeChunk(channel, requestId, chunks, offset,
                                                header.messageHeader.messageSize - processed_header,
                                                &realloced);
             if(message.length > 0) {
                 callback(application,(UA_SecureChannel *)channel,(UA_MessageType)(header.messageHeader.messageTypeAndChunkType & 0x00ffffff),
-                         sequenceHeader.requestId, &message);
+                         requestId, &message);
                 if(realloced)
                     UA_ByteString_deleteMembers(&message);
             }
             break; }
         case UA_CHUNKTYPE_ABORT:
-            UA_SecureChannel_removeChunk(channel, sequenceHeader.requestId);
+            UA_SecureChannel_removeChunk(channel, requestId);
             break;
         default:
             return UA_STATUSCODE_BADDECODINGERROR;
