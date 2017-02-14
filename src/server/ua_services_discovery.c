@@ -518,7 +518,7 @@ static void mdns_record_received(const struct resource* r, void* data) {
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if(r->type == QTYPE_TXT && !entry->txtSet) {
         entry->txtSet = UA_TRUE;
-        xht_t* x = txt2sd((unsigned char*)r->rdata, r->rdlength);
+        xht_t* x = txt2sd(r->rdata, r->rdlength);
         char* path = (char*)xht_get(x, "path");
         char* caps = (char*)xht_get(x, "caps");
 
@@ -930,7 +930,6 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 }
 
 struct PeriodicServerRegisterJob {
-    UA_Boolean is_main_job;
     UA_UInt32 default_interval;
     UA_Guid job_id;
     UA_Job *job;
@@ -956,7 +955,7 @@ periodicServerRegister(UA_Server *server, void *data) {
     }
 
     struct PeriodicServerRegisterJob *retryJob = (struct PeriodicServerRegisterJob *)data;
-    if(!retryJob->is_main_job) {
+    if(retryJob->job != NULL) {
         // remove the retry job because we don't want to fire it again.
         UA_Server_removeRepeatedJob(server, retryJob->job_id);
     }
@@ -983,7 +982,8 @@ periodicServerRegister(UA_Server *server, void *data) {
         // first retry in 1 second
         UA_UInt32 nextInterval = 1;
 
-        if (!retryJob->is_main_job)
+        if (retryJob->job != NULL)
+			// double the interval for the next retry
             nextInterval = retryJob->this_interval*2;
 
         // as long as next retry is smaller than default interval, retry
@@ -994,7 +994,6 @@ periodicServerRegister(UA_Server *server, void *data) {
                 (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
             newRetryJob->job = (UA_Job *)malloc(sizeof(UA_Job));
             newRetryJob->default_interval = retryJob->default_interval;
-            newRetryJob->is_main_job = UA_FALSE;
             newRetryJob->this_interval = nextInterval;
             newRetryJob->discovery_server_url = retryJob->discovery_server_url;
 
@@ -1011,7 +1010,7 @@ periodicServerRegister(UA_Server *server, void *data) {
                     (int)(retryJob->default_interval/1000));
     }
 
-    if (!retryJob->is_main_job) {
+    if (retryJob->job != NULL) {
         UA_free(retryJob->job);
         UA_free(retryJob);
     }
@@ -1036,15 +1035,14 @@ UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
 
     server->periodicServerRegisterJob =
         (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-    server->periodicServerRegisterJob->job = &job;
+    server->periodicServerRegisterJob->job = NULL;
     server->periodicServerRegisterJob->this_interval = 0;
-    server->periodicServerRegisterJob->is_main_job = UA_TRUE;
     server->periodicServerRegisterJob->default_interval = intervalMs;
     server->periodicServerRegisterJob->discovery_server_url = discoveryServerUrl;
     job.job.methodCall.data = server->periodicServerRegisterJob;
 
     UA_StatusCode retval =
-        UA_Server_addRepeatedJob(server, *server->periodicServerRegisterJob->job,
+        UA_Server_addRepeatedJob(server, job,
                                  intervalMs, &server->periodicServerRegisterJob->job_id);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1063,7 +1061,6 @@ UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
             (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
         newRetryJob->job = (UA_Job*)malloc(sizeof(UA_Job));
         newRetryJob->this_interval = 1;
-        newRetryJob->is_main_job = UA_FALSE;
         newRetryJob->default_interval = intervalMs;
         newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
         newRetryJob->job->job.methodCall.method = periodicServerRegister;
