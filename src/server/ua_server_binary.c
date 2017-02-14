@@ -598,8 +598,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             break; 
             */
             // Prepare a temporary channel that will be extended to a full channel as soon as the openSecureChannel service succeeds
-            UA_SecureChannel* channel = NULL;
-            retval = UA_SecureChannelManager_prepare(&server->secureChannelManager, &channel, connection);
+            UA_SecureChannel* tmpChannel = NULL;
+            retval = UA_SecureChannelManager_open_temporary(&server->secureChannelManager, &tmpChannel, connection);
 
             retval = UA_SecureChannel_processChunks(channel,
                                                     message,
@@ -607,8 +607,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                                     server);
             if (retval != UA_STATUSCODE_GOOD)
             {
-                UA_free(channel); // TODO: replace with removePrepared call?
-                UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
+				UA_SecureChannelManager_close_temporary(&server->secureChannelManager, tmpChannel);
+				UA_LOG_TRACE_CHANNEL(server->config.logger, tmpChannel, "Procesing chunks "
                                      "resulted in error code %s", UA_StatusCode_name(retval));
             }
             break;

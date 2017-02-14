@@ -373,8 +373,8 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
-        /* Is the channel attached to connection and not in preparation? */
-        if(header.secureChannelId != channel->securityToken.channelId && channel->notInPreparation) {
+        /* Is the channel attached to connection and not temporary? */
+        if(header.secureChannelId != channel->securityToken.channelId && !channel->temporary) {
             //Service_CloseSecureChannel(server, channel);
             //connection->close(connection);
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
