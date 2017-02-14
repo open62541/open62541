@@ -359,6 +359,40 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
 }
 
 UA_StatusCode
+UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
+                                       size_t* const offset,
+                                       UA_SequenceHeader* const sequenceHeader,
+                                       UA_SecureChannel* const channel)
+{
+    // TODO: Eliminate some parameters maybe and generally make this a little prettier.
+
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Check the symmetric security header (not for OPN) */
+    UA_UInt32 tokenId = 0;
+    retval |= UA_UInt32_decodeBinary(chunk, offset, &tokenId);
+
+    // TODO: Decryption and verification needed.
+    retval |= UA_SequenceHeader_decodeBinary(chunk, offset, sequenceHeader);
+    if (retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+
+    /* Does the token match? */
+    if (tokenId != channel->securityToken.tokenId) {
+        if (tokenId != channel->nextSecurityToken.tokenId)
+            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        UA_SecureChannel_revolveTokens(channel);
+    }
+
+    /* Does the sequence number match? */
+    retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader->sequenceNumber);
+    if (retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
                                UA_ProcessMessageCallback callback, void *application) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -384,38 +418,29 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         UA_SequenceHeader sequenceHeader;
         UA_SequenceHeader_init(&sequenceHeader);
 
-        if((header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE) != UA_MESSAGETYPE_OPN) {
-            /* Check the symmetric security header (not for OPN) */
-            UA_UInt32 tokenId = 0;
-            retval |= UA_UInt32_decodeBinary(chunks, &offset, &tokenId);
-
-            // TODO: Decryption and verification needed.
-            retval |= UA_SequenceHeader_decodeBinary(chunks, &offset, &sequenceHeader);
-            if(retval != UA_STATUSCODE_GOOD)
-                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-
-            /* Does the token match? */
-            if(tokenId != channel->securityToken.tokenId) {
-                if(tokenId != channel->nextSecurityToken.tokenId)
-                    return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-                UA_SecureChannel_revolveTokens(channel);
-            }
-
-            /* Does the sequence number match? */
-            retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
-            if(retval != UA_STATUSCODE_GOOD)
-                return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-        }
-        if ((header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE) == UA_MESSAGETYPE_OPN)
+        // Process the chunk.
+        switch (header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE)
+        {
+        case UA_MESSAGETYPE_OPN:
         {
             // TODO: handle chunked opn messages.
             // We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
             // the processOPN function. An alternative would be to prepend them to the de-chunked message.
             // This would not requrie any changes to processOPN.
             printf("Debug message");
+            break;
+        }
+        default:
+            retval |= UA_SecureChannel_processSymmetricChunk(chunks, &offset, &sequenceHeader, channel);
+
+            if (retval != UA_STATUSCODE_GOOD)
+            {
+                return retval;
+            }
+            break;
         }
 
-        /* Process chunk */
+        // Append the chunk and if it is final, call the message handling callback with the complete message
         size_t processed_header = offset - initial_offset;
         switch(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
         case UA_CHUNKTYPE_INTERMEDIATE:
