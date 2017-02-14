@@ -32,6 +32,12 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
 					 const UA_String *capabilites, const size_t *capabilitiesSize,
 					 void (*conflict)(char *host, int type, void *arg));
 
+
+// A/AAAA record for all ip addresses.
+// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+// [hostname]. A [ip].
+void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain, const char *localDomain);
+
 mdns_record_t *mdns_find_record(const mdns_daemon_t *mdnsDaemon, unsigned short type,
 					  const char *host, const char *rdname);
 

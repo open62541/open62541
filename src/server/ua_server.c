@@ -636,7 +636,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
-    server->mdnsMainSrvAdded = 0;
+    server->mdnsMainSrvAdded = UA_FALSE;
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
         UA_Discovery_multicastInit(server);
     }

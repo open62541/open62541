@@ -136,7 +136,7 @@ struct UA_Server {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
     int mdnsSocket;
-    unsigned short mdnsMainSrvAdded;
+    UA_Boolean mdnsMainSrvAdded;
 #  ifdef UA_ENABLE_MULTITHREADING
     pthread_t mdnsThread;
     UA_Boolean mdnsRunning;

@@ -5,12 +5,27 @@
 #include "ua_server_internal.h"
 #include "ua_mdns_internal.h"
 
-#ifdef UA_NO_AMALGAMATION
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+#ifdef UA_NO_AMALGAMATION
 # include "mdnsd/libmdnsd/xht.h"
 # include "mdnsd/libmdnsd/sdtxt.h"
-
 #endif
+
+
+#  ifdef _WIN32
+#   define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
+#   include <winsock2.h>
+#   include <iphlpapi.h>
+#   include <ws2tcpip.h>
+#  else
+#   include <sys/time.h> // for struct timeval
+#   include <netinet/in.h> // for struct ip_mreq
+#   include <ifaddrs.h>
+#   include <net/if.h> /* for IFF_RUNNING */
+#   include <netdb.h> // for recvfrom in cygwin
+#  endif
 
 #ifndef STRDUP
 # if defined(__MINGW32__)
@@ -338,3 +353,136 @@ mdns_record_t *mdns_find_record(const mdns_daemon_t *mdnsDaemon, unsigned short 
 	}
 	return NULL;
 }
+
+void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain, const char *localDomain) {
+#ifdef _WIN32
+	// see http://stackoverflow.com/a/10838854/869402
+    IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
+    IP_ADAPTER_ADDRESSES* adapter = NULL;
+
+    // Start with a 16 KB buffer and resize if needed -
+    // multiple attempts in case interfaces change while
+    // we are in the middle of querying them.
+    DWORD adapter_addresses_buffer_size = 16 * 1024;
+    for(size_t attempts = 0; attempts != 3; ++attempts) {
+        adapter_addresses = (IP_ADAPTER_ADDRESSES*)malloc(adapter_addresses_buffer_size);
+        assert(adapter_addresses);
+        DWORD error = GetAdaptersAddresses(AF_UNSPEC,
+                                           GAA_FLAG_SKIP_ANYCAST |
+                                           GAA_FLAG_SKIP_DNS_SERVER |
+                                           GAA_FLAG_SKIP_FRIENDLY_NAME,
+                                           NULL, adapter_addresses, &adapter_addresses_buffer_size);
+
+        if (ERROR_SUCCESS == error) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "GetAdaptersAddresses returned an error. Not setting mDNS A records.");
+            adapter_addresses = NULL;
+            break;
+        } else if (ERROR_BUFFER_OVERFLOW == error) {
+            // Try again with the new size
+            free(adapter_addresses);
+            adapter_addresses = NULL;
+            continue;
+        } else {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "GetAdaptersAddresses returned an unexpected error. Not setting mDNS A records.");
+            // Unexpected error code - log and throw
+            free(adapter_addresses);
+            adapter_addresses = NULL;
+            break;
+        }
+    }
+
+    // Iterate through all of the adapters
+    for(adapter = adapter_addresses; NULL != adapter; adapter = adapter->Next) {
+        // Skip loopback adapters
+        if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
+            continue;
+
+        // Parse all IPv4 and IPv6 addresses
+        for(IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
+             NULL != address; address = address->Next) {
+            int family = address->Address.lpSockaddr->sa_family;
+            if(AF_INET == family) {
+                SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); // IPv4
+
+                // [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+                mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+                mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
+
+                // [hostname]. A [ip].
+                r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
+                mdnsd_set_raw(server->mdnsDaemon, r,(char *)&ipv4->sin_addr , 4);
+            }
+            /*else if (AF_INET6 == family) {
+                // IPv6
+                SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
+
+                char str_buffer[INET6_ADDRSTRLEN] = {0};
+                inet_ntop(AF_INET6, &(ipv6->sin6_addr), str_buffer, INET6_ADDRSTRLEN);
+
+                std::string ipv6_str(str_buffer);
+
+                // Detect and skip non-external addresses
+                bool is_link_local(false);
+                bool is_special_use(false);
+
+                if(0 == ipv6_str.find("fe")) {
+                    char c = ipv6_str[2];
+                    if (c == '8' || c == '9' || c == 'a' || c == 'b')
+                        is_link_local = true;
+                } else if (0 == ipv6_str.find("2001:0:")) {
+                    is_special_use = true;
+                }
+
+                if(!(is_link_local || is_special_use))
+                    ipAddrs.mIpv6.push_back(ipv6_str);
+            }*/
+        }
+    }
+
+    // Cleanup
+    free(adapter_addresses);
+    adapter_addresses = NULL;
+
+#else //_WIN32
+
+	struct ifaddrs *ifaddr, *ifa;
+	if(getifaddrs(&ifaddr) == -1) {
+		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+					 "getifaddrs returned an unexpected error. Not setting mDNS A records.");
+	} else {
+		/* Walk through linked list, maintaining head pointer so we can free list later */
+		int n;
+		for(ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
+			if(ifa->ifa_addr == NULL)
+				continue;
+
+			if((strcmp("lo", ifa->ifa_name) == 0) ||
+			   !(ifa->ifa_flags & (IFF_RUNNING))||
+			   !(ifa->ifa_flags & (IFF_MULTICAST)))
+				continue;
+
+			if(ifa->ifa_addr->sa_family == AF_INET) {
+				struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
+				// [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
+				mdns_record_t *r = mdnsd_shared(server->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+				// [hostname]. A [ip].
+				r = mdnsd_shared(server->mdnsDaemon, localDomain, QTYPE_A, 600);
+				mdnsd_set_raw(server->mdnsDaemon, r,(char *)&sa->sin_addr.s_addr , 4);
+			} /*else if (ifa->ifa_addr->sa_family == AF_INET6) {
+              // IPv6 not implemented yet
+              }*/
+		}
+
+		freeifaddrs(ifaddr);
+	}
+
+#endif //_WIN32
+
+}
+
+
+
+#endif // UA_ENABLE_DISCOVERY_MULTICAST
