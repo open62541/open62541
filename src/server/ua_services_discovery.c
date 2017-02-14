@@ -1622,7 +1622,7 @@ multicastWorkerLoop(UA_Server *server) {
 UA_StatusCode
 UA_Discovery_multicastListenStart(UA_Server* server) {
     int err = pthread_create(&server->mdnsThread, NULL,
-                             (void* (*)(void*))multicastWorkerLoop, server)
+                             (void* (*)(void*))multicastWorkerLoop, server);
     if(err != 0) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not create multicast thread.");

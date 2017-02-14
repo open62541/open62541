@@ -135,6 +135,13 @@ else
     make -j
     cd .. && rm build -rf
 
+
+    echo "Compile multithreaded version with discovery"
+    mkdir -p build && cd build
+    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_EXAMPLES=ON ..
+    make -j
+    cd .. && rm build -rf
+
     echo "Debug build and unit tests (64 bit)"
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
