@@ -601,7 +601,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             UA_SecureChannel* tmpChannel = NULL;
             retval = UA_SecureChannelManager_open_temporary(&server->secureChannelManager, &tmpChannel, connection);
 
-            retval = UA_SecureChannel_processChunks(channel,
+            retval = UA_SecureChannel_processChunks(tmpChannel,
                                                     message,
                                                     (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage,
                                                     server);

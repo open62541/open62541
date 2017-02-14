@@ -82,6 +82,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
 	// connection already has a channel attached. No need for a new temporary.
 	if (connection->channel != NULL)
 	{
+        *pp_channel = connection->channel;
 		return UA_STATUSCODE_GOOD;
 	}
 
@@ -92,7 +93,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 	}
 
-	UA_LOG_DEBUG(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Creating a new temporary channel");
+	UA_LOG_INFO(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Creating a new temporary channel");
 
 	channel_list_entry *entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
     
@@ -125,6 +126,8 @@ UA_SecureChannelManager_close_temporary(UA_SecureChannelManager* const cm,
 	{
 		return UA_STATUSCODE_BADINTERNALERROR;
 	}
+
+    UA_LOG_INFO(cm->server->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "Closing temporary channel %i", channel->securityToken.channelId);
 
 	return UA_SecureChannelManager_close(cm, channel->securityToken.channelId);
 }
