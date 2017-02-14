@@ -323,10 +323,6 @@ void Service_Call_single(UA_Server *server, UA_Session *session,
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 UA_StatusCode UA_Discovery_multicastInit(UA_Server* server);
@@ -350,5 +346,9 @@ UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server);
 UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn);
 
 # endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */
