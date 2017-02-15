@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
@@ -121,6 +121,7 @@ workerLoop(UA_Worker *worker) {
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete
     rcu_unregister_thread();
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER, "Worker shut down");
     return NULL;
 }
 
@@ -641,18 +642,16 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 #endif
         }
 
-#ifdef UA_ENABLE_MULTITHREADING
-        /* Wake up worker threads */
-        if(dispatched)
-            pthread_cond_broadcast(&server->dispatchQueue_condition);
-#endif
-
         /* Clean up jobs list */
         if(jobsSize > 0)
             UA_free(jobs);
     }
 
-#ifndef UA_ENABLE_MULTITHREADING
+#ifdef UA_ENABLE_MULTITHREADING
+    /* Wake up worker threads */
+    if(dispatched)
+        pthread_cond_broadcast(&server->dispatchQueue_condition);
+#else
     processDelayedCallbacks(server);
 #endif
 
@@ -674,18 +673,22 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     }
 
 #ifdef UA_ENABLE_MULTITHREADING
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Shutting down %u worker thread(s)", server->config.nThreads);
-    /* Wait for all worker threads to finish */
-    for(size_t i = 0; i < server->config.nThreads; ++i)
-        server->workers[i].running = false;
-    pthread_cond_broadcast(&server->dispatchQueue_condition);
-    for(size_t i = 0; i < server->config.nThreads; ++i)
-        pthread_join(server->workers[i].thr, NULL);
-    UA_free(server->workers);
+    /* Ensure that run_shutdown can be called multiple times */
+    if(server->workers) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Shutting down %u worker thread(s)", server->config.nThreads);
+        /* Wait for all worker threads to finish */
+        for(size_t i = 0; i < server->config.nThreads; ++i)
+            server->workers[i].running = false;
+        pthread_cond_broadcast(&server->dispatchQueue_condition);
+        for(size_t i = 0; i < server->config.nThreads; ++i)
+            pthread_join(server->workers[i].thr, NULL);
+        /* Free the worker structures */
+        UA_free(server->workers);
+        server->workers = NULL;
+    }
 
-    /* Manually finish the work still enqueued.
-       This especially contains delayed frees */
+    /* Manually finish the work still enqueued */
     emptyDispatchQueue(server);
     UA_ASSERT_RCU_UNLOCKED();
     rcu_barrier(); // wait for all scheduled call_rcu work to complete

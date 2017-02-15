@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server.h"
 #include "server/ua_server_internal.h"
@@ -35,11 +35,16 @@ START_TEST(Server_addRemoveRepeatedJob) {
         .type = UA_JOBTYPE_METHODCALL,
         .job.methodCall = {.data = NULL, .method = dummyJob}
     };
+    /* The job is added to the main queue only upon the next run_iterate */
     UA_Server_addRepeatedJob(server, rj, 10, &id);
+    UA_Server_run_iterate(server, false);
 
+    /* Wait until the job has surely timed out */
     usleep(15*1000);
     UA_Server_run_iterate(server, false);
 
+    /* Wait a bit longer until the workers have picked up the dispatched job */
+    usleep(15*1000);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedJob(server, id);

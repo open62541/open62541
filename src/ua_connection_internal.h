@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CONNECTION_INTERNAL_H_
 #define UA_CONNECTION_INTERNAL_H_
@@ -28,8 +28,8 @@ extern "C" {
  * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs, the ingoing message
  *         and the current buffer in the connection are freed. */
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString *message,
-                               UA_Boolean *realloced);
+UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+                               UA_Boolean * UA_RESTRICT realloced);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout.

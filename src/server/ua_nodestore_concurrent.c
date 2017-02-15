@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_nodestore.h"
@@ -97,7 +97,9 @@ void UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex) {
         }
         cds_lfht_next(ht, &iter);
     }
+    UA_RCU_UNLOCK();
     cds_lfht_destroy(ns->ht, NULL);
+    UA_RCU_LOCK();
     UA_free(ns->ht);
     ns->isDeleted = true;
 }

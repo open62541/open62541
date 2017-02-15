@@ -1,7 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CONNECTION_H_
 #define UA_CONNECTION_H_
@@ -124,12 +123,6 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 UA_StatusCode UA_EXPORT
 UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
                      UA_UInt16 * port, const char ** path);
-
-/* Convert given byte string to a positive number. Returns the number of valid
- * digits. Stops if a non-digit char is found and returns the number of digits
- * up to that point. */
-size_t UA_EXPORT
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
 #ifdef __cplusplus
 } // extern "C"
