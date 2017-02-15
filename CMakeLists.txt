@@ -60,6 +60,9 @@ option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+# Semaphores/file system may not be available on embedded devices. It can be disabled with the following option
+option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
+mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)

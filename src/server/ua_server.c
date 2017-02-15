@@ -1470,8 +1470,14 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     request.server.serverType = server->config.applicationDescription.applicationType;
     request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
-    if(semaphoreFilePath)
-        request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+	if(semaphoreFilePath) {
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+		request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+#else
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+					   "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+#endif
+	}
 
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;

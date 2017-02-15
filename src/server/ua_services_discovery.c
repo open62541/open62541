@@ -5,11 +5,7 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-#include "ua_mdns_internal.h"
-#endif
-
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_SEMAPHORE)
 # ifdef _MSC_VER
 #  ifndef UNDER_CE
 #   include <io.h> //access
@@ -18,23 +14,24 @@
 # else
 #  include <unistd.h> //access
 # endif
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-#  include <fcntl.h>
-#  include <errno.h>
-#  include <stdio.h>
-#  ifdef _WIN32
-#   define CLOSESOCKET(S) closesocket((SOCKET)S)
-#  else
-#   define CLOSESOCKET(S) close(S)
-#  endif
+#endif
+
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
+# include "ua_mdns_internal.h"
+# include <fcntl.h>
+# include <errno.h>
+# ifdef _WIN32
+#  define CLOSESOCKET(S) closesocket((SOCKET)S)
+# else
+#  define CLOSESOCKET(S) close(S)
 # endif
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
-copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *request,
-                                             UA_ApplicationDescription *target,
-                                             const UA_RegisteredServer* registeredServer) {
+setApplicationDescriptionFromRegsiteredServer(const UA_FindServersRequest *request,
+											  UA_ApplicationDescription *target,
+											  const UA_RegisteredServer *registeredServer) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_ApplicationDescription_init(target);
@@ -84,33 +81,33 @@ copyRegisteredServerToApplicationDescription(const UA_FindServersRequest *reques
 #endif
 
 static UA_StatusCode
-setApplicationDescriptionFromServer(UA_ApplicationDescription *appDescription, const UA_Server *server) {
+setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_Server *server) {
 	/* Copy ApplicationDescription from the config */
 
 	UA_StatusCode result = UA_ApplicationDescription_copy(&server->config.applicationDescription,
-														  appDescription);
+														  target);
 	if(result != UA_STATUSCODE_GOOD) {
 		return result;
 	}
 	// UaExpert does not list DiscoveryServer, thus set it to Server
 	// See http://forum.unified-automation.com/topic1987.html
-	if (appDescription->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-		appDescription->applicationType = UA_APPLICATIONTYPE_SERVER;
+	if (target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+		target->applicationType = UA_APPLICATIONTYPE_SERVER;
 
 	/* add the discoveryUrls from the networklayers */
-	size_t discSize = sizeof(UA_String) * (appDescription->discoveryUrlsSize + server->config.networkLayersSize);
-	UA_String* disc = (UA_String *)UA_realloc(appDescription->discoveryUrls, discSize);
+	size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
+	UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
 	if(!disc) {
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 	}
-	size_t existing = appDescription->discoveryUrlsSize;
-	appDescription->discoveryUrls = disc;
-	appDescription->discoveryUrlsSize += server->config.networkLayersSize;
+	size_t existing = target->discoveryUrlsSize;
+	target->discoveryUrls = disc;
+	target->discoveryUrlsSize += server->config.networkLayersSize;
 
 	// TODO: Add nl only if discoveryUrl not already present
 	for (size_t i = 0; i < server->config.networkLayersSize; i++) {
 		UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-		UA_String_copy(&nl->discoveryUrl, &appDescription->discoveryUrls[existing + i]);
+		UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
 	}
 	return UA_STATUSCODE_GOOD;
 }
@@ -211,8 +208,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             size_t iterCount = addSelf ? foundServersSize - 1 : foundServersSize;
             for (size_t i = 0; i < iterCount; i++) {
                 response->responseHeader.serviceResult =
-                    copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
-                                                                 foundServerFilteredPointer[i]);
+						setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
+																	  foundServerFilteredPointer[i]);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     UA_free(foundServerFilteredPointer);
@@ -225,8 +222,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             registeredServer_list_entry* current;
             LIST_FOREACH(current, &server->registeredServers, pointers) {
                 response->responseHeader.serviceResult =
-                    copyRegisteredServerToApplicationDescription(request, &foundServers[currentIndex++],
-                                                                 &current->registeredServer);
+						setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
+																	  &current->registeredServer);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     return;
@@ -457,7 +454,7 @@ static void update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverName
 	}
 }
 
-# endif
+# endif //UA_ENABLE_DISCOVERY_MULTICAST
 
 
 static void
@@ -517,6 +514,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
     if(requestServer->semaphoreFilePath.length) {
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         char* filePath = (char *)malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
@@ -526,6 +524,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
         free(filePath);
+#else
+		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+					   "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+#endif
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -638,6 +640,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
     LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = UA_FALSE;
 
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         if(current->registeredServer.semaphoreFilePath.length) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
             char* filePath = (char *)malloc(fpSize);
@@ -654,6 +657,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 #endif
            free(filePath);
         }
+#endif
 
         if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
                                 current->lastSeen < timedOut)) {
