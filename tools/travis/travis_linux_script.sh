@@ -161,7 +161,7 @@ else
 
     # without valgrind
     echo "Debug build and unit tests without valgrind" && echo -en 'travis_fold:start:script.build.unit_test\\r'
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
     make -j && make test ARGS="-V"
     (./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
 	echo -en 'travis_fold:end:script.build.unit_test\\r'
