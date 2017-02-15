@@ -1140,8 +1140,8 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     }
 
     while(r2) {
-        const mdns_answer_t *data = mdnsd_record_data(r);
-        mdns_record_t *next = mdnsd_record_next(r);
+        const mdns_answer_t *data = mdnsd_record_data(r2);
+        mdns_record_t *next = mdnsd_record_next(r2);
         if((removeTxt && data->type == QTYPE_TXT) ||
            (removeTxt && data->type == QTYPE_A) ||
            data->srv.port == port) {
