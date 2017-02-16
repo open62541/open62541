@@ -11,7 +11,7 @@
 /*******************************/
 
 const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
-	0, /* .protocolVersion */
+    0, /* .protocolVersion */
     65535, /* .sendBufferSize, 64k per chunk */
     65535, /* .recvBufferSize, 64k per chunk */
     0, /* .maxMessageSize, 0 -> unlimited */
@@ -48,7 +48,7 @@ UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
 const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
-	1, /* .nThreads */
+    1, /* .nThreads */
     UA_Log_Stdout, /* .logger */
 
     /* Server Description */
@@ -109,7 +109,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     {1,100} /* .queueSizeLimits */
 
 #ifdef UA_ENABLE_DISCOVERY
-	, 60*60 /* .discoveryCleanupTimeout */
+    , 60*60 /* .discoveryCleanupTimeout */
 #endif
 };
 
