@@ -37,11 +37,11 @@ int main(int argc, char** argv) {
 
     /* create nodes from nodeset */
     if (nodeset(server) != UA_STATUSCODE_GOOD) {
-		UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Namespace index for generated nodeset does not match. The call to the generated method has to be before any other namespace add calls.");
-		UA_Server_delete(server);
-		nl.deleteMembers(&nl);
-		return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
-	}
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Namespace index for generated nodeset does not match. The call to the generated method has to be before any other namespace add calls.");
+        UA_Server_delete(server);
+        nl.deleteMembers(&nl);
+        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
 
     /* start server */
     UA_StatusCode retval = UA_Server_run(server, &running); //UA_blocks until running=false
