@@ -147,9 +147,9 @@ typedef double UA_Double;
 typedef uint32_t UA_StatusCode;
 
 typedef struct {
-	UA_StatusCode code;      /* The numeric value of the StatusCode */
-	const char* name;        /* The symbolic name */
-	const char* explanation; /* Short message explaining the StatusCode */
+    UA_StatusCode code;      /* The numeric value of the StatusCode */
+    const char* name;        /* The symbolic name */
+    const char* explanation; /* Short message explaining the StatusCode */
 } UA_StatusCodeDescription;
 
 /* Returns the description of the StatusCode. Never returns NULL, but a generic
