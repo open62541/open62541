@@ -53,9 +53,9 @@ int main(int argc, char** argv) {
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_DataSource dataSource;
-	dataSource.handle = &myInteger;
-	dataSource.read = readInteger;
-	dataSource.write = NULL;
+    dataSource.handle = &myInteger;
+    dataSource.read = readInteger;
+    dataSource.write = NULL;
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
