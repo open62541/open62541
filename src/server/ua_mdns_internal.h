@@ -18,10 +18,10 @@ int mdns_hash_record(const char *s);
 
 struct serverOnNetwork_list_entry *
 mdns_record_add_or_get(UA_Server *server, const char *record, const char *serverName,
-					   size_t serverNameLen, UA_Boolean createNew);
+                       size_t serverNameLen, UA_Boolean createNew);
 
 void mdns_record_remove(UA_Server *server, const char *record,
-						struct serverOnNetwork_list_entry *entry);
+                        struct serverOnNetwork_list_entry *entry);
 
 void mdns_append_path_to_url(UA_String *url, const char *path);
 
@@ -29,8 +29,8 @@ void mdns_record_received(const struct resource *r, void *data);
 
 // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
 void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const char *path,
-					 const UA_String *capabilites, const size_t *capabilitiesSize,
-					 void (*conflict)(char *host, int type, void *arg));
+                     const UA_String *capabilites, const size_t *capabilitiesSize,
+                     void (*conflict)(char *host, int type, void *arg));
 
 
 // A/AAAA record for all ip addresses.
@@ -39,7 +39,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
 void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain, const char *localDomain);
 
 mdns_record_t *mdns_find_record(const mdns_daemon_t *mdnsDaemon, unsigned short type,
-					  const char *host, const char *rdname);
+                      const char *host, const char *rdname);
 
 #ifdef __cplusplus
 } // extern "C"

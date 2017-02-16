@@ -30,8 +30,8 @@
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
 setApplicationDescriptionFromRegsiteredServer(const UA_FindServersRequest *request,
-											  UA_ApplicationDescription *target,
-											  const UA_RegisteredServer *registeredServer) {
+                                              UA_ApplicationDescription *target,
+                                              const UA_RegisteredServer *registeredServer) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_ApplicationDescription_init(target);
@@ -82,34 +82,34 @@ setApplicationDescriptionFromRegsiteredServer(const UA_FindServersRequest *reque
 
 static UA_StatusCode
 setApplicationDescriptionFromServer(UA_ApplicationDescription *target, const UA_Server *server) {
-	/* Copy ApplicationDescription from the config */
+    /* Copy ApplicationDescription from the config */
 
-	UA_StatusCode result = UA_ApplicationDescription_copy(&server->config.applicationDescription,
-														  target);
-	if(result != UA_STATUSCODE_GOOD) {
-		return result;
-	}
-	// UaExpert does not list DiscoveryServer, thus set it to Server
-	// See http://forum.unified-automation.com/topic1987.html
-	if (target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-		target->applicationType = UA_APPLICATIONTYPE_SERVER;
+    UA_StatusCode result = UA_ApplicationDescription_copy(&server->config.applicationDescription,
+                                                          target);
+    if(result != UA_STATUSCODE_GOOD) {
+        return result;
+    }
+    // UaExpert does not list DiscoveryServer, thus set it to Server
+    // See http://forum.unified-automation.com/topic1987.html
+    if (target->applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        target->applicationType = UA_APPLICATIONTYPE_SERVER;
 
-	/* add the discoveryUrls from the networklayers */
-	size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
-	UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
-	if(!disc) {
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-	}
-	size_t existing = target->discoveryUrlsSize;
-	target->discoveryUrls = disc;
-	target->discoveryUrlsSize += server->config.networkLayersSize;
+    /* add the discoveryUrls from the networklayers */
+    size_t discSize = sizeof(UA_String) * (target->discoveryUrlsSize + server->config.networkLayersSize);
+    UA_String* disc = (UA_String *)UA_realloc(target->discoveryUrls, discSize);
+    if(!disc) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    size_t existing = target->discoveryUrlsSize;
+    target->discoveryUrls = disc;
+    target->discoveryUrlsSize += server->config.networkLayersSize;
 
-	// TODO: Add nl only if discoveryUrl not already present
-	for (size_t i = 0; i < server->config.networkLayersSize; i++) {
-		UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-		UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
-	}
-	return UA_STATUSCODE_GOOD;
+    // TODO: Add nl only if discoveryUrl not already present
+    for (size_t i = 0; i < server->config.networkLayersSize; i++) {
+        UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
+        UA_String_copy(&nl->discoveryUrl, &target->discoveryUrls[existing + i]);
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 void Service_FindServers(UA_Server *server, UA_Session *session,
@@ -139,8 +139,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         for(size_t i = 0; i < request->serverUrisSize; i++) {
             if(!addSelf && UA_String_equal(&request->serverUris[i],
                                            &server->config.applicationDescription.applicationUri)) {
-				addSelf = UA_TRUE;
-			} else {
+                addSelf = UA_TRUE;
+            } else {
                 registeredServer_list_entry* current;
                 LIST_FOREACH(current, &server->registeredServers, pointers) {
                     if(UA_String_equal(&current->registeredServer.serverUri, &request->serverUris[i])) {
@@ -186,13 +186,13 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         }
 
         if(addSelf) {
-			response->responseHeader.serviceResult = setApplicationDescriptionFromServer(&foundServers[0], server);
-			if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-				UA_free(foundServers);
-				if (foundServerFilteredPointer)
-					UA_free(foundServerFilteredPointer);
-				return;
-			}
+            response->responseHeader.serviceResult = setApplicationDescriptionFromServer(&foundServers[0], server);
+            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+                UA_free(foundServers);
+                if (foundServerFilteredPointer)
+                    UA_free(foundServerFilteredPointer);
+                return;
+            }
         }
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -208,8 +208,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             size_t iterCount = addSelf ? foundServersSize - 1 : foundServersSize;
             for (size_t i = 0; i < iterCount; i++) {
                 response->responseHeader.serviceResult =
-						setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
-																	  foundServerFilteredPointer[i]);
+                        setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
+                                                                      foundServerFilteredPointer[i]);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     UA_free(foundServerFilteredPointer);
@@ -222,8 +222,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
             registeredServer_list_entry* current;
             LIST_FOREACH(current, &server->registeredServers, pointers) {
                 response->responseHeader.serviceResult =
-						setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
-																	  &current->registeredServer);
+                        setApplicationDescriptionFromRegsiteredServer(request, &foundServers[currentIndex++],
+                                                                      &current->registeredServer);
                 if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                     UA_free(foundServers);
                     return;
@@ -404,54 +404,54 @@ void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
 
 static void update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverName,
-									   UA_MdnsDiscoveryConfiguration *mdnsConfig,
-									   const UA_String discoveryUrl, UA_Boolean isOnline,
-									   UA_Boolean updateTxt) {
-	UA_UInt16 port = 0;
-	char hostname[256]; hostname[0] = '\0';
-	const char *path = NULL;
+                                       UA_MdnsDiscoveryConfiguration *mdnsConfig,
+                                       const UA_String discoveryUrl, UA_Boolean isOnline,
+                                       UA_Boolean updateTxt) {
+    UA_UInt16 port = 0;
+    char hostname[256]; hostname[0] = '\0';
+    const char *path = NULL;
 
-	size_t uriSize = sizeof(char) * discoveryUrl.length + 1;
-	char* uri = (char*)malloc(uriSize);
-	strncpy(uri, (char*) discoveryUrl.data,
-			discoveryUrl.length);
-	uri[discoveryUrl.length] = '\0';
-	UA_StatusCode retval = UA_EndpointUrl_split(uri, hostname, &port, &path);
-	if (retval != UA_STATUSCODE_GOOD) {
-		hostname[0] = '\0';
-		if (retval == UA_STATUSCODE_BADOUTOFRANGE)
-			UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
-						   "Server url size invalid");
-		else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-			UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
-						   "Server url does not begin with opc.tcp://");
-	}
-	free(uri);
+    size_t uriSize = sizeof(char) * discoveryUrl.length + 1;
+    char* uri = (char*)malloc(uriSize);
+    strncpy(uri, (char*) discoveryUrl.data,
+            discoveryUrl.length);
+    uri[discoveryUrl.length] = '\0';
+    UA_StatusCode retval = UA_EndpointUrl_split(uri, hostname, &port, &path);
+    if (retval != UA_STATUSCODE_GOOD) {
+        hostname[0] = '\0';
+        if (retval == UA_STATUSCODE_BADOUTOFRANGE)
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url size invalid");
+        else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                           "Server url does not begin with opc.tcp://");
+    }
+    free(uri);
 
-	if(!isOnline) {
-		UA_StatusCode removeRetval =
-				UA_Discovery_removeRecord(server, serverName, hostname,
-										  (unsigned short) port, updateTxt);
-		if(removeRetval != UA_STATUSCODE_GOOD) {
-			UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-						   "Could not remove mDNS record for hostname %s.", serverName);
-		}
-	} else {
-		UA_String *capabilities = NULL;
-		size_t capabilitiesSize = 0;
-		if(mdnsConfig) {
-			capabilities = mdnsConfig->serverCapabilities;
-			capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
-		}
-		UA_StatusCode addRetval =
-				UA_Discovery_addRecord(server, serverName, hostname,
-									   (unsigned short) port, path,
-									   UA_DISCOVERY_TCP, updateTxt, capabilities, &capabilitiesSize);
-		if(addRetval != UA_STATUSCODE_GOOD) {
-			UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-						   "Could not add mDNS record for hostname %s.", serverName);
-		}
-	}
+    if(!isOnline) {
+        UA_StatusCode removeRetval =
+                UA_Discovery_removeRecord(server, serverName, hostname,
+                                          (unsigned short) port, updateTxt);
+        if(removeRetval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Could not remove mDNS record for hostname %s.", serverName);
+        }
+    } else {
+        UA_String *capabilities = NULL;
+        size_t capabilitiesSize = 0;
+        if(mdnsConfig) {
+            capabilities = mdnsConfig->serverCapabilities;
+            capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
+        }
+        UA_StatusCode addRetval =
+                UA_Discovery_addRecord(server, serverName, hostname,
+                                       (unsigned short) port, path,
+                                       UA_DISCOVERY_TCP, updateTxt, capabilities, &capabilitiesSize);
+        if(addRetval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Could not add mDNS record for hostname %s.", serverName);
+        }
+    }
 }
 
 # endif //UA_ENABLE_DISCOVERY_MULTICAST
@@ -525,8 +525,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         free(filePath);
 #else
-		UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
-					   "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
     }
 
@@ -537,10 +537,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         mdnsServer[mdnsServerName->length] = '\0';
 
         for(size_t i=0; i<requestServer->discoveryUrlsSize; i++) {
-			// create TXT if is online and first index, delete TXT if is offline and last index
-			UA_Boolean updateTxt = (requestServer->isOnline && i==0) || (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-			update_MdnsForDiscoveryUrl(server, mdnsServer, mdnsConfig, requestServer->discoveryUrls[i],
-									   requestServer->isOnline, updateTxt);
+            // create TXT if is online and first index, delete TXT if is offline and last index
+            UA_Boolean updateTxt = (requestServer->isOnline && i==0) || (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
+            update_MdnsForDiscoveryUrl(server, mdnsServer, mdnsConfig, requestServer->discoveryUrls[i],
+                                       requestServer->isOnline, updateTxt);
         }
         free(mdnsServer);
     }
@@ -649,9 +649,9 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
            FILE *fp = fopen(filePath,"rb");
-		   semaphoreDeleted = (fp==NULL);
-		   if(fp)
-		     fclose(fp);
+           semaphoreDeleted = (fp==NULL);
+           if(fp)
+             fclose(fp);
 #else
            semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
@@ -743,7 +743,7 @@ periodicServerRegister(UA_Server *server, void *data) {
         UA_UInt32 nextInterval = 1;
 
         if (retryJob->job != NULL)
-			// double the interval for the next retry
+            // double the interval for the next retry
             nextInterval = retryJob->this_interval*2;
 
         // as long as next retry is smaller than default interval, retry
@@ -1018,7 +1018,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
 
     // use a limit for the hostname length to make sure full string fits into 63
     // chars (limited by DNS spec)
-	if(hostnameLen+servernameLen + 1 > 63) { // include dash between servername-hostname
+    if(hostnameLen+servernameLen + 1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: Combination of hostname+servername exceeds maximum "
                        "of 62 chars. It will be truncated.");
@@ -1053,7 +1053,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
 
     // check if there is already a PTR entry for the given service.
 
-	// _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
+    // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
     mdns_record_t *r = mdns_find_record(server->mdnsDaemon, QTYPE_PTR, "_opcua-tcp._tcp.local.", fullServiceDomain);
     if(r == NULL) {
         r = mdnsd_shared(server->mdnsDaemon, "_opcua-tcp._tcp.local.", QTYPE_PTR, 600);
@@ -1078,12 +1078,12 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
     // A/AAAA record for all ip addresses.
     // [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
     // [hostname]. A [ip].
-	mdns_set_address_record(server, fullServiceDomain, localDomain);
+    mdns_set_address_record(server, fullServiceDomain, localDomain);
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if(createTxt) {
         mdns_create_txt(server, fullServiceDomain, path, capabilites, capabilitiesSize,
-						UA_Discovery_multicastConflict);
+                        UA_Discovery_multicastConflict);
     }
 
     free(fullServiceDomain);
@@ -1099,7 +1099,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     // use a limit for the hostname length to make sure full string fits into 63
     // chars (limited by DNS spec)
     if(hostnameLen == 0 || servernameLen == 0)
-		return UA_STATUSCODE_BADOUTOFRANGE;
+        return UA_STATUSCODE_BADOUTOFRANGE;
 
     if(hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1124,7 +1124,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-	mdnsd_done(server->mdnsDaemon, r);
+    mdnsd_done(server->mdnsDaemon, r);
 
 
     // looks for [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port hostname.local.
@@ -1219,11 +1219,11 @@ UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat,
     unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                                        processIn, true, &next_sleep);
     if(retVal == 1) {
-		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-					 "Multicast error: Can not read from socket. %s",
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not read from socket. %s",
                      strerror(errno));
-		return UA_STATUSCODE_BADNOCOMMUNICATION;
-	} else if(retVal == 2) {
+        return UA_STATUSCODE_BADNOCOMMUNICATION;
+    } else if(retVal == 2) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not write to socket. %s",
                      strerror(errno));

@@ -251,8 +251,8 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
     retval = FindServers("opc.tcp://localhost:4840", &applicationDescriptionArraySize, &applicationDescriptionArray, filterUri, filterLocale);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-	// only the discovery server is expected
-	ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
+    // only the discovery server is expected
+    ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
     assert(applicationDescriptionArray != NULL);
 
     for (size_t i=0; i < expectedUrisSize; ++i) {
@@ -353,15 +353,15 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
         ck_assert_ptr_ne(serverOnNetwork, NULL);
     }
 
-	if (serverOnNetwork != NULL) {
-		for (size_t i=0; i<expectedServerNamesSize; i++) {
-			char* serverName = malloc(sizeof(char) * (serverOnNetwork[i].serverName.length+1));
-			memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
-			serverName[serverOnNetwork[i].serverName.length] = '\0';
-			ck_assert_str_eq(serverName, expectedServerNames[i]);
-			free(serverName);
-		}
-	}
+    if (serverOnNetwork != NULL) {
+        for (size_t i=0; i<expectedServerNamesSize; i++) {
+            char* serverName = malloc(sizeof(char) * (serverOnNetwork[i].serverName.length+1));
+            memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
+            serverName[serverOnNetwork[i].serverName.length] = '\0';
+            ck_assert_str_eq(serverName, expectedServerNames[i]);
+            free(serverName);
+        }
+    }
 
     UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
 
