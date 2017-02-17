@@ -68,6 +68,9 @@ for fname in args.inputs:
             guard_res = guard_re.match(line)
             if not inc_res and not guard_res:
                 file.write(line)
+                # Ensure file is written to disk.
+                file.flush()
+                os.fsync(file.fileno())
         print ("done."),
 
 if not is_c:
@@ -77,6 +80,11 @@ if not is_c:
 #endif
 
 #endif /* %s */\n''' % (outname.upper() + u"_H_"))
+
+# Ensure file is written to disk.
+# See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close
+file.flush()
+os.fsync(file.fileno())
 file.close()
 
 print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")
