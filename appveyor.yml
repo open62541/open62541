@@ -51,16 +51,18 @@ before_build:
   - set PATH=C:\MinGW\bin;%PATH%
 
 build_script:
+  # Set the build dir to a disctinct value to avoid problems between parallel builds
+  - set BUILD_DIR=%APPVEYOR_BUILD_NUMBER%_%APPVEYOR_JOB_ID%_build
   - cd c:\projects\open62541
-  - md build
-  - cd build
+  - md %BUILD_DIR%
+  - cd %BUILD_DIR%
   - echo "Testing %CC_NAME%"
   - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
   - '%MAKE%'
   - cd ..
-  - rd /s /q build
-  - md build
-  - cd build
+  - rd /s /q %BUILD_DIR%
+  - md %BUILD_DIR%
+  - cd %BUILD_DIR%
   - echo "Testing %CC_NAME% with amalgamation"
   - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
   - '%MAKE%'
