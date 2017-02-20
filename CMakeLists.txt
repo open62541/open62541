@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.2)
 project(open62541)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-find_package(PythonInterp REQUIRED)
+find_package(PythonInterp 2.7 REQUIRED)
 find_package(Git)
 
 set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
@@ -517,12 +517,46 @@ add_dependencies(lint open62541)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
+set (cmake_configfile_install lib/cmake)
+set (target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
+set (open62541_tools_dir share/open62541/tools)
+set (open62541_deps_dir include/open62541/deps)
+
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
+        EXPORT open62541Targets
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        ARCHIVE DESTINATION lib
+        INCLUDES DESTINATION include/open62541 ${open62541_deps_dir}
+        )
+        
+include (CMakePackageConfigHelpers)
+configure_package_config_file (
+        "${CMAKE_CURRENT_SOURCE_DIR}/open62541-config.cmake.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+        INSTALL_DESTINATION "${cmake_configfile_install}"
+        PATH_VARS target_install_dest_name open62541_tools_dir
+        )
+        
+set (open62541_VERSION)
+get_target_property(open62541_VERSION open62541 VERSION)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+  VERSION ${open62541_VERSION}
+  COMPATIBILITY AnyNewerVersion
+)
+        
+install (EXPORT open62541Targets
+          FILE open62541Targets.cmake
+          DESTINATION "${cmake_configfile_install}"
+         )
+         
+install (FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake" "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake" DESTINATION "${cmake_configfile_install}")
 # export amalgamated header open62541.h which is generated due to build of open62541-object
-install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+install (FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+install (DIRECTORY deps/ DESTINATION ${open62541_deps_dir})
+install (DIRECTORY tools/ DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
 
 ##########################
 # Packaging (DEB/RPM)    #
