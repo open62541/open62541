@@ -737,7 +737,7 @@ periodicServerRegister(UA_Server *server, void *data) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not register server with discovery server. "
-                     "Is the discovery server started? StatusCode 0x%08x", retval);
+                     "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
 
         // first retry in 1 second
         UA_UInt32 nextInterval = 1;

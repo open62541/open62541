@@ -16,13 +16,13 @@ static void stopHandler(int sig) {
 }
 
 int main(void) {
-    signal(SIGINT,  stopHandler);
+    signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     config.applicationDescription.applicationUri =
-        UA_String_fromChars("open62541.example.local_discovery_server");
+            UA_String_fromChars("urn:open62541.example.local_discovery_server");
     config.mdnsServerName = UA_String_fromChars("LDS");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     config.serverCapabilitiesSize = 1;
@@ -47,5 +47,5 @@ int main(void) {
     UA_String_deleteMembers(&config.mdnsServerName);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    return (int)retval;
+    return (int) retval;
 }

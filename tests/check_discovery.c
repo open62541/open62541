@@ -53,7 +53,7 @@ static void setup_lds(void) {
     *running_lds = true;
     UA_ServerConfig config_lds = UA_ServerConfig_standard;
     config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config_lds.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.local_discovery_server");
+    config_lds.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.local_discovery_server");
     config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("en");
     config_lds.applicationDescription.applicationName.text = UA_String_fromChars("LDS Server");
     config_lds.mdnsServerName = UA_String_fromChars("LDS_test");
@@ -104,7 +104,7 @@ static void setup_register(void) {
     running_register = UA_Boolean_new();
     *running_register = true;
     UA_ServerConfig config_register = UA_ServerConfig_standard;
-    config_register.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.server_register");
+    config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_register");
     config_register.applicationDescription.applicationName.locale = UA_String_fromChars("de");
     config_register.applicationDescription.applicationName.text = UA_String_fromChars("Anmeldungsserver");
     config_register.mdnsServerName = UA_String_fromChars("Register_test");
