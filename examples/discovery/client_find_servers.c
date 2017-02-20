@@ -231,6 +231,7 @@ int main(void) {
         UA_EndpointDescription *endpointArray = NULL;
         size_t endpointArraySize = 0;
         retval = UA_Client_getEndpoints(client, discoveryUrl, &endpointArraySize, &endpointArray);
+        free(discoveryUrl);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_Client_disconnect(client);
             UA_Client_delete(client);
