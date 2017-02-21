@@ -3,6 +3,7 @@ ChunkType
 TcpMessageHeader
 TcpHelloMessage
 TcpAcknowledgeMessage
+TcpErrorMessage
 SecureConversationMessageHeader
 AsymmetricAlgorithmSecurityHeader
 SymmetricAlgorithmSecurityHeader
