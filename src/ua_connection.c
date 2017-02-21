@@ -44,6 +44,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString *message
             ((UA_UInt32)message->data[complete_until+1] << 8) +
             ((UA_UInt32)message->data[complete_until+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
+           msgtype != ('E' + ('R' << 8) + ('R' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
            msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
