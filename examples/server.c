@@ -135,9 +135,9 @@ int main(int argc, char** argv) {
 
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
-	dateDataSource.handle = NULL;
-	dateDataSource.read = readTimeData;
-	dateDataSource.write = NULL;
+    dateDataSource.handle = NULL;
+    dateDataSource.read = readTimeData;
+    dateDataSource.write = NULL;
     UA_VariableAttributes v_attr;
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
