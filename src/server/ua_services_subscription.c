@@ -422,7 +422,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)UA_malloc(sizeof(UA_PublishResponseEntry));
-	if(!entry) {
+    if(!entry) {
         subscriptionSendError(session->channel, requestId,
                               request->requestHeader.requestHandle, UA_STATUSCODE_BADOUTOFMEMORY);
         return;
