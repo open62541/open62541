@@ -45,7 +45,7 @@ static char *ua_strdup(const char *s) {
  * This function uses the ELF hashing algorithm as reprinted in
  * Andrew Binstock, "Hashing Rehashed," Dr. Dobb's Journal, April 1996.
  */
-int mdns_hash_record(const char *s) {
+static int mdns_hash_record(const char *s) {
     /* ELF hash uses unsigned chars and unsigned arithmetic for portability */
     const unsigned char *name = (const unsigned char *) s;
     unsigned long h = 0;
@@ -62,7 +62,7 @@ int mdns_hash_record(const char *s) {
     return (int) h;
 }
 
-struct serverOnNetwork_list_entry *
+static struct serverOnNetwork_list_entry *
 mdns_record_add_or_get(UA_Server *server, const char *record, const char *serverName,
                        size_t serverNameLen, UA_Boolean createNew) {
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
@@ -111,8 +111,9 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     return listEntry;
 }
 
-void mdns_record_remove(UA_Server *server, const char *record,
-                        struct serverOnNetwork_list_entry *entry) {
+static void
+mdns_record_remove(UA_Server *server, const char *record,
+                   struct serverOnNetwork_list_entry *entry) {
     // remove from hash
     int hashIdx = mdns_hash_record(record) % SERVER_ON_NETWORK_HASH_PRIME;
     struct serverOnNetwork_hash_entry *hash_entry = server->serverOnNetworkHash[hashIdx];
@@ -149,7 +150,8 @@ void mdns_record_remove(UA_Server *server, const char *record,
 #endif
 }
 
-void mdns_append_path_to_url(UA_String *url, const char *path) {
+static void
+mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t pathLen = strlen(path);
     char *newUrl = (char *) malloc(url->length + pathLen);
     memcpy(newUrl, url->data, url->length);

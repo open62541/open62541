@@ -22,18 +22,6 @@ extern "C" {
 
 #include "mdnsd/libmdnsd/mdnsd.h"
 
-int mdns_hash_record(const char *s);
-
-struct serverOnNetwork_list_entry *
-mdns_record_add_or_get(UA_Server *server, const char *record,
-                       const char *serverName, size_t serverNameLen,
-                       UA_Boolean createNew);
-
-void mdns_record_remove(UA_Server *server, const char *record,
-                        struct serverOnNetwork_list_entry *entry);
-
-void mdns_append_path_to_url(UA_String *url, const char *path);
-
 void mdns_record_received(const struct resource *r, void *data);
 
 void mdns_create_txt(UA_Server *server, const char *fullServiceDomain,

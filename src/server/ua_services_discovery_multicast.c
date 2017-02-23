@@ -208,7 +208,7 @@ static int discovery_createMulticastSocket(void) {
 UA_StatusCode
 UA_Discovery_multicastInit(UA_Server* server) {
     server->mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
-    if ((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
+    if((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create multicast socket. Error: %s", strerror(errno));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -424,11 +424,12 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
                 "Multicast DNS: remove record for domain: %s", fullServiceDomain);
 
     // _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local.
-    mdns_record_t *r = mdns_find_record(server->mdnsDaemon, QTYPE_PTR, "_opcua-tcp._tcp.local.", fullServiceDomain);
+    mdns_record_t *r = mdns_find_record(server->mdnsDaemon, QTYPE_PTR,
+                                        "_opcua-tcp._tcp.local.", fullServiceDomain);
     if(!r) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Multicast DNS: could not remove record. PTR Record not found for domain: %s",
-                       fullServiceDomain);
+                       "Multicast DNS: could not remove record. "
+                       "PTR Record not found for domain: %s", fullServiceDomain);
         free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -440,8 +441,8 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     mdns_record_t *r2 = mdnsd_get_published(server->mdnsDaemon, fullServiceDomain);
     if(!r2) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Multicast DNS: could not remove record. Record not found for domain: %s",
-                       fullServiceDomain);
+                       "Multicast DNS: could not remove record. Record not "
+                       "found for domain: %s", fullServiceDomain);
         free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -502,8 +503,9 @@ multicastWorkerLoop(UA_Server *server) {
         if(!*running)
             break;
 
-        unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
-                                           FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
+        unsigned short retVal =
+            mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
+                       FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
         if (retVal == 1) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Multicast error: Can not read from socket. %s", strerror(errno));
