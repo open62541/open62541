@@ -110,10 +110,12 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverNam
     const char *path = NULL;
 
     size_t uriSize = sizeof(char) * discoveryUrl.length + 1;
+
+    // todo: malloc may fail: return a statuscode
     char* uri = (char*)malloc(uriSize);
-    strncpy(uri, (char*) discoveryUrl.data,
-            discoveryUrl.length);
+    strncpy(uri, (char*) discoveryUrl.data, discoveryUrl.length);
     uri[discoveryUrl.length] = '\0';
+
     UA_StatusCode retval = UA_EndpointUrl_split(uri, hostname, &port, &path);
     if (retval != UA_STATUSCODE_GOOD) {
         hostname[0] = '\0';

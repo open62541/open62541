@@ -374,7 +374,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        char* filePath = (char *)malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        // todo: malloc may fail: return a statuscode
+        char* filePath = (char *)UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
@@ -391,7 +392,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        char* mdnsServer = (char *)malloc(sizeof(char) * mdnsServerName->length + 1);
+        // todo: malloc may fail: return a statuscode
+        char* mdnsServer = (char *)UA_malloc(sizeof(char) * mdnsServerName->length + 1);
         memcpy(mdnsServer, mdnsServerName->data, mdnsServerName->length);
         mdnsServer[mdnsServerName->length] = '\0';
 
@@ -504,7 +506,8 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         if(current->registeredServer.semaphoreFilePath.length) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
-            char* filePath = (char *)malloc(fpSize);
+            // todo: malloc may fail: return a statuscode
+            char* filePath = (char *)UA_malloc(fpSize);
             memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
                    current->registeredServer.semaphoreFilePath.length );
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
@@ -611,9 +614,10 @@ periodicServerRegister(UA_Server *server, void *data) {
         if (nextInterval < retryJob->default_interval) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                         "Retrying registration in %d seconds", nextInterval);
+            // todo: malloc may fail: return a statuscode
             struct PeriodicServerRegisterJob *newRetryJob =
-                (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
-            newRetryJob->job = (UA_Job *)malloc(sizeof(UA_Job));
+                (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+            newRetryJob->job = (UA_Job *)UA_malloc(sizeof(UA_Job));
             newRetryJob->default_interval = retryJob->default_interval;
             newRetryJob->this_interval = nextInterval;
             newRetryJob->discovery_server_url = retryJob->discovery_server_url;
@@ -679,9 +683,10 @@ UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
         // Register the server with the discovery server.
         // Delay this first registration until the server is fully initialized
         // will be freed in the callback
+        // todo: malloc may fail: return a statuscode
         struct PeriodicServerRegisterJob *newRetryJob =
-            (struct PeriodicServerRegisterJob *)malloc(sizeof(struct PeriodicServerRegisterJob));
-        newRetryJob->job = (UA_Job*)malloc(sizeof(UA_Job));
+            (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+        newRetryJob->job = (UA_Job*)UA_malloc(sizeof(UA_Job));
         newRetryJob->this_interval = 1;
         newRetryJob->default_interval = intervalMs;
         newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
