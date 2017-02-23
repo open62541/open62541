@@ -208,3 +208,4 @@ void Service_Call(UA_Server *server, UA_Session *session,
 }
 
 #endif /* UA_ENABLE_METHODCALLS */
+

@@ -614,3 +614,4 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
     if(request->nodesToUnregisterSize==0)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
 }
+
