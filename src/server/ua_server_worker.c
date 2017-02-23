@@ -660,7 +660,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Get work from the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_Job *jobs;
+        UA_Job *jobs = NULL;
         size_t jobsSize;
         /* only the last networklayer waits on the tieout */
         if(i == server->config.networkLayersSize-1)
@@ -731,7 +731,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        UA_Job *stopJobs;
+        UA_Job *stopJobs = NULL;
         size_t stopJobsSize = nl->stop(nl, &stopJobs);
         for(size_t j = 0; j < stopJobsSize; ++j)
             processJob(server, &stopJobs[j]);

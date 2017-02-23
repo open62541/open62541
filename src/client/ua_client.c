@@ -688,12 +688,12 @@ static void
 processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_NodeId expectedNodeId =
         UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     const UA_NodeId serviceFaultNodeId =
         UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
@@ -701,7 +701,14 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     size_t offset = 0;
     UA_NodeId responseId;
 
-    if(messageType != UA_MESSAGETYPE_MSG) {
+    if(messageType == UA_MESSAGETYPE_ERR) {
+        UA_TcpErrorMessage *msg = (UA_TcpErrorMessage*)message;
+        UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Server replied with an error message: %s %.*s",
+                     UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
+        retval = msg->error;
+        goto finish;
+    } else if(messageType != UA_MESSAGETYPE_MSG) {
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Server replied with the wrong message type");
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
