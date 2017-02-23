@@ -70,10 +70,10 @@ static void serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, U
                 serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
     if (discovery_url != NULL)
-		free(discovery_url);
-	discovery_url = malloc(serverOnNetwork->discoveryUrl.length + 1);
+        free(discovery_url);
+    discovery_url = malloc(serverOnNetwork->discoveryUrl.length + 1);
     memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
-	discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
+    discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
 }
 
 int main(int argc, char **argv) {
