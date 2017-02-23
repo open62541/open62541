@@ -430,8 +430,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
         Service_CreateSession(server, channel,
-			                  (const UA_CreateSessionRequest *)request,
-							  (UA_CreateSessionResponse *)response);
+                              (const UA_CreateSessionRequest *)request,
+                              (UA_CreateSessionResponse *)response);
         goto send_response;
     }
 
@@ -452,8 +452,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
         Service_ActivateSession(server, channel, session,
-			                    (const UA_ActivateSessionRequest*)request,
-								(UA_ActivateSessionResponse*)response);
+                                (const UA_ActivateSessionRequest*)request,
+                                (UA_ActivateSessionResponse*)response);
         goto send_response;
     }
 
@@ -505,7 +505,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
         Service_Publish(server, session,
-			            (const UA_PublishRequest*)request, requestId);
+                        (const UA_PublishRequest*)request, requestId);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -604,8 +604,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             if(retval != UA_STATUSCODE_GOOD)
                 connection->close(connection);
             UA_ByteString offsetMessage;
-			offsetMessage.data = message->data + 12;
-			offsetMessage.length = message->length - 12;
+            offsetMessage.data = message->data + 12;
+            offsetMessage.length = message->length - 12;
             processOPN(server, connection, channelId, &offsetMessage);
             break; }
         case UA_MESSAGETYPE_MSG:

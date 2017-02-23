@@ -890,9 +890,9 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
            FILE *fp = fopen(filePath,"rb");
-		   semaphoreDeleted = (fp==NULL);
-		   if(fp)
-		     fclose(fp);
+           semaphoreDeleted = (fp==NULL);
+           if(fp)
+             fclose(fp);
 #else
            semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
@@ -1261,7 +1261,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
 
     // use a limit for the hostname length to make sure full string fits into 63
     // chars (limited by DNS spec)
-	if(hostnameLen+servernameLen + 1 > 63) { // include dash between servername-hostname
+    if(hostnameLen+servernameLen + 1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: Combination of hostname+servername exceeds maximum "
                        "of 62 chars. It will be truncated.");
@@ -1526,7 +1526,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
     // use a limit for the hostname length to make sure full string fits into 63
     // chars (limited by DNS spec)
     if(hostnameLen == 0 || servernameLen == 0)
-		return UA_STATUSCODE_BADOUTOFRANGE;
+        return UA_STATUSCODE_BADOUTOFRANGE;
 
     if(hostnameLen+servernameLen+1 > 63) { // include dash between servername-hostname
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1653,11 +1653,11 @@ UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat,
     unsigned short retVal = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                                        processIn, true, &next_sleep);
     if(retVal == 1) {
-		UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-					 "Multicast error: Can not read from socket. %s",
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not read from socket. %s",
                      strerror(errno));
-		return UA_STATUSCODE_BADNOCOMMUNICATION;
-	} else if(retVal == 2) {
+        return UA_STATUSCODE_BADNOCOMMUNICATION;
+    } else if(retVal == 2) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Multicast error: Can not write to socket. %s",
                      strerror(errno));

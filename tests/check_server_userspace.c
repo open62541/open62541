@@ -56,7 +56,7 @@ START_TEST(Server_addNamespace_writeService)
     ck_assert_uint_eq(namespaces.arrayLength, nsSize);
 
     UA_Variant_deleteMembers(&namespaces);
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 }
 END_TEST
 

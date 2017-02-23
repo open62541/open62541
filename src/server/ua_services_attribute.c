@@ -181,7 +181,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_NumericRange *range, UA_Variant *editableValue) {
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
    
-	/* Empty variant always matches... */
+    /* Empty variant always matches... */
     if(!value->type)
         return UA_STATUSCODE_GOOD;
 
