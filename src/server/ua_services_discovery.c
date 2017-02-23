@@ -185,8 +185,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                 return;
             }
         }
-#ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_DISCOVERY
         size_t currentIndex = 0;
         if (addSelf)
             currentIndex++;
