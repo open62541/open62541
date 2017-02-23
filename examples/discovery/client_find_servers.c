@@ -1,22 +1,24 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 /**
- * This client requests all the available servers from the discovery server (see server_discovery.c)
+ * This client requests all the available servers from the discovery server (see server_lds.c)
  * and then calls GetEndpoints on the returned list of servers.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "open62541.h"
+#include <open62541.h>
 
 UA_Logger logger = UA_Log_Stdout;
 
+#define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
+
 static UA_StatusCode
-FindServers(const char* discoveryServerUrl, size_t* registeredServerSize,
-            UA_ApplicationDescription** registeredServers) {
+FindServers(const char *discoveryServerUrl, size_t *registeredServerSize,
+            UA_ApplicationDescription **registeredServers) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl);
+    if (retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
     }
@@ -43,9 +45,9 @@ FindServers(const char* discoveryServerUrl, size_t* registeredServerSize,
     //UA_Array_delete(request.serverUris, request.serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
     //UA_Array_delete(request.localeIds, request.localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
-                     "FindServers failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+                     "FindServers failed with statuscode %s", UA_StatusCode_name(response.responseHeader.serviceResult));
         UA_FindServersResponse_deleteMembers(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -53,9 +55,9 @@ FindServers(const char* discoveryServerUrl, size_t* registeredServerSize,
     }
 
     *registeredServerSize = response.serversSize;
-    *registeredServers = (UA_ApplicationDescription*)UA_Array_new(response.serversSize,
-                                                                  &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-    for(size_t i=0;i<response.serversSize;i++)
+    *registeredServers = (UA_ApplicationDescription *) UA_Array_new(response.serversSize,
+                                                                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    for (size_t i = 0; i < response.serversSize; i++)
         UA_ApplicationDescription_copy(&response.servers[i], &(*registeredServers)[i]);
     UA_FindServersResponse_deleteMembers(&response);
 
@@ -66,10 +68,10 @@ FindServers(const char* discoveryServerUrl, size_t* registeredServerSize,
 
 
 static UA_StatusCode
-FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize, UA_ServerOnNetwork** serverOnNetwork) {
+FindServersOnNetwork(const char *discoveryServerUrl, size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl);
+    if (retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return retval;
     }
@@ -94,9 +96,9 @@ FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize
 
     //UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
-                     "FindServersOnNetwork failed with statuscode 0x%08x", response.responseHeader.serviceResult);
+                     "FindServersOnNetwork failed with statuscode %s", UA_StatusCode_name(response.responseHeader.serviceResult));
         UA_FindServersOnNetworkResponse_deleteMembers(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -104,48 +106,14 @@ FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize
     }
 
     *serverOnNetworkSize = response.serversSize;
-    *serverOnNetwork = (UA_ServerOnNetwork*)UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    for(size_t i=0;i<response.serversSize;i++)
+    *serverOnNetwork = (UA_ServerOnNetwork *) UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    for (size_t i = 0; i < response.serversSize; i++)
         UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
     UA_FindServersOnNetworkResponse_deleteMembers(&response);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return (int) UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-GetEndpoints(UA_Client *client, const UA_String* endpointUrl, size_t* endpointDescriptionsSize,
-             UA_EndpointDescription** endpointDescriptions) {
-    UA_GetEndpointsRequest request;
-    UA_GetEndpointsRequest_init(&request);
-    //request.requestHeader.authenticationToken = client->authenticationToken;
-    request.requestHeader.timestamp = UA_DateTime_now();
-    request.requestHeader.timeoutHint = 10000;
-    request.endpointUrl = *endpointUrl; // assume the endpointurl outlives the service call
-
-    UA_GetEndpointsResponse response;
-    UA_GetEndpointsResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
-    &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with statuscode 0x%08x",
-                     response.responseHeader.serviceResult);
-        UA_GetEndpointsResponse_deleteMembers(&response);
-        return response.responseHeader.serviceResult;
-    }
-
-    *endpointDescriptionsSize = response.endpointsSize;
-    *endpointDescriptions = (UA_EndpointDescription*)UA_Array_new(response.endpointsSize,
-                                                                  &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    for(size_t i=0;i<response.endpointsSize;i++) {
-        UA_EndpointDescription_init(&(*endpointDescriptions)[i]);
-        UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
-    }
-    UA_GetEndpointsResponse_deleteMembers(&response);
-    return UA_STATUSCODE_GOOD;
 }
 
 int main(void) {
@@ -155,19 +123,19 @@ int main(void) {
      */
 
     {
-        UA_ServerOnNetwork* serverOnNetwork = NULL;
+        UA_ServerOnNetwork *serverOnNetwork = NULL;
         size_t serverOnNetworkSize = 0;
 
-        UA_StatusCode retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork);
+        UA_StatusCode retval = FindServersOnNetwork(DISCOVERY_SERVER_ENDPOINT, &serverOnNetworkSize, &serverOnNetwork);
         if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServersOnNetwork service. Is the discovery server started? StatusCode 0x%08x",
-                         retval);
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServersOnNetwork service. Is the discovery server started? StatusCode %s",
+                         UA_StatusCode_name(retval));
             return (int) retval;
         }
 
         // output all the returned/registered servers
         for (size_t i = 0; i < serverOnNetworkSize; i++) {
-            UA_ServerOnNetwork* server = &serverOnNetwork[i];
+            UA_ServerOnNetwork *server = &serverOnNetwork[i];
             printf("Server[%lu]: %.*s", (unsigned long) i, (int) server->serverName.length, server->serverName.data);
             printf("\n\tRecordID: %d", server->recordId);
             printf("\n\tDiscovery URL: %.*s", (int) server->discoveryUrl.length, server->discoveryUrl.data);
@@ -186,29 +154,31 @@ int main(void) {
      */
 
 
-    UA_ApplicationDescription* applicationDescriptionArray = NULL;
+    UA_ApplicationDescription *applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
 
-    UA_StatusCode retval = FindServers("opc.tcp://localhost:4840",
+    UA_StatusCode retval = FindServers(DISCOVERY_SERVER_ENDPOINT,
                                        &applicationDescriptionArraySize,
                                        &applicationDescriptionArray);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
-                     "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
-        return (int)retval;
+                "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
+        return (int) retval;
     }
 
     // output all the returned/registered servers
-    for (size_t i=0; i<applicationDescriptionArraySize; i++) {
+    for (size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
-        printf("Server[%lu]: %.*s", (unsigned long)i, (int)description->applicationUri.length,
+        printf("Server[%lu]: %.*s", (unsigned long) i, (int) description->applicationUri.length,
                description->applicationUri.data);
-        printf("\n\tName: %.*s", (int)description->applicationName.text.length,
+        printf("\n\tName: %.*s", (int) description->applicationName.text.length,
                description->applicationName.text.data);
-        printf("\n\tProduct URI: %.*s", (int)description->productUri.length,
+        printf("\n\tApplication URI: %.*s", (int) description->applicationUri.length,
+               description->applicationUri.data);
+        printf("\n\tProduct URI: %.*s", (int) description->productUri.length,
                description->productUri.data);
         printf("\n\tType: ");
-        switch(description->applicationType) {
+        switch (description->applicationType) {
             case UA_APPLICATIONTYPE_SERVER:
                 printf("Server");
                 break;
@@ -225,9 +195,9 @@ int main(void) {
                 printf("Unknown");
         }
         printf("\n\tDiscovery URLs:");
-        for (size_t j=0; j<description->discoveryUrlsSize; j++) {
-            printf("\n\t\t[%lu]: %.*s", (unsigned long)j,
-                   (int)description->discoveryUrls[j].length,
+        for (size_t j = 0; j < description->discoveryUrlsSize; j++) {
+            printf("\n\t\t[%lu]: %.*s", (unsigned long) j,
+                   (int) description->discoveryUrls[j].length,
                    description->discoveryUrls[j].data);
         }
         printf("\n\n");
@@ -240,7 +210,7 @@ int main(void) {
 
     printf("-------- Server Endpoints --------\n");
 
-    for (size_t i=0; i<applicationDescriptionArraySize; i++) {
+    for (size_t i = 0; i < applicationDescriptionArraySize; i++) {
         UA_ApplicationDescription *description = &applicationDescriptionArray[i];
         if (description->discoveryUrlsSize == 0) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT,
@@ -249,41 +219,48 @@ int main(void) {
             continue;
         }
 
-        printf("\nEndpoints for Server[%lu]: %.*s", (unsigned long)i,
-               (int)description->applicationUri.length, description->applicationUri.data);
+        printf("\nEndpoints for Server[%lu]: %.*s\n", (unsigned long) i,
+               (int) description->applicationUri.length, description->applicationUri.data);
 
         UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
-        char* discoveryUrl = (char*)malloc(sizeof(char)*description->discoveryUrls[0].length+1);
-        memcpy( discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length );
+        char *discoveryUrl = (char *) malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
+        memcpy(discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length);
         discoveryUrl[description->discoveryUrls[0].length] = '\0';
 
-        retval = UA_Client_connect(client, discoveryUrl);
-        free(discoveryUrl);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Client_delete(client);
-            return (int)retval;
-        }
-
-        UA_EndpointDescription* endpointArray = NULL;
+        UA_EndpointDescription *endpointArray = NULL;
         size_t endpointArraySize = 0;
-        retval = GetEndpoints(client, &description->discoveryUrls[0], &endpointArraySize, &endpointArray);
-        if(retval != UA_STATUSCODE_GOOD) {
+        retval = UA_Client_getEndpoints(client, discoveryUrl, &endpointArraySize, &endpointArray);
+        free(discoveryUrl);
+        if (retval != UA_STATUSCODE_GOOD) {
             UA_Client_disconnect(client);
             UA_Client_delete(client);
             break;
         }
 
-        for(size_t j = 0; j < endpointArraySize; j++) {
-            UA_EndpointDescription* endpoint = &endpointArray[j];
-            printf("\n\tEndpoint[%lu]:",(unsigned long)j);
-            printf("\n\t\tEndpoint URL: %.*s", (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data);
-            printf("\n\t\tTransport profile URI: %.*s", (int)endpoint->transportProfileUri.length,
+        for (size_t j = 0; j < endpointArraySize; j++) {
+            UA_EndpointDescription *endpoint = &endpointArray[j];
+            printf("\n\tEndpoint[%lu]:", (unsigned long) j);
+            printf("\n\t\tEndpoint URL: %.*s", (int) endpoint->endpointUrl.length, endpoint->endpointUrl.data);
+            printf("\n\t\tTransport profile URI: %.*s", (int) endpoint->transportProfileUri.length,
                    endpoint->transportProfileUri.data);
+            printf("\n\t\tSecurity Mode: ");
+            switch (endpoint->securityMode) {
+                case UA_MESSAGESECURITYMODE_INVALID:
+                    printf("Invalid");
+                case UA_MESSAGESECURITYMODE_NONE:
+                    printf("None");
+                case UA_MESSAGESECURITYMODE_SIGN:
+                    printf("Sign");
+                case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
+                    printf("Sign and Encrypt");
+            }
+            printf("\n\t\tSecurity profile URI: %.*s", (int) endpoint->securityPolicyUri.length,
+                   endpoint->securityPolicyUri.data);
+            printf("\n\t\tSecurity Level: %d", endpoint->securityLevel);
         }
 
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-        UA_Client_disconnect(client);
         UA_Client_delete(client);
     }
 
@@ -292,5 +269,5 @@ int main(void) {
     UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize,
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
-    return (int)UA_STATUSCODE_GOOD;
+    return (int) UA_STATUSCODE_GOOD;
 }

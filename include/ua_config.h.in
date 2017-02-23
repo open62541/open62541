@@ -40,6 +40,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 
 /**
  * Standard Includes

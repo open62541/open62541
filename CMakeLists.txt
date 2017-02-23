@@ -60,6 +60,9 @@ option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
 option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+# Semaphores/file system may not be available on embedded devices. It can be disabled with the following option
+option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
+mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -308,8 +311,9 @@ endif()
 
 if (UA_ENABLE_DISCOVERY_MULTICAST)
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
-    set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers})
-    set(lib_sources ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
+    set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers} )
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
 endif()
 
 #########################

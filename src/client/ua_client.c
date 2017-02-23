@@ -604,9 +604,8 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
-
-UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+static UA_StatusCode
+_UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean createSession) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {
@@ -634,9 +633,9 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
         retval = SecureChannelHandshake(client, false);
     if(retval == UA_STATUSCODE_GOOD)
         retval = EndpointsHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(createSession && retval == UA_STATUSCODE_GOOD)
         retval = SessionHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(createSession && retval == UA_STATUSCODE_GOOD)
         retval = ActivateSession(client);
     if(retval == UA_STATUSCODE_GOOD) {
         client->connection.state = UA_CONNECTION_ESTABLISHED;
@@ -649,6 +648,16 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     cleanup:
     UA_Client_reset(client);
     return retval;
+}
+
+UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    return _UA_Client_connect(client, endpointUrl, UA_TRUE);
+}
+
+UA_StatusCode
+UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl) {
+    return _UA_Client_connect(client, endpointUrl, UA_FALSE);
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {

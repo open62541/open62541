@@ -53,7 +53,7 @@ static void setup_lds(void) {
     *running_lds = true;
     UA_ServerConfig config_lds = UA_ServerConfig_standard;
     config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config_lds.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.local_discovery_server");
+    config_lds.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.local_discovery_server");
     config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("en");
     config_lds.applicationDescription.applicationName.text = UA_String_fromChars("LDS Server");
     config_lds.mdnsServerName = UA_String_fromChars("LDS_test");
@@ -104,7 +104,7 @@ static void setup_register(void) {
     running_register = UA_Boolean_new();
     *running_register = true;
     UA_ServerConfig config_register = UA_ServerConfig_standard;
-    config_register.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.server_register");
+    config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_register");
     config_register.applicationDescription.applicationName.locale = UA_String_fromChars("de");
     config_register.applicationDescription.applicationName.text = UA_String_fromChars("Anmeldungsserver");
     config_register.mdnsServerName = UA_String_fromChars("Register_test");
@@ -435,21 +435,21 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
 
 // Test if discovery server lists himself as registered server, before any other registration.
 START_TEST(Client_find_discovery) {
-        const char* expectedUris[] ={"open62541.test.local_discovery_server"};
+        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server"};
         FindAndCheck(expectedUris, 1,NULL, NULL, NULL, NULL);
     }
 END_TEST
 
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
-        const char* expectedUris[] ={"open62541.test.local_discovery_server"};
-        FindAndCheck(expectedUris, 1,NULL, NULL, "open62541.test.local_discovery_server", NULL);
+        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server"};
+        FindAndCheck(expectedUris, 1,NULL, NULL, "urn:open62541.test.local_discovery_server", NULL);
     }
 END_TEST
 
 // Test if server filters locale
 START_TEST(Client_filter_locale) {
-        const char* expectedUris[] ={"open62541.test.local_discovery_server", "open62541.test.server_register"};
+        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server", "urn:open62541.test.server_register"};
         const char* expectedNames[] ={"LDS Server", "Anmeldungsserver"};
         const char* expectedLocales[] ={"en", "de"};
         // even if we request en_US, the server will return de_DE because it only has that name.
@@ -460,7 +460,7 @@ END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-        const char* expectedUris[] ={"open62541.test.local_discovery_server", "open62541.test.server_register"};
+        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server", "urn:open62541.test.server_register"};
         FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
     }
 END_TEST
@@ -500,8 +500,8 @@ END_TEST
 
 // Test if filtering with uris works
 START_TEST(Client_find_filter) {
-        const char* expectedUris[] ={"open62541.test.server_register"};
-        FindAndCheck(expectedUris, 1,NULL, NULL, "open62541.test.server_register", NULL);
+        const char* expectedUris[] ={"urn:open62541.test.server_register"};
+        FindAndCheck(expectedUris, 1,NULL, NULL, "urn:open62541.test.server_register", NULL);
     }
 END_TEST
 

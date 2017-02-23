@@ -636,7 +636,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
-    server->mdnsMainSrvAdded = 0;
+    server->mdnsMainSrvAdded = UA_FALSE;
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
         UA_Discovery_multicastInit(server);
     }
@@ -1449,7 +1449,7 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
                                       const char* semaphoreFilePath) {
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
@@ -1470,8 +1470,14 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     request.server.serverType = server->config.applicationDescription.applicationType;
     request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
-    if(semaphoreFilePath)
+    if(semaphoreFilePath) {
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+#else
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+#endif
+    }
 
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;
@@ -1532,8 +1538,6 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
         __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                             &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
-
-        UA_RegisterServerRequest_deleteMembers(&request_fallback);
 
         if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
