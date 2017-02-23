@@ -266,6 +266,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c

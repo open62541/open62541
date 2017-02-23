@@ -48,10 +48,14 @@ writeInteger(void *handle, const UA_NodeId nodeid,
 char *discovery_url = NULL;
 UA_String *self_discovery_url = NULL;
 
-static void serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, UA_Boolean isTxtReceived, void *data) {
+static void
+serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
+                        UA_Boolean isTxtReceived, void *data) {
 
     if (discovery_url != NULL || !isServerAnnounce) {
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER, "serverOnNetworkCallback called, but discovery URL already initialized or is not announcing. Ignoring.");
+        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SERVER,
+                     "serverOnNetworkCallback called, but discovery URL "
+                     "already initialized or is not announcing. Ignoring.");
         return; // we already have everything we need or we only want server announces
     }
 
@@ -61,11 +65,13 @@ static void serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, U
     }
 
     if (!isTxtReceived)
-        return; // we wait until the corresponding TXT record is announced. Problem: how to handle if a Server does not announce the optional TXT?
+        return; // we wait until the corresponding TXT record is announced.
+                // Problem: how to handle if a Server does not announce the
+                // optional TXT?
 
-    // here you can filter for a specific LDS server, e.g. call FindServers on the serverOnNetwork to make sure you are registering with the correct LDS.
-    // We will ignore this for now
-
+    // here you can filter for a specific LDS server, e.g. call FindServers on
+    // the serverOnNetwork to make sure you are registering with the correct
+    // LDS. We will ignore this for now
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
                 serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
@@ -83,7 +89,8 @@ int main(int argc, char **argv) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     // To enable mDNS discovery, set application type to discovery server.
     config.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.example.server_multicast");
+    config.applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.example.server_multicast");
     config.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
@@ -119,14 +126,17 @@ int main(int argc, char **argv) {
     // Start the server and call iterate to wait for the multicast discovery of the LDS
     UA_StatusCode retval = UA_Server_run_startup(server);
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not start the server. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not start the server. StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
         free(discovery_url);
         return 1;
     }
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Server started. Waiting for announce of LDS Server.");
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
+                "Server started. Waiting for announce of LDS Server.");
     while (running && discovery_url == NULL)
         UA_Server_run_iterate(server, true);
     if (!running) {
@@ -139,9 +149,12 @@ int main(int argc, char **argv) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
     // periodic server register after 10 Minutes, delay first register for 500ms
-    retval = UA_Server_addPeriodicServerRegisterJob(server, discovery_url, 10 * 60 * 1000, 500, NULL);
+    retval = UA_Server_addPeriodicServerRegisterJob(server, discovery_url,
+                                                    10 * 60 * 1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not create periodic job for server register. StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
@@ -152,14 +165,15 @@ int main(int argc, char **argv) {
     while (running)
         UA_Server_run_iterate(server, true);
 
-
     UA_Server_run_shutdown(server);
 
     // UNregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, discovery_url);
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not unregister server from discovery server. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not unregister server from discovery server. "
+                     "StatusCode %s", UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);

@@ -4,16 +4,14 @@
 
 #include "ua_server_internal.h"
 #include "ua_mdns_internal.h"
-
+#include "ua_util.h"
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-#ifdef UA_NO_AMALGAMATION
-# include "mdnsd/libmdnsd/xht.h"
-# include "mdnsd/libmdnsd/sdtxt.h"
-#endif
-
-
+# ifdef UA_NO_AMALGAMATION
+#  include "mdnsd/libmdnsd/xht.h"
+#  include "mdnsd/libmdnsd/sdtxt.h"
+# endif
 #  ifdef _WIN32
 #   define _WINSOCK_DEPRECATED_NO_WARNINGS /* inet_ntoa is deprecated on MSVC but used for compatibility */
 #   include <winsock2.h>
@@ -97,11 +95,7 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
     listEntry->serverOnNetwork.serverName.data = (UA_Byte *) malloc(serverNameLen);
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    #  ifndef UA_ENABLE_MULTITHREADING
-    server->serverOnNetworkRecordIdCounter++;
-    #  else
-    server->serverOnNetworkRecordIdCounter = uatomic_add_return(&server->serverOnNetworkRecordIdCounter, 1);
-    #  endif
+    server->serverOnNetworkRecordIdCounter = UA_atomic_add(&server->serverOnNetworkRecordIdCounter, 1);
     if (server->serverOnNetworkRecordIdCounter == 0)
         server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
 
@@ -147,8 +141,8 @@ void mdns_record_remove(UA_Server *server, const char *record,
         free(entry->pathTmp);
 
 #ifndef UA_ENABLE_MULTITHREADING
-    UA_free(entry);
     server->serverOnNetworkSize--;
+    UA_free(entry);
 #else
     server->serverOnNetworkSize = uatomic_add_return(&server->serverOnNetworkSize, -1);
     UA_Server_delayedFree(server, entry);
@@ -338,23 +332,25 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
 }
 
 
-mdns_record_t *mdns_find_record(const mdns_daemon_t *mdnsDaemon, unsigned short type,
-                      const char *host, const char *rdname) {
+mdns_record_t *
+mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
+                 const char *host, const char *rdname) {
     mdns_record_t *r = mdnsd_get_published(mdnsDaemon, host);
-    if (!r)
+    if(!r)
         return NULL;
+
     // search for the record with the correct ptr hostname
-    while (r) {
+    while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
-        if (data->type == type && strcmp(data->rdname, rdname) == 0) {
+        if(data->type == type && strcmp(data->rdname, rdname) == 0)
             return r;
-        }
         r = mdnsd_record_next(r);
     }
     return NULL;
 }
 
-void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain, const char *localDomain) {
+void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
+                             const char *localDomain) {
 #ifdef _WIN32
     // see http://stackoverflow.com/a/10838854/869402
     IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
@@ -482,7 +478,5 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain, c
 #endif //_WIN32
 
 }
-
-
 
 #endif // UA_ENABLE_DISCOVERY_MULTICAST
