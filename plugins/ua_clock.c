@@ -5,10 +5,19 @@
 
 #include <time.h>
 #ifdef _WIN32
+/* Backup definition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY
-#  undef SLIST_ENTRY /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+#  pragma push_macro("SLIST_ENTRY")
+#  undef SLIST_ENTRY
+#  define POP_SLIST_ENTRY
 # endif
 # include <windows.h>
+/* restore definition */
+# ifdef POP_SLIST_ENTRY
+#  undef SLIST_ENTRY
+#  undef POP_SLIST_ENTRY
+#  pragma pop_macro("SLIST_ENTRY")
+# endif
 #else
 # include <sys/time.h>
 #endif
