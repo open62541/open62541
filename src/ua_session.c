@@ -16,14 +16,14 @@ UA_Session adminSession = {
      {0, NULL},{0, NULL},
      0, NULL}, /* .clientDescription */
     {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"}, /* .sessionName */
-	false, /* .activated */
-	NULL, /* .sessionHandle */
+    false, /* .activated */
+    NULL, /* .sessionHandle */
     {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
     {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .sessionId */
     UA_UINT32_MAX, /* .maxRequestMessageSize */
-	UA_UINT32_MAX, /* .maxResponseMessageSize */
+    UA_UINT32_MAX, /* .maxResponseMessageSize */
     (UA_Double)UA_INT64_MAX, /* .timeout */
-	UA_INT64_MAX, /* .validTill */
+    UA_INT64_MAX, /* .validTill */
     NULL, /* .channel */
     0, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */

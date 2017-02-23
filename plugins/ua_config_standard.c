@@ -11,7 +11,7 @@
 /*******************************/
 
 const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
-	0, /* .protocolVersion */
+    0, /* .protocolVersion */
     65535, /* .sendBufferSize, 64k per chunk */
     65535, /* .recvBufferSize, 64k per chunk */
     0, /* .maxMessageSize, 0 -> unlimited */
@@ -48,7 +48,7 @@ UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
 const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
-	1, /* .nThreads */
+    1, /* .nThreads */
     UA_Log_Stdout, /* .logger */
 
     /* Server Description */
@@ -58,7 +58,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
      UA_STRING_STATIC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
                               UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL)),
      UA_STRING_STATIC(__DATE__ " " __TIME__), 0 }, /* .buildInfo */
-	 
+     
     {UA_STRING_STATIC(APPLICATION_URI),
      UA_STRING_STATIC(PRODUCT_URI),
      {UA_STRING_STATIC("en"),UA_STRING_STATIC(APPLICATION_NAME) },
@@ -68,10 +68,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
       0, NULL }, /* .applicationDescription */
     UA_STRING_STATIC_NULL, /* .serverCertificate */
 
-	/* Custom DataTypes */
-	0, /* .customDataTypesSize */
-	NULL, /* .customDataTypes */
-	
+    /* Custom DataTypes */
+    0, /* .customDataTypesSize */
+    NULL, /* .customDataTypes */
+    
     /* Networking */
     0, /* .networkLayersSize */
     NULL, /* .networkLayers */
@@ -104,7 +104,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     {1,100} /* .queueSizeLimits */
 
 #ifdef UA_ENABLE_DISCOVERY
-	, 60*60 /* .discoveryCleanupTimeout */
+    , 60*60 /* .discoveryCleanupTimeout */
 #endif
 };
 

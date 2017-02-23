@@ -121,11 +121,11 @@ START_TEST(StatusCode_msg) {
     ck_assert_str_eq(UA_StatusCode_msg(UA_STATUSCODE_GOOD), "StatusCode descriptions not available");
     return;
 #endif
-		// first element in table
+        // first element in table
     ck_assert_str_eq(UA_StatusCode_explanation(UA_STATUSCODE_GOOD), "Success / No error");
     ck_assert_str_eq(UA_StatusCode_name(UA_STATUSCODE_GOOD), "Good");
 
-		// just some randomly picked status codes
+        // just some randomly picked status codes
     ck_assert_str_eq(UA_StatusCode_explanation(UA_STATUSCODE_BADNOCOMMUNICATION),
                      "Communication with the data source is defined");
     ck_assert_str_eq(UA_StatusCode_name(UA_STATUSCODE_BADNOCOMMUNICATION),
@@ -135,15 +135,15 @@ START_TEST(StatusCode_msg) {
                      "No data exists for the requested time range or event filter.");
     ck_assert_str_eq(UA_StatusCode_name(UA_STATUSCODE_GOODNODATA), "GoodNoData");
 
-		// last element in table
+        // last element in table
     ck_assert_str_eq(UA_StatusCode_explanation(UA_STATUSCODE_BADMAXCONNECTIONSREACHED),
                      "The operation could not be finished because all available connections are in use.");
     ck_assert_str_eq(UA_StatusCode_name(UA_STATUSCODE_BADMAXCONNECTIONSREACHED),
                      "BadMaxConnectionsReached");
 
-		// an invalid status code
-	ck_assert_str_eq(UA_StatusCode_explanation(0x80123456), "Unknown StatusCode");
-	ck_assert_str_eq(UA_StatusCode_name(0x80123456), "Unknown");
+        // an invalid status code
+    ck_assert_str_eq(UA_StatusCode_explanation(0x80123456), "Unknown StatusCode");
+    ck_assert_str_eq(UA_StatusCode_name(0x80123456), "Unknown");
 }
 END_TEST
 

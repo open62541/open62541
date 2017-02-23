@@ -1132,9 +1132,9 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     UA_Byte encodingMask = (UA_Byte)
         ((UA_Byte)src->hasValue |
         ((UA_Byte)src->hasStatus << 1) |
-		((UA_Byte)src->hasSourceTimestamp << 2) |
+        ((UA_Byte)src->hasSourceTimestamp << 2) |
         ((UA_Byte)src->hasServerTimestamp << 3) |
-		((UA_Byte)src->hasSourcePicoseconds << 4) |
+        ((UA_Byte)src->hasSourcePicoseconds << 4) |
         ((UA_Byte)src->hasServerPicoseconds << 5));
 
     /* Encode the content */
