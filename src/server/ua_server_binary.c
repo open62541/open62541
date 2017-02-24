@@ -256,7 +256,8 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 static void
 processOPN(UA_Server *server,
            UA_Connection *connection,
-           UA_UInt32 channelId,
+           const UA_UInt32 channelId,
+           const UA_UInt32 requestId,
            const UA_ByteString *msg,
            UA_SecureChannel* preparedChannel) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -271,19 +272,14 @@ processOPN(UA_Server *server,
         retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
     /* Decode the request */
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_SequenceHeader seqHeader;
     UA_NodeId requestType;
     UA_OpenSecureChannelRequest r;
     size_t offset = 0;
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(msg, &offset, &asymHeader);
-    retval |= UA_SequenceHeader_decodeBinary(msg, &offset, &seqHeader);
     retval |= UA_NodeId_decodeBinary(msg, &offset, &requestType);
     retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &r);
 
     /* Error occured */
     if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
         UA_OpenSecureChannelRequest_deleteMembers(&r);
         connection->close(connection);
@@ -300,13 +296,9 @@ processOPN(UA_Server *server,
     UA_SecureChannel *channel = connection->channel;
     if(!channel) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         connection->close(connection);
         return;
     }
-
-    /* Set the starting sequence number */
-    channel->receiveSequenceNumber = seqHeader.sequenceNumber;
 
     /* Allocate the return message */
     UA_ByteString resp_msg;
@@ -314,15 +306,17 @@ processOPN(UA_Server *server,
     retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         connection->close(connection);
         return;
     }
 
+    UA_SequenceHeader seqHeader;
+    seqHeader.requestId = requestId;
+
     /* Encode the message after the secureconversationmessageheader */
     size_t tmpPos = 12; /* skip the header */
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&channel->clientAsymAlgSettings, &resp_msg, &tmpPos); // just mirror back
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos);
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
     retval |= UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
@@ -331,7 +325,6 @@ processOPN(UA_Server *server,
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &resp_msg);
         UA_OpenSecureChannelResponse_deleteMembers(&p);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         connection->close(connection);
         return;
     }
@@ -349,7 +342,6 @@ processOPN(UA_Server *server,
 
     /* Clean up */
     UA_OpenSecureChannelResponse_deleteMembers(&p);
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
 }
 
 static void
@@ -557,7 +549,7 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
                              "Process an OPN on an open channel");
-        processOPN(server, channel->connection, channel->securityToken.channelId, message, channel);
+        processOPN(server, channel->connection, channel->securityToken.channelId, requestId, message, channel);
         break;
     case UA_MESSAGETYPE_MSG:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,

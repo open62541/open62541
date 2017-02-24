@@ -160,6 +160,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    UA_SecureChannel_init(&entry->channel);
     entry->channel = *tmpChannel; // TODO: Investigate if a SecureChannel_copy method is needed and sensible
     UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.clientAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->clientAsymAlgSettings, &entry->channel.clientAsymAlgSettings);
@@ -167,7 +168,6 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     entry->channel.connection = NULL;
     entry->channel.temporary = UA_FALSE;
     
-    //UA_SecureChannel_init(&entry->channel);
     entry->channel.securityToken.channelId = cm->lastChannelId++;
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
     entry->channel.securityToken.createdAt = UA_DateTime_now();

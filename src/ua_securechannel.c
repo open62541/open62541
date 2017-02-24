@@ -438,7 +438,6 @@ UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
                                         UA_SecureChannel* const channel)
 {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t debugTMP = *processedBytes;
 
 	// TODO: handle chunked opn messages.
 	// We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
@@ -478,12 +477,12 @@ UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
     }
 
     *requestId = sequenceHeader.requestId;
+
+    // Set the starting sequence number
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
     // TODO: remove padding
     // TODO: remove signature
-
-    *processedBytes = debugTMP; // REMOVE THIS!!!!! ======================================================
 
     // Cleanup
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
