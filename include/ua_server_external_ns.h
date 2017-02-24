@@ -19,8 +19,6 @@ extern "C" {
  * If no external nodestore is defined for a nodeid, it is always looked up in
  * the "local" nodestore of open62541. Namespace Zero is always in the local
  * nodestore.
- *
- * @{
  */
 
 typedef UA_Int32 (*UA_ExternalNodeStore_addNodes)
@@ -32,10 +30,13 @@ typedef UA_Int32 (*UA_ExternalNodeStore_addReferences)
  UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
  UA_DiagnosticInfo *diagnosticInfos);
  
- typedef UA_Int32 (*UA_ExternalNodeStore_addOneWayReference)
+typedef UA_StatusCode (*UA_ExternalNodeStore_addOneWayReference)
 (void *ensHandle, const UA_AddReferencesItem *item);
 
-typedef UA_Int32 (*UA_ExternalNodeStore_deleteNodes)
+typedef UA_StatusCode (*UA_ExternalNodeStore_getOneWayReferences)
+(void *ensHandle, UA_NodeId *nodeId, UA_UInt32 *referencesSize, UA_ReferenceNode **references);
+
+typedef UA_StatusCode (*UA_ExternalNodeStore_deleteNodes)
 (void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteNodesItem *nodesToDelete, UA_UInt32 *indices,
  UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
 
@@ -80,6 +81,7 @@ typedef struct UA_ExternalNodeStore {
     UA_ExternalNodeStore_deleteReferences deleteReferences;
     UA_ExternalNodeStore_call call;
     UA_ExternalNodeStore_addOneWayReference addOneWayReference;
+    UA_ExternalNodeStore_getOneWayReferences getOneWayReferences;
     UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 
