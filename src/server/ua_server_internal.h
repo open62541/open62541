@@ -333,11 +333,17 @@ typedef enum {
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
 
-UA_StatusCode UA_Discovery_multicastQuery(UA_Server* server);
+UA_StatusCode
+UA_Discovery_multicastQuery(UA_Server* server);
 
-UA_StatusCode UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, const char* path,
-                                     const UA_DiscoveryProtocol protocol, UA_Boolean createTxt, const UA_String* capabilites, const size_t *capabilitiesSize);
-UA_StatusCode UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname, unsigned short port, UA_Boolean removeTxt);
+UA_StatusCode
+UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname,
+                       unsigned short port, const char* path,
+                       const UA_DiscoveryProtocol protocol, UA_Boolean createTxt,
+                       const UA_String* capabilites, const size_t *capabilitiesSize);
+UA_StatusCode
+UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname,
+                          unsigned short port, UA_Boolean removeTxt);
 
 #  ifdef UA_ENABLE_MULTITHREADING
 UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);
