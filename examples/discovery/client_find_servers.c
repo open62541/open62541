@@ -99,7 +99,7 @@ FindServersOnNetwork(const char *discoveryServerUrl, size_t *serverOnNetworkSize
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
                      "FindServersOnNetwork failed with statuscode %s", UA_StatusCode_name(response.responseHeader.serviceResult));
-		UA_StatusCode retVal = response.responseHeader.serviceResult;
+        UA_StatusCode retVal = response.responseHeader.serviceResult;
         UA_FindServersOnNetworkResponse_deleteMembers(&response);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
