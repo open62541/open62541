@@ -254,8 +254,10 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
 
 /* OPN -> Open up/renew the securechannel */
 static void
-processOPN(UA_Server *server, UA_Connection *connection,
-           UA_UInt32 channelId, const UA_ByteString *msg,
+processOPN(UA_Server *server,
+           UA_Connection *connection,
+           UA_UInt32 channelId,
+           const UA_ByteString *msg,
            UA_SecureChannel* preparedChannel) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Called before HEL */

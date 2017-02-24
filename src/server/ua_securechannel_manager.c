@@ -5,6 +5,7 @@
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
 #include "ua_server_internal.h"
+#include "ua_transport_generated_handling.h"
 
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
@@ -159,7 +160,9 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    entry->channel = *tmpChannel;
+    entry->channel = *tmpChannel; // TODO: Investigate if a SecureChannel_copy method is needed and sensible
+    UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.clientAsymAlgSettings);
+    UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->clientAsymAlgSettings, &entry->channel.clientAsymAlgSettings);
 	UA_SecureChannelManager_close_temporary(cm, tmpChannel);
     entry->channel.connection = NULL;
     entry->channel.temporary = UA_FALSE;

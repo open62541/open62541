@@ -271,24 +271,34 @@ UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId) {
 
 /* assume that chunklength fits */
 static void
-appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
+appendChunk(struct ChunkEntry *chunkEntry, const UA_ByteString *msg,
             size_t offset, size_t chunklength) {
-    UA_Byte* new_bytes = (UA_Byte *)UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
+    UA_Byte* new_bytes = (UA_Byte *)UA_realloc(chunkEntry->bytes.data, chunkEntry->bytes.length + chunklength);
     if(!new_bytes) {
-        UA_ByteString_deleteMembers(&ch->bytes);
+        UA_ByteString_deleteMembers(&chunkEntry->bytes);
         return;
     }
-    ch->bytes.data = new_bytes;
-    memcpy(&ch->bytes.data[ch->bytes.length], &msg->data[offset], chunklength);
-    ch->bytes.length += chunklength;
+    chunkEntry->bytes.data = new_bytes;
+    memcpy(&chunkEntry->bytes.data[chunkEntry->bytes.length], &msg->data[offset], chunklength);
+    chunkEntry->bytes.length += chunklength;
 }
 
+/**
+ * \brief Appends a decrypted chunk to the already processed chunks.
+ * 
+ * \param channel the UA_SecureChannel to search for existing chunks.
+ * \param requestID the request id of the message.
+ * \param chunk the chunk to append.
+ * \param offset an offset to the actual message body.
+ */
 static void
-UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                             const UA_ByteString *msg, size_t offset,
+UA_SecureChannel_appendChunk(UA_SecureChannel *channel,
+                             UA_UInt32 requestId,
+                             const UA_ByteString *chunk,
+                             size_t offset,
                              size_t chunklength) {
     /* Check if the chunk fits into the message */
-    if(msg->length - offset < chunklength) {
+    if(chunk->length - offset < chunklength) {
         /* can't process all chunks for that request */
         UA_SecureChannel_removeChunk(channel, requestId);
         return;
@@ -311,36 +321,39 @@ UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
         LIST_INSERT_HEAD(&channel->chunks, ch, pointers);
     }
 
-    appendChunk(ch, msg, offset, chunklength);
+    appendChunk(ch, chunk, offset, chunklength);
 }
 
 static UA_ByteString
-UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
-                               const UA_ByteString *msg, size_t offset,
-                               size_t chunklength, UA_Boolean *deleteChunk) {
-    if(msg->length - offset < chunklength) {
+UA_SecureChannel_finalizeChunk(UA_SecureChannel *channel,
+                               UA_UInt32 requestId,
+                               const UA_ByteString *chunk,
+                               size_t offset,
+                               size_t chunklength,
+                               UA_Boolean *deleteChunk) {
+    if(chunk->length - offset < chunklength) {
         /* can't process all chunks for that request */
         UA_SecureChannel_removeChunk(channel, requestId);
         return UA_BYTESTRING_NULL;
     }
 
-    struct ChunkEntry *ch;
-    LIST_FOREACH(ch, &channel->chunks, pointers) {
-        if(ch->requestId == requestId)
+    struct ChunkEntry *chunkEntry;
+    LIST_FOREACH(chunkEntry, &channel->chunks, pointers) {
+        if(chunkEntry->requestId == requestId)
             break;
     }
 
     UA_ByteString bytes;
-    if(!ch) {
+    if(!chunkEntry) {
         *deleteChunk = false;
         bytes.length = chunklength;
-        bytes.data = msg->data + offset;
+        bytes.data = chunk->data + offset;
     } else {
         *deleteChunk = true;
-        appendChunk(ch, msg, offset, chunklength);
-        bytes = ch->bytes;
-        LIST_REMOVE(ch, pointers);
-        UA_free(ch);
+        appendChunk(chunkEntry, chunk, offset, chunklength);
+        bytes = chunkEntry->bytes;
+        LIST_REMOVE(chunkEntry, pointers);
+        UA_free(chunkEntry);
     }
     return bytes;
 }
@@ -349,7 +362,7 @@ static UA_StatusCode
 UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 SequenceNumber) {
     /* Does the sequence number match? */
     if(SequenceNumber != channel->receiveSequenceNumber + 1) {
-        if(channel->receiveSequenceNumber + 1 > 4294966271 && SequenceNumber < 1024)
+        if(channel->receiveSequenceNumber + 1 > 4294966271 && SequenceNumber < 1024) // FIXME: Remove magic numbers :(
             channel->receiveSequenceNumber = SequenceNumber - 1; /* Roll over */
         else
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -358,9 +371,20 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
     return UA_STATUSCODE_GOOD;
 }
 
+/**
+ * \brief Processes a symmetric chunk, decoding and decrypting it.
+ *
+ * \param chunk the chunk to process. The data in the chunk will be modified in place.
+                That is, it will be decoded and decrypted in place.
+ * \param processedBytes the already processed bytes. After this function
+ *                       finishes, the processedBytes offset will point to
+ *                       the beginning of the message body
+ * \param requestId the requestId of the chunk. Will be filled by the function.
+ * \param channel the UA_SecureChannel to work on.
+ */
 UA_StatusCode
-UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
-                                       size_t* const offset,
+UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
+                                       size_t* const processedBytes,
                                        UA_UInt32* const requestId,
                                        UA_SecureChannel* const channel)
 {
@@ -372,10 +396,10 @@ UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Check the symmetric security header */
     UA_UInt32 tokenId = 0;
-    retval |= UA_UInt32_decodeBinary(chunk, offset, &tokenId);
+    retval |= UA_UInt32_decodeBinary(chunk, processedBytes, &tokenId);
 
     // TODO: Decryption and verification needed.
-    retval |= UA_SequenceHeader_decodeBinary(chunk, offset, &sequenceHeader);
+    retval |= UA_SequenceHeader_decodeBinary(chunk, processedBytes, &sequenceHeader);
     if (retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
@@ -391,13 +415,31 @@ UA_SecureChannel_processSymmetricChunk(const UA_ByteString* const chunk,
     if (retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
+    *requestId = sequenceHeader.requestId;
+
     return UA_STATUSCODE_GOOD;
 }
 
+/**
+ * \brief Processes an asymmetric chunk, decoding and decrypting it.
+ *
+ * \param chunk the chunk to process. The data in the chunk will be modified in place.
+                That is, it will be decoded and decrypted in place.
+ * \param processedBytes the already processed bytes. After this function
+ *                       finishes, the processedBytes offset will point to
+ *                       the beginning of the message body
+ * \param requestId the requestId of the chunk. Will be filled by the function.
+ * \param channel the UA_SecureChannel to work on.
+ */
 UA_StatusCode
-UA_SecureChannel_processAsymmetricChunk(const UA_ByteString* const chunk,
-										size_t* const offset)
+UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
+										size_t* const processedBytes,
+                                        UA_UInt32* const requestId,
+                                        UA_SecureChannel* const channel)
 {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    size_t debugTMP = *processedBytes;
+
 	// TODO: handle chunked opn messages.
 	// We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
 	// the processOPN function. An alternative would be to prepend them to the de-chunked message.
@@ -405,8 +447,47 @@ UA_SecureChannel_processAsymmetricChunk(const UA_ByteString* const chunk,
 	printf("Debug message");
 
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
+	retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, processedBytes, &asymHeader);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        return retval;
+    }
 
-	//UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, offset, &asymHeader);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_copy(&asymHeader, &channel->clientAsymAlgSettings);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        return retval;
+    }
+
+    // TODO: Choose appropriate SecurityPolicy and init contexts
+    
+    // TODO: Decrypt message
+    // TODO: Verify message
+
+    UA_SequenceHeader sequenceHeader;
+    UA_SequenceHeader_init(&sequenceHeader);
+    retval |= UA_SequenceHeader_decodeBinary(chunk, processedBytes, &sequenceHeader);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_SequenceHeader_deleteMembers(&sequenceHeader);
+        return retval;
+    }
+
+    *requestId = sequenceHeader.requestId;
+    channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
+
+    // TODO: remove padding
+    // TODO: remove signature
+
+    *processedBytes = debugTMP; // REMOVE THIS!!!!! ======================================================
+
+    // Cleanup
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_SequenceHeader_deleteMembers(&sequenceHeader);
 
 	return UA_STATUSCODE_GOOD;
 }
@@ -415,6 +496,7 @@ UA_StatusCode
 UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
                                UA_ProcessMessageCallback callback, void *application) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    // The offset in the chunks memory region. Always points to the start of a chunk
     size_t offset= 0;
     do {
 
@@ -434,12 +516,13 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             continue;
         }
 
-        /* Store the initial offset to compute the header length */
-        size_t initial_offset = offset;
+        // The chunk that is being processed. The length exceeds the actual length of the chunk, since it is not yet known.
+        UA_ByteString chunk = {.data = chunks->data + offset, .length = chunks->length - offset};
+        size_t processedChunkBytes = 0;
 
         /* Decode header */
         UA_SecureConversationMessageHeader header;
-        retval = UA_SecureConversationMessageHeader_decodeBinary(chunks, &offset, &header);
+        retval = UA_SecureConversationMessageHeader_decodeBinary(&chunk, &processedChunkBytes, &header);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
@@ -457,7 +540,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         {
         case UA_MESSAGETYPE_OPN:
         {
-			retval |= UA_SecureChannel_processAsymmetricChunk(chunks, &offset);
+			retval |= UA_SecureChannel_processAsymmetricChunk(&chunk, &processedChunkBytes, &requestId, channel);
 
 			if(retval != UA_STATUSCODE_GOOD)
 			{
@@ -466,7 +549,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             break;
         }
         default:
-            retval |= UA_SecureChannel_processSymmetricChunk(chunks, &offset, &requestId, channel);
+            retval |= UA_SecureChannel_processSymmetricChunk(&chunk, &processedChunkBytes, &requestId, channel);
 
             if (retval != UA_STATUSCODE_GOOD)
             {
@@ -476,21 +559,30 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         }
 
         // Append the chunk and if it is final, call the message handling callback with the complete message
-        size_t processed_header = offset - initial_offset;
+        size_t processed_header = processedChunkBytes;
         switch(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
         case UA_CHUNKTYPE_INTERMEDIATE:
-            UA_SecureChannel_appendChunk(channel, requestId, chunks, offset,
+            UA_SecureChannel_appendChunk(channel,
+                                         requestId,
+                                         &chunk,
+                                         processedChunkBytes,
                                          header.messageHeader.messageSize - processed_header);
             break;
         case UA_CHUNKTYPE_FINAL: {
             UA_Boolean realloced = false;
             UA_ByteString message =
-                UA_SecureChannel_finalizeChunk(channel, requestId, chunks, offset,
+                UA_SecureChannel_finalizeChunk(channel,
+                                               requestId,
+                                               &chunk,
+                                               processedChunkBytes,
                                                header.messageHeader.messageSize - processed_header,
                                                &realloced);
             if(message.length > 0) {
-                callback(application,(UA_SecureChannel *)channel,(UA_MessageType)(header.messageHeader.messageTypeAndChunkType & 0x00ffffff),
-                         requestId, &message);
+                callback(application,
+                         (UA_SecureChannel *)channel,
+                         (UA_MessageType)(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE),
+                         requestId,
+                         &message);
                 if(realloced)
                     UA_ByteString_deleteMembers(&message);
             }
@@ -503,7 +595,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         }
 
         /* Jump to the end of the chunk */
-        offset += (header.messageHeader.messageSize - processed_header);
+        offset += header.messageHeader.messageSize;
     } while(chunks->length > offset);
 
     return retval;
