@@ -12,7 +12,7 @@
    nodelete. So the value is not deleted. Use with care! */
 static void
 forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
-    UA_Variant_copy(p,v);
+    UA_Variant_setScalarCopy(v,p,t);
     /* JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
     UA_Variant_init(v);
     v->type = t;
@@ -190,7 +190,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_NumericRange *range, UA_Variant *editableValue) {
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
    
-    /* Empty variant always matches... */
+	/* Empty variant always matches... */
     if(!value->type)
         return UA_STATUSCODE_GOOD;
 

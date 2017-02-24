@@ -374,7 +374,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             if(retval != UA_STATUSCODE_GOOD)
                 break;
 
-            callback(application, channel, UA_MESSAGETYPE_ERR, 0, (void*)&errorMessage);
+            callback(application, channel, UA_MESSAGETYPE_ERR, 0, (const UA_ByteString *)&errorMessage);
             continue;
         }
 
