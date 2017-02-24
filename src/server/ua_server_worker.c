@@ -538,6 +538,33 @@ static void processMainLoopJobs(UA_Server *server) {
 }
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+static UA_StatusCode
+UA_Server_addMdnsRecordForNetworkLayer(UA_Server *server, const char* appName, const UA_ServerNetworkLayer* nl) {
+    UA_UInt16 port = 0;
+    char hostname[256]; hostname[0] = '\0';
+    const char *path;
+    {
+        char* uri = (char *)malloc(sizeof(char) * nl->discoveryUrl.length + 1);
+        strncpy(uri, (char*) nl->discoveryUrl.data, nl->discoveryUrl.length);
+        uri[nl->discoveryUrl.length] = '\0';
+        UA_StatusCode retval;
+        if ((retval = UA_EndpointUrl_split(uri, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
+            if (retval == UA_STATUSCODE_BADOUTOFRANGE)
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid", uri);
+            else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' does not begin with opc.tcp://", uri);
+            free(uri);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+        free(uri);
+    }
+    UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
+                           server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
+    return UA_STATUSCODE_GOOD;
+}
+#endif //UA_ENABLE_DISCOVERY_MULTICAST
+
 UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
     /* Spin up the worker threads */
@@ -578,29 +605,12 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
         appName[server->config.mdnsServerName.length] = '\0';
 
         for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-            UA_ServerNetworkLayer* nl = &server->config.networkLayers[i];
-            UA_UInt16 port = 0;
-            char hostname[256]; hostname[0] = '\0';
-            const char *path;
-            {
-                char* uri = (char *)malloc(sizeof(char) * nl->discoveryUrl.length + 1);
-                strncpy(uri, (char*) nl->discoveryUrl.data, nl->discoveryUrl.length);
-                uri[nl->discoveryUrl.length] = '\0';
-                UA_StatusCode retval;
-                if ((retval = UA_EndpointUrl_split(uri, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
-                    if (retval == UA_STATUSCODE_BADOUTOFRANGE)
-                        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' size invalid", uri);
-                    else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-                        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' does not begin with opc.tcp://", uri);
-                    free(uri);
-                    free(appName);
-                    return retval;
-                }
-                free(uri);
+            UA_StatusCode retVal = UA_Server_addMdnsRecordForNetworkLayer(
+                    server, appName, &server->config.networkLayers[i]);
+            if (UA_STATUSCODE_GOOD != retVal) {
+                free(appName);
+                return retVal;
             }
-            UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
-                                   server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
-
         }
         free(appName);
 
