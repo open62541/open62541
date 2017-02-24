@@ -417,8 +417,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* CreateSession doesn't need a session */
     if(requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
         Service_CreateSession(server, channel,
-			                  (const UA_CreateSessionRequest *)request,
-							  (UA_CreateSessionResponse *)response);
+                              (const UA_CreateSessionRequest *)request,
+                              (UA_CreateSessionResponse *)response);
         goto send_response;
     }
 
@@ -439,8 +439,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
         Service_ActivateSession(server, channel, session,
-			                    (const UA_ActivateSessionRequest*)request,
-								(UA_ActivateSessionResponse*)response);
+                                (const UA_ActivateSessionRequest*)request,
+                                (UA_ActivateSessionResponse*)response);
         goto send_response;
     }
 
@@ -492,7 +492,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
         Service_Publish(server, session,
-			            (const UA_PublishRequest*)request, requestId);
+                        (const UA_PublishRequest*)request, requestId);
         UA_deleteMembers(request, requestType);
         return;
     }
@@ -518,6 +518,19 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_deleteMembers(response, responseType);
 }
 
+/* ERR -> Error from the remote connection */
+static void processERR(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
+    UA_TcpErrorMessage errorMessage;
+    if (UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
+        connection->close(connection);
+        return;
+    }
+
+    UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Client replied with an error message: %s %.*s",
+                 UA_StatusCode_name(errorMessage.error), errorMessage.reason.length, errorMessage.reason.data);
+}
+
 /* Takes decoded messages starting at the nodeid of the content type. Only OPN
  * messages start at the asymmetricalgorithmsecurityheader and are not
  * decoded. */
@@ -528,6 +541,13 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     UA_assert(channel);
     UA_assert(channel->connection);
     switch(messagetype) {
+    case UA_MESSAGETYPE_ERR: {
+        const UA_TcpErrorMessage *msg = (const UA_TcpErrorMessage *) message;
+        UA_LOG_ERROR_CHANNEL(server->config.logger, channel,
+                             "Client replied with an error message: %s %.*s",
+                             UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
+        break;
+    }
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
                              "Cannot process a HEL on an open channel");
@@ -578,6 +598,11 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 
         /* Dispatch according to the message type */
         switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
+        case UA_MESSAGETYPE_ERR:
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process ERR message", connection->sockfd);
+            processERR(server, connection, message, &offset);
+            break;
         case UA_MESSAGETYPE_HEL:
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Process HEL message", connection->sockfd);
@@ -592,8 +617,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             if(retval != UA_STATUSCODE_GOOD)
                 connection->close(connection);
             UA_ByteString offsetMessage;
-			offsetMessage.data = message->data + 12;
-			offsetMessage.length = message->length - 12;
+            offsetMessage.data = message->data + 12;
+            offsetMessage.length = message->length - 12;
             processOPN(server, connection, channelId, &offsetMessage);
             break; 
             */

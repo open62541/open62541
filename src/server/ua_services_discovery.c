@@ -384,9 +384,9 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
            FILE *fp = fopen(filePath,"rb");
-		   semaphoreDeleted = (fp==NULL);
-		   if (fp)
-		     fclose(fp);
+           semaphoreDeleted = (fp==NULL);
+           if (fp)
+             fclose(fp);
 #else
             semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif

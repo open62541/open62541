@@ -417,6 +417,23 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t offset= 0;
     do {
+
+        if (chunks->length > 3 && chunks->data[offset] == 'E' &&
+                chunks->data[offset+1] == 'R' && chunks->data[offset+2] == 'R') {
+            UA_TcpMessageHeader header;
+            retval = UA_TcpMessageHeader_decodeBinary(chunks, &offset, &header);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+
+            UA_TcpErrorMessage errorMessage;
+            retval = UA_TcpErrorMessage_decodeBinary(chunks, &offset, &errorMessage);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+
+            callback(application, channel, UA_MESSAGETYPE_ERR, 0, (void*)&errorMessage);
+            continue;
+        }
+
         /* Store the initial offset to compute the header length */
         size_t initial_offset = offset;
 
