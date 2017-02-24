@@ -12,10 +12,13 @@
    nodelete. So the value is not deleted. Use with care! */
 static void
 forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
+    UA_Variant_copy(p,v);
+    /* JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
     UA_Variant_init(v);
     v->type = t;
     v->data = (void*)(uintptr_t)p;
     v->storageType = UA_VARIANT_DATA_NODELETE;
+    */
 }
 
 static UA_UInt32
@@ -144,11 +147,14 @@ convertToMatchingValue(UA_Server *server, const UA_Variant *value,
     if(targetDataType == &UA_TYPES[UA_TYPES_BYTE] &&
        value->type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
        UA_Variant_isScalar(value)) {
+        UA_Variant_copy(value,editableValue);
+        /* JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
         UA_ByteString *str = (UA_ByteString*)value->data;
         editableValue->storageType = UA_VARIANT_DATA_NODELETE;
         editableValue->type = &UA_TYPES[UA_TYPES_BYTE];
         editableValue->arrayLength = str->length;
         editableValue->data = str->data;
+        */
         return editableValue;
     }
 
@@ -157,9 +163,12 @@ convertToMatchingValue(UA_Server *server, const UA_Variant *value,
     enum type_equivalence te1 = typeEquivalence(targetDataType);
     enum type_equivalence te2 = typeEquivalence(value->type);
     if(te1 != TYPE_EQUIVALENCE_NONE && te1 == te2) {
+        UA_Variant_copy(value,editableValue);
+        /* JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
         *editableValue = *value;
         editableValue->storageType = UA_VARIANT_DATA_NODELETE;
         editableValue->type = targetDataType;
+        */
         return editableValue;
     }
 
@@ -181,7 +190,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_NumericRange *range, UA_Variant *editableValue) {
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
    
-	/* Empty variant always matches... */
+    /* Empty variant always matches... */
     if(!value->type)
         return UA_STATUSCODE_GOOD;
 
@@ -231,9 +240,13 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
 
 static UA_StatusCode
 readArrayDimensionsAttribute(const UA_VariableNode *vn, UA_DataValue *v) {
+    UA_Variant_setArrayCopy(&v->value, vn->arrayDimensions,
+                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+    /*JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
     UA_Variant_setArray(&v->value, vn->arrayDimensions,
                         vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
     v->value.storageType = UA_VARIANT_DATA_NODELETE;
+    */
     v->hasValue = true;
     return UA_STATUSCODE_GOOD;
 }
@@ -457,8 +470,11 @@ readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn, UA_Data
     }
     if(rangeptr)
         return UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
+    UA_DataValue_copy(&vn->value.data.value,v);
+    /*JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
     *v = vn->value.data.value;
     v->value.storageType = UA_VARIANT_DATA_NODELETE;
+    */
     return UA_STATUSCODE_GOOD;
 }
 
@@ -571,8 +587,12 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
 
     /* Copy the value into an editable "container" where e.g. the datatype can
      * be adjusted. The data itself is not written into. */
+     /*JGrothof: Value has to be copied, so that node can be released with UA_NodestoreSwitch_releaseNode(...)
     UA_DataValue editableValue = *value;
     editableValue.value.storageType = UA_VARIANT_DATA_NODELETE;
+    */
+    UA_DataValue editableValue;
+    UA_DataValue_copy(value, &editableValue);
 
     /* Type checking. May change the type of editableValue */
     if(value->hasValue) {
@@ -620,6 +640,8 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
  cleanup:
     if(rangeptr)
         UA_free(range.dimensions);
+         /*JGrothof: editableValue has to be freed, because a copy is made */
+        UA_DataValue_deleteMembers(&editableValue);
     return retval;
 }
 

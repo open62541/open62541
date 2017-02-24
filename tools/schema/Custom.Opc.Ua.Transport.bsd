@@ -18,6 +18,7 @@
     <opc:EnumeratedValue Name="MSG" Value="0x47534D" />
     <opc:EnumeratedValue Name="OPN" Value="0x4E504F" />
     <opc:EnumeratedValue Name="CLO" Value="0x4F4C43" />
+    <opc:EnumeratedValue Name="ERR" Value="0x525245" />
   </opc:EnumeratedType>
   
   <opc:EnumeratedType Name="ChunkType" LengthInBits="32">
@@ -51,6 +52,12 @@
     <opc:Field Name="SendBufferSize" TypeName="opc:UInt32" />
     <opc:Field Name="MaxMessageSize" TypeName="opc:UInt32" />
 	<opc:Field Name="MaxChunkCount" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="TcpErrorMessage">
+    <opc:Documentation>Error Message</opc:Documentation>
+    <opc:Field Name="Error" TypeName="opc:UInt32" />
+    <opc:Field Name="Reason" TypeName="opc:String" />
   </opc:StructuredType>
   
   <opc:StructuredType Name="SecureConversationMessageHeader">

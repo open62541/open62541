@@ -53,8 +53,8 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-UA_THREAD_LOCAL UA_Namespace* namespaces;
-UA_THREAD_LOCAL size_t namespacesSize;
+UA_THREAD_LOCAL UA_Namespace* namespaces_local;
+UA_THREAD_LOCAL size_t namespacesSize_local;
 
 
 /* We give pointers to the current position and the last position in the buffer
@@ -826,11 +826,11 @@ findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
     const UA_DataType *types = NULL;
     size_t typesSize;
     if(typeId->namespaceIndex != 0){
-        if(namespaces == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
-        for(size_t i = 0; i < namespacesSize; ++i){
-            if(namespaces[i].index == typeId->namespaceIndex){
-                types = namespaces[i].dataTypes;
-                typesSize = namespaces[i].dataTypesSize;
+        if(namespaces_local == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        for(size_t i = 0; i < namespacesSize_local; ++i){
+            if(namespaces_local[i].index == typeId->namespaceIndex){
+                types = namespaces_local[i].dataTypes;
+                typesSize = namespaces_local[i].dataTypesSize;
                 break;
             }
         }
@@ -1143,9 +1143,9 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     UA_Byte encodingMask = (UA_Byte)
         ((UA_Byte)src->hasValue |
         ((UA_Byte)src->hasStatus << 1) |
-		((UA_Byte)src->hasSourceTimestamp << 2) |
+        ((UA_Byte)src->hasSourceTimestamp << 2) |
         ((UA_Byte)src->hasServerTimestamp << 3) |
-		((UA_Byte)src->hasSourcePicoseconds << 4) |
+        ((UA_Byte)src->hasSourcePicoseconds << 4) |
         ((UA_Byte)src->hasServerPicoseconds << 5));
 
     /* Encode the content */
@@ -1438,8 +1438,8 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
 
     /* Store the pointers to the custom datatypes. They might be needed during
      * decoding of variants. */
-    namespaces = newNamespaces;
-    namespacesSize = newNamespacesSize;
+    namespaces_local = newNamespaces;
+    namespacesSize_local = newNamespacesSize;
 
     /* Set the (thread-local) position and end pointers to save function
      * arguments */
