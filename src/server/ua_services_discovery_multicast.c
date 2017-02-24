@@ -6,7 +6,7 @@
 #include "ua_services.h"
 #include "ua_mdns_internal.h"
 
-#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_SEMAPHORE)
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
 #ifdef _MSC_VER
 # ifndef UNDER_CE
@@ -548,4 +548,4 @@ UA_Discovery_multicastListenStop(UA_Server* server) {
 
 # endif /* UA_ENABLE_MULTITHREADING */
 
-#endif /* defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_SEMAPHORE) */
+#endif /* defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST) */
