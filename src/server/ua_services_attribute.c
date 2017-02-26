@@ -1113,7 +1113,8 @@ CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
     }
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "WriteRequest returned status code 0x%08x", retval);
+                            "WriteRequest returned status code %s",
+                            UA_StatusCode_name(retval));
     return retval;
 }
 
