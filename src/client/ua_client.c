@@ -1,5 +1,5 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #include "ua_client.h"
@@ -42,7 +42,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     if(client->username.data)
         UA_String_deleteMembers(&client->username);
     if(client->password.data)
-           UA_String_deleteMembers(&client->password);
+        UA_String_deleteMembers(&client->password);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -589,7 +589,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
         retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
 
     /* always cleanup */
-    cleanup:
+ cleanup:
     UA_Client_disconnect(client);
     UA_Client_reset(client);
     return retval;
@@ -646,7 +646,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     }
     return retval;
 
-    cleanup:
+ cleanup:
     UA_Client_reset(client);
     return retval;
 }
@@ -668,7 +668,7 @@ UA_StatusCode UA_Client_disconnect(UA_Client *client) {
 UA_StatusCode UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = SecureChannelHandshake(client, true);
     if(retval == UA_STATUSCODE_GOOD)
-      client->state = UA_CLIENTSTATE_CONNECTED;
+        client->state = UA_CLIENTSTATE_CONNECTED;
     return retval;
 }
 
@@ -691,9 +691,9 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_NodeId expectedNodeId =
-            UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
+        UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
     const UA_NodeId serviceFaultNodeId =
-            UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_SERVICEFAULT].binaryEncodingId);
 
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
@@ -820,7 +820,7 @@ __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *r
         }
         /* ProcessChunks and call processServiceResponse for complete messages */
         UA_SecureChannel_processChunks(&client->channel, &reply,
-                     (UA_ProcessMessageCallback*)processServiceResponse, &rd);
+                                       (UA_ProcessMessageCallback*)processServiceResponse, &rd);
         /* Free the received buffer */
         if(!realloced)
             client->connection.releaseRecvBuffer(&client->connection, &reply);
