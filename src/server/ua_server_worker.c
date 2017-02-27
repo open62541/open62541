@@ -48,7 +48,7 @@
 
 #define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 
-static void
+void
 UA_Server_processJob(UA_Server *server, UA_Job *job) {
     UA_ASSERT_RCU_UNLOCKED();
     UA_RCU_LOCK();
