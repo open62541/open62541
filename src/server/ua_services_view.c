@@ -537,6 +537,17 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
     }
 }
 
+UA_BrowsePathResult
+UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
+                                       const UA_BrowsePath *browsePath) {
+    UA_BrowsePathResult result;
+    UA_BrowsePathResult_init(&result);
+    UA_RCU_LOCK();
+    Service_TranslateBrowsePathsToNodeIds_single(server, &adminSession, browsePath, &result);
+    UA_RCU_UNLOCK();
+    return result;
+}
+
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                            const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                            UA_TranslateBrowsePathsToNodeIdsResponse *response) {
