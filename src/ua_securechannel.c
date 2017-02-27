@@ -10,14 +10,17 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
 #include "ua_transport_generated_handling.h"
+#include "ua_securitycontext.h"
+#include "ua_securitypolicy.h"
 #include <stdio.h>
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
-void UA_SecureChannel_init(UA_SecureChannel *channel) {
+void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies) {
     memset(channel, 0, sizeof(UA_SecureChannel));
+    channel->availableSecurityPolicies = securityPolicies;
     /* Linked lists are also initialized by zeroing out */
     /* LIST_INIT(&channel->sessions); */
     /* LIST_INIT(&channel->chunks); */
@@ -449,12 +452,6 @@ UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
 {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-	// TODO: handle chunked opn messages.
-	// We need to decode the asymmetricSecurityHeader and SequenceHeader for each chunk and pass them on to
-	// the processOPN function. An alternative would be to prepend them to the de-chunked message.
-	// This would not requrie any changes to processOPN.
-	printf("Debug message");
-
 	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
     UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
 	retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, processedBytes, &asymHeader);
@@ -471,7 +468,11 @@ UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
         return retval;
     }
 
-    // TODO: Choose appropriate SecurityPolicy and init contexts
+
+    if (channel->securityPolicy == NULL)
+    {
+        // TODO: Choose security policy
+    }
     
     // TODO: Decrypt message
     // TODO: Verify message

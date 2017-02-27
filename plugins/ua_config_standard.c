@@ -5,6 +5,7 @@
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
+#include "ua_securitypolicy_none.h"
 
 /*******************************/
 /* Default Connection Settings */
@@ -75,6 +76,12 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     /* Networking */
     0, /* .networkLayersSize */
     NULL, /* .networkLayers */
+
+    /* Security policies */
+    {
+        1,
+        &UA_SecurityPolicy_None,
+    },
 
     /* Access Control */
     {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,

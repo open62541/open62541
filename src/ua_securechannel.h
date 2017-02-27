@@ -13,6 +13,8 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
+#include "ua_securitycontext.h"
+#include "ua_securitypolicy.h"
 
 struct UA_Session;
 typedef struct UA_Session UA_Session;
@@ -47,6 +49,14 @@ struct UA_SecureChannel {
     UA_ChannelSecurityToken nextSecurityToken; // the channelId is contained in the securityToken
     UA_AsymmetricAlgorithmSecurityHeader clientAsymAlgSettings;
     UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
+
+    /** The active security policy and context of the channel */
+    const UA_SecurityPolicy* securityPolicy;
+    UA_Channel_SecurityContext* securityContext;
+
+    /** Stores all available security policies that may be used when establishing a connection. */
+    UA_SecurityPolicies availableSecurityPolicies;
+
     UA_ByteString  clientNonce;
     UA_ByteString  serverNonce;
     UA_UInt32      receiveSequenceNumber;
@@ -56,7 +66,14 @@ struct UA_SecureChannel {
     LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
 };
 
-void UA_SecureChannel_init(UA_SecureChannel *channel);
+/**
+ * \brief Initializes the secure channel.
+ *
+ * \param channel the channel to initialize.
+ * \param securityPolicies the securityPolicies struct that contains all available policies
+ *                         the channel may choose from when a channel is being established.
+ */
+void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce);
