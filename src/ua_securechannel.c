@@ -125,6 +125,14 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
 /* Send Binary Message */
 /***********************/
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////// TODO: The chunking procedure when sending needs to be modified to allow asymmetric messages.               //////
+/////////// TODO: Currently the length of the message header is hardcoded and hidden / unhidden. This cannot           //////
+/////////// TODO: be done when dealing with asymmetric messages since the asymmetric header does not have fixed length //////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 static UA_StatusCode
 UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
     UA_SecureChannel *channel = ci->channel;
@@ -229,9 +237,11 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     ci.final = false;
     ci.messageType = UA_MESSAGETYPE_MSG;
     ci.errorCode = UA_STATUSCODE_GOOD;
-    if(typeId.identifier.numeric == 446 || typeId.identifier.numeric == 449)
+    if(typeId.identifier.numeric == UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId ||
+       typeId.identifier.numeric == UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId)
         ci.messageType = UA_MESSAGETYPE_OPN;
-    else if(typeId.identifier.numeric == 452 || typeId.identifier.numeric == 455)
+    else if(typeId.identifier.numeric == UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId ||
+            typeId.identifier.numeric == UA_TYPES[UA_TYPES_CLOSESECURECHANNELRESPONSE].binaryEncodingId)
         ci.messageType = UA_MESSAGETYPE_CLO;
     retval = UA_encodeBinary(content, contentType,
                              (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk,
@@ -240,7 +250,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     /* Encoding failed, release the message */
     if(retval != UA_STATUSCODE_GOOD) {
         if(!ci.final) {
-            /* the abort message was not send */
+            /* the abort message was not sent */
             ci.errorCode = retval;
             UA_SecureChannel_sendChunk(&ci, &message, messagePos);
         }
