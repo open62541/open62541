@@ -103,7 +103,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies);
+    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies, cm->server->config.logger);
     entry->channel.temporary = UA_TRUE;
 	entry->channel.securityToken.channelId = cm->lastChannelId++;
 	entry->channel.securityToken.tokenId = cm->lastTokenId++;
@@ -160,10 +160,12 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies);
-    entry->channel = *tmpChannel; // TODO: Investigate if a SecureChannel_copy method is needed and sensible
+    // move stuff from temporary channel to actual channel
+    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies, cm->server->config.logger);
+    entry->channel = *tmpChannel;
     UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.clientAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->clientAsymAlgSettings, &entry->channel.clientAsymAlgSettings);
+    tmpChannel->securityContext = NULL; // We don't want to clean up the securityContext
 	UA_SecureChannelManager_close_temporary(cm, tmpChannel);
     entry->channel.connection = NULL;
     entry->channel.temporary = UA_FALSE;

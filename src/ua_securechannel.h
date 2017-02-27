@@ -62,6 +62,9 @@ struct UA_SecureChannel {
     UA_UInt32      receiveSequenceNumber;
     UA_UInt32      sendSequenceNumber;
     UA_Connection *connection;
+
+    UA_Logger logger;
+
     LIST_HEAD(session_pointerlist, SessionEntry) sessions;
     LIST_HEAD(chunk_pointerlist, ChunkEntry) chunks;
 };
@@ -72,8 +75,9 @@ struct UA_SecureChannel {
  * \param channel the channel to initialize.
  * \param securityPolicies the securityPolicies struct that contains all available policies
  *                         the channel may choose from when a channel is being established.
+ * \param logger the logger the securechannel may use to log messages.
  */
-void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies);
+void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies, UA_Logger logger);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce);

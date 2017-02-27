@@ -605,17 +605,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         case UA_MESSAGETYPE_OPN: {
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Process OPN message", connection->sockfd);
-            /*
-            UA_UInt32 channelId = 0;
-            retval = UA_UInt32_decodeBinary(message, &offset, &channelId);
-            if(retval != UA_STATUSCODE_GOOD)
-                connection->close(connection);
-            UA_ByteString offsetMessage;
-            offsetMessage.data = message->data + 12;
-            offsetMessage.length = message->length - 12;
-            processOPN(server, connection, channelId, &offsetMessage);
-            break; 
-            */
+
             // Prepare a temporary channel that will be extended to a full channel as soon as the openSecureChannel service succeeds
             UA_SecureChannel* tmpChannel = NULL;
             retval = UA_SecureChannelManager_open_temporary(&server->secureChannelManager, &tmpChannel, connection);

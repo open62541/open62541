@@ -18,9 +18,10 @@
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
-void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies) {
+void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies, UA_Logger logger) {
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->availableSecurityPolicies = securityPolicies;
+    channel->logger = logger;
     /* Linked lists are also initialized by zeroing out */
     /* LIST_INIT(&channel->sessions); */
     /* LIST_INIT(&channel->chunks); */
@@ -34,6 +35,12 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     UA_ByteString_deleteMembers(&channel->clientNonce);
     UA_ChannelSecurityToken_deleteMembers(&channel->securityToken);
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
+
+    if (channel->securityContext != NULL)
+    {
+        channel->securityContext->deleteMembers(channel->securityContext);
+        UA_free(channel->securityContext);
+    }
 
     /* Detach from the channel */
     if(channel->connection)
@@ -395,7 +402,7 @@ UA_SecureChannel_processSequenceNumber(UA_SecureChannel *channel, UA_UInt32 Sequ
  * \param requestId the requestId of the chunk. Will be filled by the function.
  * \param channel the UA_SecureChannel to work on.
  */
-UA_StatusCode
+static UA_StatusCode
 UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
                                        size_t* const processedBytes,
                                        UA_UInt32* const requestId,
@@ -419,14 +426,14 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
     /* Does the token match? */
     if (tokenId != channel->securityToken.tokenId) {
         if (tokenId != channel->nextSecurityToken.tokenId)
-            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         UA_SecureChannel_revolveTokens(channel);
     }
 
     /* Does the sequence number match? */
     retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
     if (retval != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+        return retval;
 
     *requestId = sequenceHeader.requestId;
 
@@ -438,51 +445,191 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
  *
  * \param chunk the chunk to process. The data in the chunk will be modified in place.
                 That is, it will be decoded and decrypted in place.
- * \param processedBytes the already processed bytes. After this function
- *                       finishes, the processedBytes offset will point to
+ * \param processedBytes the already processed bytes. The offset must be relative to the start of the chunk.
+ *                       After this function finishes, the processedBytes offset will point to
  *                       the beginning of the message body
  * \param requestId the requestId of the chunk. Will be filled by the function.
  * \param channel the UA_SecureChannel to work on.
  */
-UA_StatusCode
-UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
-										size_t* const processedBytes,
-                                        UA_UInt32* const requestId,
-                                        UA_SecureChannel* const channel)
+static UA_StatusCode
+UA_SecureChannel_processAsymmetricOPNChunk(UA_ByteString* const chunk,
+                                           UA_SecureConversationMessageHeader* const messageHeader,
+										   size_t* const processedBytes,
+                                           UA_UInt32* const requestId,
+                                           UA_SecureChannel* const channel)
 {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-	UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-	retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, processedBytes, &asymHeader);
+    size_t chunkSize = messageHeader->messageHeader.messageSize;
+
+    if (chunkSize > chunk->length)
+    {
+        // TODO: kill channel? need to investigate
+    }
+
+	UA_AsymmetricAlgorithmSecurityHeader clientAsymHeader;
+    UA_AsymmetricAlgorithmSecurityHeader_init(&clientAsymHeader);
+	retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, processedBytes, &clientAsymHeader);
+    size_t messageAndSecurityHeaderOffset = *processedBytes;
     if (retval != UA_STATUSCODE_GOOD)
     {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
         return retval;
     }
 
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_copy(&asymHeader, &channel->clientAsymAlgSettings);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_copy(&clientAsymHeader, &channel->clientAsymAlgSettings);
     if (retval != UA_STATUSCODE_GOOD)
     {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
         return retval;
     }
 
 
     if (channel->securityPolicy == NULL)
     {
-        // TODO: Choose security policy
+        // iterate available security policies and choose the correct one
+        const UA_SecurityPolicy* securityPolicy = NULL;
+        UA_LOG_DEBUG(channel->logger,
+                     UA_LOGCATEGORY_SECURECHANNEL,
+                     "Trying to open connection with policy %.*s",
+                     clientAsymHeader.securityPolicyUri.length,
+                     clientAsymHeader.securityPolicyUri.data);
+        for (size_t i = 0; i < channel->availableSecurityPolicies.count; ++i)
+        {
+            if (UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
+                                    &channel->availableSecurityPolicies.policies[i].policyUri))
+            {
+                UA_LOG_DEBUG(channel->logger,
+                             UA_LOGCATEGORY_SECURECHANNEL,
+                             "Using security policy %s",
+                            channel->availableSecurityPolicies.policies[i].policyUri.data);
+
+                securityPolicy = &channel->availableSecurityPolicies.policies[i];
+                break;
+            }
+        }
+
+        if (securityPolicy == NULL)
+        {
+            // TODO: Abort connection?
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        }
+
+        channel->securityPolicy = securityPolicy;
+    }
+    else
+    {
+        // Policy not the same as when channel was originally opened
+        if (!UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
+                                 &channel->securityPolicy->policyUri))
+        {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        }
+    }
+
+    // Create the channel context and parse the sender certificate used for the secureChannel.
+    if (channel->securityContext == NULL)
+    {
+        UA_Channel_SecurityContext* channelContext = NULL;
+        retval |= channel->securityPolicy->makeChannelContext(channel->securityPolicy, &channelContext);
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
+        
+        retval |= channelContext->init(channelContext, channel->logger);
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            channelContext->deleteMembers(channelContext);
+            UA_free(channelContext);
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
+
+        // TODO: Do we need to parse the cert only once or for each chunk? (Assuming chunking is even possible??)
+        retval |= channelContext->parseClientCertificate(channelContext, &clientAsymHeader.senderCertificate);
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            channelContext->deleteMembers(channelContext);
+            UA_free(channelContext);
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
+
+        channel->securityContext = channelContext;
+    }
+
+    // Verify the vertificate
+    retval |= channel->securityPolicy->verifyCertificate(&clientAsymHeader.senderCertificate, &channel->securityPolicy->context);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+        return retval;
     }
     
-    // TODO: Decrypt message
-    // TODO: Verify message
+    // Decrypt message
+    {
+        const UA_ByteString cipherText = {
+            .data = chunk->data + messageAndSecurityHeaderOffset,
+            .length = chunkSize - messageAndSecurityHeaderOffset
+        };
+
+        UA_ByteString decrypted;
+        retval |= UA_ByteString_allocBuffer(&decrypted, cipherText.length);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
+
+        retval |= channel->securityPolicy->asymmetricModule.decrypt(&cipherText, &channel->securityPolicy->context, &decrypted);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            UA_ByteString_deleteMembers(&decrypted);
+            return retval;
+        }
+
+        // Write back decrypted message for further processing
+        memcpy(chunk->data + messageAndSecurityHeaderOffset, decrypted.data, decrypted.length);
+
+        UA_ByteString_deleteMembers(&decrypted);
+    }
+
+    // Verify signature
+    {
+        // signature is made over everything except the signature itself.
+        const UA_ByteString chunkDataToVerify = {
+            .data = chunk->data,
+            .length = chunkSize - channel->securityPolicy->asymmetricModule.signingModule.signatureSize
+        };
+        const UA_ByteString signature = {
+            .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
+            .length = channel->securityPolicy->asymmetricModule.signingModule.signatureSize
+        };
+
+        retval |= channel->securityPolicy->asymmetricModule.signingModule.verify(&chunkDataToVerify,
+                                                                                 &signature,
+                                                                                 channel->securityContext);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
+    }
 
     UA_SequenceHeader sequenceHeader;
     UA_SequenceHeader_init(&sequenceHeader);
     retval |= UA_SequenceHeader_decodeBinary(chunk, processedBytes, &sequenceHeader);
     if (retval != UA_STATUSCODE_GOOD)
     {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
         UA_SequenceHeader_deleteMembers(&sequenceHeader);
         return retval;
     }
@@ -496,7 +643,7 @@ UA_SecureChannel_processAsymmetricChunk(UA_ByteString* const chunk,
     // TODO: remove signature
 
     // Cleanup
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
     UA_SequenceHeader_deleteMembers(&sequenceHeader);
 
 	return UA_STATUSCODE_GOOD;
@@ -530,14 +677,14 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         UA_ByteString chunk = {.data = chunks->data + offset, .length = chunks->length - offset};
         size_t processedChunkBytes = 0;
 
-        /* Decode header */
-        UA_SecureConversationMessageHeader header;
-        retval = UA_SecureConversationMessageHeader_decodeBinary(&chunk, &processedChunkBytes, &header);
+        /* Decode message header */
+        UA_SecureConversationMessageHeader messageHeader;
+        retval = UA_SecureConversationMessageHeader_decodeBinary(&chunk, &processedChunkBytes, &messageHeader);
         if(retval != UA_STATUSCODE_GOOD)
             break;
 
         /* Is the channel attached to connection and not temporary? */
-        if(header.secureChannelId != channel->securityToken.channelId && !channel->temporary) {
+        if(messageHeader.secureChannelId != channel->securityToken.channelId && !channel->temporary) {
             //Service_CloseSecureChannel(server, channel);
             //connection->close(connection);
             return UA_STATUSCODE_BADCOMMUNICATIONERROR;
@@ -546,11 +693,11 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
 		UA_UInt32 requestId = 0;
 
         // Process the chunk.
-        switch (header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE)
+        switch (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE)
         {
         case UA_MESSAGETYPE_OPN:
         {
-			retval |= UA_SecureChannel_processAsymmetricChunk(&chunk, &processedChunkBytes, &requestId, channel);
+			retval |= UA_SecureChannel_processAsymmetricOPNChunk(&chunk, &messageHeader, &processedChunkBytes, &requestId, channel);
 
 			if(retval != UA_STATUSCODE_GOOD)
 			{
@@ -570,13 +717,13 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
 
         // Append the chunk and if it is final, call the message handling callback with the complete message
         size_t processed_header = processedChunkBytes;
-        switch(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
+        switch(messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
         case UA_CHUNKTYPE_INTERMEDIATE:
             UA_SecureChannel_appendChunk(channel,
                                          requestId,
                                          &chunk,
                                          processedChunkBytes,
-                                         header.messageHeader.messageSize - processed_header);
+                                         messageHeader.messageHeader.messageSize - processed_header);
             break;
         case UA_CHUNKTYPE_FINAL: {
             UA_Boolean realloced = false;
@@ -585,12 +732,12 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                                                requestId,
                                                &chunk,
                                                processedChunkBytes,
-                                               header.messageHeader.messageSize - processed_header,
+                                               messageHeader.messageHeader.messageSize - processed_header,
                                                &realloced);
             if(message.length > 0) {
                 callback(application,
                          (UA_SecureChannel *)channel,
-                         (UA_MessageType)(header.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE),
+                         (UA_MessageType)(messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE),
                          requestId,
                          &message);
                 if(realloced)
@@ -605,7 +752,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         }
 
         /* Jump to the end of the chunk */
-        offset += header.messageHeader.messageSize;
+        offset += messageHeader.messageHeader.messageSize;
     } while(chunks->length > offset);
 
     return retval;
