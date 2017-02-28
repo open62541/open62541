@@ -565,7 +565,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
 
             const UA_ByteString policyUriNone = {
-                .data = "http://opcfoundation.org/UA/SecurityPolicy#None",
+                .data = (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None",
                 .length = 47
             };
             if (UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone))
