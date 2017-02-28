@@ -521,7 +521,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     if(!server)
         return NULL;
 
-    if (config.securityPolicies.count <= 0)
+    if (config.securityPolicies.count == 0)
     {
         UA_LOG_FATAL(config.logger,
                      UA_LOGCATEGORY_SERVER,

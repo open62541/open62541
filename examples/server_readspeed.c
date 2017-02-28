@@ -13,11 +13,20 @@
 #define UA_SERVER_H_
 #define UA_CONNECTION_H_
 #define UA_TYPES_GENERATED_H_
+#define UA_LOG_H_
+#define UA_SECURITYCONTEXT_H_
+#define UA_SECURITYPOLICY_H_
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
 int main(int argc, char** argv) {
     UA_ServerConfig config = UA_ServerConfig_standard;
+
+    // Set desired security policies
+    UA_SecurityPolicy securityPolicies[] = { UA_SecurityPolicy_None };
+    config.securityPolicies.count = sizeof(securityPolicies) / sizeof(securityPolicies[0]);
+    config.securityPolicies.policies = securityPolicies;
+
     UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
