@@ -521,6 +521,14 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     if(!server)
         return NULL;
 
+    if (config.securityPolicies.count <= 0)
+    {
+        UA_LOG_FATAL(config.logger,
+                     UA_LOGCATEGORY_SERVER,
+                     "There has to be at least one supported security policy but no policies were found in config.");
+        return NULL;
+    }
+
     server->config = config;
     server->nodestore = UA_NodeStore_new();
     LIST_INIT(&server->repeatedJobs);
@@ -543,47 +551,65 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
 
+    // TODO: Maybe make endpoints more configurable? Currently all policies are added to each network layer
+    // to form an endpoints. Also message security mode is always none or signandencrypt
     /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
-    server->endpointDescriptions = (UA_EndpointDescription *)UA_Array_new(server->config.networkLayersSize,
-                                                &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    server->endpointDescriptionsSize = server->config.networkLayersSize;
+    server->endpointDescriptions = (UA_EndpointDescription *)UA_Array_new(
+        server->config.networkLayersSize * server->config.securityPolicies.count,
+        &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]
+    );
+    server->endpointDescriptionsSize = server->config.networkLayersSize * server->config.securityPolicies.count;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
-        endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
-        endpoint->securityPolicyUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-        endpoint->transportProfileUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+        for (size_t j = 0; j < server->config.securityPolicies.count; ++j)
+        {
+            UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
 
-        size_t policies = 0;
-        if(server->config.accessControl.enableAnonymousLogin)
-            ++policies;
-        if(server->config.accessControl.enableUsernamePasswordLogin)
-            ++policies;
-        endpoint->userIdentityTokensSize = policies;
-        endpoint->userIdentityTokens = (UA_UserTokenPolicy *)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+            const UA_ByteString policyUriNone = {
+                .data = "http://opcfoundation.org/UA/SecurityPolicy#None",
+                .length = 47
+            };
+            if (UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone))
+            {
+                endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
+            }
+            else
+            {
+                endpoint->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+            }
+            endpoint->securityPolicyUri = server->config.securityPolicies.policies[j].policyUri;
+            endpoint->transportProfileUri =
+                UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-        size_t currentIndex = 0;
-        if(server->config.accessControl.enableAnonymousLogin) {
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
-            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
-            ++currentIndex;
+            size_t policies = 0;
+            if (server->config.accessControl.enableAnonymousLogin)
+                ++policies;
+            if (server->config.accessControl.enableUsernamePasswordLogin)
+                ++policies;
+            endpoint->userIdentityTokensSize = policies;
+            endpoint->userIdentityTokens = (UA_UserTokenPolicy *)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+
+            size_t currentIndex = 0;
+            if (server->config.accessControl.enableAnonymousLogin) {
+                UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
+                endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+                endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
+                ++currentIndex;
+            }
+            if (server->config.accessControl.enableUsernamePasswordLogin) {
+                UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
+                endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
+                endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
+            }
+
+            /* The standard says "the HostName specified in the Server Certificate is the
+               same as the HostName contained in the endpointUrl provided in the
+               EndpointDescription */
+            UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
+            UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
+
+            /* copy the discovery url only once the networlayer has been started */
+            // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
         }
-        if(server->config.accessControl.enableUsernamePasswordLogin) {
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
-            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        }
-
-        /* The standard says "the HostName specified in the Server Certificate is the
-           same as the HostName contained in the endpointUrl provided in the
-           EndpointDescription */
-        UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
-        UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
-
-        /* copy the discovery url only once the networlayer has been started */
-        // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
     }
 
     UA_SecureChannelManager_init(&server->secureChannelManager, server);

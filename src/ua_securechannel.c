@@ -639,8 +639,13 @@ UA_SecureChannel_processAsymmetricOPNChunk(UA_ByteString* const chunk,
     // Set the starting sequence number
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
+    // Still need to remove padding size
+    size_t signatureSize = channel->securityPolicy->asymmetricModule.signingModule.signatureSize;
+    size_t bodySize = chunkSize - *processedBytes - signatureSize;
+
+    UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1];
+
     // TODO: remove padding
-    // TODO: remove signature
 
     // Cleanup
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
@@ -687,7 +692,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
         if(messageHeader.secureChannelId != channel->securityToken.channelId && !channel->temporary) {
             //Service_CloseSecureChannel(server, channel);
             //connection->close(connection);
-            return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+            return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         }
 
 		UA_UInt32 requestId = 0;
