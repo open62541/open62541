@@ -79,8 +79,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 
     /* Security policies */
     {
-        1,
-        &UA_SecurityPolicy_None,
+        0,
+        NULL,
     },
 
     /* Access Control */

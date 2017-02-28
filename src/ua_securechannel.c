@@ -445,18 +445,20 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
  *
  * \param chunk the chunk to process. The data in the chunk will be modified in place.
                 That is, it will be decoded and decrypted in place.
+ * \param channel the UA_SecureChannel to work on.
  * \param processedBytes the already processed bytes. The offset must be relative to the start of the chunk.
  *                       After this function finishes, the processedBytes offset will point to
  *                       the beginning of the message body
  * \param requestId the requestId of the chunk. Will be filled by the function.
- * \param channel the UA_SecureChannel to work on.
+ * \param bodySize the size of the body segment of the chunk.
  */
 static UA_StatusCode
-UA_SecureChannel_processAsymmetricOPNChunk(UA_ByteString* const chunk,
+UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
+                                           UA_SecureChannel* const channel,
                                            UA_SecureConversationMessageHeader* const messageHeader,
 										   size_t* const processedBytes,
                                            UA_UInt32* const requestId,
-                                           UA_SecureChannel* const channel)
+                                           size_t* const bodySize)
 {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
@@ -639,13 +641,10 @@ UA_SecureChannel_processAsymmetricOPNChunk(UA_ByteString* const chunk,
     // Set the starting sequence number
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
-    // Still need to remove padding size
+    // calculate body size
     size_t signatureSize = channel->securityPolicy->asymmetricModule.signingModule.signatureSize;
-    size_t bodySize = chunkSize - *processedBytes - signatureSize;
-
-    UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1];
-
-    // TODO: remove padding
+    UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1]; // TODO: Need to differentiate if extra padding byte was used
+    *bodySize = chunkSize - *processedBytes - signatureSize - paddingSize;
 
     // Cleanup
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
@@ -697,12 +696,14 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
 
 		UA_UInt32 requestId = 0;
 
+        size_t bodySize = 0;
+
         // Process the chunk.
         switch (messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_MESSAGETYPE)
         {
         case UA_MESSAGETYPE_OPN:
         {
-			retval |= UA_SecureChannel_processAsymmetricOPNChunk(&chunk, &messageHeader, &processedChunkBytes, &requestId, channel);
+			retval |= UA_SecureChannel_processAsymmetricOPNChunk(&chunk, channel, &messageHeader, &processedChunkBytes, &requestId, &bodySize);
 
 			if(retval != UA_STATUSCODE_GOOD)
 			{

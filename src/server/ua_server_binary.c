@@ -610,6 +610,14 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             UA_SecureChannel* tmpChannel = NULL;
             retval = UA_SecureChannelManager_open_temporary(&server->secureChannelManager, &tmpChannel, connection);
 
+            if (retval != UA_STATUSCODE_GOOD)
+            {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                             "Failed to open temporary channel: %s", UA_StatusCode_name(retval));
+                connection->close(connection);
+                return;
+            }
+
             retval = UA_SecureChannel_processChunks(tmpChannel,
                                                     message,
                                                     (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage,
