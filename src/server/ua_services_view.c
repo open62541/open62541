@@ -39,12 +39,12 @@ static const UA_Node *
 returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
                            const UA_ReferenceNode *reference) {
     /* prepare a read request in the external nodestore */
-    UA_ReadValueId *readValueIds = UA_Array_new(6,&UA_TYPES[UA_TYPES_READVALUEID]);
-    UA_UInt32 *indices = UA_Array_new(6,&UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32 indicesSize = 6;
-    UA_DataValue *readNodesResults = UA_Array_new(6,&UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(6,&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
-    for(UA_UInt32 i = 0; i < 6; ++i) {
+    UA_ReadValueId *readValueIds = UA_Array_new(5,&UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_UInt32 *indices = UA_Array_new(5,&UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32 indicesSize = 5;
+    UA_DataValue *readNodesResults = UA_Array_new(5,&UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(5,&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+    for(UA_UInt32 i = 0; i < 5; ++i) {
         readValueIds[i].nodeId = reference->targetId.nodeId;
         indices[i] = i;
     }
@@ -53,7 +53,6 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
     readValueIds[2].attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
     readValueIds[3].attributeId = UA_ATTRIBUTEID_DESCRIPTION;
     readValueIds[4].attributeId = UA_ATTRIBUTEID_WRITEMASK;
-    readValueIds[5].attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
 
     ens->readNodes(ens->ensHandle, NULL, readValueIds, indices,
                    indicesSize, readNodesResults, false, diagnosticInfos);
@@ -71,12 +70,16 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
         UA_LocalizedText_copy((UA_LocalizedText*)readNodesResults[3].value.data, &(node->description));
     if(readNodesResults[4].status == UA_STATUSCODE_GOOD)
         UA_UInt32_copy((UA_UInt32*)readNodesResults[4].value.data, &(node->writeMask));
-    if(readNodesResults[5].status == UA_STATUSCODE_GOOD)
-        UA_UInt32_copy((UA_UInt32*)readNodesResults[5].value.data, &(node->userWriteMask));
-    UA_Array_delete(readValueIds,6, &UA_TYPES[UA_TYPES_READVALUEID]);
-    UA_Array_delete(indices,6, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Array_delete(readNodesResults,6, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_Array_delete(diagnosticInfos,6, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+
+    UA_ReferenceNode **references = &node->references;
+    UA_UInt32 *referencesSize = (UA_UInt32*)&node->referencesSize;
+    
+    ens->getOneWayReferences (ens->ensHandle, &node->nodeId, referencesSize, references);
+
+    UA_Array_delete(readValueIds,5, &UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_Array_delete(indices,5, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Array_delete(readNodesResults,5, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_Array_delete(diagnosticInfos,5, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
     if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
         UA_NodeStore_deleteNode(node);
         return NULL;
@@ -535,6 +538,17 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
         result->targets = NULL;
         result->targetsSize = 0;
     }
+}
+
+UA_BrowsePathResult
+UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
+                                       const UA_BrowsePath *browsePath) {
+    UA_BrowsePathResult result;
+    UA_BrowsePathResult_init(&result);
+    UA_RCU_LOCK();
+    Service_TranslateBrowsePathsToNodeIds_single(server, &adminSession, browsePath, &result);
+    UA_RCU_UNLOCK();
+    return result;
 }
 
 void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
