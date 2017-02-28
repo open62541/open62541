@@ -1,0 +1,3 @@
+@PACKAGE_INIT@
+
+include ("@PACKAGE_target_install_dest_name@")
