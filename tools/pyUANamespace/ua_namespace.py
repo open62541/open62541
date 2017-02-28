@@ -649,7 +649,7 @@ class opcua_namespace():
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append(  '#include "server/ua_server_internal.h"')
+    header.append('  #include "server/ua_server_internal.h"')
     header.append('  #include "ua_util.h"')
     header.append('  #include "ua_types.h"')
     header.append('  #include "ua_nodes.h"')
@@ -688,27 +688,30 @@ UA_INLINE UA_StatusCode {0}(UA_Server *server){{
 UA_INLINE UA_StatusCode {0}_returnNamespaces(
         UA_Server *server, UA_UInt16 *namespacesSize, UA_Namespace **namespaces) {{
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
-  UA_Namespace** nsArray = UA_malloc({1} * sizeof(UA_Namespace*));
+  UA_Namespace* nsArray = UA_malloc({1} * sizeof(UA_Namespace));
+  UA_String tempNsUri;
 '''.format(outfilename,len(self.namespaceIdentifiers)))
     namespacesCount = 0
     for nsid in self.namespaceIdentifiers:
       name = self.namespaceIdentifiers[nsid]
       name = name.replace("\"","\\\"")
-      code.append('''
-  //Adding namespace for old namespace index = {0} with uri: {2}
-  nsArray[{1}] = UA_Namespace_newFromChar("{2}");
-  retval |= UA_Server_addNamespace_full(server, nsArray[{1}]);
-  UA_UInt16 nsIdx_{0} = nsArray[{1}]->index;'''.format(nsid, namespacesCount, name))
+      code.append('''  //Adding namespace for old namespace index = {0} with uri: {2}
+  tempNsUri = UA_String_fromChars("{2}");
+  UA_Namespace_init(&nsArray[{1}], &tempNsUri);
+  UA_String_deleteMembers(&tempNsUri);
+  retval |= UA_Server_addNamespace_full(server, &nsArray[{1}]);
+  UA_UInt16 nsIdx_{0} = nsArray[{1}].index;'''.format(nsid, namespacesCount, name))
       namespacesCount = namespacesCount +1
     
-    code.append('''  //Writing back desired namespace values')
+    code.append('''
+  //Writing back desired namespace values')
   if(namespacesSize) {{*namespacesSize = {0};}};
-  if(namespaces) {{namespaces = nsArray;}}
+  if(namespaces) {{namespaces = &nsArray;}}
   else {{
     for(size_t i = 0 ; i < {0} ; ++i){{
-      UA_Namespace_deleteMembers(nsArray[i]);
-      UA_free(nsArray[i]);
+      UA_Namespace_deleteMembers(&nsArray[i]);
     }}
+    UA_free(nsArray);
   }}
   if(retval == UA_STATUSCODE_GOOD){{retval = UA_STATUSCODE_GOOD;}} //ensure that retval is used
   '''.format(namespacesCount));

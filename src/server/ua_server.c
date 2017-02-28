@@ -203,12 +203,8 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* namespaceUri){
     UA_free(ns);
     return retIndex;
 }
-UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri){
-    // Override const attribute to get string (dirty hack) /
-    UA_String nameString;
-    nameString.length = (size_t) strlen(namespaceUri);
-    nameString.data = (UA_Byte*)(uintptr_t)namespaceUri;
 
+UA_StatusCode UA_Server_deleteNamespace_full(UA_Server *server, UA_Namespace * namespacePtr){
     UA_String * newNsUris = (UA_String*)UA_malloc((server->namespacesSize-1) * sizeof(UA_String));
     if(!newNsUris)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -216,7 +212,7 @@ UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespace
     /* Check if the namespace already exists in the server's namespace array */
     size_t j = 0;
     for(size_t i = 0; i < server->namespacesSize; ++i) {
-        if(!UA_String_equal(&nameString, &server->namespaces[i].uri)){
+        if(!UA_String_equal(&namespacePtr->uri, &server->namespaces[i].uri)){
             if(j == server->namespacesSize){
                 UA_free(newNsUris);
                 return UA_STATUSCODE_BADNOTFOUND;
@@ -225,6 +221,14 @@ UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespace
         }
     }
     return replaceNamespaceArray_server(server, newNsUris, j);
+}
+
+UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri){
+    UA_Namespace * ns = UA_Namespace_newFromChar(namespaceUri);
+    UA_StatusCode retVal = UA_Server_deleteNamespace_full(server, ns);
+    UA_Namespace_deleteMembers(ns);
+    UA_free(ns);
+    return retVal;
 }
 
 

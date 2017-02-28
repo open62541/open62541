@@ -72,7 +72,8 @@ add_example(server_nodestore server_nodestore.c)
 add_example(server_inheritance server_inheritance.c)
 
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  add_executable(server_nodeset "server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c")
+  add_example(server_nodeset server_nodeset.c)
+  target_link_libraries(server_nodeset ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
 endif()
 

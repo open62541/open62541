@@ -215,6 +215,8 @@ UA_Server_addNamespace_full(UA_Server *server, UA_Namespace * namespacePtr);
 /* Delete a namespace from the server. The data type encodings and nodestores will also be deleted. */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri);
+UA_StatusCode UA_EXPORT
+UA_Server_deleteNamespace_full(UA_Server *server, UA_Namespace * namespacePtr);
 
 /**
  * Server Lifecycle
