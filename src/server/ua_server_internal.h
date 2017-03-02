@@ -74,7 +74,23 @@ typedef struct {
     char padding[64 - sizeof(void*) - sizeof(pthread_t) -
                  sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
 } UA_Worker;
+
+struct MainLoopJob {
+    struct cds_lfs_node node;
+    UA_Job job;
+};
+
+void
+UA_Server_dispatchJob(UA_Server *server, const UA_Job *job);
+
 #endif
+
+void
+UA_Server_processJob(UA_Server *server, UA_Job *job);
+
+UA_DateTime
+UA_Server_processRepeatedJobs(UA_Server *server, UA_DateTime current,
+                              UA_Boolean *dispatched);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 /* Internally used context to a session 'context' of the current mehtod call */
