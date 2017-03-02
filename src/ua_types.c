@@ -639,10 +639,13 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
         /* Copy the content */
         for(size_t i = 0; i < block_count; ++i) {
             for(size_t j = 0; j < block && retval == UA_STATUSCODE_GOOD; ++j) {
-                if(stringLike)
+                if(stringLike) {
+                    if(nextrange.dimensions->max >= (UA_UInt32)((const UA_String*)nextsrc)->length)
+                        nextrange.dimensions->max = (UA_UInt32)((const UA_String*)nextsrc)->length-1;
                     retval = copySubString((const UA_String*)nextsrc,
                                            (UA_String*)nextdst,
                                            nextrange.dimensions);
+                }
                 else
                     retval = UA_Variant_copyRange((const UA_Variant*)nextsrc,
                                                   (UA_Variant*)nextdst,
