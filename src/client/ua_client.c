@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ *  License, v. 2.0. If a copy of the MPL was not distributed with this
+ *  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
@@ -688,7 +688,6 @@ static void
 processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     const UA_NodeId expectedNodeId =
         UA_NODEID_NUMERIC(0, rd->responseType->binaryEncodingId);
