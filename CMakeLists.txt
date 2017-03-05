@@ -90,7 +90,6 @@ endif()
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
-option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
 option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
@@ -408,6 +407,9 @@ endif()
 # Build Selected Targets #
 ##########################
 
+# always include, builds with make doc
+add_subdirectory(doc)
+
 if(UA_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
@@ -416,10 +418,6 @@ if(UA_BUILD_UNIT_TESTS)
     target_compile_definitions(open62541-object PRIVATE UA_BUILD_UNIT_TESTS) # Export some internal functions
     enable_testing()
     add_subdirectory(tests)
-endif()
-
-if(UA_BUILD_DOCUMENTATION)
-    add_subdirectory(doc)
 endif()
 
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)

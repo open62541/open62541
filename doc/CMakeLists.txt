@@ -1,4 +1,4 @@
-find_package(Sphinx REQUIRED)
+find_package(Sphinx)
 find_package(LATEX)
 
 set(DOC_LATEX_DIR ${PROJECT_BINARY_DIR}/doc_latex)
@@ -82,3 +82,5 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/tutorial_server_method.rst
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
+
+set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
