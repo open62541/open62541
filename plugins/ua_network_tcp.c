@@ -124,7 +124,7 @@ socket_write(UA_Connection *connection, UA_ByteString *buf) {
 
 static UA_StatusCode
 socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
-    response->data = (UA_Byte *)malloc(connection->localConf.recvBufferSize);
+    response->data = (UA_Byte *)malloc(connection->settings.receiveBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
@@ -176,7 +176,7 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
     }
 #else
     ssize_t ret = recv(connection->sockfd, (char*)response->data,
-                       connection->localConf.recvBufferSize, 0);
+                       connection->settings.receiveBufferSize, 0);
 #endif
 
     /* server has closed the connection */
@@ -264,7 +264,7 @@ typedef struct {
 } ConnectionMapping;
 
 typedef struct {
-    UA_ConnectionConfig conf;
+    UA_ConnectionSettings settings;
     UA_UInt16 port;
     UA_Logger logger; // Set during start
 
@@ -276,7 +276,7 @@ typedef struct {
 
 static UA_StatusCode
 ServerNetworkLayerGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    if(length > connection->remoteConf.recvBufferSize)
+    if(length > connection->settings.sendBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     return UA_ByteString_allocBuffer(buf, length);
 }
@@ -350,8 +350,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
-    c->localConf = layer->conf;
-    c->remoteConf = layer->conf;
+    c->settings = layer->settings;
     c->send = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
     c->getSendBuffer = ServerNetworkLayerGetSendBuffer;
@@ -560,7 +559,7 @@ static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 }
 
 UA_ServerNetworkLayer
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
+UA_ServerNetworkLayerTCP(UA_ConnectionSettings settings, UA_UInt16 port) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -574,7 +573,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
     if(!layer)
         return nl;
     
-    layer->conf = conf;
+    layer->settings = settings;
     layer->port = port;
 
     nl.handle = layer;
@@ -591,11 +590,11 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 
 static UA_StatusCode
 ClientNetworkLayerGetBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    if(length > connection->remoteConf.recvBufferSize)
+    if(length > connection->settings.sendBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     if(connection->state == UA_CONNECTION_CLOSED)
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    return UA_ByteString_allocBuffer(buf, connection->remoteConf.recvBufferSize);
+    return UA_ByteString_allocBuffer(buf, connection->settings.sendBufferSize);
 }
 
 static void
@@ -618,7 +617,7 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
+UA_ClientConnectionTCP(UA_ConnectionSettings settings, const char *endpointUrl,
                        UA_Logger logger) {
 #ifdef _WIN32
     WORD wVersionRequested;
@@ -630,8 +629,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
     UA_Connection connection;
     memset(&connection, 0, sizeof(UA_Connection));
     connection.state = UA_CONNECTION_OPENING;
-    connection.localConf = conf;
-    connection.remoteConf = conf;
+    connection.settings = settings;
     connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;

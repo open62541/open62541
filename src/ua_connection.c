@@ -9,6 +9,46 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securechannel.h"
 
+UA_StatusCode
+UA_Connection_setRemoteSettings(UA_Connection *connection,
+                                const UA_TcpAcknowledgeMessage *remoteSettings) {
+    UA_ConnectionSettings *localSettings = &connection->settings;
+
+    /* ProtocolVersion, currently only v0 is defined/supported */
+    /* if(remoteSettings->protocolVersion < localSettings->protocolVersion) */
+    /*     localSettings->protocolVersion = remoteSettings->protocolVersion; */
+    if(remoteSettings->protocolVersion != 0)
+        return UA_STATUSCODE_BADPROTOCOLVERSIONUNSUPPORTED;
+
+    /* ReceiveBufferSize */
+    if(localSettings->receiveBufferSize > remoteSettings->sendBufferSize)
+        localSettings->receiveBufferSize = remoteSettings->sendBufferSize;
+    if(localSettings->receiveBufferSize < 8192)
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+
+    /* SendBufferSize */
+    if(localSettings->sendBufferSize > remoteSettings->receiveBufferSize)
+        localSettings->sendBufferSize = remoteSettings->receiveBufferSize;
+    if(localSettings->sendBufferSize < 8192)
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+
+    /* MaxMessageSize */
+    if(remoteSettings->maxMessageSize != 0) {
+        if(localSettings->sendMaxMessageSize == 0 ||
+           localSettings->sendMaxMessageSize > remoteSettings->maxMessageSize)
+            localSettings->sendMaxMessageSize = remoteSettings->maxMessageSize;
+    }
+
+    /* MaxChunkCount */
+    if(remoteSettings->maxChunkCount != 0) {
+        if(localSettings->sendMaxChunkCount == 0 ||
+           localSettings->sendMaxChunkCount > remoteSettings->maxChunkCount)
+            localSettings->sendMaxChunkCount = remoteSettings->maxChunkCount;
+    }
+    
+    return UA_STATUSCODE_GOOD;
+}
+
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
@@ -63,7 +103,7 @@ completeChunksUntil(UA_Connection *connection, UA_ByteString * UA_RESTRICT messa
         UA_UInt32 chunk_length = 0;
         size_t length_pos = complete_until + 4;
         if(UA_UInt32_decodeBinary(message, &length_pos, &chunk_length) != UA_STATUSCODE_GOOD ||
-           chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize) {
+           chunk_length < 16 || chunk_length > connection->settings.receiveBufferSize) {
             *garbage_end = true;
             break;
         }

@@ -206,41 +206,38 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 /* HEL -> Open up the connection */
 static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
     UA_TcpHelloMessage helloMessage;
-    if(UA_TcpHelloMessage_decodeBinary(msg, offset, &helloMessage) != UA_STATUSCODE_GOOD) {
+    UA_StatusCode retval = UA_TcpHelloMessage_decodeBinary(msg, offset, &helloMessage);
+    if(retval != UA_STATUSCODE_GOOD) {
         connection->close(connection);
         return;
     }
 
     /* Parameterize the connection */
-    connection->remoteConf.maxChunkCount = helloMessage.maxChunkCount; /* zero -> unlimited */
-    connection->remoteConf.maxMessageSize = helloMessage.maxMessageSize; /* zero -> unlimited */
-    connection->remoteConf.protocolVersion = helloMessage.protocolVersion;
-    connection->remoteConf.recvBufferSize = helloMessage.receiveBufferSize;
-    if(connection->localConf.sendBufferSize > helloMessage.receiveBufferSize)
-        connection->localConf.sendBufferSize = helloMessage.receiveBufferSize;
-    connection->remoteConf.sendBufferSize = helloMessage.sendBufferSize;
-    if(connection->localConf.recvBufferSize > helloMessage.sendBufferSize)
-        connection->localConf.recvBufferSize = helloMessage.sendBufferSize;
-    connection->state = UA_CONNECTION_ESTABLISHED;
+    retval = UA_Connection_setRemoteSettings(connection, (UA_TcpAcknowledgeMessage*)&helloMessage);
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* TODO: Send ERR message */
+        connection->close(connection);
+        return;
+    }
+    connection->state = UA_CONNECTION_ESTABLISHED;
 
     /* Build acknowledge response */
-    UA_TcpAcknowledgeMessage ackMessage;
-    ackMessage.protocolVersion = connection->localConf.protocolVersion;
-    ackMessage.receiveBufferSize = connection->localConf.recvBufferSize;
-    ackMessage.sendBufferSize = connection->localConf.sendBufferSize;
-    ackMessage.maxMessageSize = connection->localConf.maxMessageSize;
-    ackMessage.maxChunkCount = connection->localConf.maxChunkCount;
-
     UA_TcpMessageHeader ackHeader;
     ackHeader.messageTypeAndChunkType = UA_MESSAGETYPE_ACK + UA_CHUNKTYPE_FINAL;
     ackHeader.messageSize = 8 + 20; /* ackHeader + ackMessage */
 
+    UA_TcpAcknowledgeMessage ackMessage;
+    ackMessage.protocolVersion = connection->settings.protocolVersion;
+    ackMessage.receiveBufferSize = connection->settings.receiveBufferSize;
+    ackMessage.sendBufferSize = connection->settings.sendBufferSize;
+    ackMessage.maxMessageSize = connection->settings.sendMaxMessageSize;
+    ackMessage.maxChunkCount = connection->settings.sendMaxChunkCount;
+
     /* Get the send buffer from the network layer */
     UA_ByteString ack_msg;
     UA_ByteString_init(&ack_msg);
-    UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &ack_msg);
+    retval = connection->getSendBuffer(connection, ackHeader.messageSize, &ack_msg);
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
@@ -308,7 +305,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
     /* Allocate the return message */
     UA_ByteString resp_msg;
     UA_ByteString_init(&resp_msg);
-    retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
+    retval = connection->getSendBuffer(connection, connection->settings.sendBufferSize, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);

@@ -36,7 +36,7 @@ extern "C" {
  * Client Configuration
  * -------------------- */
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf,
+(*UA_ConnectClientConnection)(UA_ConnectionSettings settings,
                               const char *endpointUrl, UA_Logger logger);
 
 typedef struct UA_ClientConfig {
@@ -44,7 +44,7 @@ typedef struct UA_ClientConfig {
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
-    UA_ConnectionConfig localConnectionConfig;
+    UA_ConnectionSettings connectionSettings;
     UA_ConnectClientConnection connectionFunc;
 
     /* Custom DataTypes */

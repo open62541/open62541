@@ -12,10 +12,10 @@ extern "C" {
 #include "ua_client.h"
 
 UA_ServerNetworkLayer UA_EXPORT
-UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port);
+UA_ServerNetworkLayerTCP(UA_ConnectionSettings settings, UA_UInt16 port);
 
 UA_Connection UA_EXPORT
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl, UA_Logger logger);
+UA_ClientConnectionTCP(UA_ConnectionSettings settings, const char *endpointUrl, UA_Logger logger);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -87,21 +87,23 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
 
     /* Prepare the HEL message and encode at offset 8 */
     UA_TcpHelloMessage hello;
-    UA_String_copy(&client->endpointUrl, &hello.endpointUrl); /* must be less than 4096 bytes */
-    hello.maxChunkCount = conn->localConf.maxChunkCount;
-    hello.maxMessageSize = conn->localConf.maxMessageSize;
-    hello.protocolVersion = conn->localConf.protocolVersion;
-    hello.receiveBufferSize = conn->localConf.recvBufferSize;
-    hello.sendBufferSize = conn->localConf.sendBufferSize;
+    hello.protocolVersion = conn->settings.protocolVersion;
+    hello.receiveBufferSize = conn->settings.receiveBufferSize;
+    hello.sendBufferSize = conn->settings.sendBufferSize;
+    hello.maxMessageSize = conn->settings.sendMaxMessageSize;
+    hello.maxChunkCount = conn->settings.sendMaxChunkCount;
+    hello.endpointUrl = client->endpointUrl; /* must be less than 4096 bytes */
 
+    /* Encode the message header after the header (offset 8) */
     size_t offset = 8;
     retval = UA_TcpHelloMessage_encodeBinary(&hello, &message, &offset);
-    UA_TcpHelloMessage_deleteMembers(&hello);
 
-    /* Encode the message header at offset 0 */
+    /* Set the message length in the header */
     UA_TcpMessageHeader messageHeader;
     messageHeader.messageTypeAndChunkType = UA_CHUNKTYPE_FINAL + UA_MESSAGETYPE_HEL;
     messageHeader.messageSize = (UA_UInt32)offset;
+
+    /* Encode the message header at offset 0 */
     offset = 0;
     retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &message, &offset);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -143,26 +145,25 @@ static UA_StatusCode HelAckHandshake(UA_Client *client) {
     else
         UA_ByteString_deleteMembers(&reply);
 
-    /* Store remote connection settings and adjust local configuration to not
-       exceed the limits */
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-        conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
-        conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
-        conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
-        conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
-        conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
-        if(conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
-            conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
-        if(conn->remoteConf.sendBufferSize < conn->localConf.recvBufferSize)
-            conn->localConf.recvBufferSize = conn->remoteConf.sendBufferSize;
-        conn->state = UA_CONNECTION_ESTABLISHED;
-    } else {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Decoding ACK message failed");
+        return retval;
     }
-    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
 
-    return retval;
+    /* Store remote connection settings and adjust local configuration to not
+     * exceed the limits */
+    retval = UA_Connection_setRemoteSettings(conn, &ackMessage);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Setting the remote settings failed");
+        return retval;
+    }
+    
+    conn->state = UA_CONNECTION_ESTABLISHED;
+    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Received ACK message, TCP connection established");
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -215,7 +216,7 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     UA_ByteString message;
-    UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
+    UA_StatusCode retval = conn->getSendBuffer(conn, conn->settings.sendBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
@@ -528,7 +529,7 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 
     UA_ByteString message;
     UA_Connection *conn = &client->connection;
-    UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
+    UA_StatusCode retval = conn->getSendBuffer(conn, conn->settings.sendBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD){
         UA_CloseSecureChannelRequest_deleteMembers(&request);
         return retval;
@@ -568,7 +569,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
-        client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl,
+        client->config.connectionFunc(UA_ConnectionSettings_default, serverUrl,
                                       client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -581,7 +582,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
         goto cleanup;
     }
 
-    client->connection.localConf = client->config.localConnectionConfig;
+    client->connection.settings = client->config.connectionSettings;
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client, false);
@@ -615,7 +616,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
-        client->config.connectionFunc(UA_ConnectionConfig_standard,
+        client->config.connectionFunc(UA_ConnectionSettings_default,
                                       endpointUrl, client->config.logger);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -628,7 +629,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
         goto cleanup;
     }
 
-    client->connection.localConf = client->config.localConnectionConfig;
+    client->connection.settings = client->config.connectionSettings;
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client, false);

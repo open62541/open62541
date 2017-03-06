@@ -134,11 +134,11 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     dst->length += UA_SECURE_MESSAGE_HEADER_LENGTH;
     offset += UA_SECURE_MESSAGE_HEADER_LENGTH;
 
-    if(ci->messageSizeSoFar + offset > connection->remoteConf.maxMessageSize &&
-       connection->remoteConf.maxMessageSize > 0)
+    if(ci->messageSizeSoFar + offset > connection->settings.sendMaxMessageSize &&
+       connection->settings.sendMaxMessageSize > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
-    if(++ci->chunksSoFar > connection->remoteConf.maxChunkCount &&
-       connection->remoteConf.maxChunkCount > 0)
+    if(++ci->chunksSoFar > connection->settings.sendMaxChunkCount &&
+       connection->settings.sendMaxChunkCount > 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
 
     /* Prepare the chunk headers */
@@ -181,14 +181,14 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) 
     /* Replace with the buffer for the next chunk */
     if(!ci->final) {
         UA_StatusCode retval =
-            connection->getSendBuffer(connection, connection->localConf.sendBufferSize, dst);
+            connection->getSendBuffer(connection, connection->settings.sendBufferSize, dst);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         /* Forward the data pointer so that the payload is encoded after the message header.
          * TODO: This works but is a bit too clever. Instead, we could return an offset to the
          * binary encoding exchangeBuffer function. */
         dst->data = &dst->data[UA_SECURE_MESSAGE_HEADER_LENGTH];
-        dst->length = connection->localConf.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
+        dst->length = connection->settings.sendBufferSize - UA_SECURE_MESSAGE_HEADER_LENGTH;
     }
     return ci->errorCode;
 }
@@ -203,7 +203,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     /* Allocate the message buffer */
     UA_ByteString message;
     UA_StatusCode retval =
-        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &message);
+        connection->getSendBuffer(connection, connection->settings.sendBufferSize, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
