@@ -24,17 +24,22 @@ extern "C" {
  * the main open62541 library. The library can then return messages vie TCP
  * without being aware of the underlying transport technology.
  *
- * Connection Config
- * ^^^^^^^^^^^^^^^^^ */
+ * Connection Settings
+ * ^^^^^^^^^^^^^^^^^^^ */
 typedef struct {
+    /* Minimum of the local and remote settings */
     UA_UInt32 protocolVersion;
+    UA_UInt32 receiveBufferSize;
     UA_UInt32 sendBufferSize;
-    UA_UInt32 recvBufferSize;
-    UA_UInt32 maxMessageSize;
-    UA_UInt32 maxChunkCount;
-} UA_ConnectionConfig;
 
-extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
+    /* Store local and remote settings separately */
+    UA_UInt32 sendMaxMessageSize;
+    UA_UInt32 sendMaxChunkCount;
+    UA_UInt32 receiveMaxMessageSize;
+    UA_UInt32 receiveMaxChunkCount;
+} UA_ConnectionSettings;
+
+extern const UA_EXPORT UA_ConnectionSettings UA_ConnectionSettings_default;
 
 /**
  * Connection Structure
@@ -57,8 +62,7 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 
 struct UA_Connection {
     UA_ConnectionState state;
-    UA_ConnectionConfig localConf;
-    UA_ConnectionConfig remoteConf;
+    UA_ConnectionSettings settings;
     UA_SecureChannel *channel;       /* The securechannel that is attached to
                                         this connection */
     UA_Int32 sockfd;                 /* Most connectivity solutions run on

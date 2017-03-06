@@ -10,12 +10,14 @@
 /* Default Connection Settings */
 /*******************************/
 
-const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
+const UA_EXPORT UA_ConnectionSettings UA_ConnectionSettings_default = {
     0, /* .protocolVersion */
     65535, /* .sendBufferSize, 64k per chunk */
     65535, /* .recvBufferSize, 64k per chunk */
-    0, /* .maxMessageSize, 0 -> unlimited */
-    0 /* .maxChunkCount, 0 -> unlimited */
+    0, /* .sendMaxMessageSize, 0 -> unlimited */
+    0, /* .maxChunkCount, 0 -> unlimited */
+    0, /* .receiveMaxMessageSize, 0 -> unlimited */
+    0  /* .receiveChunkCount, 0 -> unlimited */
 };
 
 /***************************/
@@ -120,8 +122,10 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     {0, /* .protocolVersion */
      65535, /* .sendBufferSize, 64k per chunk */
      65535, /* .recvBufferSize, 64k per chunk */
-     0, /* .maxMessageSize, 0 -> unlimited */
-     0 }, /* .maxChunkCount, 0 -> unlimited */
+     0, /* .sendMaxMessageSize, 0 -> unlimited */
+     0, /* .sendMaxChunkCount, 0 -> unlimited */
+     0, /* .receiveMaxMessageSize, 0 -> unlimited */
+     0 },/* .receiveMaxChunkCount, 0 -> unlimited */
     UA_ClientConnectionTCP, /* .connectionFunc */
 
     0, /* .customDataTypesSize */

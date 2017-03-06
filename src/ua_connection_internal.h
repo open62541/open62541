@@ -10,6 +10,22 @@ extern "C" {
 #endif
 
 #include "ua_connection.h"
+#include "ua_transport_generated.h"
+
+/* Adds the remote connection settings to the connection. For example, this
+ * limits the SendBufferSize to the minimum of what this side of the connection
+ * can send and what the remote side can receive. This expects that the local
+ * settings are already in the connection prior to calling this function with
+ * the remote settings.
+ *
+ * A UA_TcpHelloMessage can be casted to UA_TcpAcknowledgeMessage as it only
+ * appends a member missing from the ACK structure.
+ *
+ * Returns an error code when the settings are invalid or incompatible with the
+ * local settings. */
+UA_StatusCode
+UA_Connection_setRemoteSettings(UA_Connection *connection,
+                                const UA_TcpAcknowledgeMessage *remoteSettings);
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. Furthermore, the networklayer may operate on ringbuffers or

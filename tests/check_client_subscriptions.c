@@ -29,7 +29,7 @@ static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
     UA_ServerConfig config = UA_ServerConfig_standard;
-    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    nl = UA_ServerNetworkLayerTCP(UA_ConnectionSettings_default, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     server = UA_Server_new(config);

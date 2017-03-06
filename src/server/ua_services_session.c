@@ -37,7 +37,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Fill the session with more information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
-    newSession->maxRequestMessageSize = channel->connection->localConf.maxMessageSize;
+    newSession->maxRequestMessageSize = channel->connection->settings.receiveMaxMessageSize;
     response->responseHeader.serviceResult |=
         UA_ApplicationDescription_copy(&request->clientDescription, &newSession->clientDescription);
 

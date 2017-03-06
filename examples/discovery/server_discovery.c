@@ -30,7 +30,7 @@ int main(void) {
      * ervery 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
     // config.discoveryCleanupTimeout = 60*60;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
+    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionSettings_default, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);

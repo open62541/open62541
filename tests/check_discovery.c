@@ -40,7 +40,7 @@ static void setup_lds(void) {
     config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     config_lds.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.local_discovery_server");
     config_lds.discoveryCleanupTimeout = registerTimeout;
-    nl_lds = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
+    nl_lds = UA_ServerNetworkLayerTCP(UA_ConnectionSettings_default, 4840);
     config_lds.networkLayers = &nl_lds;
     config_lds.networkLayersSize = 1;
     server_lds = UA_Server_new(config_lds);
@@ -76,7 +76,7 @@ static void setup_register(void) {
     *running_register = true;
     UA_ServerConfig config_register = UA_ServerConfig_standard;
     config_register.applicationDescription.applicationUri = UA_String_fromChars("open62541.test.server_register");
-    nl_register = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    nl_register = UA_ServerNetworkLayerTCP(UA_ConnectionSettings_default, 16664);
     config_register.networkLayers = &nl_register;
     config_register.networkLayersSize = 1;
     server_register = UA_Server_new(config_register);
