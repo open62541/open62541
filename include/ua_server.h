@@ -202,6 +202,8 @@ typedef struct {
 UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /**
+ * .. _server-lifecycle:
+ *
  * Server Lifecycle
  * ---------------- */
 UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);

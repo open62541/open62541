@@ -34,13 +34,33 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   endif()
 endmacro()
 
+#############
+# Tutorials #
+#############
+
+add_example(tutorial_datatypes tutorial_datatypes.c)
+
+add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
+
+add_example(tutorial_server_variable tutorial_server_variable.c)
+
+add_example(tutorial_server_datasource tutorial_server_datasource.c)
+
+add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
+
+add_example(tutorial_server_object tutorial_server_object.c)
+
+if(UA_ENABLE_METHODCALLS)
+  add_example(tutorial_server_method tutorial_server_method.c)
+endif()
+
+add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
+
 ##################
 # Example Server #
 ##################
 
 add_example(server server.c)
-
-add_example(server_firststeps tutorials/server_firststeps.c)
 
 ##################
 # Example Client #
@@ -48,17 +68,11 @@ add_example(server_firststeps tutorials/server_firststeps.c)
 
 add_example(client client.c)
 
-add_example(client_firststeps tutorials/client_firststeps.c)
-
 ####################
 # Feature Examples #
 ####################
 
-add_example(server_variable server_variable.c)
-
 add_example(server_mainloop server_mainloop.c)
-
-add_example(server_datasource server_datasource.c)
 
 add_example(server_instantiation server_instantiation.c)
 
@@ -72,10 +86,6 @@ add_example(server_inheritance server_inheritance.c)
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   add_executable(server_nodeset "server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c")
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-endif()
-
-if(UA_ENABLE_METHODCALLS)
-  add_example(server_method server_method.c)
 endif()
 
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
