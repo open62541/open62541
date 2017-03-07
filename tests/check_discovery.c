@@ -182,73 +182,42 @@ START_TEST(Server_unregister_periodic) {
     }
 END_TEST
 
-
-static UA_StatusCode FindServers(const char* discoveryServerUrl, size_t* registeredServerSize, UA_ApplicationDescription** registeredServers, const char* filterUri, const char* filterLocale) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-    }
-
-
-    UA_FindServersRequest request;
-    UA_FindServersRequest_init(&request);
-
-    if (filterUri) {
-        request.serverUrisSize = 1;
-        request.serverUris = UA_malloc(sizeof(UA_String));
-        request.serverUris[0] = UA_String_fromChars(filterUri);
-    }
-
-    if (filterLocale) {
-        request.localeIdsSize = 1;
-        request.localeIds = UA_malloc(sizeof(UA_String));
-        request.localeIds[0] = UA_String_fromChars(filterLocale);
-    }
-
-    // now send the request
-    UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
-
-    if (filterUri) {
-        UA_Array_delete(request.serverUris, request.serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
-
-    if (filterLocale) {
-        UA_Array_delete(request.localeIds, request.localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_FindServersResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        ck_abort_msg("FindServers failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-    }
-
-    *registeredServerSize = response.serversSize;
-    *registeredServers = (UA_ApplicationDescription*)UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-    for(size_t i=0;i<response.serversSize;i++)
-        UA_ApplicationDescription_copy(&response.servers[i], &(*registeredServers)[i]);
-    UA_FindServersResponse_deleteMembers(&response);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
-}
-
 static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, const char* expectedLocales[], const char* expectedNames[], const char *filterUri, const char *filterLocale) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
 
-    retval = FindServers("opc.tcp://localhost:4840", &applicationDescriptionArraySize, &applicationDescriptionArray, filterUri, filterLocale);
+    size_t serverUrisSize = 0;
+    UA_String *serverUris = NULL;
+
+    if (filterUri) {
+        serverUrisSize = 1;
+        serverUris = UA_malloc(sizeof(UA_String));
+        serverUris[0] = UA_String_fromChars(filterUri);
+    }
+
+    size_t localeIdsSize = 0;
+    UA_String *localeIds = NULL;
+
+    if (filterLocale) {
+        localeIdsSize = 1;
+        localeIds = UA_malloc(sizeof(UA_String));
+        localeIds[0] = UA_String_fromChars(filterLocale);
+    }
+
+    UA_StatusCode retval = UA_Client_findServers(client, "opc.tcp://localhost:4840",
+                                                 serverUrisSize, serverUris, localeIdsSize, localeIds,
+                                                 &applicationDescriptionArraySize, &applicationDescriptionArray);
+
+    if (filterUri) {
+        UA_Array_delete(serverUris, serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
+    }
+
+    if (filterLocale) {
+        UA_Array_delete(localeIds, localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+    }
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // only the discovery server is expected
@@ -279,71 +248,34 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
     UA_Client_delete(client);
 }
 
-
-static UA_StatusCode FindServersOnNetwork(const char* discoveryServerUrl, size_t* serverOnNetworkSize, UA_ServerOnNetwork** serverOnNetwork,
-                                          const char** filterCapabilities, size_t filterCapabilitiesSize
-) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-    }
-
-
-    UA_FindServersOnNetworkRequest request;
-    UA_FindServersOnNetworkRequest_init(&request);
-
-    request.startingRecordId = 0;
-    request.maxRecordsToReturn = 0; // get all
-
-    if (filterCapabilitiesSize) {
-
-        request.serverCapabilityFilterSize = filterCapabilitiesSize;
-        request.serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
-        for (size_t i=0; i<filterCapabilitiesSize; i++) {
-            request.serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
-        }
-    }
-    // now send the request
-    UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
-
-    if (request.serverCapabilityFilterSize) {
-        UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
-
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_FindServersOnNetworkResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        ck_abort_msg("FindServersOnNetwork failed with statuscode 0x%08x", response.responseHeader.serviceResult);
-    }
-
-    *serverOnNetworkSize = response.serversSize;
-    *serverOnNetwork = (UA_ServerOnNetwork*)UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    for(size_t i=0;i<response.serversSize;i++)
-        UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
-    UA_FindServersOnNetworkResponse_deleteMembers(&response);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
-}
-
 static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale,
                                   const char** filterCapabilities, size_t filterCapabilitiesSize) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
 
-    retval = FindServersOnNetwork("opc.tcp://localhost:4840", &serverOnNetworkSize, &serverOnNetwork, filterCapabilities, filterCapabilitiesSize);
+
+    size_t  serverCapabilityFilterSize = 0;
+    UA_String *serverCapabilityFilter = NULL;
+
+    if (filterCapabilitiesSize) {
+        serverCapabilityFilterSize = filterCapabilitiesSize;
+        serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
+        for (size_t i=0; i<filterCapabilitiesSize; i++) {
+            serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
+        }
+    }
+
+
+    UA_StatusCode retval = UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840", 0, 0,
+                                                          serverCapabilityFilterSize, serverCapabilityFilter,
+                                                          &serverOnNetworkSize, &serverOnNetwork);
+
+    if (serverCapabilityFilterSize) {
+        UA_Array_delete(serverCapabilityFilter, serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
+    }
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // only the discovery server is expected

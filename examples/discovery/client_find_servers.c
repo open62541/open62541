@@ -13,110 +13,6 @@ UA_Logger logger = UA_Log_Stdout;
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
-static UA_StatusCode
-FindServers(const char *discoveryServerUrl, size_t *registeredServerSize,
-            UA_ApplicationDescription **registeredServers) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-    }
-
-    UA_FindServersRequest request;
-    UA_FindServersRequest_init(&request);
-
-    /* If you want to find specific servers, you can also include the server
-     * URIs in the request: */
-    //request.serverUrisSize = 1;
-    //request.serverUris = UA_malloc(sizeof(UA_String));
-    //request.serverUris[0] = UA_String_fromChars("open62541.example.server_register");
-
-    //request.localeIdsSize = 1;
-    //request.localeIds = UA_malloc(sizeof(UA_String));
-    //request.localeIds[0] = UA_String_fromChars("en");
-
-    // now send the request
-    UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
-
-    //UA_Array_delete(request.serverUris, request.serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
-    //UA_Array_delete(request.localeIds, request.localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
-
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
-                     "FindServers failed with statuscode %s", UA_StatusCode_name(response.responseHeader.serviceResult));
-        UA_FindServersResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
-    }
-
-    *registeredServerSize = response.serversSize;
-    *registeredServers = (UA_ApplicationDescription *) UA_Array_new(response.serversSize,
-                                                                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-    for (size_t i = 0; i < response.serversSize; i++)
-        UA_ApplicationDescription_copy(&response.servers[i], &(*registeredServers)[i]);
-    UA_FindServersResponse_deleteMembers(&response);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
-}
-
-
-static UA_StatusCode
-FindServersOnNetwork(const char *discoveryServerUrl, size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return retval;
-    }
-
-
-    UA_FindServersOnNetworkRequest request;
-    UA_FindServersOnNetworkRequest_init(&request);
-
-    request.startingRecordId = 0;
-    request.maxRecordsToReturn = 0; // get all
-    /*
-     * Here you can define some filtering rules:
-     */
-    //request.serverCapabilityFilterSize = 1;
-    //request.serverCapabilityFilter[0] = UA_String_fromChars("LDS");
-
-    // now send the request
-    UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
-
-    //UA_Array_delete(request.serverCapabilityFilter, request.serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
-
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_CLIENT,
-                     "FindServersOnNetwork failed with statuscode %s", UA_StatusCode_name(response.responseHeader.serviceResult));
-        UA_StatusCode retVal = response.responseHeader.serviceResult;
-        UA_FindServersOnNetworkResponse_deleteMembers(&response);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return retVal;
-    }
-
-    *serverOnNetworkSize = response.serversSize;
-    *serverOnNetwork = (UA_ServerOnNetwork *) UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    for (size_t i = 0; i < response.serversSize; i++)
-        UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
-    UA_FindServersOnNetworkResponse_deleteMembers(&response);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
-}
-
 int main(void) {
 
     /*
@@ -127,10 +23,13 @@ int main(void) {
         UA_ServerOnNetwork *serverOnNetwork = NULL;
         size_t serverOnNetworkSize = 0;
 
-        UA_StatusCode retval = FindServersOnNetwork(DISCOVERY_SERVER_ENDPOINT, &serverOnNetworkSize, &serverOnNetwork);
+        UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+        UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
+                                                              0, NULL, &serverOnNetworkSize, &serverOnNetwork);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServersOnNetwork service. Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
+            UA_Client_delete(client);
             return (int) retval;
         }
 
@@ -158,9 +57,13 @@ int main(void) {
     UA_ApplicationDescription *applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
 
-    UA_StatusCode retval = FindServers(DISCOVERY_SERVER_ENDPOINT,
-                                       &applicationDescriptionArraySize,
-                                       &applicationDescriptionArray);
+    UA_StatusCode retval;
+    {
+        UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+        retval = UA_Client_findServers(client, DISCOVERY_SERVER_ENDPOINT, 0, NULL, 0, NULL,
+                                       &applicationDescriptionArraySize, &applicationDescriptionArray);
+        UA_Client_delete(client);
+    }
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not call FindServers service. "
                 "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));

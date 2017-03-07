@@ -1449,7 +1449,7 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
                                       const char* semaphoreFilePath) {
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect_no_session(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
