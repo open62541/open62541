@@ -13,4 +13,5 @@ open62541 Documentation
    server
    client
    constants
+   namespace_compiler
    internal
