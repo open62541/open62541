@@ -52,7 +52,7 @@ typedef struct UA_ClientConfig {
     const UA_DataType *customDataTypes;
 } UA_ClientConfig;
 
-/**
+/*
  * Client Lifecycle
  * ---------------- */
 typedef enum {
@@ -72,7 +72,7 @@ typedef enum {
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
-/* Create a new client
+/** Create a new client
  *
  * @param config for the new client. You can use UA_ClientConfig_standard
  *        which has sane defaults
@@ -81,32 +81,81 @@ typedef struct UA_Client UA_Client;
  * @return return the new Client object */
 UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
 
-/* Get the client connection status */
+/** Get the client connection status */
 UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client);
 
-/* Reset a client */
+/** Reset a client */
 void UA_EXPORT UA_Client_reset(UA_Client *client);
 
-/* Delete a client */
+/** Delete a client */
 void UA_EXPORT UA_Client_delete(UA_Client *client);
 
-/**
- * Manage the Connection
- * --------------------- */
-/* Gets a list of endpoints of a server
+/** Gets a list of endpoints of a server
  *
- * @param client to use
- * @param server url to connect (for example "opc.tcp://localhost:16664")
+ * @param client to use. Must be connected to the same endpoint given in serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
  * @param endpointDescriptionsSize size of the array of endpoint descriptions
  * @param endpointDescriptions array of endpoint descriptions that is allocated
  *        by the function (you need to free manually)
- * @return Indicates whether the operation succeeded or returns an error code */
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
 UA_StatusCode UA_EXPORT
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions);
 
-/* Connect to the selected server
+/**
+ * Gets a list of all registered servers at the given server.
+ *
+ * You can pass an optional filter for serverUris. If the given server is not registered,
+ * an empty array will be returned. If the server is registered, only that application
+ * description will be returned.
+ *
+ * Additionally you can optionally indicate which locale you want for the server name
+ * in the returned application description. The array indicates the order of preference.
+ * A server may have localized names.
+ *
+ * @param client to use. Must be connected to the same endpoint given in serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param serverUrisSize Optional filter for specific server uris
+ * @param serverUris Optional filter for specific server uris
+ * @param localeIdsSize Optional indication which locale you prefer
+ * @param localeIds Optional indication which locale you prefer
+ * @param registeredServerSize size of returned array, i.e., number of found/registered servers
+ * @param registeredServers array containing found/registered servers
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_findServers(UA_Client *client, const char *serverUrl,
+                      size_t serverUrisSize, UA_String *serverUris,
+                      size_t localeIdsSize, UA_String *localeIds,
+                      size_t *registeredServerSize, UA_ApplicationDescription **registeredServers);
+
+/**
+ * Get a list of all known server in the network. Only supported by LDS servers.
+ *
+ *
+ * @param client to use. Must be connected to the same endpoint given in serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param startingRecordId optional. Only return the records with an ID higher or equal the given. Can be used for pagination to only get a subset of the full list
+ * @param maxRecordsToReturn optional. Only return this number of records
+ * @param serverCapabilityFilterSize optional. Filter the returned list to only get servers with given capabilities, e.g. "LDS"
+ * @param serverCapabilityFilter optional. Filter the returned list to only get servers with given capabilities, e.g. "LDS"
+ * @param serverOnNetworkSize size of returned array, i.e., number of known/registered servers
+ * @param serverOnNetwork array containing known/registered servers
+ * @return Indicates whether the operation succeeded or returns an error code
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
+                     UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
+                     size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                     size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
+
+/*
+ * Manage the Connection
+ * --------------------- */
+
+/** Connect to the selected server
  *
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
@@ -114,7 +163,7 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
-/* Connect to the selected server with the given username and password
+/** Connect to the selected server with the given username and password
  *
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
@@ -125,10 +174,10 @@ UA_StatusCode UA_EXPORT
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password);
 
-/* Close a connection to the selected server */
+/** Close a connection to the selected server */
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
-/* Renew the underlying secure channel */
+/** Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
 /**

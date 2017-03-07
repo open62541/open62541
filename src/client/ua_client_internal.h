@@ -89,4 +89,13 @@ struct UA_Client {
 #endif
 };
 
+/* Connect to the selected server.
+ * This will not create a session.
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
+
 #endif /* UA_CLIENT_INTERNAL_H_ */

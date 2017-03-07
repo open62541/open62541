@@ -100,9 +100,12 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    add_example(discovery_server_discovery discovery/server_discovery.c)
+  add_example(discovery_server_lds discovery/server_lds.c)
 
-    add_example(discovery_server_register discovery/server_register.c)
+  add_example(discovery_server_register discovery/server_register.c)
 
-    add_example(discovery_client_find_servers discovery/client_find_servers.c)
+  add_example(discovery_client_find_servers discovery/client_find_servers.c)
+  if(UA_ENABLE_DISCOVERY_MULTICAST)
+    add_example(discovery_server_multicast discovery/server_multicast.c)
+  endif()
 endif()
