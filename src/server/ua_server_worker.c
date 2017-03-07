@@ -46,8 +46,6 @@
 # endif
 #endif
 
-#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
-
 void
 UA_Server_processJob(UA_Server *server, UA_Job *job) {
     UA_ASSERT_RCU_UNLOCKED();
@@ -404,7 +402,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
         UA_Discovery_multicastListenStart(server);
 # endif
     }
-#endif
+#endif //UA_ENABLE_DISCOVERY_MULTICAST
 
     return result;
 }
