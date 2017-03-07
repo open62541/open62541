@@ -244,7 +244,7 @@ static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
-    UA_Server_deleteAllRepeatedJobs(server);
+    UA_RepeatedJobsList_deleteMembers(&server->repeatedJobs);
 
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
@@ -523,7 +523,17 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     server->config = config;
     server->nodestore = UA_NodeStore_new();
-    LIST_INIT(&server->repeatedJobs);
+
+    /* Initialize the handling of repeated jobs */
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
+                             server);
+#else
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
+                             server);
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
@@ -1470,6 +1480,17 @@ UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
     return register_server_with_discovery_server(server, discoveryServerUrl,
                                                  UA_TRUE, NULL);
+}
+
+UA_StatusCode
+UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
+                         UA_UInt32 interval, UA_Guid *jobId) {
+    return UA_RepeatedJobsList_addRepeatedJob(&server->repeatedJobs, job, interval, jobId);
+}
+
+UA_StatusCode
+UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
+    return UA_RepeatedJobsList_removeRepeatedJob(&server->repeatedJobs, jobId);
 }
 
 #endif
