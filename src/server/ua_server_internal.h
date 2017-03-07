@@ -11,6 +11,7 @@ extern "C" {
 
 #include "ua_util.h"
 #include "ua_server.h"
+#include "ua_timer.h"
 #include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
@@ -90,10 +91,6 @@ UA_Server_dispatchJob(UA_Server *server, const UA_Job *job);
 
 void
 UA_Server_processJob(UA_Server *server, UA_Job *job);
-
-UA_DateTime
-UA_Server_processRepeatedJobs(UA_Server *server, UA_DateTime current,
-                              UA_Boolean *dispatched);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 /* Internally used context to a session 'context' of the current mehtod call */
@@ -180,7 +177,7 @@ struct UA_Server {
 #endif
 
     /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJob) repeatedJobs;
+    UA_RepeatedJobsList repeatedJobs;
 
 #ifndef UA_ENABLE_MULTITHREADING
     SLIST_HEAD(DelayedJobsList, UA_DelayedJob) delayedCallbacks;
@@ -220,7 +217,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
 /* Add an existing node. The node is assumed to be "finished", i.e. no
  * instantiation from inheritance is necessary. Instantiationcallback and

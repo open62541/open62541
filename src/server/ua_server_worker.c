@@ -367,7 +367,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     /* Try to execute delayed callbacks every 10 sec */
     UA_Job processDelayed = {.type = UA_JOBTYPE_METHODCALL,
                              .job.methodCall = {.method = dispatchDelayedJobs, .data = NULL} };
-    UA_Server_addRepeatedJob(server, processDelayed, 10000, NULL);
+    UA_RepeatedJobsList_addRepeatedJob(&server->repeatedJobs, processDelayed, 10000, NULL);
 #endif
 
     /* Start the networklayers */
@@ -442,7 +442,8 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Process repeated work */
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_Boolean dispatched = false; /* to wake up worker threads */
-    UA_DateTime nextRepeated = UA_Server_processRepeatedJobs(server, now, &dispatched);
+    UA_DateTime nextRepeated =
+        UA_RepeatedJobsList_process(&server->repeatedJobs, now, &dispatched);
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
