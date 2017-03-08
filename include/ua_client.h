@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -46,6 +46,10 @@ typedef struct UA_ClientConfig {
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
+
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
 } UA_ClientConfig;
 
 /**

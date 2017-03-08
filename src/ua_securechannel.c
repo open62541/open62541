@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_securechannel.h"
@@ -53,7 +53,7 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
 
 //TODO implement real nonce generator - DUMMY function
 UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
-    if(!(nonce->data = UA_malloc(1)))
+    if(!(nonce->data = (UA_Byte *)UA_malloc(1)))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     nonce->length  = 1;
     nonce->data[0] = 'a';
@@ -68,7 +68,7 @@ UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
 #endif
 
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session) {
-    struct SessionEntry *se = UA_malloc(sizeof(struct SessionEntry));
+    struct SessionEntry *se = (struct SessionEntry *)UA_malloc(sizeof(struct SessionEntry));
     if(!se)
         return;
     se->session = session;
@@ -270,7 +270,7 @@ UA_SecureChannel_removeChunk(UA_SecureChannel *channel, UA_UInt32 requestId) {
 static void
 appendChunk(struct ChunkEntry *ch, const UA_ByteString *msg,
             size_t offset, size_t chunklength) {
-    UA_Byte* new_bytes = UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
+    UA_Byte* new_bytes = (UA_Byte *)UA_realloc(ch->bytes.data, ch->bytes.length + chunklength);
     if(!new_bytes) {
         UA_ByteString_deleteMembers(&ch->bytes);
         return;
@@ -300,7 +300,7 @@ UA_SecureChannel_appendChunk(UA_SecureChannel *channel, UA_UInt32 requestId,
 
     /* No chunkentry on the channel, create one */
     if(!ch) {
-        ch = UA_malloc(sizeof(struct ChunkEntry));
+        ch = (struct ChunkEntry *)UA_malloc(sizeof(struct ChunkEntry));
         if(!ch)
             return;
         ch->requestId = requestId;
@@ -433,7 +433,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                                                header.messageHeader.messageSize - processed_header,
                                                &realloced);
             if(message.length > 0) {
-                callback(application, channel, header.messageHeader.messageTypeAndChunkType & 0x00ffffff,
+                callback(application,(UA_SecureChannel *)channel,(UA_MessageType)(header.messageHeader.messageTypeAndChunkType & 0x00ffffff),
                          sequenceHeader.requestId, &message);
                 if(realloced)
                     UA_ByteString_deleteMembers(&message);

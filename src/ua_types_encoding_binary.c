@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_types_encoding_binary.h"
@@ -50,6 +50,11 @@ extern const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 
 typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
 extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
+
+/* Pointer to custom datatypes in the server or client. Set inside
+ * UA_decodeBinary */
+UA_THREAD_LOCAL size_t customTypesArraySize;
+UA_THREAD_LOCAL const UA_DataType *customTypesArray;
 
 /* We give pointers to the current position and the last position in the buffer
  * instead of a string with an offset. */
@@ -817,9 +822,16 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 static UA_StatusCode
 findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if (UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric) {
-            *findtype = &UA_TYPES[i];
+    const UA_DataType *types = UA_TYPES;
+    size_t typesSize = UA_TYPES_COUNT;
+    if(typeId->namespaceIndex != 0) {
+        types = customTypesArray;
+        typesSize = customTypesArraySize;
+    }
+    for(size_t i = 0; i < typesSize; ++i) {
+        if(types[i].binaryEncodingId == typeId->identifier.numeric) {
+            // cppcheck-suppress autoVariables
+            *findtype = &types[i];
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -1045,7 +1057,6 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
     /* Search for the datatype. Default to ExtensionObject. */
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
        typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       typeId.namespaceIndex == 0 &&
        findDataTypeByBinary(&typeId, &dst->type) == UA_STATUSCODE_GOOD) {
         /* Jump over the length field (TODO: check if length matches) */
         pos += 4; 
@@ -1119,9 +1130,12 @@ static UA_StatusCode
 DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     /* Set up the encoding mask */
     UA_Byte encodingMask = (UA_Byte)
-        (src->hasValue | (src->hasStatus << 1) | (src->hasSourceTimestamp << 2) |
-         (src->hasServerTimestamp << 3) | (src->hasSourcePicoseconds << 4) |
-         (src->hasServerPicoseconds << 5));
+        ((UA_Byte)src->hasValue |
+        ((UA_Byte)src->hasStatus << 1) |
+        ((UA_Byte)src->hasSourceTimestamp << 2) |
+        ((UA_Byte)src->hasServerTimestamp << 3) |
+        ((UA_Byte)src->hasSourcePicoseconds << 4) |
+        ((UA_Byte)src->hasServerPicoseconds << 5));
 
     /* Encode the content */
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
@@ -1187,9 +1201,9 @@ static UA_StatusCode
 DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_) {
     /* Set up the encoding mask */
     UA_Byte encodingMask = (UA_Byte)
-        (src->hasSymbolicId | (src->hasNamespaceUri << 1) |
-         (src->hasLocalizedText << 2) | (src->hasLocale << 3) |
-         (src->hasAdditionalInfo << 4) | (src->hasInnerDiagnosticInfo << 5));
+        ((UA_Byte)src->hasSymbolicId | ((UA_Byte)src->hasNamespaceUri << 1) |
+        ((UA_Byte)src->hasLocalizedText << 2) | ((UA_Byte)src->hasLocale << 3) |
+        ((UA_Byte)src->hasAdditionalInfo << 4) | ((UA_Byte)src->hasInnerDiagnosticInfo << 5));
 
     /* Encode the content */
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
@@ -1405,13 +1419,19 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
 }
 
 UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *offset,
-                void *dst, const UA_DataType *type) {
+UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) {
     /* Initialize the destination */
     memset(dst, 0, type->memSize);
 
+    /* Store the pointers to the custom datatypes. They might be needed during
+     * decoding of variants. */
+    customTypesArraySize = customTypesSize;
+    customTypesArray = customTypes;
+
     /* Set the (thread-local) position and end pointers to save function
-       arguments */
+     * arguments */
     pos = &src->data[*offset];
     end = &src->data[src->length];
 

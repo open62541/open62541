@@ -1,12 +1,17 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_server.h"
+#include "ua_timer.h"
 #include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
@@ -69,11 +74,31 @@ typedef struct {
     char padding[64 - sizeof(void*) - sizeof(pthread_t) -
                  sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
 } UA_Worker;
+
+struct MainLoopJob {
+    struct cds_lfs_node node;
+    UA_Job job;
+};
+
+void
+UA_Server_dispatchJob(UA_Server *server, const UA_Job *job);
+
 #endif
+
+void
+UA_Server_processJob(UA_Server *server, UA_Job *job);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 /* Internally used context to a session 'context' of the current mehtod call */
 extern UA_THREAD_LOCAL UA_Session* methodCallSession;
+#endif
+
+#ifdef UA_ENABLE_DISCOVERY
+typedef struct registeredServer_list_entry {
+    LIST_ENTRY(registeredServer_list_entry) pointers;
+    UA_RegisteredServer registeredServer;
+    UA_DateTime lastSeen;
+} registeredServer_list_entry;
 #endif
 
 struct UA_Server {
@@ -89,6 +114,12 @@ struct UA_Server {
     /* Address Space */
     UA_NodeStore *nodestore;
 
+#ifdef UA_ENABLE_DISCOVERY
+    /* Discovery */
+    LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
+    size_t registeredServersSize;
+#endif
+
     size_t namespacesSize;
     UA_String *namespaces;
 
@@ -98,7 +129,7 @@ struct UA_Server {
 #endif
 
     /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJob) repeatedJobs;
+    UA_RepeatedJobsList repeatedJobs;
 
 #ifndef UA_ENABLE_MULTITHREADING
     SLIST_HEAD(DelayedJobsList, UA_DelayedJob) delayedCallbacks;
@@ -138,7 +169,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
 /* Add an existing node. The node is assumed to be "finished", i.e. no
  * instantiation from inheritance is necessary. Instantiationcallback and
@@ -253,5 +283,12 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
 void Service_Call_single(UA_Server *server, UA_Session *session,
                          const UA_CallMethodRequest *request,
                          UA_CallMethodResult *result);
+
+/* Periodic task to clean up the discovery registry */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
@@ -52,7 +52,12 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response);
 
-/* Not Implemented: Service_RegisterServer */
+#ifdef UA_ENABLE_DISCOVERY
+/* Registers a remote server in the local discovery service. */
+void Service_RegisterServer(UA_Server *server, UA_Session *session,
+                            const UA_RegisterServerRequest *request,
+                            UA_RegisterServerResponse *response);
+#endif
 
 /**
  * SecureChannel Service Set

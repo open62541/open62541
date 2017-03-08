@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
@@ -34,7 +34,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     }
 
     retval = UA_STATUSCODE_BADNOTFOUND;
-    UA_String *ns = response.results[0].value.data;
+    UA_String *ns = (UA_String *)response.results[0].value.data;
     for(size_t i = 0; i < response.results[0].value.arrayLength; ++i){
         if(UA_String_equal(namespaceUri, &ns[i])) {
             *namespaceIndex = (UA_UInt16)i;
@@ -233,7 +233,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     UA_CallMethodRequest_init(&item);
     item.methodId = methodId;
     item.objectId = objectId;
-    item.inputArguments = (void*)(uintptr_t)input; // cast const...
+    item.inputArguments = (UA_Variant *)(void*)(uintptr_t)input; // cast const...
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
@@ -388,12 +388,13 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
+    UA_DataValue *res = response.results;
+
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    UA_DataValue *res = response.results;
     if(res->hasStatus != UA_STATUSCODE_GOOD)
         retval = res->hasStatus;
     else if(!res->hasValue || UA_Variant_isScalar(&res->value))
@@ -407,7 +408,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
         goto cleanup;
     }
 
-    *outArrayDimensions = res->value.data;
+    *outArrayDimensions = (UA_Int32 *)res->value.data;
     *outArrayDimensionsSize = res->value.arrayLength;
     UA_free(res->value.data);
     res->value.data = NULL;

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
 #include "ua_nodes.h"
@@ -84,7 +84,6 @@ static UA_StatusCode
 UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     UA_StatusCode retval = UA_CommonVariableNode_copy(src, dst);
     dst->accessLevel = src->accessLevel;
-    dst->userAccessLevel = src->userAccessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
     return retval;
@@ -102,7 +101,6 @@ UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
 static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
-    dst->userExecutable = src->userExecutable;
     dst->methodHandle  = src->methodHandle;
     dst->attachedMethod = src->attachedMethod;
     return UA_STATUSCODE_GOOD;
@@ -149,7 +147,6 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
     dst->writeMask = src->writeMask;
-    dst->userWriteMask = src->userWriteMask;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_deleteMembersAnyNodeClass(dst);
         return retval;

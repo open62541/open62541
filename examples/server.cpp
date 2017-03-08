@@ -4,14 +4,7 @@
 #include <signal.h>
 #include <iostream>
 #include <cstring>
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_server.h"
-# include "ua_log_stdout.h"
-# include "ua_network_tcp.h"
-#else
 # include "open62541.h"
-#endif
 
 /* Build Instructions (Linux)
  * - gcc -std=c99 -c open62541.c
