@@ -129,6 +129,8 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
     memcpy(&channel->securityToken, &channel->nextSecurityToken,
            sizeof(UA_ChannelSecurityToken));
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
+
+    // TODO: Generate new keys
 }
 
 /***********************/
@@ -413,27 +415,80 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
                                        UA_UInt32* const requestId,
                                        size_t* const bodySize)
 {
-    // TODO: Eliminate some parameters maybe and generally make this a little prettier.
-
-	UA_SequenceHeader sequenceHeader;
-	UA_SequenceHeader_init(&sequenceHeader);
+    size_t chunkSize = messageHeader->messageHeader.messageSize;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Check the symmetric security header */
-    UA_UInt32 tokenId = 0;
-    retval |= UA_UInt32_decodeBinary(chunk, processedBytes, &tokenId);
+    UA_SymmetricAlgorithmSecurityHeader symmetricSecurityHeader;
+    retval |= UA_SymmetricAlgorithmSecurityHeader_decodeBinary(chunk, processedBytes, &symmetricSecurityHeader);
 
-    // TODO: Decryption and verification needed.
-    retval |= UA_SequenceHeader_decodeBinary(chunk, processedBytes, &sequenceHeader);
-    if (retval != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    size_t messageAndSecurityHeaderOffset = *processedBytes;
 
     /* Does the token match? */
-    if (tokenId != channel->securityToken.tokenId) {
-        if (tokenId != channel->nextSecurityToken.tokenId)
+    if (symmetricSecurityHeader.tokenId != channel->securityToken.tokenId) {
+        if (symmetricSecurityHeader.tokenId != channel->nextSecurityToken.tokenId)
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         UA_SecureChannel_revolveTokens(channel);
     }
+
+    // Decrypt message
+    if (channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    {
+        const UA_ByteString cipherText = {
+            .data = chunk->data + messageAndSecurityHeaderOffset,
+            .length = chunkSize - messageAndSecurityHeaderOffset
+        };
+
+        UA_ByteString decrypted;
+        retval |= UA_ByteString_allocBuffer(&decrypted, cipherText.length);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            return retval;
+        }
+
+        retval |= channel->securityPolicy->symmetricModule.decrypt(&cipherText, channel->securityContext, &decrypted);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            UA_ByteString_deleteMembers(&decrypted);
+            return retval;
+        }
+
+        // Write back decrypted message for further processing
+        memcpy(chunk->data + messageAndSecurityHeaderOffset, decrypted.data, decrypted.length);
+
+        UA_ByteString_deleteMembers(&decrypted);
+    }
+
+    // Verify signature
+    if (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN || channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    {
+        // signature is made over everything except the signature itself.
+        const UA_ByteString chunkDataToVerify = {
+            .data = chunk->data,
+            .length = chunkSize - channel->securityPolicy->symmetricModule.signingModule.signatureSize
+        };
+        const UA_ByteString signature = {
+            .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
+            .length = channel->securityPolicy->symmetricModule.signingModule.signatureSize
+        };
+
+        retval |= channel->securityPolicy->symmetricModule.signingModule.verify(&chunkDataToVerify,
+            &signature,
+            channel->securityContext);
+
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            return retval;
+        }
+    }
+
+    UA_SequenceHeader sequenceHeader;
+    UA_SequenceHeader_init(&sequenceHeader);
+    retval |= UA_SequenceHeader_decodeBinary(chunk, processedBytes, &sequenceHeader);
+    if (retval != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
 
     /* Does the sequence number match? */
     retval = UA_SecureChannel_processSequenceNumber(channel, sequenceHeader.sequenceNumber);
