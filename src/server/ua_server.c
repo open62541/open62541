@@ -9,6 +9,8 @@
 #include "ua_util.h"
 #include "ua_services.h"
 #include "ua_nodeids.h"
+#include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 #include "ua_client.h"
@@ -557,6 +559,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         UA_LOG_FATAL(config.logger,
                      UA_LOGCATEGORY_SERVER,
                      "There has to be at least one supported security policy but no policies were found in config.");
+        UA_free(server);
         return NULL;
     }
 
