@@ -5,6 +5,7 @@
 #define UA_ACCESSCONTROL_DEFAULT_H_
 
 #include "ua_server.h"
+#include "ua_types_generated.h"
 
 #ifdef __cplusplus
 extern "C" {
