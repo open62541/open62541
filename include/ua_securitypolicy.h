@@ -133,7 +133,7 @@ typedef struct
      */
     UA_StatusCode (*const generateKey)(const UA_ByteString* const secret,
                                        const UA_ByteString* const seed,
-                                       const UA_Int32 length,
+                                       const size_t length,
                                        UA_ByteString* const out);
     /**
      * Random generator for generating nonces.
