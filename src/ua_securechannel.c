@@ -309,7 +309,7 @@ appendChunk(struct ChunkEntry* const chunkEntry, const UA_ByteString* const chun
  * \brief Appends a decrypted chunk to the already processed chunks.
  * 
  * \param channel the UA_SecureChannel to search for existing chunks.
- * \param requestID the request id of the message.
+ * \param requestId the request id of the message.
  * \param chunkBody the body of the chunk to append to the request.
  */
 static UA_StatusCode
@@ -651,6 +651,12 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     //UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1]; // TODO: Need to differentiate if extra padding byte was used
     UA_Byte paddingSize = 0;
     *bodySize = chunkSize - *processedBytes - signatureSize - paddingSize;
+    if (*bodySize > chunkSize)
+    {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+        UA_SequenceHeader_deleteMembers(&sequenceHeader);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
 
     // Cleanup
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
