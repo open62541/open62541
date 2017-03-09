@@ -5,7 +5,7 @@
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_session_manager.h"
-#include "ua_types_generated_encoding_binary.h"
+#include "ua_types_generated_handling.h"
 
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
@@ -71,6 +71,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
     }
+
+    // TODO: Verify client signature and generate nonce??
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =

@@ -41,6 +41,10 @@ int main(int argc, char** argv) {
         /* timeout is the maximum possible delay (in millisec) until the next
            _iterate call. Otherwise, the server might miss an internal timeout
            or cannot react to messages with the promised responsiveness. */
+        /* If multicast discovery server is enabled, the timeout does not not consider new input data (requests) on the mDNS socket.
+         * It will be handled on the next call, which may be too late for requesting clients.
+         * if needed, the select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library)
+         */
         UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
 
         /* Now we can use the max timeout to do something else. In this case, we

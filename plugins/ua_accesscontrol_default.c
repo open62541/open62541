@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include "ua_accesscontrol_default.h"
+#include "ua_types_generated.h"
 
 /* We allow login anonymous and with the following username / password. The
  * access rights are maximally permissive in this example plugin. */
