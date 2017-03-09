@@ -7,7 +7,7 @@ open62541 is licensed under the Mozilla Public License v2.0. So the **open62541 
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
-[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/Stasik0/open62541/branch/0.2)
+[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
 [![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=0.2)](https://coveralls.io/r/open62541/open62541?branch=0.2)
 [![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
 
@@ -40,7 +40,7 @@ Features still missing in the 0.2 release are:
 ### Using open62541
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
-To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/Stasik0/open62541/build/artifacts).
+To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
 
 For discussion and help, you can use
 - the [mailing list](https://groups.google.com/d/forum/open62541)
