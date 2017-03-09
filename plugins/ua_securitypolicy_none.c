@@ -327,7 +327,7 @@ static UA_StatusCode channelContext_setLocalEncryptingKey_sp_none(UA_Channel_Sec
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+static UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
                                                         const UA_ByteString* const key)
 {
     if (securityContext == NULL || key == NULL)
@@ -344,7 +344,7 @@ UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_SecurityConte
 }
 
 
-UA_StatusCode channelContext_setLocalIv_sp_none(UA_Channel_SecurityContext* const securityContext,
+static UA_StatusCode channelContext_setLocalIv_sp_none(UA_Channel_SecurityContext* const securityContext,
                                                 const UA_ByteString* const iv)
 {
     if (securityContext == NULL || iv == NULL)
@@ -376,7 +376,7 @@ static UA_StatusCode channelContext_setRemoteEncryptingKey_sp_none(UA_Channel_Se
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+static UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
                                                          const UA_ByteString* const key)
 {
     if (securityContext == NULL || key == NULL)
@@ -392,7 +392,7 @@ UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_SecurityCont
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext* const securityContext,
+static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext* const securityContext,
                                                  const UA_ByteString* const iv)
 {
     if (securityContext == NULL || iv == NULL)
