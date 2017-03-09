@@ -47,8 +47,8 @@ int main(void) {
     // Populate policy with needed information
     UA_SecurityPolicy* policy = &config.securityPolicies.policies[0];
     policy->init(policy, config.logger);
-    UA_ByteString privateKey = { 1, "A" };
-    UA_ByteString certList = { 1,"B" };
+    UA_ByteString privateKey = { 1, (UA_Byte*)"A" };
+    UA_ByteString certList = { 1,(UA_Byte*)"B" };
     policy->context.setServerPrivateKey(&policy->context, &privateKey);
     policy->context.setCertificateTrustList(&policy->context, &certList);
     policy->context.setCertificateRevocationList(&policy->context, &certList);

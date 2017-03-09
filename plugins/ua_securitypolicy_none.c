@@ -141,11 +141,6 @@ static UA_StatusCode init_sp_none(UA_SecurityPolicy* const securityPolicy, UA_Lo
     return securityPolicy->context.init(&securityPolicy->context, logger);
 }
 
-struct test
-{
-    int a;
-};
-
 static UA_StatusCode makeChannelContext_sp_none(const UA_SecurityPolicy* const securityPolicy, UA_Channel_SecurityContext** const pp_SecurityContext)
 {
     if (securityPolicy == NULL || pp_SecurityContext == NULL)
