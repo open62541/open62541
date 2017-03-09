@@ -5,7 +5,7 @@ open62541 Supported Features
 |:----------------------------|:--------------------------------|:--------------------:|:---------------------|
 | Discovery Service Set       |                                 |                      |                      |
 |                             | FindServers()                   |  :white_check_mark:  |                      |
-|                             | FindServersOnNetwork()          | :first_quarter_moon: | Branch: feature_mdns |
+|                             | FindServersOnNetwork()          |     :full_moon:      | Branch: master       |
 |                             | GetEndpoints()                  |  :white_check_mark:  |                      |
 |                             | RegisterServer()                |  :white_check_mark:  |                      |
 |                             | RegisterServer2()               |     :full_moon:      | Branch: master       |
@@ -92,6 +92,6 @@ open62541 Supported Features
 | Method call                             |  :white_check_mark:  |                      |
 | Advanced Type                           |  :white_check_mark:  |                      |
 | **Discovery**                           |                      | See Discovery Service Set |
-| Local Disovery Server                   | :first_quarter_moon: | Branch: feature_mdns |
-| Local Discovery Server Multicast Ext.   | :first_quarter_moon: | Branch: feature_mdns |
+| Local Disovery Server                   |     :full_moon:      | Branch: master       |
+| Local Discovery Server Multicast Ext.   |     :full_moon:      | Branch: master       |
 | Global Discovery Server                 |      :new_moon:      |                      |
