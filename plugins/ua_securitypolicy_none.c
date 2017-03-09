@@ -316,7 +316,7 @@ static UA_StatusCode channelContext_setLocalEncryptingKey_sp_none(UA_Channel_Sec
 {
     if (securityContext == NULL || key == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalEncryptingKey_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setLocalEncryptingKey_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -332,7 +332,7 @@ static UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_Securi
 {
     if (securityContext == NULL || key == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalSigningKey_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setLocalSigningKey_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -349,7 +349,7 @@ static UA_StatusCode channelContext_setLocalIv_sp_none(UA_Channel_SecurityContex
 {
     if (securityContext == NULL || iv == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalIv_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setLocalIv_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -365,7 +365,7 @@ static UA_StatusCode channelContext_setRemoteEncryptingKey_sp_none(UA_Channel_Se
 {
     if (securityContext == NULL || key == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteEncryptingKey_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setRemoteEncryptingKey_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -381,7 +381,7 @@ static UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_Secur
 {
     if (securityContext == NULL || key == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteSigningKey_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setRemoteSigningKey_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -397,7 +397,7 @@ static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityConte
 {
     if (securityContext == NULL || iv == NULL)
     {
-        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteIv_sp_none. Null pointer passed.");
+        fprintf(stderr, "Error while calling channelContext_setRemoteIv_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
