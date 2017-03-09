@@ -290,15 +290,15 @@ processOPN(UA_Server *server,
 
     /* Decode the request */
     UA_NodeId requestType;
-    UA_OpenSecureChannelRequest r;
+    UA_OpenSecureChannelRequest openSecureChannelRequest;
     size_t offset = 0;
     retval |= UA_NodeId_decodeBinary(msg, &offset, &requestType);
-    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &r);
+    retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
 
     /* Error occured */
-    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
+    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
         UA_NodeId_deleteMembers(&requestType);
-        UA_OpenSecureChannelRequest_deleteMembers(&r);
+        UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
         connection->close(connection);
         return;
     }
@@ -306,8 +306,8 @@ processOPN(UA_Server *server,
     /* Call the service */
     UA_OpenSecureChannelResponse openScResponse;
     UA_OpenSecureChannelResponse_init(&openScResponse);
-    Service_OpenSecureChannel(server, connection, &r, &openScResponse, preparedChannel);
-    UA_OpenSecureChannelRequest_deleteMembers(&r);
+    Service_OpenSecureChannel(server, connection, &openSecureChannelRequest, &openScResponse, preparedChannel);
+    UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
 
     /* Opening the channel failed */
     UA_SecureChannel *channel = connection->channel;

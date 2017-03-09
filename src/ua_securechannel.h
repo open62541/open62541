@@ -80,7 +80,22 @@ struct UA_SecureChannel {
 void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies, UA_Logger logger);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
-UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce);
+/**
+ * Generates a nonce.
+ *
+ * Uses the random generator of the supplied security policy
+ *
+ * \param nonce will contain the nonce after being successfully called.
+ * \param securityPolicy the SecurityPolicy to use.
+ */
+UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString* const nonce, const UA_SecurityPolicy* const securityPolicy);
+
+/**
+ * Generates new keys and sets them in the channel context
+ *
+ * \param channel the channel to generate new keys for
+ */
+UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel);
 
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session);
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session);

@@ -129,13 +129,24 @@ typedef struct
      * \param secret
      * \param seed
      * \param length the number of bytes to return
-     * \param offset number of bytes from the beginning of the sequence
+     * \param out an output to write the data to. The length needs to be equal to the parameter length.
      */
     UA_StatusCode (*const generateKey)(const UA_ByteString* const secret,
                                        const UA_ByteString* const seed,
                                        const UA_Int32 length,
-                                       const UA_Int32 offset,
-                                       UA_ByteString* const output);
+                                       UA_ByteString* const out);
+    /**
+     * Random generator for generating nonces.
+     * 
+     * Generates a nonce. The length will be the same as the symmetric encryptingKeyLength
+     * as specified in the OPC UA Specification Part 4 - Services 1.03 on page 20
+     * 
+     * \param securityPolicy the securityPolicy this function is invoked on. Example: myPolicy->generateNonce(myPolicy, &outBuff);
+     * \param out pointer to a buffer to store the nonce in. Needs to be allocated by the caller.
+     *            The size must be equal to the symmetric encrypting key length.
+     */
+    UA_StatusCode (*const generateNonce)(const UA_SecurityPolicy* const securityPolicy,
+                                         UA_ByteString* const out);
 
     const UA_SecurityPolicySigningModule signingModule;
 

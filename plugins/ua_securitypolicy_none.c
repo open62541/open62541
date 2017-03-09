@@ -72,37 +72,45 @@ static UA_StatusCode sym_verify_sp_none(const UA_ByteString* const message,
                                         const UA_ByteString* const signature,
                                         const void* const context)
 {
-    return 0;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode sym_sign_sp_none(const UA_ByteString* const message,
                                       const void* const context,
                                       UA_ByteString* const signature)
 {
-    return 0;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode sym_encrypt_sp_none(const UA_ByteString* const plainText,
                                          const UA_Channel_SecurityContext* const securityContext,
                                          UA_ByteString* const cipher)
 {
-    return 0;
+    return UA_copy(plainText, cipher, &UA_TYPES[UA_TYPES_BYTESTRING]);
 }
 
 static UA_StatusCode sym_decrypt_sp_none(const UA_ByteString* const cipher,
                                          const UA_Channel_SecurityContext* const securityContext,
                                          UA_ByteString* const decrypted)
 {
-    return 0;
+    return UA_copy(cipher, decrypted, &UA_TYPES[UA_TYPES_BYTESTRING]);
 }
 
 static UA_StatusCode generateKey_sp_none(const UA_ByteString* const secret,
                                          const UA_ByteString* const seed,
                                          const UA_Int32 length,
-                                         const UA_Int32 offset,
-                                         UA_ByteString* const output)
+                                         UA_ByteString* const out)
 {
-    return 0;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode generateNonce_sp_none(const UA_SecurityPolicy* const securityPolicy,
+                                           UA_ByteString* const out)
+{
+    out->length = securityPolicy->symmetricModule.encryptingKeyLength;
+    out->data[0] = 'a';
+
+    return UA_STATUSCODE_GOOD;
 }
 
 ////////////////////////////////////
@@ -303,12 +311,12 @@ static UA_StatusCode channelContext_deleteMembers_sp_none(UA_Channel_SecurityCon
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode channelContext_setServerKey_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                         const UA_ByteString* const serverKey)
+static UA_StatusCode channelContext_setLocalEncryptingKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+                                                         const UA_ByteString* const key)
 {
-    if (securityContext == NULL || serverKey == NULL)
+    if (securityContext == NULL || key == NULL)
     {
-        fprintf(stderr, "Error while calling channelContext_setServerKey_sp_none. Null pointer passed.");
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalEncryptingKey_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -319,12 +327,77 @@ static UA_StatusCode channelContext_setServerKey_sp_none(UA_Channel_SecurityCont
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode channelContext_setClientKey_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                         const UA_ByteString* const clientKey)
+UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+    const UA_ByteString* const key)
 {
-    if (securityContext == NULL || clientKey == NULL)
+    if (securityContext == NULL || key == NULL)
     {
-        fprintf(stderr, "Error while calling channelContext_setClientKey_sp_none. Null pointer passed.");
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalSigningKey_sp_none. Null pointer passed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_SP_NONE_ChannelContextData* const data = (UA_SP_NONE_ChannelContextData*)securityContext->data;
+
+    data->callCounter++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+
+UA_StatusCode channelContext_setLocalIv_sp_none(UA_Channel_SecurityContext* const securityContext,
+    const UA_ByteString* const iv)
+{
+    if (securityContext == NULL || iv == NULL)
+    {
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setLocalIv_sp_none. Null pointer passed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_SP_NONE_ChannelContextData* const data = (UA_SP_NONE_ChannelContextData*)securityContext->data;
+
+    data->callCounter++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode channelContext_setRemoteEncryptingKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+                                                         const UA_ByteString* const key)
+{
+    if (securityContext == NULL || key == NULL)
+    {
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteEncryptingKey_sp_none. Null pointer passed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_SP_NONE_ChannelContextData* const data = (UA_SP_NONE_ChannelContextData*)securityContext->data;
+
+    data->callCounter++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
+    const UA_ByteString* const key)
+{
+    if (securityContext == NULL || key == NULL)
+    {
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteSigningKey_sp_none. Null pointer passed.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_SP_NONE_ChannelContextData* const data = (UA_SP_NONE_ChannelContextData*)securityContext->data;
+
+    data->callCounter++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext* const securityContext,
+    const UA_ByteString* const iv)
+{
+    if (securityContext == NULL || iv == NULL)
+    {
+        UA_LOG_ERROR(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Error while calling channelContext_setRemoteIv_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -378,6 +451,7 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         .encrypt = sym_encrypt_sp_none,
         .decrypt = sym_decrypt_sp_none,
         .generateKey = generateKey_sp_none,
+        .generateNonce = generateNonce_sp_none,
 
         /* Symmetric signing module */
         .signingModule = {
@@ -387,7 +461,7 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         },
 
         .signingKeyLength = 0,
-        .encryptingKeyLength = 0,
+        .encryptingKeyLength = 1,
         .encryptingBlockSize = 0
     },
 
@@ -408,8 +482,15 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     .channelContextPrototype = {
         .init = channelContext_init_sp_none,
         .deleteMembers = channelContext_deleteMembers_sp_none,
-        .setServerKey = channelContext_setServerKey_sp_none,
-        .setClientKey = channelContext_setClientKey_sp_none,
+        
+        .setLocalEncryptingKey = channelContext_setLocalEncryptingKey_sp_none,
+        .setLocalSigningKey = channelContext_setLocalSigningKey_sp_none,
+        .setLocalIv = channelContext_setLocalIv_sp_none,
+        
+        .setRemoteEncryptingKey = channelContext_setRemoteEncryptingKey_sp_none,
+        .setRemoteSigningKey = channelContext_setRemoteSigningKey_sp_none,
+        .setRemoteIv = channelContext_setRemoteIv_sp_none,
+
         .parseClientCertificate = channelContext_parseClientCertificate_sp_none,
 
         .data = NULL // data

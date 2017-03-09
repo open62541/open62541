@@ -64,13 +64,105 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     }
 }
 
-//TODO implement real nonce generator - DUMMY function
-UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString *nonce) {
-    if(!(nonce->data = (UA_Byte *)UA_malloc(1)))
+/**
+ * Generates a nonce.
+ * 
+ * Uses the random generator of the supplied security policy
+ * 
+ * \param nonce will contain the nonce after being successfully called.
+ * \param securityPolicy the SecurityPolicy to use.
+ */
+UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString* const nonce, const UA_SecurityPolicy* const securityPolicy) {
+    nonce->data = (UA_Byte *)UA_malloc(securityPolicy->symmetricModule.encryptingKeyLength);
+    if (!nonce->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    nonce->length  = 1;
-    nonce->data[0] = 'a';
-    return UA_STATUSCODE_GOOD;
+
+    return securityPolicy->symmetricModule.generateNonce(securityPolicy, nonce);
+}
+
+/**
+ * Generates new keys and sets them in the channel context
+ *
+ * \param channel the channel to generate new keys for
+ */
+UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel)
+{
+    const UA_SecurityPolicySymmetricModule* const symmetricModule = &channel->securityPolicy->symmetricModule;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    UA_ByteString buffer;
+    const size_t buffSize = symmetricModule->encryptingBlockSize +
+        symmetricModule->signingKeyLength +
+        symmetricModule->encryptingKeyLength;
+    retval = UA_ByteString_allocBuffer(&buffer, buffSize);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        return retval;
+    }
+
+    // Client keys
+    retval = symmetricModule->generateKey(&channel->serverNonce,
+        &channel->clientNonce,
+        symmetricModule->signingKeyLength,
+        &buffer);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        return retval;
+    }
+
+    const UA_ByteString clientSigningKey = {
+        .data = buffer.data,
+        .length = symmetricModule->signingKeyLength
+    };
+    retval |= channel->securityContext->setRemoteSigningKey(channel->securityContext, &clientSigningKey);
+
+    const UA_ByteString clientEncryptingKey = {
+        .data = buffer.data + symmetricModule->signingKeyLength,
+        .length = symmetricModule->encryptingKeyLength
+    };
+    retval |= channel->securityContext->setRemoteEncryptingKey(channel->securityContext, &clientEncryptingKey);
+
+    const UA_ByteString clientIv = {
+        .data = buffer.data + symmetricModule->signingKeyLength + symmetricModule->encryptingKeyLength,
+        .length = symmetricModule->encryptingBlockSize
+    };
+    retval |= channel->securityContext->setRemoteIv(channel->securityContext, &clientIv);
+
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        return retval;
+    }
+
+    // Server keys
+    symmetricModule->generateKey(&channel->clientNonce,
+        &channel->serverNonce,
+        symmetricModule->signingKeyLength,
+        &buffer);
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        return retval;
+    }
+
+    const UA_ByteString serverSigningKey = {
+        .data = buffer.data,
+        .length = symmetricModule->signingKeyLength
+    };
+    retval |= channel->securityContext->setLocalSigningKey(channel->securityContext, &serverSigningKey);
+
+    const UA_ByteString serverEncryptingKey = {
+        .data = buffer.data + symmetricModule->signingKeyLength,
+        .length = symmetricModule->encryptingKeyLength
+    };
+    retval |= channel->securityContext->setLocalEncryptingKey(channel->securityContext, &serverEncryptingKey);
+
+    const UA_ByteString serverIv = {
+        .data = buffer.data + symmetricModule->signingKeyLength + symmetricModule->encryptingKeyLength,
+        .length = symmetricModule->encryptingBlockSize
+    };
+    retval |= channel->securityContext->setLocalIv(channel->securityContext, &serverIv);
+
+    return retval;
 }
 
 #if (__GNUC__ >= 4 && __GNUC_MINOR__ >= 6)
@@ -130,7 +222,7 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel) {
            sizeof(UA_ChannelSecurityToken));
     UA_ChannelSecurityToken_init(&channel->nextSecurityToken);
 
-    // TODO: Generate new keys
+    UA_SecureChannel_generateNewKeys(channel);
 }
 
 /***********************/
