@@ -51,7 +51,8 @@ static UA_StatusCode asym_makeThumbprint_sp_none(const UA_ByteString* const cert
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode asym_calculatePadding_sp_none(const size_t bytesToWrite,
+static UA_StatusCode asym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
+                                                   const size_t bytesToWrite,
                                                    UA_Byte* const paddingSize,
                                                    UA_Byte* const extraPaddingSize)
 {
@@ -113,7 +114,8 @@ static UA_StatusCode sym_generateNonce_sp_none(const UA_SecurityPolicy* const se
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode sym_calculatePadding_sp_none(const size_t bytesToWrite,
+static UA_StatusCode sym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
+                                                  const size_t bytesToWrite,
                                                   UA_Byte* const paddingSize,
                                                   UA_Byte* const extraPaddingSize)
 {

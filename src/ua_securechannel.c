@@ -289,7 +289,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
 
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
-        channel->securityPolicy->symmetricModule.calculatePadding(bytesToWrite, &paddingSize, &extraPaddingSize);
+        channel->securityPolicy->symmetricModule.calculatePadding(channel->securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
         uint16_t totalPaddingSize = (extraPaddingSize << 8) | paddingSize;
 
         for (uint16_t i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.
@@ -339,7 +339,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         {
             UA_Byte paddingSize = 0;
             UA_Byte extraPaddingSize = 0;
-            ci->channel->securityPolicy->symmetricModule.calculatePadding(bytesToWrite, &paddingSize, &extraPaddingSize);
+            ci->channel->securityPolicy->symmetricModule.calculatePadding(channel->securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
             uint16_t totalPaddingSize = (extraPaddingSize << 8) | paddingSize;
 
             for (uint16_t i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.

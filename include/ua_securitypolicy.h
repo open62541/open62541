@@ -90,7 +90,8 @@ typedef struct
      *
      * \param bytesToWrite
      */
-    UA_StatusCode (*const calculatePadding)(const size_t bytesToWrite,
+    UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
+                                            const size_t bytesToWrite,
                                             UA_Byte* const paddingSize,
                                             UA_Byte* const extraPaddingSize);
 
@@ -153,7 +154,8 @@ typedef struct
      *
      * \param bytesToWrite
      */
-    UA_StatusCode(*const calculatePadding)(const size_t bytesToWrite,
+    UA_StatusCode(*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
+                                           const size_t bytesToWrite,
                                            UA_Byte* const paddingSize,
                                            UA_Byte* const extraPaddingSize);
 
