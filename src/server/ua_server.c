@@ -610,7 +610,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             {
                 endpoint->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
             }
-            endpoint->securityPolicyUri = server->config.securityPolicies.policies[j].policyUri;
+            UA_ByteString_copy(&server->config.securityPolicies.policies[j].policyUri, &endpoint->securityPolicyUri);
             endpoint->transportProfileUri =
                 UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
