@@ -185,10 +185,6 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_Connection* conn,
     entry->channel.connection = NULL;
     entry->channel.temporary = UA_FALSE;
 
-    // reinitialize lists because we copied the old ones over.
-    LIST_INIT(&entry->channel.sessions);
-    LIST_INIT(&entry->channel.chunks);
-
     entry->channel.securityToken.channelId = cm->lastChannelId++;
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
     entry->channel.securityToken.createdAt = UA_DateTime_now();
