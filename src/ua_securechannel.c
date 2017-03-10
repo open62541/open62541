@@ -12,7 +12,6 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_securitycontext.h"
 #include "ua_securitypolicy.h"
-#include <winsock2.h>
 
 #define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 #define UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH 4
