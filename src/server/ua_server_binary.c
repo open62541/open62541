@@ -542,9 +542,7 @@ static void processERR(UA_Server *server, UA_Connection *connection, const UA_By
                  UA_StatusCode_name(errorMessage.error), errorMessage.reason.length, errorMessage.reason.data);
 }
 
-/* Takes decoded messages starting at the nodeid of the content type. Only OPN
- * messages start at the asymmetricalgorithmsecurityheader and are not
- * decoded. */
+/* Takes decoded messages starting at the nodeid of the content type. */
 static void
 UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                                       UA_MessageType messagetype, UA_UInt32 requestId,

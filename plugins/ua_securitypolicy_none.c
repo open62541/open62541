@@ -52,11 +52,11 @@ static UA_StatusCode asym_makeThumbprint_sp_none(const UA_ByteString* const cert
 }
 
 static UA_StatusCode asym_calculatePadding_sp_none(const size_t bytesToWrite,
-                                                   uint16_t* const paddingSize,
-                                                   UA_Boolean* const extraPadding)
+                                                   UA_Byte* const paddingSize,
+                                                   UA_Byte* const extraPaddingSize)
 {
     *paddingSize = 0;
-    *extraPadding = UA_FALSE;
+    *extraPaddingSize = 0;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -96,20 +96,29 @@ static UA_StatusCode sym_decrypt_sp_none(const UA_ByteString* const cipher,
     return UA_copy(cipher, decrypted, &UA_TYPES[UA_TYPES_BYTESTRING]);
 }
 
-static UA_StatusCode generateKey_sp_none(const UA_ByteString* const secret,
-                                         const UA_ByteString* const seed,
-                                         const size_t length,
-                                         UA_ByteString* const out)
+static UA_StatusCode sym_generateKey_sp_none(const UA_ByteString* const secret,
+                                             const UA_ByteString* const seed,
+                                             const size_t length,
+                                             UA_ByteString* const out)
 {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode generateNonce_sp_none(const UA_SecurityPolicy* const securityPolicy,
-                                           UA_ByteString* const out)
+static UA_StatusCode sym_generateNonce_sp_none(const UA_SecurityPolicy* const securityPolicy,
+                                               UA_ByteString* const out)
 {
     out->length = securityPolicy->symmetricModule.encryptingKeyLength;
     out->data[0] = 'a';
 
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode sym_calculatePadding_sp_none(const size_t bytesToWrite,
+                                                  UA_Byte* const paddingSize,
+                                                  UA_Byte* const extraPaddingSize)
+{
+    *paddingSize = 0;
+    *extraPaddingSize = 0;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -328,7 +337,7 @@ static UA_StatusCode channelContext_setLocalEncryptingKey_sp_none(UA_Channel_Sec
 }
 
 static UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                        const UA_ByteString* const key)
+                                                               const UA_ByteString* const key)
 {
     if (securityContext == NULL || key == NULL)
     {
@@ -345,7 +354,7 @@ static UA_StatusCode channelContext_setLocalSigningKey_sp_none(UA_Channel_Securi
 
 
 static UA_StatusCode channelContext_setLocalIv_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                const UA_ByteString* const iv)
+                                                       const UA_ByteString* const iv)
 {
     if (securityContext == NULL || iv == NULL)
     {
@@ -377,7 +386,7 @@ static UA_StatusCode channelContext_setRemoteEncryptingKey_sp_none(UA_Channel_Se
 }
 
 static UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                         const UA_ByteString* const key)
+                                                                const UA_ByteString* const key)
 {
     if (securityContext == NULL || key == NULL)
     {
@@ -393,7 +402,7 @@ static UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_Secur
 }
 
 static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                 const UA_ByteString* const iv)
+                                                        const UA_ByteString* const iv)
 {
     if (securityContext == NULL || iv == NULL)
     {
@@ -450,8 +459,9 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     .symmetricModule = {
         .encrypt = sym_encrypt_sp_none,
         .decrypt = sym_decrypt_sp_none,
-        .generateKey = generateKey_sp_none,
-        .generateNonce = generateNonce_sp_none,
+        .generateKey = sym_generateKey_sp_none,
+        .generateNonce = sym_generateNonce_sp_none,
+        .calculatePadding = sym_calculatePadding_sp_none,
 
         /* Symmetric signing module */
         .signingModule = {

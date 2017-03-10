@@ -91,8 +91,8 @@ typedef struct
      * \param bytesToWrite
      */
     UA_StatusCode (*const calculatePadding)(const size_t bytesToWrite,
-                                            uint16_t* const paddingSize,
-                                            UA_Boolean* const extraPadding);
+                                            UA_Byte* const paddingSize,
+                                            UA_Byte* const extraPaddingSize);
 
     const size_t thumbprintLength;
     const UA_SecurityPolicySigningModule signingModule;
@@ -147,6 +147,15 @@ typedef struct
      */
     UA_StatusCode (*const generateNonce)(const UA_SecurityPolicy* const securityPolicy,
                                          UA_ByteString* const out);
+
+    /**
+     * Calculates the padding size for a message with the specified amount of bytes.
+     *
+     * \param bytesToWrite
+     */
+    UA_StatusCode(*const calculatePadding)(const size_t bytesToWrite,
+                                           UA_Byte* const paddingSize,
+                                           UA_Byte* const extraPaddingSize);
 
     const UA_SecurityPolicySigningModule signingModule;
 
