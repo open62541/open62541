@@ -248,6 +248,11 @@ void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
     UA_Server_deleteAllRepeatedJobs(server);
 
+    for (size_t i = 0; i < server->config.securityPolicies.count; ++i)
+    {
+        server->config.securityPolicies.policies[i].deleteMembers(&server->config.securityPolicies.policies[i]);
+    }
+
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
