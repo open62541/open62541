@@ -203,38 +203,37 @@ addNodeInternalWithType(UA_Server *server, UA_Node *node, const UA_NodeId parent
 }
 
 // delete any children of an instance without touching the object itself
-static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
+static void
+deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
     UA_RCU_LOCK();
-  UA_BrowseDescription bDes;
-  UA_BrowseDescription_init(&bDes);
-  UA_NodeId_copy(objectNodeId, &bDes.nodeId );
-  bDes.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-  bDes.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
-  bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_REFERENCETYPEINFO;
-  UA_BrowseResult bRes;
-  UA_BrowseResult_init(&bRes);
-  Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
-  for(size_t i=0; i<bRes.referencesSize; ++i) {
-    UA_ReferenceDescription *rd = &bRes.references[i];
-    if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) 
-    {
-      Service_DeleteNodes_single(server, &adminSession, &rd->nodeId.nodeId, UA_TRUE) ;
+    UA_BrowseDescription bDes;
+    UA_BrowseDescription_init(&bDes);
+    UA_NodeId_copy(objectNodeId, &bDes.nodeId );
+    bDes.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bDes.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS |
+        UA_BROWSERESULTMASK_REFERENCETYPEINFO;
+    UA_BrowseResult bRes;
+    UA_BrowseResult_init(&bRes);
+    Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
+    for(size_t i=0; i<bRes.referencesSize; ++i) {
+        UA_ReferenceDescription *rd = &bRes.references[i];
+        if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) {
+            Service_DeleteNodes_single(server, &adminSession, &rd->nodeId.nodeId, UA_TRUE) ;
+        } else if (rd->nodeClass == UA_NODECLASS_METHOD) {
+            UA_DeleteReferencesItem dR;
+            UA_DeleteReferencesItem_init(&dR);
+            dR.sourceNodeId = *objectNodeId;
+            dR.isForward = UA_TRUE;
+            UA_NodeId_copy(&rd->referenceTypeId, &dR.referenceTypeId);
+            UA_NodeId_copy(&rd->nodeId.nodeId, &dR.targetNodeId.nodeId);
+            dR.deleteBidirectional = UA_TRUE;
+            Service_DeleteReferences_single(server, &adminSession, &dR);
+            UA_DeleteReferencesItem_deleteMembers(&dR);
+        }
     }
-    else if (rd->nodeClass == UA_NODECLASS_METHOD) 
-    {
-      UA_DeleteReferencesItem dR;
-      UA_DeleteReferencesItem_init(&dR);
-      dR.sourceNodeId = *objectNodeId;
-      dR.isForward = UA_TRUE;
-      UA_NodeId_copy(&rd->referenceTypeId, &dR.referenceTypeId);
-      UA_NodeId_copy(&rd->nodeId.nodeId, &dR.targetNodeId.nodeId);
-      dR.deleteBidirectional = UA_TRUE;
-      Service_DeleteReferences_single(server, &adminSession, &dR);
-      UA_DeleteReferencesItem_deleteMembers(&dR);
-    }
-  }
-  UA_BrowseResult_deleteMembers(&bRes); 
-  UA_RCU_UNLOCK();
+    UA_BrowseResult_deleteMembers(&bRes);
+    UA_RCU_UNLOCK();
 }
 
 /**********/
@@ -260,39 +259,34 @@ void UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
-    {
-        registeredServer_list_entry* current, * temp;
-        LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-            LIST_REMOVE(current, pointers);
-            UA_RegisteredServer_deleteMembers(&current->registeredServer);
-            UA_free(current);
-        }
+    registeredServer_list_entry *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
+        UA_free(rs);
     }
-    if (server->periodicServerRegisterJob) {
+    if(server->periodicServerRegisterJob)
         UA_free(server->periodicServerRegisterJob);
-    }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
         UA_Discovery_multicastDestroy(server);
 
-    {
-        serverOnNetwork_list_entry* current, * temp;
-        LIST_FOREACH_SAFE(current, &server->serverOnNetwork, pointers, temp) {
-            LIST_REMOVE(current, pointers);
-            UA_ServerOnNetwork_deleteMembers(&current->serverOnNetwork);
-            if (current->pathTmp)
-                free(current->pathTmp);
-            UA_free(current);
-        }
+    serverOnNetwork_list_entry *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
+        if(son->pathTmp)
+            free(son->pathTmp);
+        UA_free(son);
+    }
 
-        for (size_t i=0; i<SERVER_ON_NETWORK_HASH_PRIME; i++) {
-            serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
-            while (currHash) {
-                serverOnNetwork_hash_entry* nextHash = currHash->next;
-                free(currHash);
-                currHash = nextHash;
-            }
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+        serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            free(currHash);
+            currHash = nextHash;
         }
     }
 # endif
@@ -634,7 +628,7 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
    cleanup.type = UA_JOBTYPE_METHODCALL;
    cleanup.job.methodCall.data = NULL;
    cleanup.job.methodCall.method = UA_Server_cleanup;
-    UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+   UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
 
 #ifdef UA_ENABLE_DISCOVERY
     // Discovery service
@@ -1454,6 +1448,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     return server;
 }
 
+/*************/
+/* Discovery */
+/*************/
+
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
@@ -1461,7 +1459,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
                                       const char* semaphoreFilePath) {
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840");
+    const char *url = discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840";
+    UA_StatusCode retval = UA_Client_connect(client, url);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
@@ -1487,7 +1486,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 #else
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+                       "Ignoring semaphore file path. open62541 not compiled "
+                       "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
     }
 
@@ -1532,11 +1532,10 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
     UA_StatusCode serviceResult = response.responseHeader.serviceResult;
     UA_RegisterServer2Response_deleteMembers(&response);
-
     UA_ExtensionObject_delete(request.discoveryConfiguration);
 
-
-    if (serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED || serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
+    if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
+       serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
         // try RegisterServer
         UA_RegisterServerResponse response_fallback;
         UA_RegisterServerResponse_init(&response_fallback);
@@ -1553,7 +1552,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
         if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "RegisterServer failed with statuscode %s", UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
+                         "RegisterServer failed with statuscode %s",
+                         UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
             serviceResult = response_fallback.responseHeader.serviceResult;
             UA_RegisterServerResponse_deleteMembers(&response_fallback);
             UA_Client_disconnect(client);
@@ -1562,7 +1562,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         }
     } else if(serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer2 failed with statuscode %s", UA_StatusCode_name(serviceResult));
+                     "RegisterServer2 failed with statuscode %s",
+                     UA_StatusCode_name(serviceResult));
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return serviceResult;
@@ -1577,14 +1578,12 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_FALSE, semaphoreFilePath);
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_TRUE, NULL);
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
 }
 
 #endif
