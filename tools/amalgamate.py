@@ -69,6 +69,8 @@ for fname in args.inputs:
             guard_res = guard_re.match(line)
             if not inc_res and not guard_res:
                 file.write(line)
+                # Ensure file is written to disk.
+                file.flush()
         print ("done."),
 
 if not is_c:
