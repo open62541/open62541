@@ -1398,6 +1398,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_VariableNode *redundancySupport = UA_NodeStore_newVariableNode();
     copyNames((UA_Node*)redundancySupport, "RedundancySupport");
     redundancySupport->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT);
+    redundancySupport->valueRank = -1;
+    redundancySupport->dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     //FIXME: enum is needed for type letting it uninitialized for now
     UA_Variant_setScalar(&redundancySupport->value.data.value.value, UA_Int32_new(),
                          &UA_TYPES[UA_TYPES_INT32]);
