@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -75,9 +75,20 @@ UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType) {
     const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    return UA_NodeId_isNull(constraintDataType) ||
-        UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
-        isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
+
+    /* Do not allow empty datatypes */
+    if(UA_NodeId_isNull(dataType))
+       return false;
+
+    /* No constraint (TODO: use variant instead) */
+    if(UA_NodeId_isNull(constraintDataType))
+        return true;
+
+    /* Variant allows any subtype */
+    if(UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
+        return true;
+
+    return isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
 }
 
 /* Test whether a valurank and the given arraydimensions are compatible. zero
@@ -154,9 +165,15 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions) {
+    /* No array dimensions defined -> everything is permitted if the value rank fits */
+    if(constraintArrayDimensionsSize == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Dimension count must match */
     if(testArrayDimensionsSize != constraintArrayDimensionsSize)
         return UA_STATUSCODE_BADTYPEMISMATCH;
-    /* dimension size zero in the constraint is a wildcard */
+
+    /* Dimension lengths must match; zero in the constraint is a wildcard */
     for(size_t i = 0; i < constraintArrayDimensionsSize; ++i) {
         if(constraintArrayDimensions[i] != testArrayDimensions[i] &&
            constraintArrayDimensions[i] != 0)
@@ -430,7 +447,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
 
 static UA_StatusCode
 writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType) {
+                             const UA_NodeId *dataType) {
     const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -445,8 +462,10 @@ static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
     if(vn->value.data.callback.onRead) {
+        UA_RCU_UNLOCK();
         vn->value.data.callback.onRead(vn->value.data.callback.handle,
                                        vn->nodeId, &vn->value.data.value.value, rangeptr);
+        UA_RCU_LOCK();
 #ifdef UA_ENABLE_MULTITHREADING
         /* Reopen the node to see the changes (multithreading only) */
         vn = (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &vn->nodeId);
@@ -467,8 +486,12 @@ readValueAttributeFromDataSource(const UA_VariableNode *vn, UA_DataValue *v,
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-    return vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
-                                     sourceTimeStamp, rangeptr, v);
+    UA_RCU_UNLOCK();
+    UA_StatusCode retval =
+        vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
+                                  sourceTimeStamp, rangeptr, v);
+    UA_RCU_LOCK();
+    return retval;
 }
 
 static UA_StatusCode
@@ -598,15 +621,21 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
             writtenNode = node; /* The node is written in-situ (TODO: this might
                                    change with the nodestore plugin approach) */
 #endif
-            writtenNode->value.data.callback.onWrite(writtenNode->value.data.callback.handle, writtenNode->nodeId,
+            UA_RCU_UNLOCK();
+            writtenNode->value.data.callback.onWrite(writtenNode->value.data.callback.handle,
+                                                     writtenNode->nodeId,
                                                      &writtenNode->value.data.value.value, rangeptr);
+            UA_RCU_LOCK();
         }
     } else {
-        if(node->value.dataSource.write)
+        if(node->value.dataSource.write) {
+            UA_RCU_UNLOCK();
             retval = node->value.dataSource.write(node->value.dataSource.handle,
                                                   node->nodeId, &editableValue.value, rangeptr);
-        else
+            UA_RCU_LOCK();
+        } else {
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
+        }
     }
 
     /* Clean up */

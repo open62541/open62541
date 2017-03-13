@@ -486,7 +486,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     UA_Double* respval = (UA_Double*) resp.value.data;
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
-    ck_assert(*respval == 1.0);
+    ck_assert(*respval == 0.0);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
 } END_TEST
