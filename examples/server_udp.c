@@ -4,37 +4,26 @@
  */
 #include <stdio.h>
 #include <signal.h>
-
-#ifdef UA_NO_AMALGAMATION
-#include "ua_types.h"
-#include "ua_server.h"
-#include "ua_config_standard.h"
-#include "ua_log_stdout.h"
-#include "ua_network_udp.h"
-#else
 #include "open62541.h"
-#endif
-
 
 UA_Logger logger = UA_Log_Stdout;
 
 UA_Boolean running = 1;
-
 static void stopHandler(int sign) {
     printf("Received Ctrl-C\n");
     running = 0;
 }
 
 int main(int argc, char** argv) {
-	signal(SIGINT,  stopHandler);
-	signal(SIGTERM, stopHandler);
+    signal(SIGINT,  stopHandler);
+    signal(SIGTERM, stopHandler);
 
-	UA_ServerConfig config = UA_ServerConfig_standard;
-	UA_ServerNetworkLayer nl;
-	nl = UA_ServerNetworkLayerUDP(UA_ConnectionConfig_standard, 16664);
-	config.networkLayers = &nl;
-	config.networkLayersSize = 1;
-	UA_Server *server = UA_Server_new(config);
+    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerNetworkLayer nl;
+    nl = UA_ServerNetworkLayerUDP(UA_ConnectionConfig_standard, 16664);
+    config.networkLayers = &nl;
+    config.networkLayersSize = 1;
+    UA_Server *server = UA_Server_new(config);
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr;

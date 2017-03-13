@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_types.h"
 #include "ua_server_internal.h"
@@ -163,7 +163,7 @@ addReferenceInternal(UA_Server *server, UA_UInt32 sourceId, UA_UInt32 refTypeId,
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
-    UA_Server_deleteAllRepeatedJobs(server);
+    UA_RepeatedJobsList_deleteMembers(&server->repeatedJobs);
 
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
@@ -179,12 +179,38 @@ void UA_Server_delete(UA_Server *server) {
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
-    registeredServer_list_entry *current, *temp;
-    LIST_FOREACH_SAFE(current, &server->registeredServers, pointers, temp) {
-        LIST_REMOVE(current, pointers);
-        UA_RegisteredServer_deleteMembers(&current->registeredServer);
-        UA_free(current);
+    registeredServer_list_entry *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
+        UA_free(rs);
     }
+    if(server->periodicServerRegisterJob)
+        UA_free(server->periodicServerRegisterJob);
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        UA_Discovery_multicastDestroy(server);
+
+    serverOnNetwork_list_entry *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
+        if(son->pathTmp)
+            free(son->pathTmp);
+        UA_free(son);
+    }
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+        serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            free(currHash);
+            currHash = nextHash;
+        }
+    }
+# endif
+
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -491,7 +517,17 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 
     server->config = config;
     server->nodestore = UA_NodeStore_new();
-    LIST_INIT(&server->repeatedJobs);
+
+    /* Initialize the handling of repeated jobs */
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
+                             server);
+#else
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
+                             server);
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
@@ -558,15 +594,35 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_SessionManager_init(&server->sessionManager, server);
 
    UA_Job cleanup;
-   cleanup.type = UA_JOBTYPE_METHODCALL; 
+   cleanup.type = UA_JOBTYPE_METHODCALL;
    cleanup.job.methodCall.data = NULL;
    cleanup.job.methodCall.method = UA_Server_cleanup;
-    UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+   UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
 
 #ifdef UA_ENABLE_DISCOVERY
     // Discovery service
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
+    server->periodicServerRegisterJob = NULL;
+    server->registerServerCallback = NULL;
+    server->registerServerCallbackData = NULL;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    server->mdnsDaemon = NULL;
+    server->mdnsSocket = 0;
+    server->mdnsMainSrvAdded = UA_FALSE;
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_Discovery_multicastInit(server);
+    }
+
+    LIST_INIT(&server->serverOnNetwork);
+    server->serverOnNetworkSize = 0;
+    server->serverOnNetworkRecordIdCounter = 0;
+    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+
+    server->serverOnNetworkCallback = NULL;
+    server->serverOnNetworkCallbackData = NULL;
+# endif
 #endif
 
     server->startTime = UA_DateTime_now();
@@ -1082,6 +1138,10 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     return server;
 }
 
+/*************/
+/* Discovery */
+/*************/
+
 #ifdef UA_ENABLE_DISCOVERY
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
@@ -1089,17 +1149,19 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
                                       const char* semaphoreFilePath) {
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
+    const char *url = discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840";
+    UA_StatusCode retval = UA_Client_connect(client, url);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
         UA_Client_delete(client);
         return retval;
     }
 
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
-    /* TODO: where do we get the discoveryProfileUri for application data? */
-    UA_RegisterServerRequest request;
-    UA_RegisterServerRequest_init(&request);
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
 
@@ -1109,8 +1171,15 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     request.server.serverType = server->config.applicationDescription.applicationType;
     request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
 
-    if(semaphoreFilePath)
+    if(semaphoreFilePath) {
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
         request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+#else
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Ignoring semaphore file path. open62541 not compiled "
+                       "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+#endif
+    }
 
     request.server.serverNames = &server->config.applicationDescription.applicationName;
     request.server.serverNamesSize = 1;
@@ -1130,37 +1199,96 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
     }
 
-    /* Call the service */
-    UA_RegisterServerResponse response;
-    UA_RegisterServerResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
 
-    /* Test the result and log on error */
-    retval = response.responseHeader.serviceResult;
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "RegisterServer failed with statuscode %s",
-                    UA_StatusCode_name(response.responseHeader.serviceResult));
+    request.discoveryConfigurationSize = 0;
+    request.discoveryConfigurationSize = 1;
+    request.discoveryConfiguration = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+    request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
+    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
 
-    /* Cleanup */
-    UA_RegisterServerResponse_deleteMembers(&response);
+    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
+    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
+    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
+
+    // First try with RegisterServer2, if that isn't implemented, use RegisterServer
+    UA_RegisterServer2Response response;
+    UA_RegisterServer2Response_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
+
+    UA_StatusCode serviceResult = response.responseHeader.serviceResult;
+    UA_RegisterServer2Response_deleteMembers(&response);
+    UA_ExtensionObject_delete(request.discoveryConfiguration);
+
+    if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
+       serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
+        // try RegisterServer
+        UA_RegisterServerResponse response_fallback;
+        UA_RegisterServerResponse_init(&response_fallback);
+
+        // copy from RegisterServer2 request
+        UA_RegisterServerRequest request_fallback;
+        UA_RegisterServerRequest_init(&request_fallback);
+
+        request_fallback.requestHeader = request.requestHeader;
+        request_fallback.server = request.server;
+
+        __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                            &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+
+        if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "RegisterServer failed with statuscode %s",
+                         UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
+            serviceResult = response_fallback.responseHeader.serviceResult;
+            UA_RegisterServerResponse_deleteMembers(&response_fallback);
+            UA_Client_disconnect(client);
+            UA_Client_delete(client);
+            return serviceResult;
+        }
+    } else if(serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "RegisterServer2 failed with statuscode %s",
+                     UA_StatusCode_name(serviceResult));
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return serviceResult;
+    }
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
                              const char* semaphoreFilePath) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_FALSE, semaphoreFilePath);
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
 }
 
 UA_StatusCode
 UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
-    return register_server_with_discovery_server(server, discoveryServerUrl,
-                                                 UA_TRUE, NULL);
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
 }
 
 #endif
+
+/*****************/
+/* Repeated Jobs */
+/*****************/
+
+UA_StatusCode
+UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
+                         UA_UInt32 interval, UA_Guid *jobId) {
+    return UA_RepeatedJobsList_addRepeatedJob(&server->repeatedJobs, job, interval, jobId);
+}
+
+UA_StatusCode
+UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
+    return UA_RepeatedJobsList_removeRepeatedJob(&server->repeatedJobs, jobId);
+}

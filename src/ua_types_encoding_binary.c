@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_types_encoding_binary.h"
@@ -1132,9 +1132,9 @@ DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     UA_Byte encodingMask = (UA_Byte)
         ((UA_Byte)src->hasValue |
         ((UA_Byte)src->hasStatus << 1) |
-		((UA_Byte)src->hasSourceTimestamp << 2) |
+        ((UA_Byte)src->hasSourceTimestamp << 2) |
         ((UA_Byte)src->hasServerTimestamp << 3) |
-		((UA_Byte)src->hasSourcePicoseconds << 4) |
+        ((UA_Byte)src->hasSourcePicoseconds << 4) |
         ((UA_Byte)src->hasServerPicoseconds << 5));
 
     /* Encode the content */

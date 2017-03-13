@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
@@ -38,7 +38,8 @@ extern "C" {
 # elif defined(_MSC_VER)
 #  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 # else
-#  warning The compiler does not allow thread-local variables. The library can be built, but will not be thread-safe.
+#  warning The compiler does not allow thread-local variables. \
+    The library can be built, but will not be thread-safe.
 # endif
 #endif
 #ifndef UA_THREAD_LOCAL

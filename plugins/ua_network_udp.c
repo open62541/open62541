@@ -66,11 +66,11 @@ typedef struct {
 
 typedef struct {
     UA_ConnectionConfig conf;
-	UA_UInt16 port;
+    UA_UInt16 port;
     fd_set fdset;
     UA_Int32 serversockfd;
 
-	UA_Logger logger; // Set during start
+    UA_Logger logger; // Set during start
 } ServerNetworkLayerUDP;
 
 /** Accesses only the sockfd in the handle. Can be run from parallel threads. */
@@ -125,7 +125,7 @@ static void closeConnectionUDP(UA_Connection *handle) {
 }
 
 static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
-	ServerNetworkLayerUDP *layer = nl->handle;
+    ServerNetworkLayerUDP *layer = nl->handle;
     layer->logger = logger;
     layer->serversockfd = socket(PF_INET, SOCK_DGRAM, 0);
     if(layer->serversockfd < 0) {
@@ -155,7 +155,7 @@ static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_L
 }
 
 static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout) {
-	ServerNetworkLayerUDP *layer = nl->handle;
+    ServerNetworkLayerUDP *layer = nl->handle;
     UA_Job *items = NULL;
     setFDSet(layer);
     struct timeval tmptv = {0, timeout};
@@ -166,7 +166,7 @@ static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **
     }
     items = malloc(sizeof(UA_Job)*(unsigned long)resultsize);
     // read from established sockets
-	size_t j = 0;
+    size_t j = 0;
     UA_ByteString buf = {0, NULL};
     if(!buf.data) {
         buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
@@ -213,23 +213,23 @@ static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **
 }
 
 static size_t ServerNetworkLayerUDP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
-	ServerNetworkLayerUDP *layer = nl->handle;
-	UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-				"Shutting down the UDP network layer");
+    ServerNetworkLayerUDP *layer = nl->handle;
+    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+                "Shutting down the UDP network layer");
     CLOSESOCKET(layer->serversockfd);
     return 0;
 }
 
 static void ServerNetworkLayerUDP_deleteMembers(UA_ServerNetworkLayer *nl) {
-	ServerNetworkLayerUDP *layer = nl->handle;
-	free(layer);
-	UA_String_deleteMembers(&nl->discoveryUrl);
+    ServerNetworkLayerUDP *layer = nl->handle;
+    free(layer);
+    UA_String_deleteMembers(&nl->discoveryUrl);
 }
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerUDP(UA_ConnectionConfig conf, UA_UInt16 port) {
-	UA_ServerNetworkLayer nl;
-	memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
+    UA_ServerNetworkLayer nl;
+    memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
 
     ServerNetworkLayerUDP *layer = malloc(sizeof(ServerNetworkLayerUDP));
     if(!layer)
@@ -239,10 +239,10 @@ UA_ServerNetworkLayerUDP(UA_ConnectionConfig conf, UA_UInt16 port) {
     layer->conf = conf;
     layer->port = port;
 
-	nl.handle = layer;
-	nl.start = ServerNetworkLayerUDP_start;
-	nl.getJobs = ServerNetworkLayerUDP_getJobs;
-	nl.stop = ServerNetworkLayerUDP_stop;
-	nl.deleteMembers = ServerNetworkLayerUDP_deleteMembers;
-	return nl;
+    nl.handle = layer;
+    nl.start = ServerNetworkLayerUDP_start;
+    nl.getJobs = ServerNetworkLayerUDP_getJobs;
+    nl.stop = ServerNetworkLayerUDP_stop;
+    nl.deleteMembers = ServerNetworkLayerUDP_deleteMembers;
+    return nl;
 }

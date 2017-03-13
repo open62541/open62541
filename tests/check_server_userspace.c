@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +22,7 @@ START_TEST(Server_addNamespace_ShallWork)
     ck_assert_uint_eq(a,b);
     ck_assert_uint_ne(a,c);
 
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 }
 END_TEST
 
@@ -56,7 +56,7 @@ START_TEST(Server_addNamespace_writeService)
     ck_assert_uint_eq(namespaces.arrayLength, nsSize);
 
     UA_Variant_deleteMembers(&namespaces);
-	UA_Server_delete(server);
+    UA_Server_delete(server);
 }
 END_TEST
 

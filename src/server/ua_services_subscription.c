@@ -1,6 +1,6 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public 
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -422,7 +422,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)UA_malloc(sizeof(UA_PublishResponseEntry));
-	if(!entry) {
+    if(!entry) {
         subscriptionSendError(session->channel, requestId,
                               request->requestHeader.requestHandle, UA_STATUSCODE_BADOUTOFMEMORY);
         return;
