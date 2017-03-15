@@ -5,8 +5,6 @@
 #include "ua_util.h"
 #include "ua_timer.h"
 
-#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
-
 /* Only one thread may traverse the lists. This is usually the "main" thread
  * with the event loop. All other threads may add and remove repeated jobs by
  * adding entries to the beginning of the addRemoveJobs list (with atomic
@@ -31,6 +29,16 @@ struct UA_RepeatedJob {
     UA_Job job;                       /* The job description itself */
 };
 
+void
+UA_RepeatedJobsList_init(UA_RepeatedJobsList *rjl,
+                         UA_RepeatedJobsListProcessCallback processCallback,
+                         void *processContext) {
+    SLIST_INIT(&rjl->repeatedJobs);
+    SLIST_INIT(&rjl->addRemoveJobs);
+    rjl->processCallback = processCallback;
+    rjl->processContext = processContext;
+}
+
 UA_StatusCode
 UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
                                    const UA_UInt32 interval, UA_Guid *jobId) {
@@ -38,19 +46,16 @@ UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
     if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* From ms to 100ns resolution */
-    UA_UInt64 interval_dt = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
-
     /* Allocate the repeated job structure */
     UA_RepeatedJob *rj = (UA_RepeatedJob*)UA_malloc(sizeof(UA_RepeatedJob));
     if(!rj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated job */
-    rj->interval = interval_dt;
+    rj->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
     rj->id = UA_Guid_random();
     rj->job = job;
-    rj->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)interval_dt;
+    rj->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)rj->interval;
 
     /* Set the output guid */
     if(jobId)
@@ -134,17 +139,6 @@ removeRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Guid *jobId) {
     }
 }
 
-static UA_DateTime
-nextRepetition(const UA_RepeatedJobsList *rjl, UA_DateTime nowMonotonic) {
-    /* Check if the next repeated job is sooner than the usual timeout.
-     * Return the duration until the next job or the max interval. */
-    UA_RepeatedJob *first = SLIST_FIRST(&rjl->repeatedJobs);
-    UA_DateTime next = nowMonotonic + (MAXTIMEOUT * UA_MSEC_TO_DATETIME);
-    if(first && first->nextTime < next)
-        next = first->nextTime;
-    return next;
-}
-
 static void
 processAddRemoveJobs(UA_RepeatedJobsList *rjl, UA_DateTime nowMonotonic) {
     UA_RepeatedJob *current;
@@ -175,8 +169,12 @@ UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl,
     }
 
     /* Nothing to do */
-    if(!lastNow)
-        return nextRepetition(rjl, nowMonotonic);
+    if(!lastNow) {
+        if(firstAfter)
+            return firstAfter->nextTime;
+        else
+            return UA_INT64_MAX;
+    }
 
     /* Put the jobs that are executed now in a separate list */
     struct memberstruct(UA_RepeatedJobsList,RepeatedJobsSList) executedNowList;
@@ -239,7 +237,7 @@ UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl,
     processAddRemoveJobs(rjl, nowMonotonic);
 
     /* Return timestamp of next repetition */
-    return nextRepetition(rjl, nowMonotonic);
+    return SLIST_FIRST(&rjl->repeatedJobs)->nextTime;
 }
 
 void

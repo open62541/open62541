@@ -40,6 +40,8 @@
  *     memory models." ACM SIGPLAN Notices. Vol. 48. No. 8. ACM, 2013.
  */
 
+#define UA_MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 # ifndef _WIN32
 #  include <unistd.h> // gethostname
@@ -444,6 +446,9 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     UA_Boolean dispatched = false; /* to wake up worker threads */
     UA_DateTime nextRepeated =
         UA_RepeatedJobsList_process(&server->repeatedJobs, now, &dispatched);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
