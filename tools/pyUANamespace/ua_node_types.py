@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ###
@@ -13,7 +13,7 @@
 ### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
-### file for more information on the MPL v2 terms and restrictions).
+### file for more information on the MPLv2 terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
@@ -1105,7 +1105,6 @@ class opcua_node_variable_t(opcua_node_t):
       code.append(self.getCodePrintableID() + "->historizing = true;")
 
     code.append(self.getCodePrintableID() + "->minimumSamplingInterval = (UA_Double) " + str(self.minimumSamplingInterval()) + ";")
-    code.append(self.getCodePrintableID() + "->userAccessLevel = (UA_Int32) " + str(self.userAccessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->accessLevel = (UA_Int32) " + str(self.accessLevel()) + ";")
     code.append(self.getCodePrintableID() + "->valueRank = (UA_Int32) " + str(self.valueRank()) + ";")
     # The variant is guaranteed to exist by SubtypeEarly()
@@ -1178,8 +1177,6 @@ class opcua_node_method_t(opcua_node_t):
     # UA_False is default for booleans on _init()
     if self.executable():
       code.append(self.getCodePrintableID() + "->executable = true;")
-    if self.userExecutable():
-      code.append(self.getCodePrintableID() + "->userExecutable = true;")
 
     return code
 

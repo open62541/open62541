@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SERVICES_H_
 #define UA_SERVICES_H_
@@ -42,6 +42,8 @@ typedef void (*UA_Service)(UA_Server*, UA_Session*,
  * ---------------------
  * This Service Set defines Services used to discover the Endpoints implemented
  * by a Server and to read the security configuration for those Endpoints. */
+/* Returns the Servers known to a Server or Discovery Server.
+ * The Client may reduce the number of results returned by specifying filter criteria */
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response);
@@ -52,7 +54,33 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                           const UA_GetEndpointsRequest *request,
                           UA_GetEndpointsResponse *response);
 
-/* Not Implemented: Service_RegisterServer */
+#ifdef UA_ENABLE_DISCOVERY
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+/* Returns the Servers known to a Discovery Server. Unlike FindServer,
+ * this Service is only implemented by Discovery Servers. It additionally
+ * Returns servery which may have been detected trough Multicast */
+void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
+                                  const UA_FindServersOnNetworkRequest *request,
+                                  UA_FindServersOnNetworkResponse *response);
+# endif // UA_ENABLE_DISCOVERY_MULTICAST
+
+/* Registers a remote server in the local discovery service. */
+void Service_RegisterServer(UA_Server *server, UA_Session *session,
+                            const UA_RegisterServerRequest *request,
+                            UA_RegisterServerResponse *response);
+
+/* Checks if a registration timed out and removes that registration.
+ * Should be called periodically in main loop */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+/* This Service allows a Server to register its DiscoveryUrls and capabilities
+ * with a Discovery Server. It extends the registration information from
+ * RegisterServer with information necessary for FindServersOnNetwork. */
+void Service_RegisterServer2(UA_Server *server, UA_Session *session,
+                            const UA_RegisterServer2Request *request,
+                            UA_RegisterServer2Response *response);
+#endif // UA_ENABLE_DISCOVERY
 
 /**
  * SecureChannel Service Set

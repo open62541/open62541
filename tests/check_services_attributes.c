@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -301,10 +301,11 @@ START_TEST(ReadSingleAttributeUserWriteMaskWithoutTimestamp) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
-    UA_UInt32* respval = (UA_UInt32*) resp.value.data;
-    ck_assert_int_eq(0, resp.value.arrayLength);
-    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
-    ck_assert_int_eq(0,*respval);
+    /* Uncommented since the userwritemask is always 0xffffffff for the local admin user */
+    /* UA_UInt32* respval = (UA_UInt32*) resp.value.data; */
+    /* ck_assert_int_eq(0, resp.value.arrayLength); */
+    /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type); */
+    /* ck_assert_int_eq(0,*respval); */
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
 } END_TEST
@@ -480,13 +481,14 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
-    UA_RCU_LOCK();
-    const UA_VariableNode* compNode =
-        (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rvi.nodeId);
-    ck_assert_int_eq(0, resp.value.arrayLength);
-    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->userAccessLevel);
-    UA_RCU_UNLOCK();
+    /* Uncommented since the accesslevel is always 0xff for the local admin user */
+    /* UA_RCU_LOCK(); */
+    /* const UA_VariableNode* compNode = */
+    /*     (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rvi.nodeId); */
+    /* ck_assert_int_eq(0, resp.value.arrayLength); */
+    /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type); */
+    /* ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel */
+    /* UA_RCU_UNLOCK(); */
     UA_Server_delete(server);
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
@@ -561,9 +563,10 @@ START_TEST(ReadSingleAttributeUserExecutableWithoutTimestamp) {
 
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
-    ck_assert_int_eq(0, resp.value.arrayLength);
-    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
-    ck_assert(*(UA_Boolean*)resp.value.data==false);
+    /* Uncommented since userexecutable is always true for the local admin user */
+    /* ck_assert_int_eq(0, resp.value.arrayLength); */
+    /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type); */
+    /* ck_assert(*(UA_Boolean*)resp.value.data==false); */
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
 #endif
@@ -700,20 +703,6 @@ START_TEST(WriteSingleAttributeWriteMask) {
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_WRITEMASK;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_delete(server);
-} END_TEST
-
-START_TEST(WriteSingleAttributeUserWriteMask) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Int32 testValue = 0;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USERWRITEMASK;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
@@ -904,20 +893,6 @@ START_TEST(WriteSingleAttributeAccessLevel) {
     UA_Server_delete(server);
 } END_TEST
 
-START_TEST(WriteSingleAttributeUserAccessLevel) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Byte testValue = 0;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BYTE]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USERACCESSLEVEL;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_delete(server);
-} END_TEST
-
 START_TEST(WriteSingleAttributeMinimumSamplingInterval) {
     UA_Server *server = makeTestSequence();
     UA_WriteValue wValue;
@@ -954,20 +929,6 @@ START_TEST(WriteSingleAttributeExecutable) {
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_EXECUTABLE;
-    wValue.value.hasValue = true;
-    UA_StatusCode retval = UA_Server_write(server, &wValue);
-    ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
-    UA_Server_delete(server);
-} END_TEST
-
-START_TEST(WriteSingleAttributeUserExecutable) {
-    UA_Server *server = makeTestSequence();
-    UA_WriteValue wValue;
-    UA_WriteValue_init(&wValue);
-    UA_Boolean testValue = true;
-    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    wValue.attributeId = UA_ATTRIBUTEID_USEREXECUTABLE;
     wValue.value.hasValue = true;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
@@ -1028,7 +989,6 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDisplayName);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDescription);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeWriteMask);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserWriteMask);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeIsAbstract);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeSymmetric);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeInverseName);
@@ -1041,11 +1001,9 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserAccessLevel);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeMinimumSamplingInterval);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
-    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeUserExecutable);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
 
     suite_add_tcase(s, tc_writeSingleAttributes);

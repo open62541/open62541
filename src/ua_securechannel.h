@@ -1,9 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "queue.h"
 #include "ua_types.h"
@@ -109,5 +113,9 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
                  (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SECURECHANNEL_H_ */

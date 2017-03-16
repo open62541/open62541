@@ -34,13 +34,14 @@
 #include "open62541.h"
 
 static UA_StatusCode
-helloWorldMethodCallback(void *handle, const UA_NodeId objectId,
+helloWorldMethodCallback(void *handle, const UA_NodeId *objectId,
+                         const UA_NodeId *sessionId, void *sessionHandle,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
     UA_String *inputStr = (UA_String*)input->data;
     UA_String tmp = UA_STRING_ALLOC("Hello ");
     if(inputStr->length > 0) {
-        tmp.data = realloc(tmp.data, tmp.length + inputStr->length);
+        tmp.data = (UA_Byte *)realloc(tmp.data, tmp.length + inputStr->length);
         memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
         tmp.length += inputStr->length;
     }
@@ -87,7 +88,8 @@ addHellWorldMethod(UA_Server *server) {
  * copy of the array with every entry increased by the scalar. */
 
 static UA_StatusCode
-IncInt32ArrayMethodCallback(void *handle, const UA_NodeId objectId,
+IncInt32ArrayMethodCallback(void *handle, const UA_NodeId *objectId,
+                            const UA_NodeId *sessionId, void *sessionHandle,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
     UA_Int32 *inputArray = (UA_Int32*)input[0].data;

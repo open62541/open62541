@@ -1,11 +1,15 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_UTIL_H_
 #define UA_UTIL_H_
 
-#include "ua_config.h"
+#include "ua_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /* Assert */
 #include <assert.h>
@@ -13,6 +17,13 @@
 
 /* BSD Queue Macros */
 #include "queue.h"
+
+/* C++ Access to datatypes defined inside structs (for queue.h) */
+#ifdef __cplusplus
+# define memberstruct(container,member) container::member
+#else
+# define memberstruct(container,member) member
+#endif
 
 /* container_of */
 #define container_of(ptr, type, member) \
@@ -27,7 +38,8 @@
 # elif defined(_MSC_VER)
 #  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
 # else
-#  warning The compiler does not allow thread-local variables. The library can be built, but will not be thread-safe.
+#  warning The compiler does not allow thread-local variables. \
+    The library can be built, but will not be thread-safe.
 # endif
 #endif
 #ifndef UA_THREAD_LOCAL
@@ -94,5 +106,17 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 # endif
 #endif
 }
+
+/* Utility Functions
+ * ----------------- */
+
+/* Convert given byte string to a positive number. Returns the number of valid
+ * digits. Stops if a non-digit char is found and returns the number of digits
+ * up to that point. */
+size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_UTIL_H_ */

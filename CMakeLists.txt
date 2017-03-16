@@ -1,10 +1,26 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.0)
 project(open62541)
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
+
+set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
+
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+#################
+# Cmake modules #
+#################
+
+include(AssignSourceGroup)
 
 ###########
 # Version #
@@ -23,7 +39,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if(NOT ${OPEN62541_VER_COMMIT})
+if("${OPEN62541_VER_COMMIT}" STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
@@ -42,6 +58,11 @@ set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support." ON)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
+option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+# Semaphores/file system may not be available on embedded devices. It can be disabled with the following option
+option(UA_ENABLE_DISCOVERY_SEMAPHORE "Enable Discovery Semaphore support" ON)
+mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
@@ -51,6 +72,11 @@ if(UA_ENABLE_COVERAGE)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
   set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
+endif()
+
+if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
+    MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
+    SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
 endif()
 
 # Advanced options
@@ -100,6 +126,9 @@ mark_as_advanced(UA_BUILD_SELFSIGNED_CERTIFICATE)
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
+  if (UA_ENABLE_DISCOVERY_MULTICAST)
+      set(MDNSD_DYNAMIC_LINKING ON)
+  endif()
 endif()
 
 # Force compilation with as C++
@@ -112,7 +141,7 @@ mark_as_advanced(UA_COMPILE_AS_CXX)
 
 list(APPEND open62541_LIBRARIES "") # Collect libraries
 
-if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
@@ -170,6 +199,11 @@ endif()
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
+
+if (UA_ENABLE_DISCOVERY_MULTICAST)
+    configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
+endif()
 include_directories(${PROJECT_BINARY_DIR}/src_generated
                     ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/deps)
@@ -185,12 +219,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_job.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h
+)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -204,13 +239,15 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+)
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -218,6 +255,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
+                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -230,6 +268,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
@@ -246,11 +285,13 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
                 ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+                ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                 ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
-                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
+                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
+)
                 ##TODO: make client stuff optional
 
 if(UA_ENABLE_EMBEDDED_LIBC)
@@ -264,8 +305,18 @@ if(UA_ENABLE_GENERATE_NAMESPACE0)
   list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
+if(UA_ENABLE_EXTERNAL_NAMESPACES)
+    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
+endif()
 if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
+endif()
+
+if (UA_ENABLE_DISCOVERY_MULTICAST)
+    # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
+    set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers} )
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
 endif()
 
 #########################
@@ -375,6 +426,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
 # Build the Library #
 #####################
 
+assign_source_group(${lib_sources})
+assign_source_group(${internal_headers})
+assign_source_group(${exported_headers})
+
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
@@ -396,11 +451,20 @@ target_link_libraries(open62541 ${open62541_LIBRARIES})
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
+if (UA_ENABLE_DISCOVERY_MULTICAST)
+    target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+endif()
+
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 if(WIN32)
     target_link_libraries(open62541 ws2_32)
+    if (UA_ENABLE_DISCOVERY_MULTICAST)
+        target_link_libraries(open62541 iphlpapi) # for GetAdaptersAddresses
+        list(APPEND open62541_LIBRARIES iphlpapi)
+    endif()
 endif()
 
 ##########################
@@ -443,6 +507,7 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -I${PROJECT_SOURCE_DIR}/src/server
                   -I${PROJECT_SOURCE_DIR}/src/client
                   -I${PROJECT_BINARY_DIR}/src_generated
+                  -DUA_NO_AMALGAMATION
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
@@ -454,12 +519,50 @@ add_dependencies(lint open62541)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
+set(cmake_configfile_install lib/cmake)
+set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
+set(open62541_tools_dir share/open62541/tools)
+set(open62541_deps_dir include/open62541/deps)
+
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
+        EXPORT open62541Targets
         LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        ARCHIVE DESTINATION lib
+        INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541-config.cmake.in"
+                              "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+                              INSTALL_DESTINATION "${cmake_configfile_install}"
+                              PATH_VARS target_install_dest_name open62541_tools_dir)
+
+set(open62541_VERSION)
+get_target_property(open62541_VERSION open62541 VERSION)
+
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+                                 VERSION ${open62541_VERSION}
+                                 COMPATIBILITY AnyNewerVersion)
+
+install(EXPORT open62541Targets
+        FILE open62541Targets.cmake
+        DESTINATION "${cmake_configfile_install}")
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+        DESTINATION "${cmake_configfile_install}")
+
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
+            DESTINATION lib/pkgconfig)
+endif()
 # export amalgamated header open62541.h which is generated due to build of open62541-object
-install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
+if(UA_ENABLE_AMALGAMATION)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+endif()
+install(DIRECTORY deps/ DESTINATION ${open62541_deps_dir})
+install(DIRECTORY tools/ DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
 
 ##########################
 # Packaging (DEB/RPM)    #
@@ -478,3 +581,14 @@ set(CPACK_PACKAGE_VERSION_PATCH "0")
 set(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") #required
 
 include(CPack)
+
+##################################
+# Visual studio solution folders #
+##################################
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
+
+set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
+set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")

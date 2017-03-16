@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_types.h"
 #include "ua_server_internal.h"
@@ -9,6 +9,11 @@
 #include "ua_util.h"
 #include "ua_services.h"
 #include "ua_nodeids.h"
+
+#ifdef UA_ENABLE_DISCOVERY
+#include "ua_client.h"
+#include "ua_config_standard.h"
+#endif
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
@@ -25,24 +30,18 @@ UA_THREAD_LOCAL bool rcu_locked = false;
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 #endif
-
 static const UA_NodeId nodeIdHasSubType = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASSUBTYPE};
+    0,UA_NODEIDTYPE_NUMERIC,{UA_NS0ID_HASSUBTYPE}};
 static const UA_NodeId nodeIdHasComponent = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASCOMPONENT};
+    0,UA_NODEIDTYPE_NUMERIC,{UA_NS0ID_HASCOMPONENT}};
 static const UA_NodeId nodeIdHasProperty = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_HASPROPERTY};
+    0,UA_NODEIDTYPE_NUMERIC,{UA_NS0ID_HASPROPERTY}};
 static const UA_NodeId nodeIdOrganizes = {
-    .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-    .identifier.numeric = UA_NS0ID_ORGANIZES};
+    0,UA_NODEIDTYPE_NUMERIC,{UA_NS0ID_ORGANIZES}};
 
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 static const UA_NodeId nodeIdNonHierarchicalReferences = {
-        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-        .identifier.numeric = UA_NS0ID_NONHIERARCHICALREFERENCES};
+    0,UA_NODEIDTYPE_NUMERIC,{UA_NS0ID_NONHIERARCHICALREFERENCES}};
 #endif
 
 /**********************/
@@ -51,28 +50,33 @@ static const UA_NodeId nodeIdNonHierarchicalReferences = {
 
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
     /* Check if the namespace already exists in the server's namespace array */
-    for(UA_UInt16 i=0;i<server->namespacesSize;++i) {
+    for(UA_UInt16 i = 0; i < server->namespacesSize; ++i) {
         if(UA_String_equal(&name, &server->namespaces[i]))
             return i;
     }
 
-    /* Add a new namespace to the namsepace array */
-    UA_String *newNS = UA_realloc(server->namespaces,
+    /* Make the array bigger */
+    UA_String *newNS = (UA_String*)UA_realloc(server->namespaces,
                                   sizeof(UA_String) * (server->namespacesSize + 1));
     if(!newNS)
         return 0;
     server->namespaces = newNS;
+
+    /* Copy the namespace string */
     UA_StatusCode retval = UA_String_copy(&name, &server->namespaces[server->namespacesSize]);
     if(retval != UA_STATUSCODE_GOOD)
         return 0;
+
+    /* Announce the change (otherwise, the array appears unchanged) */
     ++server->namespacesSize;
     return (UA_UInt16)(server->namespacesSize - 1);
 }
 
 UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     /* Override const attribute to get string (dirty hack) */
-    const UA_String nameString = {.length = strlen(name),
-                                  .data = (UA_Byte*)(uintptr_t)name};
+    UA_String nameString;
+    nameString.length = strlen(name);
+    nameString.data = (UA_Byte*)(uintptr_t)name;
     return addNamespace(server, nameString);
 }
 
@@ -104,6 +108,12 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     if(!nodeStore)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
+    char urlString[256];
+    if(url->length >= 256)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    memcpy(urlString, url->data, url->length);
+    urlString[url->length] = 0;
+
     size_t size = server->externalNamespacesSize;
     server->externalNamespaces =
         UA_realloc(server->externalNamespaces, sizeof(UA_ExternalNamespace) * (size + 1));
@@ -112,7 +122,7 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     *assignedNamespaceIndex = (UA_UInt16)server->namespacesSize;
     UA_String_copy(url, &server->externalNamespaces[size].url);
     ++server->externalNamespacesSize;
-
+    UA_Server_addNamespace(server, urlString);
     return UA_STATUSCODE_GOOD;
 }
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
@@ -193,38 +203,37 @@ addNodeInternalWithType(UA_Server *server, UA_Node *node, const UA_NodeId parent
 }
 
 // delete any children of an instance without touching the object itself
-static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
+static void
+deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
     UA_RCU_LOCK();
-  UA_BrowseDescription bDes;
-  UA_BrowseDescription_init(&bDes);
-  UA_NodeId_copy(objectNodeId, &bDes.nodeId );
-  bDes.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-  bDes.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
-  bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_REFERENCETYPEINFO;
-  UA_BrowseResult bRes;
-  UA_BrowseResult_init(&bRes);
-  Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
-  for(size_t i=0; i<bRes.referencesSize; ++i) {
-    UA_ReferenceDescription *rd = &bRes.references[i];
-    if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) 
-    {
-      Service_DeleteNodes_single(server, &adminSession, &rd->nodeId.nodeId, UA_TRUE) ;
+    UA_BrowseDescription bDes;
+    UA_BrowseDescription_init(&bDes);
+    UA_NodeId_copy(objectNodeId, &bDes.nodeId );
+    bDes.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bDes.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    bDes.resultMask = UA_BROWSERESULTMASK_ISFORWARD | UA_BROWSERESULTMASK_NODECLASS |
+        UA_BROWSERESULTMASK_REFERENCETYPEINFO;
+    UA_BrowseResult bRes;
+    UA_BrowseResult_init(&bRes);
+    Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
+    for(size_t i=0; i<bRes.referencesSize; ++i) {
+        UA_ReferenceDescription *rd = &bRes.references[i];
+        if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) {
+            Service_DeleteNodes_single(server, &adminSession, &rd->nodeId.nodeId, UA_TRUE) ;
+        } else if (rd->nodeClass == UA_NODECLASS_METHOD) {
+            UA_DeleteReferencesItem dR;
+            UA_DeleteReferencesItem_init(&dR);
+            dR.sourceNodeId = *objectNodeId;
+            dR.isForward = UA_TRUE;
+            UA_NodeId_copy(&rd->referenceTypeId, &dR.referenceTypeId);
+            UA_NodeId_copy(&rd->nodeId.nodeId, &dR.targetNodeId.nodeId);
+            dR.deleteBidirectional = UA_TRUE;
+            Service_DeleteReferences_single(server, &adminSession, &dR);
+            UA_DeleteReferencesItem_deleteMembers(&dR);
+        }
     }
-    else if (rd->nodeClass == UA_NODECLASS_METHOD) 
-    {
-      UA_DeleteReferencesItem dR;
-      UA_DeleteReferencesItem_init(&dR);
-      dR.sourceNodeId = *objectNodeId;
-      dR.isForward = UA_TRUE;
-      UA_NodeId_copy(&rd->referenceTypeId, &dR.referenceTypeId);
-      UA_NodeId_copy(&rd->nodeId.nodeId, &dR.targetNodeId.nodeId);
-      dR.deleteBidirectional = UA_TRUE;
-      Service_DeleteReferences_single(server, &adminSession, &dR);
-      UA_DeleteReferencesItem_deleteMembers(&dR);
-    }
-  }
-  UA_BrowseResult_deleteMembers(&bRes); 
-  UA_RCU_UNLOCK();
+    UA_BrowseResult_deleteMembers(&bRes);
+    UA_RCU_UNLOCK();
 }
 
 /**********/
@@ -234,7 +243,7 @@ static void deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
-    UA_Server_deleteAllRepeatedJobs(server);
+    UA_RepeatedJobsList_deleteMembers(&server->repeatedJobs);
 
     // Delete all internal data
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
@@ -249,6 +258,41 @@ void UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
+#ifdef UA_ENABLE_DISCOVERY
+    registeredServer_list_entry *rs, *rs_tmp;
+    LIST_FOREACH_SAFE(rs, &server->registeredServers, pointers, rs_tmp) {
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_deleteMembers(&rs->registeredServer);
+        UA_free(rs);
+    }
+    if(server->periodicServerRegisterJob)
+        UA_free(server->periodicServerRegisterJob);
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        UA_Discovery_multicastDestroy(server);
+
+    serverOnNetwork_list_entry *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
+        if(son->pathTmp)
+            free(son->pathTmp);
+        UA_free(son);
+    }
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_PRIME; i++) {
+        serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            free(currHash);
+            currHash = nextHash;
+        }
+    }
+# endif
+
+#endif
+
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_cond_destroy(&server->dispatchQueue_condition);
     pthread_mutex_destroy(&server->dispatchQueue_mutex);
@@ -261,6 +305,9 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_SessionManager_cleanupTimedOut(&server->sessionManager, nowMonotonic);
     UA_SecureChannelManager_cleanupTimedOut(&server->secureChannelManager, nowMonotonic);
+#ifdef UA_ENABLE_DISCOVERY
+    UA_Discovery_cleanupTimedOut(server, nowMonotonic);
+#endif
 }
 
 static UA_StatusCode
@@ -382,7 +429,7 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
     if(range)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_String *newNamespaces = data->data;
+    UA_String *newNamespaces = (UA_String*)data->data;
     size_t newNamespacesSize = data->arrayLength;
 
     /* Test if we append to the existing namespaces */
@@ -398,6 +445,7 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
     /* Add namespaces */
     for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
         addNamespace(server, newNamespaces[i]);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -422,14 +470,14 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
     return UA_STATUSCODE_GOOD;
 }
 
-static void copyNames(UA_Node *node, char *name) {
+static void copyNames(UA_Node *node, const char *name) {
     node->browseName = UA_QUALIFIEDNAME_ALLOC(0, name);
     node->displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
     node->description = UA_LOCALIZEDTEXT_ALLOC("en_US", name);
 }
 
 static void
-addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
+addDataTypeNode(UA_Server *server, const char* name, UA_UInt32 datatypeid,
                 UA_Boolean isAbstract, UA_UInt32 parent) {
     UA_DataTypeNode *datatype = UA_NodeStore_newDataTypeNode();
     copyNames((UA_Node*)datatype, name);
@@ -440,7 +488,7 @@ addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
 }
 
 static void
-addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
+addObjectTypeNode(UA_Server *server, const char* name, UA_UInt32 objecttypeid,
                   UA_UInt32 parent, UA_UInt32 parentreference) {
     UA_ObjectTypeNode *objecttype = UA_NodeStore_newObjectTypeNode();
     copyNames((UA_Node*)objecttype, name);
@@ -450,7 +498,7 @@ addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
 }
 
 static UA_VariableTypeNode*
-createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
+createVariableTypeNode(UA_Server *server, const char* name, UA_UInt32 variabletypeid,
                        UA_Boolean abstract) {
     UA_VariableTypeNode *variabletype = UA_NodeStore_newVariableTypeNode();
     copyNames((UA_Node*)variabletype, name);
@@ -461,8 +509,10 @@ createVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
-GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
-                  const UA_Variant *input, size_t outputSize, UA_Variant *output) {
+GetMonitoredItems(void *handle, const UA_NodeId *objectId,
+                  const UA_NodeId *sessionId, void *sessionHandle,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Session* session = methodCallSession;
     UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
@@ -477,8 +527,8 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
     if(sizeOfOutput==0)
         return UA_STATUSCODE_GOOD;
 
-    UA_UInt32* clientHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32* serverHandles = UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32* clientHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32* serverHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_UInt32 i = 0;
     LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
         clientHandles[i] = monitoredItem->clientHandle;
@@ -492,13 +542,23 @@ GetMonitoredItems(void *handle, const UA_NodeId objectId, size_t inputSize,
 #endif
 
 UA_Server * UA_Server_new(const UA_ServerConfig config) {
-    UA_Server *server = UA_calloc(1, sizeof(UA_Server));
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
     server->config = config;
     server->nodestore = UA_NodeStore_new();
-    LIST_INIT(&server->repeatedJobs);
+
+    /* Initialize the handling of repeated jobs */
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
+                             server);
+#else
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
+                             server);
+#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
     rcu_init();
@@ -513,13 +573,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #endif
 
     /* ns0 and ns1 */
-    server->namespaces = UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
 
     /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
-    server->endpointDescriptions = UA_Array_new(server->config.networkLayersSize,
+    server->endpointDescriptions = (UA_EndpointDescription *)UA_Array_new(server->config.networkLayersSize,
                                                 &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     server->endpointDescriptionsSize = server->config.networkLayersSize;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
@@ -531,21 +591,21 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
             UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
         size_t policies = 0;
-        if(server->config.enableAnonymousLogin)
+        if(server->config.accessControl.enableAnonymousLogin)
             ++policies;
-        if(server->config.enableUsernamePasswordLogin)
+        if(server->config.accessControl.enableUsernamePasswordLogin)
             ++policies;
         endpoint->userIdentityTokensSize = policies;
-        endpoint->userIdentityTokens = UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        endpoint->userIdentityTokens = (UA_UserTokenPolicy *)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
         size_t currentIndex = 0;
-        if(server->config.enableAnonymousLogin) {
+        if(server->config.accessControl.enableAnonymousLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
             ++currentIndex;
         }
-        if(server->config.enableUsernamePasswordLogin) {
+        if(server->config.accessControl.enableUsernamePasswordLogin) {
             UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
             endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
             endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
@@ -564,9 +624,37 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
-    UA_Job cleanup = {.type = UA_JOBTYPE_METHODCALL,
-                      .job.methodCall = {.method = UA_Server_cleanup, .data = NULL} };
-    UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+   UA_Job cleanup;
+   cleanup.type = UA_JOBTYPE_METHODCALL;
+   cleanup.job.methodCall.data = NULL;
+   cleanup.job.methodCall.method = UA_Server_cleanup;
+   UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+
+#ifdef UA_ENABLE_DISCOVERY
+    // Discovery service
+    LIST_INIT(&server->registeredServers);
+    server->registeredServersSize = 0;
+    server->periodicServerRegisterJob = NULL;
+    server->registerServerCallback = NULL;
+    server->registerServerCallbackData = NULL;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    server->mdnsDaemon = NULL;
+    server->mdnsSocket = 0;
+    server->mdnsMainSrvAdded = UA_FALSE;
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_Discovery_multicastInit(server);
+    }
+
+    LIST_INIT(&server->serverOnNetwork);
+    server->serverOnNetworkSize = 0;
+    server->serverOnNetworkRecordIdCounter = 0;
+    server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(server->serverOnNetworkHash,0,sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+
+    server->serverOnNetworkCallback = NULL;
+    server->serverOnNetworkCallbackData = NULL;
+# endif
+#endif
 
     server->startTime = UA_DateTime_now();
 
@@ -881,14 +969,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     /******************/
     /* Root and below */
     /******************/
-
-    static const UA_NodeId nodeIdFolderType = {
-        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-        .identifier.numeric = UA_NS0ID_FOLDERTYPE};
-    static const UA_NodeId nodeIdHasTypeDefinition = {
-        .namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-        .identifier.numeric = UA_NS0ID_HASTYPEDEFINITION};
-
+    const UA_NodeId nodeIdFolderType = UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE);
+    const UA_NodeId nodeIdHasTypeDefinition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     UA_ObjectNode *root = UA_NodeStore_newObjectNode();
     copyNames((UA_Node*)root, "Root");
     root->nodeId.identifier.numeric = UA_NS0ID_ROOTFOLDER;
@@ -980,11 +1062,13 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)namespaceArray, "NamespaceArray");
     namespaceArray->nodeId.identifier.numeric = UA_NS0ID_SERVER_NAMESPACEARRAY;
     namespaceArray->valueSource = UA_VALUESOURCE_DATASOURCE;
-    namespaceArray->value.dataSource = (UA_DataSource) {.handle = server, .read = readNamespaces,
-                                                        .write = writeNamespaces};
+    namespaceArray->value.dataSource.handle = server;
+    namespaceArray->value.dataSource.read = readNamespaces;
+    namespaceArray->value.dataSource.write = writeNamespaces;
     namespaceArray->dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     namespaceArray->valueRank = 1;
     namespaceArray->minimumSamplingInterval = 1.0;
+    namespaceArray->accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     addNodeInternalWithType(server, (UA_Node*)namespaceArray, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasProperty, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
 
@@ -1142,8 +1226,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)serverstatus, "ServerStatus");
     serverstatus->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     serverstatus->valueSource = UA_VALUESOURCE_DATASOURCE;
-    serverstatus->value.dataSource = (UA_DataSource) {.handle = server, .read = readStatus,
-                                                      .write = NULL};
+    serverstatus->value.dataSource.handle = server;
+    serverstatus->value.dataSource.read = readStatus;
+    serverstatus->value.dataSource.write = NULL;
     addNodeInternalWithType(server, (UA_Node*)serverstatus, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
 
@@ -1161,8 +1246,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)currenttime, "CurrentTime");
     currenttime->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     currenttime->valueSource = UA_VALUESOURCE_DATASOURCE;
-    currenttime->value.dataSource = (UA_DataSource) {.handle = NULL, .read = readCurrentTime,
-                                                     .write = NULL};
+    currenttime->value.dataSource.handle = NULL;
+    currenttime->value.dataSource.read = readCurrentTime;
+    currenttime->value.dataSource.write = NULL;
     addNodeInternalWithType(server, (UA_Node*)currenttime,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                             nodeIdHasComponent, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE));
@@ -1272,8 +1358,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)servicelevel, "ServiceLevel");
     servicelevel->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL);
     servicelevel->valueSource = UA_VALUESOURCE_DATASOURCE;
-    servicelevel->value.dataSource = (UA_DataSource) {.handle = server, .read = readServiceLevel,
-                                                      .write = NULL};
+    servicelevel->value.dataSource.handle = server;
+    servicelevel->value.dataSource.read = readServiceLevel;
+    servicelevel->value.dataSource.write = NULL;
     addNodeInternalWithType(server, (UA_Node*)servicelevel,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasComponent,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
@@ -1282,7 +1369,9 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     copyNames((UA_Node*)auditing, "Auditing");
     auditing->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING);
     auditing->valueSource = UA_VALUESOURCE_DATASOURCE;
-    auditing->value.dataSource = (UA_DataSource) {.handle = server, .read = readAuditing, .write = NULL};
+    auditing->value.dataSource.handle = server;
+    auditing->value.dataSource.read = readAuditing;
+    auditing->value.dataSource.write = NULL;
     addNodeInternalWithType(server, (UA_Node*)auditing,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), nodeIdHasComponent,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE));
@@ -1357,4 +1446,159 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 #endif
 
     return server;
+}
+
+/*************/
+/* Discovery */
+/*************/
+
+#ifdef UA_ENABLE_DISCOVERY
+static UA_StatusCode
+register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
+                                      const UA_Boolean isUnregister,
+                                      const char* semaphoreFilePath) {
+    /* Create the client */
+    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    const char *url = discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840";
+    UA_StatusCode retval = UA_Client_connect(client, url);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
+        UA_Client_delete(client);
+        return retval;
+    }
+
+    /* Prepare the request. Do not cleanup the request after the service call,
+     * as the members are stack-allocated or point into the server config. */
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+
+    request.server.isOnline = !isUnregister;
+    request.server.serverUri = server->config.applicationDescription.applicationUri;
+    request.server.productUri = server->config.applicationDescription.productUri;
+    request.server.serverType = server->config.applicationDescription.applicationType;
+    request.server.gatewayServerUri = server->config.applicationDescription.gatewayServerUri;
+
+    if(semaphoreFilePath) {
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
+        request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+#else
+        UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Ignoring semaphore file path. open62541 not compiled "
+                       "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+#endif
+    }
+
+    request.server.serverNames = &server->config.applicationDescription.applicationName;
+    request.server.serverNamesSize = 1;
+
+    /* Copy the discovery urls from the server config and the network layers*/
+    size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
+    size_t nl_discurls = server->config.networkLayersSize;
+    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * (config_discurls + nl_discurls));
+    request.server.discoveryUrlsSize = config_discurls + nl_discurls;
+
+    for(size_t i = 0; i < config_discurls; ++i)
+        request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];
+
+    /* TODO: Add nl only if discoveryUrl not already present */
+    for(size_t i = 0; i < nl_discurls; ++i) {
+        UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
+        request.server.discoveryUrls[config_discurls + i] = nl->discoveryUrl;
+    }
+
+    UA_MdnsDiscoveryConfiguration mdnsConfig;
+    UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
+
+    request.discoveryConfigurationSize = 0;
+    request.discoveryConfigurationSize = 1;
+    request.discoveryConfiguration = UA_ExtensionObject_new();
+    UA_ExtensionObject_init(&request.discoveryConfiguration[0]);
+    request.discoveryConfiguration[0].encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    request.discoveryConfiguration[0].content.decoded.type = &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION];
+    request.discoveryConfiguration[0].content.decoded.data = &mdnsConfig;
+
+    mdnsConfig.mdnsServerName = server->config.mdnsServerName;
+    mdnsConfig.serverCapabilities = server->config.serverCapabilities;
+    mdnsConfig.serverCapabilitiesSize = server->config.serverCapabilitiesSize;
+
+    // First try with RegisterServer2, if that isn't implemented, use RegisterServer
+    UA_RegisterServer2Response response;
+    UA_RegisterServer2Response_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
+
+    UA_StatusCode serviceResult = response.responseHeader.serviceResult;
+    UA_RegisterServer2Response_deleteMembers(&response);
+    UA_ExtensionObject_delete(request.discoveryConfiguration);
+
+    if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
+       serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
+        // try RegisterServer
+        UA_RegisterServerResponse response_fallback;
+        UA_RegisterServerResponse_init(&response_fallback);
+
+        // copy from RegisterServer2 request
+        UA_RegisterServerRequest request_fallback;
+        UA_RegisterServerRequest_init(&request_fallback);
+
+        request_fallback.requestHeader = request.requestHeader;
+        request_fallback.server = request.server;
+
+        __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                            &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+
+        if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "RegisterServer failed with statuscode %s",
+                         UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
+            serviceResult = response_fallback.responseHeader.serviceResult;
+            UA_RegisterServerResponse_deleteMembers(&response_fallback);
+            UA_Client_disconnect(client);
+            UA_Client_delete(client);
+            return serviceResult;
+        }
+    } else if(serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "RegisterServer2 failed with statuscode %s",
+                     UA_StatusCode_name(serviceResult));
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return serviceResult;
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+                             const char* semaphoreFilePath) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_FALSE, semaphoreFilePath);
+}
+
+UA_StatusCode
+UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl) {
+    return register_server_with_discovery_server(server, discoveryServerUrl, UA_TRUE, NULL);
+}
+
+#endif
+
+/*****************/
+/* Repeated Jobs */
+/*****************/
+
+UA_StatusCode
+UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
+                         UA_UInt32 interval, UA_Guid *jobId) {
+    return UA_RepeatedJobsList_addRepeatedJob(&server->repeatedJobs, job, interval, jobId);
+}
+
+UA_StatusCode
+UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
+    return UA_RepeatedJobsList_removeRepeatedJob(&server->repeatedJobs, jobId);
 }

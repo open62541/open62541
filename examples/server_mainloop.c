@@ -9,22 +9,11 @@
 #else
 # include <sys/select.h>
 #endif
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
 # include "open62541.h"
-#endif
 
 UA_Boolean running = true;
-UA_Logger logger = UA_Log_Stdout;
-
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
@@ -40,18 +29,22 @@ int main(int argc, char** argv) {
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
-    UA_StatusCode retval = UA_Server_run_startup(server);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
     /* Should the server networklayer block (with a timeout) until a message
        arrives or should it return immediately? */
     UA_Boolean waitInternal = false;
+
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     while(running) {
         /* timeout is the maximum possible delay (in millisec) until the next
            _iterate call. Otherwise, the server might miss an internal timeout
            or cannot react to messages with the promised responsiveness. */
+        /* If multicast discovery server is enabled, the timeout does not not consider new input data (requests) on the mDNS socket.
+         * It will be handled on the next call, which may be too late for requesting clients.
+         * if needed, the select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library)
+         */
         UA_UInt16 timeout = UA_Server_run_iterate(server, waitInternal);
 
         /* Now we can use the max timeout to do something else. In this case, we

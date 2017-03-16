@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- *  License, v. 2.0. If a copy of the MPL was not distributed with this
- *  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
@@ -557,45 +557,6 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
 }
 
 UA_StatusCode
-UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-                       size_t* endpointDescriptionsSize,
-                       UA_EndpointDescription** endpointDescriptions) {
-    if(client->state == UA_CLIENTSTATE_CONNECTED)
-        return UA_STATUSCODE_GOOD;
-    if(client->state == UA_CLIENTSTATE_ERRORED)
-        UA_Client_reset(client);
-
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    client->connection =
-        client->config.connectionFunc(UA_ConnectionConfig_standard, serverUrl,
-                                      client->config.logger);
-    if(client->connection.state != UA_CONNECTION_OPENING) {
-        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        goto cleanup;
-    }
-
-    client->endpointUrl = UA_STRING_ALLOC(serverUrl);
-    if(!client->endpointUrl.data) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
-    }
-
-    client->connection.localConf = client->config.localConnectionConfig;
-    retval = HelAckHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client, false);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
-
-    /* always cleanup */
- cleanup:
-    UA_Client_disconnect(client);
-    UA_Client_reset(client);
-    return retval;
-}
-
-UA_StatusCode
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password){
     client->authenticationMethod=UA_CLIENTAUTHENTICATION_USERNAME;
@@ -604,9 +565,8 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
-
-UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+static UA_StatusCode
+_UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpointsHandshake, UA_Boolean createSession) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {
@@ -632,11 +592,11 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
     retval = HelAckHandshake(client);
     if(retval == UA_STATUSCODE_GOOD)
         retval = SecureChannelHandshake(client, false);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(endpointsHandshake && retval == UA_STATUSCODE_GOOD)
         retval = EndpointsHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
         retval = SessionHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
+    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
         retval = ActivateSession(client);
     if(retval == UA_STATUSCODE_GOOD) {
         client->connection.state = UA_CONNECTION_ESTABLISHED;
@@ -649,6 +609,11 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl) {
  cleanup:
     UA_Client_reset(client);
     return retval;
+}
+
+UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    return _UA_Client_connect(client, endpointUrl, UA_TRUE, UA_TRUE);
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
@@ -669,6 +634,129 @@ UA_StatusCode UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = SecureChannelHandshake(client, true);
     if(retval == UA_STATUSCODE_GOOD)
         client->state = UA_CLIENTSTATE_CONNECTED;
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+                       size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions) {
+    if (client->state == UA_CLIENTSTATE_CONNECTED &&
+        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
+        // client is already connected but to a different endpoint url.
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_FALSE, UA_FALSE);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
+
+    UA_Client_disconnect(client);
+    UA_Client_reset(client);
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_findServers(UA_Client *client, const char *serverUrl,
+                      size_t serverUrisSize, UA_String *serverUris,
+                      size_t localeIdsSize, UA_String *localeIds,
+                      size_t *registeredServerSize, UA_ApplicationDescription **registeredServers) {
+
+    if (client->state == UA_CLIENTSTATE_CONNECTED &&
+       strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
+        // client is already connected but to a different endpoint url.
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
+        UA_Client_reset(client);
+        return retval;
+    }
+
+    UA_FindServersRequest request;
+    UA_FindServersRequest_init(&request);
+
+    request.serverUrisSize = serverUrisSize;
+    request.serverUris = serverUris;
+
+    request.localeIdsSize = localeIdsSize;
+    request.localeIds = localeIds;
+
+    // now send the request
+    UA_FindServersResponse response;
+    UA_FindServersResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
+    retval = response.responseHeader.serviceResult;
+    if (retval != UA_STATUSCODE_GOOD) {
+        *registeredServerSize = 0;
+        goto cleanup;
+    }
+
+    *registeredServerSize = response.serversSize;
+    *registeredServers = (UA_ApplicationDescription *) UA_Array_new(response.serversSize,
+                                                                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    for (size_t i = 0; i < response.serversSize; i++)
+        UA_ApplicationDescription_copy(&response.servers[i], &(*registeredServers)[i]);
+
+    /* always cleanup */
+    cleanup:
+    UA_FindServersResponse_deleteMembers(&response);
+    UA_Client_disconnect(client);
+    UA_Client_reset(client);
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
+                               UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
+                               size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                               size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
+
+    if (client->state == UA_CLIENTSTATE_CONNECTED &&
+        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
+        // client is already connected but to a different endpoint url.
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
+        UA_Client_reset(client);
+        return retval;
+    }
+
+    UA_FindServersOnNetworkRequest request;
+    UA_FindServersOnNetworkRequest_init(&request);
+
+    request.startingRecordId = startingRecordId;
+    request.maxRecordsToReturn = maxRecordsToReturn;
+
+    request.serverCapabilityFilterSize = serverCapabilityFilterSize;
+    request.serverCapabilityFilter = serverCapabilityFilter;
+
+    // now send the request
+    UA_FindServersOnNetworkResponse response;
+    UA_FindServersOnNetworkResponse_init(&response);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
+    retval = response.responseHeader.serviceResult;
+    if (retval != UA_STATUSCODE_GOOD) {
+        *serverOnNetworkSize = 0;
+        goto cleanup;
+    }
+
+    *serverOnNetworkSize = response.serversSize;
+    *serverOnNetwork = (UA_ServerOnNetwork *) UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+    for (size_t i = 0; i < response.serversSize; i++)
+        UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
+
+    cleanup:
+    UA_FindServersOnNetworkResponse_deleteMembers(&response);
+    UA_Client_disconnect(client);
+    UA_Client_reset(client);
     return retval;
 }
 
@@ -697,10 +785,15 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
     rd->processed = true;
 
+    /* Forward declaration for the goto */
+    size_t offset = 0;
+    UA_NodeId responseId;
+
     if(messageType == UA_MESSAGETYPE_ERR) {
         UA_TcpErrorMessage *msg = (UA_TcpErrorMessage*)message;
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Server replied with an error message: %s %.*s", UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
+                     "Server replied with an error message: %s %.*s",
+                     UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
         retval = msg->error;
         goto finish;
     } else if(messageType != UA_MESSAGETYPE_MSG) {
@@ -722,8 +815,6 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Check that the response type matches */
-    size_t offset = 0;
-    UA_NodeId responseId;
     retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;
@@ -731,7 +822,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
         if(UA_NodeId_equal(&responseId, &serviceFaultNodeId)) {
             /* Take the statuscode from the servicefault */
             retval = UA_decodeBinary(message, &offset, rd->response,
-                                     &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+                                     &UA_TYPES[UA_TYPES_SERVICEFAULT], 0, NULL);
         } else {
             UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Reply answers the wrong request. Expected ns=%i,i=%i."
@@ -745,7 +836,9 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     }
 
     /* Decode the response */
-    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType);
+    retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
+                             rd->client->config.customDataTypesSize,
+                             rd->client->config.customDataTypes);
 
  finish:
     if(retval == UA_STATUSCODE_GOOD) {

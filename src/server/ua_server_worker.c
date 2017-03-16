@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
 #include "ua_server_internal.h"
@@ -40,10 +40,16 @@
  *     memory models." ACM SIGPLAN Notices. Vol. 48. No. 8. ACM, 2013.
  */
 
-#define MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
+#define UA_MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 
-static void
-processJob(UA_Server *server, UA_Job *job) {
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+# ifndef _WIN32
+#  include <unistd.h> // gethostname
+# endif
+#endif
+
+void
+UA_Server_processJob(UA_Server *server, UA_Job *job) {
     UA_ASSERT_RCU_UNLOCKED();
     UA_RCU_LOCK();
     switch(job->type) {
@@ -53,10 +59,12 @@ processJob(UA_Server *server, UA_Job *job) {
         UA_Connection_detachSecureChannel(job->job.closeConnection);
         break;
     case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+        {
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
                                        &job->job.binaryMessage.message);
         UA_Connection *connection = job->job.binaryMessage.connection;
         connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+        }
         break;
     case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
         UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
@@ -81,11 +89,6 @@ processJob(UA_Server *server, UA_Job *job) {
 
 #ifdef UA_ENABLE_MULTITHREADING
 
-struct MainLoopJob {
-    struct cds_lfs_node node;
-    UA_Job job;
-};
-
 struct DispatchJob {
     struct cds_wfcq_node node; // node for the queue
     UA_Job job;
@@ -105,7 +108,7 @@ workerLoop(UA_Worker *worker) {
         struct DispatchJob *dj = (struct DispatchJob*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
         if(dj) {
-            processJob(server, &dj->job);
+            UA_Server_processJob(server, &dj->job);
             UA_free(dj);
         } else {
             /* nothing to do. sleep until a job is dispatched (and wakes up all worker threads) */
@@ -123,9 +126,10 @@ workerLoop(UA_Worker *worker) {
     return NULL;
 }
 
-static void
-dispatchJob(UA_Server *server, const UA_Job *job) {
+void
+UA_Server_dispatchJob(UA_Server *server, const UA_Job *job) {
     struct DispatchJob *dj = UA_malloc(sizeof(struct DispatchJob));
+    // todo: check malloc
     dj->job = *job;
     cds_wfcq_node_init(&dj->node);
     cds_wfcq_enqueue(&server->dispatchQueue_head, &server->dispatchQueue_tail, &dj->node);
@@ -136,225 +140,12 @@ emptyDispatchQueue(UA_Server *server) {
     while(!cds_wfcq_empty(&server->dispatchQueue_head, &server->dispatchQueue_tail)) {
         struct DispatchJob *dj = (struct DispatchJob*)
             cds_wfcq_dequeue_blocking(&server->dispatchQueue_head, &server->dispatchQueue_tail);
-        processJob(server, &dj->job);
+        UA_Server_processJob(server, &dj->job);
         UA_free(dj);
     }
 }
 
 #endif
-
-/*****************/
-/* Repeated Jobs */
-/*****************/
-
-/* The linked list of jobs is sorted according to the next execution timestamp */
-struct RepeatedJob {
-    LIST_ENTRY(RepeatedJob) next;  /* Next element in the list */
-    UA_DateTime nextTime;          /* The next time when the jobs are to be executed */
-    UA_UInt64 interval;            /* Interval in 100ns resolution */
-    UA_Guid id;                    /* Id of the repeated job */
-    UA_Job job;                    /* The job description itself */
-};
-
-/* internal. call only from the main loop. */
-static void
-addRepeatedJob(UA_Server *server, struct RepeatedJob * UA_RESTRICT rj) {
-    /* Search for the best position on the repeatedJobs sorted list. The goal is
-     * to have many repeated jobs with the same repetition interval in a
-     * "block". This helps to reduce the (linear) search to find the next entry
-     * in the repeatedJobs list when dispatching the repeated jobs.
-     * For this, we search between "nexttime_max - 1s" and "nexttime_max" for
-     * entries with the same repetition interval and adjust the "nexttime".
-     * Otherwise, add entry after the first element before "nexttime_max". */
-    UA_DateTime nextTime_max = UA_DateTime_nowMonotonic() + (UA_Int64) rj->interval;
-
-    struct RepeatedJob *afterRj = NULL;
-    struct RepeatedJob *tmpRj;
-    LIST_FOREACH(tmpRj, &server->repeatedJobs, next) {
-        if(tmpRj->nextTime >= nextTime_max)
-            break;
-        if(tmpRj->interval == rj->interval &&
-           tmpRj->nextTime > (nextTime_max - UA_SEC_TO_DATETIME))
-            nextTime_max = tmpRj->nextTime; /* break in the next iteration */
-        afterRj = tmpRj;
-    }
-
-    /* add the repeated job */
-    rj->nextTime = nextTime_max;
-    if(afterRj)
-        LIST_INSERT_AFTER(afterRj, rj, next);
-    else
-        LIST_INSERT_HEAD(&server->repeatedJobs, rj, next);
-}
-
-UA_StatusCode
-UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 interval, UA_Guid *jobId) {
-    /* the interval needs to be at least 5ms */
-    if(interval < 5)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UInt64 interval_dt =
-        (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME; // from ms to 100ns resolution
-
-    /* Create and fill the repeated job structure */
-    struct RepeatedJob *rj = UA_malloc(sizeof(struct RepeatedJob));
-    if(!rj)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    /* done inside addRepeatedJob:
-     * rj->nextTime = UA_DateTime_nowMonotonic() + interval_dt; */
-    rj->interval = interval_dt;
-    rj->id = UA_Guid_random();
-    rj->job = job;
-
-#ifdef UA_ENABLE_MULTITHREADING
-    /* Call addRepeatedJob from the main loop */
-    struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
-    if(!mlw) {
-        UA_free(rj);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    mlw->job = (UA_Job) {
-        .type = UA_JOBTYPE_METHODCALL,
-        .job.methodCall = {.data = rj, .method = (void (*)(UA_Server*, void*))addRepeatedJob}};
-    cds_lfs_push(&server->mainLoopJobs, &mlw->node);
-#else
-    /* Add directly */
-    addRepeatedJob(server, rj);
-#endif
-    if(jobId)
-        *jobId = rj->id;
-    return UA_STATUSCODE_GOOD;
-}
-
-/* - Dispatches all repeated jobs that have timed out
- * - Reinserts dispatched job at their new position in the sorted list
- * - Returns the next datetime when a repeated job is scheduled */
-static UA_DateTime
-processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatched) {
-    /* Find the last job that is executed in this iteration */
-    struct RepeatedJob *lastNow = NULL, *tmp;
-    LIST_FOREACH(tmp, &server->repeatedJobs, next) {
-        if(tmp->nextTime > current)
-            break;
-        lastNow = tmp;
-    }
-
-    /* Keep pointer to the previously dispatched job to avoid linear search for
-     * "batched" jobs with the same nexttime and interval */
-    struct RepeatedJob tmp_last;
-    tmp_last.nextTime = current-1; /* never matches. just to avoid if(last_added && ...) */
-    struct RepeatedJob *last_dispatched = &tmp_last;
-
-    /* Iterate over the list of elements (sorted according to the nextTime timestamp) */
-    struct RepeatedJob *rj, *tmp_rj;
-    LIST_FOREACH_SAFE(rj, &server->repeatedJobs, next, tmp_rj) {
-        if(rj->nextTime > current)
-            break;
-
-        /* Dispatch/process job */
-#ifdef UA_ENABLE_MULTITHREADING
-        dispatchJob(server, &rj->job);
-        *dispatched = true;
-#else
-        struct RepeatedJob **previousNext = rj->next.le_prev;
-        processJob(server, &rj->job);
-        /* See if the current job was deleted during processJob. That means the
-         * le_next field of the previous repeated job (could also be the list
-         * head) does no longer point to the current repeated job */
-        if((void*)*previousNext != (void*)rj) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "The current repeated job removed itself");
-            continue;
-        }
-#endif
-
-        /* Set the time for the next execution */
-        rj->nextTime += (UA_Int64)rj->interval;
-
-        /* Prevent an infinite loop when the repeated jobs took more time than
-         * rj->interval */
-        if(rj->nextTime < current)
-            rj->nextTime = current + 1;
-
-        /* Find new position for rj to keep the list sorted */
-        struct RepeatedJob *prev_rj;
-        if(last_dispatched->nextTime == rj->nextTime) {
-            /* We "batch" repeatedJobs with the same interval in
-             * addRepeatedJobs. So this might occur quite often. */
-            UA_assert(last_dispatched != &tmp_last);
-            prev_rj = last_dispatched;
-        } else {
-            /* Find the position by a linear search starting at the first
-             * possible job */
-            UA_assert(lastNow); /* Not NULL. Otherwise, we never reach this point. */
-            prev_rj = lastNow;
-            while(true) {
-                struct RepeatedJob *n = LIST_NEXT(prev_rj, next);
-                if(!n || n->nextTime >= rj->nextTime)
-                    break;
-                prev_rj = n;
-            }
-        }
-
-        /* Add entry */
-        if(prev_rj != rj) {
-            LIST_REMOVE(rj, next);
-            LIST_INSERT_AFTER(prev_rj, rj, next);
-        }
-
-        /* Update last_dispatched and loop */
-        last_dispatched = rj;
-    }
-
-    /* Check if the next repeated job is sooner than the usual timeout */
-    struct RepeatedJob *first = LIST_FIRST(&server->repeatedJobs);
-    UA_DateTime next = current + (MAXTIMEOUT * UA_MSEC_TO_DATETIME);
-    if(first && first->nextTime < next)
-        next = first->nextTime;
-    return next;
-}
-
-/* Call this function only from the main loop! */
-static void
-removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
-    struct RepeatedJob *rj;
-    LIST_FOREACH(rj, &server->repeatedJobs, next) {
-        if(!UA_Guid_equal(jobId, &rj->id))
-            continue;
-        LIST_REMOVE(rj, next);
-        UA_free(rj);
-        break;
-    }
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_free(jobId);
-#endif
-}
-
-UA_StatusCode UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_Guid *idptr = UA_malloc(sizeof(UA_Guid));
-    if(!idptr)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    *idptr = jobId;
-    // dispatch to the mainloopjobs stack
-    struct MainLoopJob *mlw = UA_malloc(sizeof(struct MainLoopJob));
-    mlw->job = (UA_Job) {
-        .type = UA_JOBTYPE_METHODCALL,
-        .job.methodCall = {.data = idptr, .method = (void (*)(UA_Server*, void*))removeRepeatedJob}};
-    cds_lfs_push(&server->mainLoopJobs, &mlw->node);
-#else
-    removeRepeatedJob(server, &jobId);
-#endif
-    return UA_STATUSCODE_GOOD;
-}
-
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server) {
-    struct RepeatedJob *current, *temp;
-    LIST_FOREACH_SAFE(current, &server->repeatedJobs, next, temp) {
-        LIST_REMOVE(current, next);
-        UA_free(current);
-    }
-}
 
 /****************/
 /* Delayed Jobs */
@@ -369,7 +160,7 @@ typedef struct UA_DelayedJob {
 
 UA_StatusCode
 UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data) {
-    UA_DelayedJob *dj = UA_malloc(sizeof(UA_DelayedJob));
+    UA_DelayedJob *dj = (UA_DelayedJob *)UA_malloc(sizeof(UA_DelayedJob));
     if(!dj)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     dj->job.type = UA_JOBTYPE_METHODCALL;
@@ -384,7 +175,7 @@ processDelayedCallbacks(UA_Server *server) {
     UA_DelayedJob *dj, *dj_tmp;
     SLIST_FOREACH_SAFE(dj, &server->delayedCallbacks, next, dj_tmp) {
         SLIST_REMOVE(&server->delayedCallbacks, dj, UA_DelayedJob, next);
-        processJob(server, &dj->job);
+        UA_Server_processJob(server, &dj->job);
         UA_free(dj);
     }
 }
@@ -431,7 +222,7 @@ static void addDelayedJob(UA_Server *server, UA_Job *job) {
             UA_Job setCounter = (UA_Job){
                 .type = UA_JOBTYPE_METHODCALL, .job.methodCall =
                 {.method = (void (*)(UA_Server*, void*))getCounters, .data = dj->next}};
-            dispatchJob(server, &setCounter);
+            UA_Server_dispatchJob(server, &setCounter);
         }
     }
     dj->jobs[dj->jobsCount] = *job;
@@ -499,7 +290,7 @@ dispatchDelayedJobs(UA_Server *server, void *_) {
     /* process and free all delayed jobs from here on */
     while(dw) {
         for(size_t i = 0; i < dw->jobsCount; ++i)
-            processJob(server, &dw->jobs[i]);
+            UA_Server_processJob(server, &dw->jobs[i]);
         struct DelayedJobs *next = UA_atomic_xchg((void**)&beforedw->next, NULL);
         UA_free(dw->workerCounters);
         UA_free(dw);
@@ -522,13 +313,40 @@ static void processMainLoopJobs(UA_Server *server) {
     struct MainLoopJob *mlw = (struct MainLoopJob*)&head->node;
     struct MainLoopJob *next;
     do {
-        processJob(server, &mlw->job);
+        UA_Server_processJob(server, &mlw->job);
         next = (struct MainLoopJob*)mlw->node.next;
         UA_free(mlw);
         //cppcheck-suppress unreadVariable
     } while((mlw = next));
 }
 #endif
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+static UA_StatusCode
+UA_Server_addMdnsRecordForNetworkLayer(UA_Server *server, const char* appName, const UA_ServerNetworkLayer* nl) {
+    UA_UInt16 port = 0;
+    char hostname[256]; hostname[0] = '\0';
+    const char *path;
+    {
+        char* uri = (char *)malloc(sizeof(char) * nl->discoveryUrl.length + 1);
+        strncpy(uri, (char*) nl->discoveryUrl.data, nl->discoveryUrl.length);
+        uri[nl->discoveryUrl.length] = '\0';
+        UA_StatusCode retval;
+        if ((retval = UA_EndpointUrl_split(uri, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
+            if (retval == UA_STATUSCODE_BADOUTOFRANGE)
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid", uri);
+            else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
+                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' does not begin with opc.tcp://", uri);
+            free(uri);
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+        free(uri);
+    }
+    UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
+                           server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
+    return UA_STATUSCODE_GOOD;
+}
+#endif //UA_ENABLE_DISCOVERY_MULTICAST
 
 UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
@@ -551,7 +369,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
     /* Try to execute delayed callbacks every 10 sec */
     UA_Job processDelayed = {.type = UA_JOBTYPE_METHODCALL,
                              .job.methodCall = {.method = dispatchDelayedJobs, .data = NULL} };
-    UA_Server_addRepeatedJob(server, processDelayed, 10000, NULL);
+    UA_RepeatedJobsList_addRepeatedJob(&server->repeatedJobs, processDelayed, 10000, NULL);
 #endif
 
     /* Start the networklayers */
@@ -560,6 +378,33 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         result |= nl->start(nl, server->config.logger);
     }
+
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+
+        char *appName = (char *)malloc(server->config.mdnsServerName.length +1);
+        memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+        appName[server->config.mdnsServerName.length] = '\0';
+
+        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
+            UA_StatusCode retVal = UA_Server_addMdnsRecordForNetworkLayer(
+                    server, appName, &server->config.networkLayers[i]);
+            if (UA_STATUSCODE_GOOD != retVal) {
+                free(appName);
+                return retVal;
+            }
+        }
+        free(appName);
+
+        // find any other server on the net
+        UA_Discovery_multicastQuery(server);
+
+# ifdef UA_ENABLE_MULTITHREADING
+        UA_Discovery_multicastListenStart(server);
+# endif
+    }
+#endif //UA_ENABLE_DISCOVERY_MULTICAST
 
     return result;
 }
@@ -599,7 +444,11 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Process repeated work */
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_Boolean dispatched = false; /* to wake up worker threads */
-    UA_DateTime nextRepeated = processRepeatedJobs(server, now, &dispatched);
+    UA_DateTime nextRepeated =
+        UA_RepeatedJobsList_process(&server->repeatedJobs, now, &dispatched);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    if(nextRepeated > latest)
+        nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
@@ -633,10 +482,10 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         /* Dispatch/process jobs */
         for(size_t j = 0; j < jobsSize; ++j) {
 #ifdef UA_ENABLE_MULTITHREADING
-            dispatchJob(server, &jobs[j]);
+            UA_Server_dispatchJob(server, &jobs[j]);
             dispatched = true;
 #else
-            processJob(server, &jobs[j]);
+            UA_Server_processJob(server, &jobs[j]);
 #endif
         }
 
@@ -653,6 +502,22 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     processDelayedCallbacks(server);
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+# ifndef UA_ENABLE_MULTITHREADING
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_DateTime multicastNextRepeat;
+        UA_DateTime_init(&multicastNextRepeat);
+        //TODO multicastNextRepeat does not consider new input data (requests) on the socket. It will be handled on the next call.
+        // if needed, we need to use select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library) on higher level.
+        if (UA_Discovery_multicastIterate(server, &multicastNextRepeat, UA_TRUE)) {
+            if (multicastNextRepeat < nextRepeated) {
+                UA_DateTime_copy(&multicastNextRepeat, &nextRepeated);
+            }
+        }
+    }
+# endif
+#endif
+
     now = UA_DateTime_nowMonotonic();
     timeout = 0;
     if(nextRepeated > now)
@@ -666,7 +531,7 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
         UA_Job *stopJobs = NULL;
         size_t stopJobsSize = nl->stop(nl, &stopJobs);
         for(size_t j = 0; j < stopJobsSize; ++j)
-            processJob(server, &stopJobs[j]);
+            UA_Server_processJob(server, &stopJobs[j]);
         UA_free(stopJobs);
     }
 
@@ -693,6 +558,32 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
 #else
     processDelayedCallbacks(server);
 #endif
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        char* hostname = (char *)malloc(sizeof(char) * 256);
+        if (gethostname(hostname, 255) == 0) {
+            char *appName = (char *)malloc(server->config.mdnsServerName.length +1);
+            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
+            appName[server->config.mdnsServerName.length] = '\0';
+            UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
+            free(appName);
+        } else {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Could not get hostname for multicast discovery.");
+        }
+        free(hostname);
+
+# ifdef UA_ENABLE_MULTITHREADING
+        UA_Discovery_multicastListenStop(server);
+# else
+        // send out last package with TTL = 0
+        UA_Discovery_multicastIterate(server, NULL, UA_FALSE);
+# endif
+    }
+
+#endif
+
     return UA_STATUSCODE_GOOD;
 }
 

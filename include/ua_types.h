@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -758,8 +758,8 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */

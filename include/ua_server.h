@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
@@ -70,6 +70,66 @@ struct UA_ServerNetworkLayer {
 };
 
 /**
+ * Access Control
+ * --------------
+ * The access control callback is used to authenticate sessions and grant access
+ * rights accordingly. */
+typedef struct {
+    UA_Boolean enableAnonymousLogin;
+    UA_Boolean enableUsernamePasswordLogin;
+    
+    /* Authenticate a session */
+    UA_StatusCode (*activateSession)(const UA_NodeId *sessionId,
+                                     const UA_ExtensionObject *userIdentityToken,
+                                     void **sessionHandle);
+
+    /* Deauthenticate a session and cleanup */
+    void (*closeSession)(const UA_NodeId *sessionId, void *sessionHandle);
+
+    /* Access control for all nodes*/
+    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId,
+                                   void *sessionHandle,
+                                   const UA_NodeId *nodeId);
+
+    /* Additional access control for variable nodes */
+    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_NodeId *nodeId);
+
+    /* Additional access control for method nodes */
+    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_NodeId *methodId);
+
+    /* Additional access control for calling a method node in the context of a
+     * specific object */
+    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId,
+                                            void *sessionHandle,
+                                            const UA_NodeId *methodId,
+                                            const UA_NodeId *objectId);
+
+    /* Allow adding a node */
+    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId,
+                               void *sessionHandle,
+                               const UA_AddNodesItem *item);
+
+    /* Allow adding a reference */
+    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId,
+                                    void *sessionHandle,
+                                    const UA_AddReferencesItem *item);
+
+    /* Allow deleting a node */
+    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_DeleteNodesItem *item);
+
+    /* Allow deleting a reference */
+    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId,
+                                       void *sessionHandle,
+                                       const UA_DeleteReferencesItem *item);
+} UA_AccessControl;
+
+/**
  * Server Configuration
  * --------------------
  * The following structure is passed to a new server for configuration. */
@@ -96,16 +156,22 @@ typedef struct {
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
     UA_ByteString serverCertificate;
+#ifdef UA_ENABLE_DISCOVERY
+    UA_String mdnsServerName;
+    size_t serverCapabilitiesSize;
+    UA_String *serverCapabilities;
+#endif
+
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
 
     /* Networking */
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
-    /* Login */
-    UA_Boolean enableAnonymousLogin;
-    UA_Boolean enableUsernamePasswordLogin;
-    size_t usernamePasswordLoginsSize;
-    UA_UsernamePasswordLogin* usernamePasswordLogins;
+    /* Access Control */
+    UA_AccessControl accessControl;
 
     /* Limits for SecureChannels */
     UA_UInt16 maxSecureChannels;
@@ -125,6 +191,16 @@ typedef struct {
     /* Limits for MonitoredItems */
     UA_DoubleRange samplingIntervalLimits;
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
+
+#ifdef UA_ENABLE_DISCOVERY
+    /* Discovery */
+    // timeout in seconds when to automatically remove a registered server from the list,
+    // if it doesn't re-register within the given time frame. A value of 0 disables automatic removal.
+    // Default is 60 Minutes (60*60). Must be bigger than 10 seconds, because cleanup is only triggered approximately
+    // ervery 10 seconds.
+    // The server will still be removed depending on the state of the semaphore file.
+    UA_UInt32 discoveryCleanupTimeout;
+#endif
 } UA_ServerConfig;
 
 /* Add a new namespace to the server. Returns the index of the new namespace */
@@ -370,7 +446,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - ContainsNoLoop
  *
  * The following attributes cannot be written from the server, as they are
- * specific to the different users:
+ * specific to the different users and set by the access control callback:
  *
  * - UserWriteMask
  * - UserAccessLevel
@@ -525,6 +601,100 @@ UA_StatusCode UA_EXPORT
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle);
 
+#ifdef UA_ENABLE_DISCOVERY
+ /**
+ * Discovery
+ * --------- */
+
+ /**
+  * Register the given server instance at the discovery server.
+  * This should be called periodically.
+  * The semaphoreFilePath is optional. If the given file is deleted,
+  * the server will automatically be unregistered. This could be
+  * for example a pid file which is deleted if the server crashes.
+  *
+  * When the server shuts down you need to call unregister.
+  *
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param semaphoreFilePath optional parameter pointing to semaphore file.
+  */
+ UA_StatusCode UA_EXPORT
+ UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath);
+
+ /**
+  * Unregister the given server instance from the discovery server.
+  * This should only be called when the server is shutting down.
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  */
+ UA_StatusCode UA_EXPORT
+ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
+
+ /**
+  * Adds a periodic job to register the server with the LDS (local discovery server)
+  * periodically. The interval between each register call is given as second parameter.
+  * It should be 10 minutes by default (= 10*60*1000).
+  *
+  * The delayFirstRegisterMs parameter indicates the delay for the first register call.
+  * If it is 0, the first register call will be after intervalMs milliseconds,
+  * otherwise the server's first register will be after delayFirstRegisterMs.
+  *
+  * When you manually unregister the server, you also need to cancel the periodic job,
+  * otherwise it will be automatically be registered again.
+  *
+  * @param server
+  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param intervalMs
+  * @param delayFirstRegisterMs
+  * @param periodicJobId
+  */
+ UA_StatusCode UA_EXPORT
+         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+
+ /* Callback for RegisterServer. Data is passed from the register call */
+ typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);
+
+/**
+ * Set the callback which is called if another server registeres or unregisteres with this instance.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+         UA_Server_setRegisterServerCallback(UA_Server *server,
+                                             UA_Server_registerServerCallback cb,
+                                             void* data);
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+/**
+ * Callback for server detected through mDNS. Data is passed from the register call
+ * @param isServerAnnounce indicates if the server has just been detected. If set to false, this means the server is shutting down.
+ * @param isTxtReceived indicates if we already received the corresponding TXT record with the path and caps data
+ **/
+typedef void (*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce, UA_Boolean isTxtReceived, void* data);
+
+/**
+ * Set the callback which is called if another server is found through mDNS or deleted.
+ * It will be called for any mDNS message from the remote server, thus it may be called multiple times for the same instance.
+ * Also the SRV and TXT records may arrive later, therefore for the first call the server capabilities may not be set yet.
+ * If called multiple times, previous data will be overwritten.
+ * @param server
+ * @param cb the callback
+ * @param data data passed to the callback
+ * @return UA_STATUSCODE_SUCCESS on success
+ */
+void UA_EXPORT
+        UA_Server_setServerOnNetworkCallback(UA_Server *server,
+                                             UA_Server_serverOnNetworkCallback cb,
+                                             void* data);
+#endif
+
+#endif
+
 /**
  * Method Call
  * ----------- */
@@ -669,7 +839,8 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server,
  * Method Callbacks
  * ~~~~~~~~~~~~~~~~ */
 typedef UA_StatusCode
-(*UA_MethodCallback)(void *methodHandle, const UA_NodeId objectId,
+(*UA_MethodCallback)(void *methodHandle, const UA_NodeId *objectId,
+                     const UA_NodeId *sessionId, void *sessionHandle,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 

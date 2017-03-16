@@ -3,25 +3,16 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include "open62541.h"
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
-
-/* files nodeset.h and nodeset.c are created from server_nodeset.xml in the /src_generated directory by CMake */
+/* Files nodeset.h and nodeset.c are created from server_nodeset.xml in the
+ * /src_generated directory by CMake */
 #include "nodeset.h"
 
-UA_Logger logger = UA_Log_Stdout;
 UA_Boolean running = true;
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
@@ -37,14 +28,16 @@ int main(int argc, char** argv) {
 
     /* create nodes from nodeset */
     if (nodeset(server) != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Namespace index for generated nodeset does not match. The call to the generated method has to be before any other namespace add calls.");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Namespace index for generated "
+                     "nodeset does not match. The call to the generated method has to be "
+                     "before any other namespace add calls.");
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
     /* start server */
-    UA_StatusCode retval = UA_Server_run(server, &running); //UA_blocks until running=false
+    UA_StatusCode retval = UA_Server_run(server, &running);
 
     /* ctrl-c received -> clean up */
     UA_Server_delete(server);

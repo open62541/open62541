@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -120,7 +120,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
     }
 
     size_t size = request->subscriptionIdsSize;
-    response->results = UA_Array_new(size, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    response->results = (UA_StatusCode *)UA_Array_new(size, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -175,7 +175,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
         /* Default: Trigger only on the value and the statuscode */
         mon->trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
     } else {
-        UA_DataChangeFilter *filter = params->filter.content.decoded.data;
+        UA_DataChangeFilter *filter = (UA_DataChangeFilter *)params->filter.content.decoded.data;
         mon->trigger = filter->trigger;
     }
 
@@ -288,7 +288,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->itemsToCreateSize,
+    response->results = (UA_MonitoredItemCreateResult *)UA_Array_new(request->itemsToCreateSize,
                                      &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -343,7 +343,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->itemsToModifySize,
+    response->results = (UA_MonitoredItemModifyResult *)UA_Array_new(request->itemsToModifySize,
                                      &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -372,7 +372,7 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_Array_new(request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    response->results = (UA_StatusCode *)UA_Array_new(request->monitoredItemIdsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -396,22 +396,36 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     }
 }
 
+/* TODO: Unify with senderror in ua_server_binary.c */
+static void
+subscriptionSendError(UA_SecureChannel *channel, UA_UInt32 requestHandle,
+                      UA_UInt32 requestId, UA_StatusCode error) {
+    UA_PublishResponse err_response;
+    UA_PublishResponse_init(&err_response);
+    err_response.responseHeader.requestHandle = requestHandle;
+    err_response.responseHeader.timestamp = UA_DateTime_now();
+    err_response.responseHeader.serviceResult = error;
+    UA_SecureChannel_sendBinaryMessage(channel, requestId, &err_response,
+                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+}
 
 void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing PublishRequest");
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
-        retval = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        goto send_error;
+        subscriptionSendError(session->channel, request->requestHeader.requestHandle,
+                              requestId, UA_STATUSCODE_BADNOSUBSCRIPTION);
+        return;
     }
 
-    UA_PublishResponseEntry *entry = UA_malloc(sizeof(UA_PublishResponseEntry));
+    UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto send_error;
+        subscriptionSendError(session->channel, requestId,
+                              request->requestHeader.requestHandle, UA_STATUSCODE_BADOUTOFMEMORY);
+        return;
     }
     entry->requestId = requestId;
 
@@ -420,12 +434,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponse_init(response);
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     if(request->subscriptionAcknowledgementsSize > 0) {
-        response->results = UA_Array_new(request->subscriptionAcknowledgementsSize,
+        response->results = (UA_StatusCode *)UA_Array_new(request->subscriptionAcknowledgementsSize,
                                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto send_error;
+            subscriptionSendError(session->channel, requestId,
+                                  request->requestHeader.requestHandle,
+                                  UA_STATUSCODE_BADOUTOFMEMORY);
+            return;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;
     }
@@ -461,17 +477,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
             break;
         }
     }
-    return;
-
-    UA_PublishResponse err_response;
- send_error:
-    UA_PublishResponse_init(&err_response);
-    err_response.responseHeader.requestHandle = request->requestHeader.requestHandle;
-    err_response.responseHeader.timestamp = UA_DateTime_now();
-    err_response.responseHeader.serviceResult = retval;
-    UA_assert(err_response.responseHeader.requestHandle != 0);
-    UA_SecureChannel_sendBinaryMessage(session->channel, requestId, &err_response,
-                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 }
 
 void
@@ -486,7 +491,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = UA_malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
+    response->results = (UA_StatusCode *)UA_malloc(sizeof(UA_StatusCode) * request->subscriptionIdsSize);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -537,7 +542,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
     /* Reset the subscription lifetime */
     sub->currentLifetimeCount = 0;
-    response->results = UA_malloc(sizeof(UA_StatusCode) * request->monitoredItemIdsSize);
+    response->results = (UA_StatusCode *)UA_malloc(sizeof(UA_StatusCode) * request->monitoredItemIdsSize);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;

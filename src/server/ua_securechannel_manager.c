@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_securechannel_manager.h"
 #include "ua_session.h"
@@ -83,7 +83,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
     }
 
     /* Set up the channel */
-    channel_list_entry *entry = UA_malloc(sizeof(channel_list_entry));
+    channel_list_entry *entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_SecureChannel_init(&entry->channel);
