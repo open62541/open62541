@@ -132,7 +132,7 @@ START_TEST(parseCustomArray) {
     ck_assert_int_eq(var2.arrayLength, 10);
 
     for (size_t i = 0; i < 10; i++) {
-        UA_ExtensionObject *eo = (UA_ExtensionObject*)&var2.data[i];
+        UA_ExtensionObject *eo = &((UA_ExtensionObject*)var2.data)[i];
         ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
         ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
         Point *p2 = (Point*)eo->content.decoded.data;
