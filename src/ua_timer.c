@@ -172,8 +172,7 @@ UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl,
     if(!lastNow) {
         if(firstAfter)
             return firstAfter->nextTime;
-        else
-            return UA_INT64_MAX;
+        return UA_INT64_MAX;
     }
 
     /* Put the jobs that are executed now in a separate list */
