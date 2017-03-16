@@ -131,11 +131,16 @@ START_TEST(parseCustomArray) {
     ck_assert_ptr_eq(var2.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_int_eq(var2.arrayLength, 10);
 
-    UA_ExtensionObject *eo = (UA_ExtensionObject*)var2.data;
-    ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
-    ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
-    Point *p2 = (Point*)eo->content.decoded.data;
-    ck_assert(p2->x == 0.0);
+    for (size_t i = 0; i < 10; i++) {
+        UA_ExtensionObject *eo = (UA_ExtensionObject*)var2.data + i;
+        ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
+        ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
+        Point *p2 = (Point*)eo->content.decoded.data;
+
+        ck_assert(p2->x == ps[i].x);
+        ck_assert(p2->y == ps[i].y);
+        ck_assert(p2->z == ps[i].z);
+    }
         
     UA_Variant_deleteMembers(&var2);
     UA_ByteString_deleteMembers(&buf);
