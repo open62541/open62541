@@ -247,4 +247,8 @@ UA_RepeatedJobsList_deleteMembers(UA_RepeatedJobsList *rjl) {
         SLIST_REMOVE_HEAD(&rjl->repeatedJobs, next);
         UA_free(current);
     }
+    while((current = SLIST_FIRST(&rjl->addRemoveJobs))) {
+        SLIST_REMOVE_HEAD(&rjl->addRemoveJobs, next);
+        UA_free(current);
+    }
 }
