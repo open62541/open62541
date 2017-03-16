@@ -17,6 +17,7 @@ struct UA_RepeatedJob {
     UA_UInt64 interval;               /* Interval in 100ns resolution */
     UA_Guid id;                       /* Id of the repeated job */
     UA_Job job;                       /* The job description itself */
+    UA_Boolean removeAfterExecution;  /* The job should be removed after execution */
 };
 
 void
@@ -68,12 +69,10 @@ dequeueChange(UA_RepeatedJobsList *rjl) {
     return NULL;
 }
 
-/* Adding repeated jobs: Add an entry with the "nextTime" timestamp in the
- * future. This will be picked up in the next iteration and inserted at the
- * correct place. So that the next execution takes place ät "nextTime". */
-UA_StatusCode
-UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
-                                   const UA_UInt32 interval, UA_Guid *jobId) {
+static UA_StatusCode
+createRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
+                  const UA_UInt32 interval, UA_Guid *newJobId,
+                  const UA_Guid *existingJobId, UA_Boolean removeAfterExecution) {
     /* The interval needs to be at least 5ms */
     if(interval < 5)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -85,17 +84,76 @@ UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
 
     /* Set the repeated job */
     rj->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
-    rj->id = UA_Guid_random();
+    if (existingJobId == NULL) {
+        rj->id = UA_Guid_random();
+        /* Set the output guid */
+        if (newJobId)
+            *newJobId = rj->id;
+    }
+    else
+        rj->id = *existingJobId;
     rj->job = job;
     rj->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)rj->interval;
+    rj->removeAfterExecution = removeAfterExecution;
 
-    /* Set the output guid */
-    if(jobId)
-        *jobId = rj->id;
 
     /* Enqueue the changes in the MPSC queue */
     enqueueChange(rjl, rj);
     return UA_STATUSCODE_GOOD;
+}
+
+
+/* Adding repeated jobs: Add an entry with the "nextTime" timestamp in the
+ * future. This will be picked up in the next iteration and inserted at the
+ * correct place. So that the next execution takes place ät "nextTime". */
+UA_StatusCode
+UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
+                                   const UA_UInt32 interval, UA_Guid *jobId) {
+    return createRepeatedJob(rjl, job, interval, jobId, NULL, UA_FALSE);
+}
+
+UA_StatusCode
+UA_RepeatedJobsList_addDelayedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
+                                  const UA_UInt32 delay, UA_Guid *jobId) {
+    return createRepeatedJob(rjl, job, delay, jobId, NULL, UA_TRUE);
+}
+
+
+UA_StatusCode
+UA_RepeatedJobsList_updateRepeatedJobInterval(UA_RepeatedJobsList *rjl, const UA_Guid jobId, const UA_UInt32 newInterval) {
+
+    // if the job to be updated is still in the changes list, we just update the interval there
+
+    UA_RepeatedJob *rj = rjl->changes_tail;
+
+    if (rj)
+        do  {
+            if(UA_Guid_equal(&jobId, &rj->id)) {
+                rj->interval  = (UA_UInt64)newInterval * (UA_UInt64)UA_MSEC_TO_DATETIME;
+                rj->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)rj->interval;
+                return UA_STATUSCODE_GOOD;
+            }
+        } while ((rj = rj->next.sle_next) != NULL);
+
+    // if the job is already in the repeatedJobs list, we need to remove the job and readd a new one to make sure
+    // the updated job is inserted at the correct position. This has to be done in a thread-safe way, so we need to
+    // use the addRemoveJobs list, instead of tampering with the repeatedJobs list.
+
+    // find the job
+    SLIST_FOREACH(rj, &rjl->repeatedJobs, next) {
+        if(UA_Guid_equal(&jobId, &rj->id)) {
+            break;
+        }
+    }
+
+    if (!rj)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_StatusCode retVal = createRepeatedJob(rjl, rj->job, newInterval, NULL, &jobId, UA_FALSE);
+    if (retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    return UA_RepeatedJobsList_removeRepeatedJob(rjl, jobId);
 }
 
 static void
@@ -220,6 +278,11 @@ UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl,
         rjl->processCallback(rjl->processContext, &rj->job);
         *dispatched = true;
 
+        if (rj->removeAfterExecution) {
+            UA_free(rj);
+            continue;
+        }
+
         /* Set the time for the next execution. Prevent an infinite loop by
          * forcing the next processing into the next iteration. */
         rj->nextTime += (UA_Int64)rj->interval;
@@ -260,7 +323,10 @@ UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl,
     processChanges(rjl, nowMonotonic);
 
     /* Return timestamp of next repetition */
-    return SLIST_FIRST(&rjl->repeatedJobs)->nextTime;
+    rj = SLIST_FIRST(&rjl->repeatedJobs);
+    if (!rj)
+        return UA_INT64_MAX;
+    return rj->nextTime;
 }
 
 void

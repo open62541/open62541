@@ -272,6 +272,32 @@ UA_StatusCode UA_EXPORT
 UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
 
 /**
+ * Delayed jobs
+ * ------------- */
+/* Add a job for single delayed execution in the server.
+ *
+ * @param server The server object.
+ * @param job The job that shall be added.
+ * @param delay Delay the job by the given delay time (in ms). The delay must be larger than 5ms. The first execution
+ *        occurs at now() + delay at the latest.
+ * @param jobId Set to the guid of the delayed job. This can be used to cancel
+ *        the job later on. If the pointer is null, the guid is not set.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned.
+ *         An error code otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Server_addDelayedJob(UA_Server *server, UA_Job job,
+                         UA_UInt32 delay, UA_Guid *jobId);
+
+/* Remove delayed job.
+ *
+ * @param server The server object.
+ * @param jobId The id of the job that shall be removed.
+ * @return Upon sucess, UA_STATUSCODE_GOOD is returned.
+ *         An error code otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Server_removeDelayedJob(UA_Server *server, UA_Guid jobId);
+
+/**
  * Reading and Writing Node Attributes
  * -----------------------------------
  * The functions for reading and writing node attributes call the regular read
@@ -650,7 +676,9 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   * @param periodicJobId
   */
  UA_StatusCode UA_EXPORT
-         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl,
+                                                const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs,
+                                                UA_Guid* periodicJobId);
 
  /* Callback for RegisterServer. Data is passed from the register call */
  typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);

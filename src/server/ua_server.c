@@ -1602,3 +1602,18 @@ UA_StatusCode
 UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
     return UA_RepeatedJobsList_removeRepeatedJob(&server->repeatedJobs, jobId);
 }
+
+/*****************/
+/* Delayed Jobs */
+/*****************/
+
+UA_StatusCode
+UA_Server_addDelayedJob(UA_Server *server, UA_Job job,
+                         UA_UInt32 delay, UA_Guid *jobId) {
+    return UA_RepeatedJobsList_addDelayedJob(&server->repeatedJobs, job, delay, jobId);
+}
+
+UA_StatusCode
+UA_Server_removeDelayedJob(UA_Server *server, UA_Guid jobId) {
+    return UA_RepeatedJobsList_removeRepeatedJob(&server->repeatedJobs, jobId);
+}

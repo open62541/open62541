@@ -49,6 +49,17 @@ UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
 UA_StatusCode
 UA_RepeatedJobsList_removeRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Guid jobId);
 
+/* Add a delayed job. Thread-safe, can be used in parallel and in parallel
+ * with UA_RepeatedJobsList_process. */
+UA_StatusCode
+UA_RepeatedJobsList_addDelayedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
+                                   const UA_UInt32 delay, UA_Guid *jobId);
+
+/* Update the interval of an already added repeated job. Thread-safe, can be used in parallel and in parallel
+ * with UA_RepeatedJobsList_process. */
+UA_StatusCode
+UA_RepeatedJobsList_updateRepeatedJobInterval(UA_RepeatedJobsList *rjl, const UA_Guid jobId, const UA_UInt32 newInterval);
+
 /* Process the repeated jobs that have timed out. Returns the timestamp of the
  * next scheduled repeated job. Not thread-safe. */
 UA_DateTime

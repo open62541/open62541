@@ -554,11 +554,11 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 }
 
 struct PeriodicServerRegisterJob {
-    UA_UInt32 default_interval;
-    UA_Guid job_id;
-    UA_Job *job;
-    UA_UInt32 this_interval;
-    const char* discovery_server_url;
+    UA_UInt32 defaultInterval;
+    UA_Guid defaultJob;
+    UA_Guid retryJob;
+    UA_UInt32 lastRetryInterval;
+    const char* discoveryServerUrl;
 };
 
 /* Called by the UA_Server job. The OPC UA specification says:
@@ -568,29 +568,11 @@ struct PeriodicServerRegisterJob {
  * > but gradually increase until the registration frequency is the same as what it would be if not
  * > errors occurred. The recommended approach would double the period each attempt until reaching the maximum.
  *
- * We will do so by using the additional data parameter which holds information
- * if the next interval is default or if it is a repeaded call. */
+ */
 static void
 periodicServerRegister(UA_Server *server, void *data) {
-    if(!data) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Data parameter must be not NULL for periodic server register");
-        return;
-    }
 
-    struct PeriodicServerRegisterJob *retryJob = (struct PeriodicServerRegisterJob *)data;
-    if(retryJob->job != NULL) {
-        // remove the retry job because we don't want to fire it again.
-        UA_Server_removeRepeatedJob(server, retryJob->job_id);
-    }
-
-    // fixme: remove magic urls
-    const char * server_url;
-    if(retryJob->discovery_server_url != NULL)
-        server_url = retryJob->discovery_server_url;
-    else
-        server_url = "opc.tcp://localhost:4840";
-    UA_StatusCode retval = UA_Server_register_discovery(server, server_url, NULL);
+    UA_StatusCode retval = UA_Server_register_discovery(server, server->periodicServerRegisterJob->discoveryServerUrl, NULL);
 
     // You can also use a semaphore file. That file must exist. When the file is
     // deleted, the server is automatically unregistered. The semaphore file has
@@ -603,41 +585,62 @@ periodicServerRegister(UA_Server *server, void *data) {
                      "Could not register server with discovery server. "
                      "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
 
-        // first retry in 1 second
-        UA_UInt32 nextInterval = 1;
 
-        if (retryJob->job != NULL)
-            // double the interval for the next retry
-            nextInterval = retryJob->this_interval*2;
 
-        // as long as next retry is smaller than default interval, retry
-        if (nextInterval < retryJob->default_interval) {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Retrying registration in %d seconds", nextInterval);
-            // todo: malloc may fail: return a statuscode
-            struct PeriodicServerRegisterJob *newRetryJob =
-                (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-            newRetryJob->job = (UA_Job *)UA_malloc(sizeof(UA_Job));
-            newRetryJob->default_interval = retryJob->default_interval;
-            newRetryJob->this_interval = nextInterval;
-            newRetryJob->discovery_server_url = retryJob->discovery_server_url;
+        if (server->periodicServerRegisterJob->lastRetryInterval > 0) {
+            // retry job is set, this means that the call to this method was a retry and not the default job itself.
+            // therefore increase the interval for the next execution
 
-            newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
-            newRetryJob->job->job.methodCall.method = periodicServerRegister;
-            newRetryJob->job->job.methodCall.data = newRetryJob;
+            // double the interval
+            server->periodicServerRegisterJob->lastRetryInterval *= 2;
 
-            UA_Server_addRepeatedJob(server, *newRetryJob->job,
-                                     nextInterval*1000, &newRetryJob->job_id);
+            // if the new retry interval is bigger than the default interval,
+            // just delete the retry job and let the default job be the next try
+            if (server->periodicServerRegisterJob->lastRetryInterval >
+                    server->periodicServerRegisterJob->defaultInterval) {
+                UA_Server_removeRepeatedJob(server, server->periodicServerRegisterJob->retryJob);
+                server->periodicServerRegisterJob->lastRetryInterval = 0;
+                UA_Guid_init(&server->periodicServerRegisterJob->retryJob);
+                return;
+            }
+
+            retval = UA_RepeatedJobsList_updateRepeatedJobInterval(&server->repeatedJobs,
+                                                                   server->periodicServerRegisterJob->retryJob,
+                                                                   server->periodicServerRegisterJob->lastRetryInterval);
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Could not update interval of register retry job. "
+                                     "StatusCode %s", UA_StatusCode_name(retval));
+            }
+        } else {
+            // no retry job yet, create a new one
+            UA_Job jobRetry;
+            jobRetry.type = UA_JOBTYPE_METHODCALL;
+            jobRetry.job.methodCall.method = periodicServerRegister;
+            jobRetry.job.methodCall.data = NULL;
+            server->periodicServerRegisterJob->lastRetryInterval = 1000;
+            retval = UA_Server_addRepeatedJob(server, jobRetry, server->periodicServerRegisterJob->lastRetryInterval,
+                                              &server->periodicServerRegisterJob->retryJob);
+            if (retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "Could not create register retry job. "
+                                     "StatusCode %s", UA_StatusCode_name(retval));
+                server->periodicServerRegisterJob->lastRetryInterval = 0;
+                UA_Guid_init(&server->periodicServerRegisterJob->retryJob);
+            }
+
         }
+
     } else {
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Server successfully registered. Next periodical register will be in %d seconds",
-                    (int)(retryJob->default_interval/1000));
-    }
-
-    if(retryJob->job) {
-        UA_free(retryJob->job);
-        UA_free(retryJob);
+                    (int)(server->periodicServerRegisterJob->defaultInterval/1000));
+        if (server->periodicServerRegisterJob->lastRetryInterval > 0) {
+            // there is currently a retry job. Just delet that one and just use the default register job
+            UA_Server_removeRepeatedJob(server, server->periodicServerRegisterJob->retryJob);
+            server->periodicServerRegisterJob->lastRetryInterval = 0;
+            UA_Guid_init(&server->periodicServerRegisterJob->retryJob);
+        }
     }
 
 }
@@ -649,26 +652,26 @@ UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
                                        const UA_UInt32 delayFirstRegisterMs,
                                        UA_Guid* periodicJobId) {
     if(server->periodicServerRegisterJob != NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINVALIDSTATE;
 
     // registering the server should be done periodically. Approx. every 10
     // minutes. The first call will be in 10 Minutes.
-    UA_Job job;
-    job.type = UA_JOBTYPE_METHODCALL;
-    job.job.methodCall.method = periodicServerRegister;
-    job.job.methodCall.data = NULL;
+    UA_Job jobRegister;
+    jobRegister.type = UA_JOBTYPE_METHODCALL;
+    jobRegister.job.methodCall.method = periodicServerRegister;
+    jobRegister.job.methodCall.data = NULL;
 
     server->periodicServerRegisterJob =
-        (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-    server->periodicServerRegisterJob->job = NULL;
-    server->periodicServerRegisterJob->this_interval = 0;
-    server->periodicServerRegisterJob->default_interval = intervalMs;
-    server->periodicServerRegisterJob->discovery_server_url = discoveryServerUrl;
-    job.job.methodCall.data = server->periodicServerRegisterJob;
+            (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
+    if (!server->periodicServerRegisterJob)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_Guid_init(&server->periodicServerRegisterJob->retryJob);
+    server->periodicServerRegisterJob->lastRetryInterval = 0;
+    server->periodicServerRegisterJob->defaultInterval = intervalMs;
+    server->periodicServerRegisterJob->discoveryServerUrl = discoveryServerUrl;
+    UA_StatusCode retval = UA_Server_addRepeatedJob(server, jobRegister, intervalMs, &server->periodicServerRegisterJob->defaultJob);
 
-    UA_StatusCode retval =
-        UA_Server_addRepeatedJob(server, job,
-                                 intervalMs, &server->periodicServerRegisterJob->job_id);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. "
@@ -677,30 +680,23 @@ UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
     }
 
     if(periodicJobId)
-        UA_Guid_copy(&server->periodicServerRegisterJob->job_id, periodicJobId);
+        UA_Guid_copy(&server->periodicServerRegisterJob->defaultJob, periodicJobId);
 
     if(delayFirstRegisterMs > 0) {
         // Register the server with the discovery server.
         // Delay this first registration until the server is fully initialized
-        // will be freed in the callback
-        // todo: malloc may fail: return a statuscode
-        struct PeriodicServerRegisterJob *newRetryJob =
-            (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-        newRetryJob->job = (UA_Job*)UA_malloc(sizeof(UA_Job));
-        newRetryJob->this_interval = 1;
-        newRetryJob->default_interval = intervalMs;
-        newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
-        newRetryJob->job->job.methodCall.method = periodicServerRegister;
-        newRetryJob->job->job.methodCall.data = newRetryJob;
-        newRetryJob->discovery_server_url = discoveryServerUrl;
-        retval = UA_Server_addRepeatedJob(server, *newRetryJob->job,
-                                          delayFirstRegisterMs, &newRetryJob->job_id);
-        if (retval != UA_STATUSCODE_GOOD) {
+
+        retval = UA_Server_addDelayedJob(server, jobRegister, delayFirstRegisterMs, NULL);
+
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Could not create first job for server register. "
-                         "StatusCode %s", UA_StatusCode_name(retval));
+                         "Could not create delayed job for server register. "
+                                 "StatusCode %s", UA_StatusCode_name(retval));
             return retval;
         }
+
+    } else {
+        periodicServerRegister(server, NULL);
     }
     return UA_STATUSCODE_GOOD;
 }
