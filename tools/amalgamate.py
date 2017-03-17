@@ -62,7 +62,7 @@ extern "C" {
 #endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
-    with io.open(fname, encoding=None) as infile:
+    with io.open(fname, encoding='utf8') as infile:
         file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
         print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
