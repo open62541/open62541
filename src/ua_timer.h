@@ -28,15 +28,10 @@ typedef struct {
     void *processContext;
 } UA_RepeatedJobsList;
 
-static UA_INLINE void
+void
 UA_RepeatedJobsList_init(UA_RepeatedJobsList *rjl,
                          UA_RepeatedJobsListProcessCallback processCallback,
-                         void *processContext) {
-    SLIST_INIT(&rjl->repeatedJobs);
-    SLIST_INIT(&rjl->addRemoveJobs);
-    rjl->processCallback = processCallback;
-    rjl->processContext = processContext;
-}
+                         void *processContext);
 
 UA_StatusCode
 UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
@@ -45,9 +40,8 @@ UA_RepeatedJobsList_addRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Job job,
 UA_StatusCode
 UA_RepeatedJobsList_removeRepeatedJob(UA_RepeatedJobsList *rjl, const UA_Guid jobId);
 
-/* - Processed all repeated jobs that have timed out
- * - Reinserts dispatched job at their new position in the sorted list
- * - Returns the next datetime when a repeated job is scheduled */
+/* Process the repeated jobs that have timed out.
+ * Returns the timestamp of the next scheduled repeated job. */
 UA_DateTime
 UA_RepeatedJobsList_process(UA_RepeatedJobsList *rjl, UA_DateTime nowMonotonic,
                             UA_Boolean *dispatched);
