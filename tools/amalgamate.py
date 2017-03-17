@@ -1,3 +1,4 @@
+# coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -61,7 +62,7 @@ extern "C" {
 #endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
-    with io.open(fname, encoding="utf8") as infile:
+    with io.open(fname, encoding=None) as infile:
         file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
         print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:

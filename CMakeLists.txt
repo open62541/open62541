@@ -147,9 +147,9 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
                     -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
                     -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
-    if(NOT WIN32 AND NOT CYGWIN)
-        add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
-    endif()
+     if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
+        add_definitions(-Wshadow -Woconversion -fvisibility=hidden -fPIC)
+     endif()
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
