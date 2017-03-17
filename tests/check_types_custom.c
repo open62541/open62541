@@ -137,9 +137,11 @@ START_TEST(parseCustomArray) {
         ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
         Point *p2 = (Point*)eo->content.decoded.data;
 
-        ck_assert(p2->x == ps[i].x);
-        ck_assert(p2->y == ps[i].y);
-        ck_assert(p2->z == ps[i].z);
+        // we need to cast floats to int to avoid comparison of floats
+        // which may result into false results
+        ck_assert((int)p2->x == (int)ps[i].x);
+        ck_assert((int)p2->y == (int)ps[i].y);
+        ck_assert((int)p2->z == (int)ps[i].z);
     }
         
     UA_Variant_deleteMembers(&var2);
