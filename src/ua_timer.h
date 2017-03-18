@@ -15,13 +15,17 @@ extern "C" {
 typedef void
 (*UA_RepeatedJobsListProcessCallback)(void *processContext, UA_Job *job);
 
+struct UA_RepeatedJob;
+typedef struct UA_RepeatedJob UA_RepeatedJob;
+
 typedef struct {
     /* The linked list of jobs is sorted according to the execution timestamp. */
     SLIST_HEAD(RepeatedJobsSList, UA_RepeatedJob) repeatedJobs;
 
-    /* Repeated jobs that shall be added or removed from the sorted list (with
-     * atomic operations) */
-    SLIST_HEAD(RepeatedJobsSList2, UA_RepeatedJob) addRemoveJobs;
+    /* Changes to the repeated jobs in a multi-producer single-consumer queue */
+    UA_RepeatedJob * volatile changes_head;
+    UA_RepeatedJob *changes_tail;
+    UA_RepeatedJob *changes_stub;
 
     /* The callback to process jobs that have timed out */
     UA_RepeatedJobsListProcessCallback processCallback;
