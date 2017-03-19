@@ -40,6 +40,10 @@ Building with CMake on Ubuntu or Debian
    ccmake ..
    make
 
+   # build documentation
+   make doc # html documentation
+   make doc_pdf # pdf documentation (requires LaTeX)
+
 Building with CMake on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -144,13 +148,6 @@ UA_BUILD_* group
 By default only the shared object libopen62541.so or the library open62541.dll
 and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
 specified by the following options:
-
-**UA_BUILD_DOCUMENTATION**
-  Generate Make targets for documentation
-
-   * HTML documentation: ``make doc``
-   * Latex Files: ``latex``
-   * PDF documentation: ``make pdf``
 
 **UA_BUILD_EXAMPLES**
    Compile example servers and clients from :file:`examples/{xyz}.c`. A static and a dynamic binary is linked, respectively.

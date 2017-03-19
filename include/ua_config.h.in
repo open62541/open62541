@@ -25,7 +25,6 @@ extern "C" {
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
-#cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_MULTITHREADING
 
 /**
@@ -40,15 +39,32 @@ extern "C" {
 #cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
+#cmakedefine UA_ENABLE_DISCOVERY
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 
 /**
  * Standard Includes
  * ----------------- */
 #ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 500
+ #if defined(__QNX__) || defined(__QNXNTO__)
+  # define _XOPEN_SOURCE 600
+ #else
+  # define _XOPEN_SOURCE 500
+ #endif
 #endif
 #ifndef _DEFAULT_SOURCE
 # define _DEFAULT_SOURCE
+#endif
+// On older systems we need to define _BSD_SOURCE
+// _DEFAULT_SOURCE is an alias for that
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+// Disable deprecation warnings for sprintf, strncpy, strerror
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stddef.h>

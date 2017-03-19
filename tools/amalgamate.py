@@ -1,3 +1,4 @@
+# coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -22,7 +23,7 @@ pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
 include_re = re.compile("^#include (\".*\").*$")
-guard_re = re.compile("^#(?:(?:ifndef|define) [A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_)")
+guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
 
 print ("Starting amalgamating file "+ args.outfile)
 
@@ -47,6 +48,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
 if is_c:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING_EXPORT
 # define UA_DYNAMIC_LINKING_EXPORT
+# define MDNSD_DYNAMIC_LINKING
 #endif
 
 #include "%s.h"
@@ -68,6 +70,9 @@ for fname in args.inputs:
             guard_res = guard_re.match(line)
             if not inc_res and not guard_res:
                 file.write(line)
+        # Ensure file is written to disk.
+        file.flush()
+        os.fsync(file.fileno())
         print ("done."),
 
 if not is_c:
@@ -77,6 +82,11 @@ if not is_c:
 #endif
 
 #endif /* %s */\n''' % (outname.upper() + u"_H_"))
+
+# Ensure file is written to disk.
+# See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close
+file.flush()
+os.fsync(file.fileno())
 file.close()
 
 print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")

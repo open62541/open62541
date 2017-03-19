@@ -24,10 +24,6 @@
 # ifndef __clang__
 #  include <malloc.h>
 # endif
-/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
-# ifdef SLIST_ENTRY
-#  undef SLIST_ENTRY
-# endif
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
 # include <winsock2.h>

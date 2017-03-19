@@ -11,12 +11,17 @@ extern "C" {
 
 #include "ua_util.h"
 #include "ua_server.h"
+#include "ua_timer.h"
 #include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
 #include "ua_nodes.h"
 #include "ua_nodestore_switch.h"
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+#include "mdnsd/libmdnsd/mdnsd.h"
+#endif
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -88,10 +93,6 @@ UA_Server_dispatchJob(UA_Server *server, const UA_Job *job);
 void
 UA_Server_processJob(UA_Server *server, UA_Job *job);
 
-UA_DateTime
-UA_Server_processRepeatedJobs(UA_Server *server, UA_DateTime current,
-                              UA_Boolean *dispatched);
-
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 /* Internally used context to a session 'context' of the current mehtod call */
 extern UA_THREAD_LOCAL UA_Session* methodCallSession;
@@ -103,6 +104,27 @@ typedef struct registeredServer_list_entry {
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
+
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+typedef struct serverOnNetwork_list_entry {
+    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+    UA_ServerOnNetwork serverOnNetwork;
+    UA_DateTime created;
+    UA_DateTime lastSeen;
+    UA_Boolean txtSet;
+    UA_Boolean srvSet;
+    char* pathTmp;
+} serverOnNetwork_list_entry;
+
+
+#define SERVER_ON_NETWORK_HASH_PRIME 1009
+typedef struct serverOnNetwork_hash_entry {
+    serverOnNetwork_list_entry* entry;
+    struct serverOnNetwork_hash_entry* next;
+} serverOnNetwork_hash_entry;
+#endif
+
 #endif
 
 struct UA_Server {
@@ -120,6 +142,29 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
+    struct PeriodicServerRegisterJob *periodicServerRegisterJob;
+    UA_Server_registerServerCallback registerServerCallback;
+    void* registerServerCallbackData;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    mdns_daemon_t *mdnsDaemon;
+    int mdnsSocket;
+    UA_Boolean mdnsMainSrvAdded;
+#  ifdef UA_ENABLE_MULTITHREADING
+    pthread_t mdnsThread;
+    UA_Boolean mdnsRunning;
+#  endif
+
+    LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
+    size_t serverOnNetworkSize;
+    UA_UInt32 serverOnNetworkRecordIdCounter;
+    UA_DateTime serverOnNetworkRecordIdLastReset;
+    // hash mapping domain name to serverOnNetwork list entry
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+
+    UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
+    void* serverOnNetworkCallbackData;
+
+# endif
 #endif
 
     size_t namespacesSize;
@@ -132,7 +177,7 @@ struct UA_Server {
 #endif
 
     /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJob) repeatedJobs;
+    UA_RepeatedJobsList repeatedJobs;
 
 #ifndef UA_ENABLE_MULTITHREADING
     SLIST_HEAD(DelayedJobsList, UA_DelayedJob) delayedCallbacks;
@@ -169,7 +214,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
 
 /* Add an existing node. The node is assumed to be "finished", i.e. no
  * instantiation from inheritance is necessary. Instantiationcallback and
@@ -240,6 +284,12 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
+UA_Boolean
+compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
+                   const UA_NodeId *constraintDataType);
+
+UA_StatusCode
+compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_StatusCode
 writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
@@ -248,6 +298,9 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
 UA_StatusCode
 writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                     const UA_DataValue *value, const UA_String *indexRange);
+
+UA_StatusCode
+compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 /*******************/
 /* Single-Services */
@@ -288,6 +341,36 @@ void Service_Call_single(UA_Server *server, UA_Session *session,
 
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+UA_StatusCode UA_Discovery_multicastInit(UA_Server* server);
+void UA_Discovery_multicastDestroy(UA_Server* server);
+
+typedef enum {
+    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
+    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
+} UA_DiscoveryProtocol;
+
+UA_StatusCode
+UA_Discovery_multicastQuery(UA_Server* server);
+
+UA_StatusCode
+UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname,
+                       unsigned short port, const char* path,
+                       const UA_DiscoveryProtocol protocol, UA_Boolean createTxt,
+                       const UA_String* capabilites, const size_t *capabilitiesSize);
+UA_StatusCode
+UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname,
+                          unsigned short port, UA_Boolean removeTxt);
+
+#  ifdef UA_ENABLE_MULTITHREADING
+UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);
+UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server);
+#  endif
+UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn);
+
+# endif
 
 #ifdef __cplusplus
 } // extern "C"
