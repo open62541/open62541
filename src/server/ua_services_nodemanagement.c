@@ -774,24 +774,24 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId *requestedNewNodeId,
                     const UA_NodeId *parentNodeId,
                     const UA_NodeId *referenceTypeId,
-                    const UA_QualifiedName *browseName,
+                    const UA_QualifiedName browseName,
                     const UA_NodeId *typeDefinition,
-                    const UA_NodeAttributes *attributes,
-                    const UA_DataType *attributesType,
+                    const UA_NodeAttributes *attr,
+                    const UA_DataType *attributeType,
                     UA_InstantiationCallback *instantiationCallback,
                     UA_NodeId *outNewNodeId) {
     /* Create the AddNodesItem */
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
     item.requestedNewNodeId.nodeId = *requestedNewNodeId;
-    item.browseName = *browseName;
+    item.browseName = browseName;
     item.nodeClass = nodeClass;
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
     item.nodeAttributes = (UA_ExtensionObject) {
         .encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
-        .content.decoded = {attributesType, (void*)(uintptr_t)attributes}};
+        .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
 
     /* Call the normal addnodes service */
     UA_AddNodesResult result;

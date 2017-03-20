@@ -362,8 +362,120 @@ UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);
 UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server);
 #  endif
 UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn);
-
 # endif
+
+/*****************************/
+/* AddNodes Begin and Finish */
+/*****************************/
+
+/* Don't use this function. There are typed versions as inline functions. */
+UA_StatusCode UA_EXPORT
+__UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
+                          const UA_NodeId *requestedNewNodeId,
+                          const UA_QualifiedName *browseName,
+                          const UA_NodeAttributes *attr,
+                          const UA_DataType *attributeType,
+                          UA_NodeId *outNewNodeId);
+
+/* The inline function UA_Server_addNode_finish might be more convenient to
+ * pass NodeIds in-situ (e.g. UA_NODEID_NUMERIC(0, 5)) */
+UA_StatusCode UA_EXPORT
+UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         const UA_NodeId typeDefinition,
+                         UA_InstantiationCallback *instantiationCallback);
+
+static UA_INLINE UA_StatusCode
+UA_Server_addReferenceTypeNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                     const UA_QualifiedName browseName,
+                                     const UA_ReferenceTypeAttributes attr,
+                                     UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_REFERENCETYPE,
+                                     &requestedNewNodeId,
+                                     &browseName, (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES],
+                                     outNewNodeId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_addDataTypeNode_begin(UA_Server *server,
+                                const UA_NodeId requestedNewNodeId,
+                                const UA_QualifiedName browseName,
+                                const UA_DataTypeAttributes attr,
+                                UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_DATATYPE,
+                                     &requestedNewNodeId,
+                                     &browseName, (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES],
+                                     outNewNodeId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_addVariableNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                const UA_QualifiedName browseName,
+                                const UA_VariableAttributes attr,
+                                UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_VARIABLE,
+                                     &requestedNewNodeId, &browseName,
+                                     (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+                                     outNewNodeId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_addVariableTypeNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                                    const UA_QualifiedName browseName,
+                                    const UA_VariableTypeAttributes attr,
+                                    UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_VARIABLETYPE,
+                                     &requestedNewNodeId, &browseName,
+                                     (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES],
+                                     outNewNodeId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_addObjectNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                              const UA_QualifiedName browseName,
+                              const UA_ObjectAttributes attr,
+                              UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT,
+                                     &requestedNewNodeId,
+                                     &browseName, (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                                     outNewNodeId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Server_addObjectTypeNode_begin(UA_Server *server,
+                                  const UA_NodeId requestedNewNodeId,
+                                  const UA_QualifiedName browseName,
+                                  const UA_ObjectTypeAttributes attr,
+                                  UA_NodeId *outNewNodeId) {
+    return __UA_Server_addNode_begin(server, UA_NODECLASS_OBJECTTYPE,
+                                     &requestedNewNodeId,
+                                     &browseName, (const UA_NodeAttributes*)&attr,
+                                     &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES],
+                                     outNewNodeId);
+}
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_StatusCode
+UA_Server_addMethodNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                              const UA_QualifiedName browseName,
+                              const UA_MethodAttributes attr, UA_MethodCallback method,
+                              void *handle, UA_NodeId *outNewNodeId);
+
+UA_StatusCode
+UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_NodeId parentNodeId,
+                               const UA_NodeId referenceTypeId,
+                               size_t inputArgumentsSize,
+                               const UA_Argument* inputArguments,
+                               size_t outputArgumentsSize,
+                               const UA_Argument* outputArguments);
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

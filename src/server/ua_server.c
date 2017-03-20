@@ -391,14 +391,14 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
 
 static void
 addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
-                UA_Boolean isAbstract, UA_UInt32 typeid) {
+                UA_Boolean isAbstract, UA_UInt32 parentid) {
     UA_DataTypeAttributes attr;
     UA_DataTypeAttributes_init(&attr);
     attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
     attr.isAbstract = isAbstract;
     UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, datatypeid),
-                              UA_NODEID_NUMERIC(0, typeid), UA_QUALIFIEDNAME(0, name),
-                              attr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                              UA_QUALIFIEDNAME(0, name), attr, NULL, NULL);
 }
 
 static void
@@ -439,8 +439,8 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
     if(inverseName)
         reference_attr.inverseName = UA_LOCALIZEDTEXT("en_US", inverseName);
     UA_Server_addReferenceTypeNode(server, UA_NODEID_NUMERIC(0, referencetypeid),
-                                   UA_NODEID_NUMERIC(0, parentid), UA_QUALIFIEDNAME(0, name),
-                                   reference_attr, NULL, NULL);
+                                   UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                   UA_QUALIFIEDNAME(0, name), reference_attr, NULL, NULL);
 }
 
 static void
@@ -456,8 +456,8 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
     if(value)
         attr.value = *value;
     UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
-                                  UA_NODEID_NUMERIC(0, parentid), UA_QUALIFIEDNAME(0, name),
-                                  attr, NULL, NULL);
+                                  UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
+                                  UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
 }
 
 static void
