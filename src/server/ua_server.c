@@ -376,7 +376,7 @@ deleteInstanceChildren(UA_Server *server, UA_NodeId *objectNodeId) {
     UA_BrowseResult_init(&bRes);
     UA_RCU_LOCK();
     Service_Browse_single(server, &adminSession, NULL, &bDes, 0, &bRes);
-    UA_RCU_unLOCK();
+    UA_RCU_UNLOCK();
     for(size_t i=0; i<bRes.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &bRes.references[i];
         if((rd->nodeClass == UA_NODECLASS_OBJECT || rd->nodeClass == UA_NODECLASS_VARIABLE)) {

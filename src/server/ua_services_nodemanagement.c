@@ -609,7 +609,8 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
                     "Array dimensions incompatible with the VariableType "
                     "with error code %s", UA_StatusCode_name(retval));
         UA_NodestoreSwitch_releaseNode(server, (const UA_Node*)vt);        
-	return retval;
+        return retval;
+    }
     node->arrayDimensionsSize = attr->arrayDimensionsSize;
 
     /* Set the valuerank */
