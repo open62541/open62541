@@ -250,8 +250,9 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-void
-getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
+/* Returns the nodeid of the node type, if none defined for the node or the node
+ * class, typeId is set to UA_NODEID_NULL. */
+void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
 
 /***************************************/
 /* Check Information Model Consistency */

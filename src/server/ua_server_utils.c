@@ -185,13 +185,12 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
     return false;
 }
 
-void
-getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId) {
+void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId) {
     UA_NodeId_init(typeId);
     UA_NodeId parentRef;
     UA_Boolean inverse;
 
-    /* The reference to the parent is different for variable and variabletype */ 
+    /* The reference to the parent is different for variable and variabletype */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
@@ -206,7 +205,7 @@ getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId) {
         return;
     }
 
-    /* stop at the first matching candidate */
+    /* Stop at the first matching candidate */
     for(size_t i = 0; i < node->referencesSize; ++i) {
         if(node->references[i].isInverse == inverse &&
            UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef)) {

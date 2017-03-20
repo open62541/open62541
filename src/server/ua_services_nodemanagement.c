@@ -236,7 +236,8 @@ copyChildNodes(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 Service_AddNode_finish(UA_Server *server, UA_Session *session,
                        const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                       const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinition,
+                       const UA_NodeId *referenceTypeId,
+                       const UA_NodeId *typeDefinition,
                        UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
@@ -849,6 +850,35 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
 /**************************************************/
 /* Add Special Nodes (not possible over the wire) */
 /**************************************************/
+
+UA_StatusCode
+UA_Server_addDataSourceVariableNode(UA_Server *server,
+                                    const UA_NodeId requestedNewNodeId,
+                                    const UA_NodeId parentNodeId,
+                                    const UA_NodeId referenceTypeId,
+                                    const UA_QualifiedName browseName,
+                                    const UA_NodeId typeDefinition,
+                                    const UA_VariableAttributes attr,
+                                    const UA_DataSource dataSource,
+                                    UA_NodeId *outNewNodeId) {
+    UA_NodeId newNodeId;
+    if(!outNewNodeId) {
+        newNodeId = UA_NODEID_NULL;
+        outNewNodeId = &newNodeId;
+    }
+    UA_StatusCode retval = UA_Server_addVariableNode_begin(server, requestedNewNodeId,
+                                                           browseName, attr, outNewNodeId);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    retval = UA_Server_setVariableNode_dataSource(server, *outNewNodeId, dataSource);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = UA_Server_addNode_finish(server, *outNewNodeId,
+                                          parentNodeId, referenceTypeId,
+                                          typeDefinition, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_NodeId_deleteMembers(outNewNodeId);
+    return retval;
+}
 
 #ifdef UA_ENABLE_METHODCALLS
 
