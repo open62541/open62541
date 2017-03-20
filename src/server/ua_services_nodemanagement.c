@@ -87,9 +87,11 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
  * type. */
 static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
-                      const UA_VariableNode *node, const UA_NodeId *typeDef) {
+                      const UA_VariableNode *node,
+                      const UA_NodeId *typeDef) {
     /* Omit some type checks for ns0 generation */
-    const UA_NodeId baseDataVariableType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    const UA_NodeId baseDataVariableType =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
     if(UA_NodeId_equal(&node->nodeId, &baseDataVariableType))
         return UA_STATUSCODE_GOOD;
 
@@ -123,8 +125,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     /* Workaround: Replace with datatype of the vt if not set */
     const UA_NodeId *dataType = &node->dataType;
     if(UA_NodeId_isNull(dataType)) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Use a default DataType (from the TypeDefinition)");
+        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: "
+                            "Use a default DataType (from the TypeDefinition)");
         dataType = &vt->dataType;
         retval = UA_Server_writeDataType(server, node->nodeId, vt->dataType);
         if(retval != UA_STATUSCODE_GOOD)
@@ -288,8 +290,9 @@ copyChildNode(UA_Server *server, UA_Session *session,
         /* Add the node to the nodestore */
         retval = UA_NodeStore_insert(server->nodestore, node);
         if(retval == UA_STATUSCODE_GOOD)
-            retval = Service_AddNode_finish(server, session, &node->nodeId, destinationNodeId,
-                                            &rd->referenceTypeId, &typeId, instantiationCallback);
+            retval = Service_AddNode_finish(server, session, &node->nodeId,
+                                            destinationNodeId, &rd->referenceTypeId,
+                                            &typeId, instantiationCallback);
 
         /* Clean up */
         UA_NodeId_deleteMembers(&typeId);
@@ -395,9 +398,9 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     return retval;
 }
 
-/*******************************************/
-/* Create nodes from attribute description */
-/*******************************************/
+/***************************************/
+/* Set node from attribute description */
+/***************************************/
 
 static UA_StatusCode
 copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
@@ -420,7 +423,6 @@ copyCommonVariableAttributes(UA_VariableNode *node,
                       (void**)&node->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-
     node->arrayDimensionsSize = attr->arrayDimensionsSize;
 
     /* Data type and value rank */
@@ -503,7 +505,8 @@ createNodeFromAttributes(const UA_AddNodesItem *item, UA_Node **newNode) {
         return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
 
     /* Create the node */
-    // todo: error case where the nodeclass is faulty
+    // todo: error case where the nodeclass is faulty should return a different
+    // status code
     UA_Node *node = UA_NodeStore_newNode(item->nodeClass);
     if(!node)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1315,8 +1318,9 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 UA_StatusCode
 Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
                                 const UA_DeleteReferencesItem *item) {
-    UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                              (UA_EditNodeCallback)deleteOneWayReference, item);
+    UA_StatusCode retval =
+        UA_Server_editNode(server, session, &item->sourceNodeId,
+                           (UA_EditNodeCallback)deleteOneWayReference, item);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
@@ -1328,7 +1332,8 @@ Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
     secondItem.referenceTypeId = item->referenceTypeId;
     return UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                              (UA_EditNodeCallback)deleteOneWayReference, &secondItem);
+                              (UA_EditNodeCallback)deleteOneWayReference,
+                              &secondItem);
 }
 
 void
@@ -1342,17 +1347,18 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results =
-        (UA_StatusCode*)UA_malloc(sizeof(UA_StatusCode) * request->referencesToDeleteSize);
+    size_t size = request->referencesToDeleteSize;
+    response->results = (UA_StatusCode*)UA_malloc(sizeof(UA_StatusCode) * size);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;;
         return;
     }
-    response->resultsSize = request->referencesToDeleteSize;
+    response->resultsSize = size;
 
-    for(size_t i = 0; i < request->referencesToDeleteSize; ++i)
+    for(size_t i = 0; i < size; ++i)
         response->results[i] =
-            Service_DeleteReferences_single(server, session, &request->referencesToDelete[i]);
+            Service_DeleteReferences_single(server, session,
+                                            &request->referencesToDelete[i]);
 }
 
 UA_StatusCode
@@ -1418,7 +1424,8 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
     UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
-                                              (UA_EditNodeCallback)setDataSource, &dataSource);
+                                              (UA_EditNodeCallback)setDataSource,
+                                              &dataSource);
     UA_RCU_UNLOCK();
     return retval;
 }
@@ -1452,17 +1459,17 @@ UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nod
 
 #ifdef UA_ENABLE_METHODCALLS
 
-struct addMethodCallback {
+typedef struct {
     UA_MethodCallback callback;
     void *handle;
-};
+} addMethodCallback;
 
 static UA_StatusCode
 editMethodCallback(UA_Server *server, UA_Session* session,
                    UA_Node* node, const void* handle) {
     if(node->nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    const struct addMethodCallback *newCallback = (const struct addMethodCallback *)handle;
+    const addMethodCallback *newCallback = (const addMethodCallback *)handle;
     UA_MethodNode *mnode = (UA_MethodNode*) node;
     mnode->attachedMethod = newCallback->callback;
     mnode->methodHandle   = newCallback->handle;
@@ -1472,7 +1479,10 @@ editMethodCallback(UA_Server *server, UA_Session* session,
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
                                  UA_MethodCallback method, void *handle) {
-    struct addMethodCallback cb = { method, handle };
+    addMethodCallback cb;
+    cb.callback = method;
+    cb.handle = handle;
+
     UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession,
