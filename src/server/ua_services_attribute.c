@@ -403,7 +403,7 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
 /* DataType Attribute */
 /**********************/
 
-UA_StatusCode
+static UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
                        const UA_NodeId *dataType, const UA_NodeId *constraintDataType) {
     /* If this is a variabletype, there must be no instances or subtypes of it
@@ -570,7 +570,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                     const UA_DataValue *value, const UA_String *indexRange) {
     /* Parse the range */
