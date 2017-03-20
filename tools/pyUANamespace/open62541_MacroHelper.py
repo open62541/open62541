@@ -58,23 +58,30 @@ class open62541_MacroHelper():
         returns: C-printable string representation of input
     '''
     # No punctuation characters <>!$
+    #TODO add space as illegal character
     for illegal_char in list(string.punctuation):
         if illegal_char == '_': # underscore is allowed
             continue
         input = input.replace(illegal_char, "_") # map to underscore
     return input
 
-  def getNodeIdDefineString(self, node):
-    code = []
+  def getSymbolicName(self, node):
     extrNs = node.browseName().split(":")
-    symbolic_name = ""
     # strip all characters that would be illegal in C-Code
     if len(extrNs) > 1:
         nodename = extrNs[1]
     else:
         nodename = extrNs[0]
+    return [self.substitutePunctuationCharacters(nodename) , nodename]
 
-    symbolic_name = self.substitutePunctuationCharacters(nodename)
+  def getNodeIdDefineString(self, node):
+    code = []
+    (symbolic_name , nodename)= self.getSymbolicName(node)
+    if(symbolic_name.upper() in ["INPUTARGUMENTS", "OUTPUTARGUMENTS"]):
+        parent = node.getParent()[0]
+        if(parent != None):
+              symbolic_name = self.getSymbolicName(parent)[0] + "_" + symbolic_name
+
     if symbolic_name != nodename :
         logger.warn("Subsituted characters in browsename for nodeid " + str(node.id().i) + " while generating C-Code ")
 
@@ -82,7 +89,7 @@ class open62541_MacroHelper():
       logger.warn(self, "Typealias definition of " + str(node.id().i) + " is non unique!")
       extendedN = 1
       while (symbolic_name+"_"+str(extendedN) in defined_typealiases):
-        logger.warn("Typealias definition of " + str(node.id().i) + " is non unique!")
+        logger.debug("Typealias definition of " + str(node.id().i) + " is non unique!")
         extendedN+=1
       symbolic_name = symbolic_name+"_"+str(extendedN)
 
@@ -239,15 +246,17 @@ class open62541_MacroHelper():
 
     # In case of a MethodNode: Add in|outArg struct generation here. Mandates that namespace reordering was done using
     # Djikstra (check that arguments have not been printed). (@ichrispa)
-    code.append("UA_Server_add%sNode(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" % nodetype)
+    code.append("UA_Server_add%sNode%s(server, nodeId, parentNodeId, parentReferenceNodeId, nodeName" %
+        (nodetype, ("" if nodetype != "Method" else "withNodeIds")))
 
     if nodetype in ["Object", "Variable", "VariableType"]:
       code.append("       , typeDefinition")
     if nodetype != "Method":
       code.append("       , attr, NULL, NULL);")
     else:
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
-      
+      code.append("       , attr, (UA_MethodCallback) NULL, NULL")
+      code.append("       , "+ str(len(inArgVal))  + ", inputArguments, inArgsnodeId, " + str(len(outArgVal)) + ", outputArguments, outArgsnodeId, NULL, NULL, NULL);")
+     
     #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since 
     #a real Reference will be add in a later step (a single HasTypeDefinition reference is assumed here)
     #The current API does not let us specify IDs of Object's subelements.

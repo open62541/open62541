@@ -1033,6 +1033,14 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         size_t outputArgumentsSize,
                         const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId);
+UA_StatusCode UA_EXPORT
+UA_Server_addMethodNodeWithNodeIds(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method, void *handle,
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments, const UA_NodeId requestedNewNodeIdInputArgs,
+                        size_t outputArgumentsSize, const UA_Argument* outputArguments, const UA_NodeId requestedNewNodeIdOutputArgs,
+                        UA_NodeId *outNewNodeId, UA_NodeId * outNewNodeIdInputArgs, UA_NodeId * outNewNodeIdOutputArgs);
 #endif
 
 UA_StatusCode UA_EXPORT

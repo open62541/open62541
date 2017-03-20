@@ -1436,13 +1436,15 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+    UA_Server_addMethodNodeWithNodeIds(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(0, "GetMonitoredItems"), addmethodattributes,
         GetMonitoredItems, /* callback of the method node */
         NULL, /* handle passed with the callback */
-        1, &inputArguments, 2, outputArguments, NULL);
+        1, &inputArguments, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_INPUTARGUMENTS),
+        2, outputArguments, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS_OUTPUTARGUMENTS),
+        NULL, NULL, NULL);
 #endif
 
     return server;

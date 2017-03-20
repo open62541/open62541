@@ -700,7 +700,17 @@ class opcua_namespace():
       # Since we are already looping over all nodes, use this chance to print NodeId defines
       if n.id().ns != 0:
         nc = n.nodeClass()
-        if nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW:
+        # check if it is method input/output arguments and print
+        printMethodInOutArgumentsHeader = False
+        printHeader = nc != NODE_CLASS_OBJECT and nc != NODE_CLASS_VARIABLE and nc != NODE_CLASS_VIEW
+        if (nc == NODE_CLASS_VARIABLE and codegen.getSymbolicName(n)[0].upper() in ["INPUTARGUMENTS","OUTPUTARGUMENTS"]):
+          parent = n.getParent()[0]
+          if(parent.nodeClass() == NODE_CLASS_METHOD):
+            parent = parent.getParent()[0]
+            parentNc = parent.nodeClass()
+            if(parentNc != NODE_CLASS_OBJECT and parentNc != NODE_CLASS_VARIABLE and parentNc != NODE_CLASS_VIEW):
+              printMethodInOutArgumentsHeader = True
+        if printHeader or printMethodInOutArgumentsHeader:
           header = header + codegen.getNodeIdDefineString(n)
 
       # Now for the actual references...
