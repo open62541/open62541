@@ -13,6 +13,10 @@
 #include "ua_subscription.h"
 #endif
 
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
+#endif
+
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 
 /****************/

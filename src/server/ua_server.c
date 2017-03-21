@@ -27,10 +27,6 @@
 UA_THREAD_LOCAL bool rcu_locked = false;
 #endif
 
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
-#endif
-
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -142,23 +138,9 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     return retval;
 }
 
-static void
-addReferenceInternal(UA_Server *server, UA_UInt32 sourceId, UA_UInt32 refTypeId,
-                     UA_UInt32 targetId, UA_Boolean isForward) {
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId.identifier.numeric = sourceId;
-    item.referenceTypeId.identifier.numeric = refTypeId;
-    item.isForward = isForward;
-    item.targetNodeId.nodeId.identifier.numeric = targetId;
-    UA_RCU_LOCK();
-    Service_AddReferences_single(server, &adminSession, &item);
-    UA_RCU_UNLOCK();
-}
-
-/**********/
-/* Server */
-/**********/
+/********************/
+/* Server Lifecycle */
+/********************/
 
 /* The server needs to be stopped before it can be deleted */
 void UA_Server_delete(UA_Server *server) {
@@ -229,286 +211,6 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
 }
-
-static UA_StatusCode
-readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-           const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    UA_Server *server = (UA_Server*)handle;
-    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime = server->startTime;
-    status->currentTime = UA_DateTime_now();
-    status->state = UA_SERVERSTATE_RUNNING;
-    status->secondsTillShutdown = 0;
-    UA_BuildInfo_copy(&server->config.buildInfo, &status->buildInfo);
-
-    value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
-    value->value.arrayLength = 0;
-    value->value.data = status;
-    value->value.arrayDimensionsSize = 0;
-    value->value.arrayDimensions = NULL;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-/** TODO: rework the code duplication in the getter methods **/
-static UA_StatusCode
-readServiceLevel(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                 const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    value->value.type = &UA_TYPES[UA_TYPES_BYTE];
-    value->value.arrayLength = 0;
-    UA_Byte *byte = UA_Byte_new();
-    *byte = 255;
-    value->value.data = byte;
-    value->value.arrayDimensionsSize = 0;
-    value->value.arrayDimensions = NULL;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-/** TODO: rework the code duplication in the getter methods **/
-static UA_StatusCode
-readAuditing(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    value->value.arrayLength = 0;
-    UA_Boolean *boolean = UA_Boolean_new();
-    *boolean = false;
-    value->value.data = boolean;
-    value->value.arrayDimensionsSize = 0;
-    value->value.arrayDimensions = NULL;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
-               const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-    UA_Server *server = (UA_Server*)handle;
-    UA_StatusCode retval;
-    retval = UA_Variant_setArrayCopy(&value->value, server->namespaces,
-                                     server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    value->hasValue = true;
-    if(sourceTimestamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-                const UA_NumericRange *range) {
-    UA_Server *server = (UA_Server*)handle;
-
-    /* Check the data type */
-    if(data->type != &UA_TYPES[UA_TYPES_STRING])
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Check that the variant is not empty */
-    if(!data->data)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* TODO: Writing with a range is not implemented */
-    if(range)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_String *newNamespaces = (UA_String*)data->data;
-    size_t newNamespacesSize = data->arrayLength;
-
-    /* Test if we append to the existing namespaces */
-    if(newNamespacesSize <= server->namespacesSize)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Test if the existing namespaces are unchanged */
-    for(size_t i = 0; i < server->namespacesSize; ++i) {
-        if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Add namespaces */
-    for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
-        addNamespace(server, newNamespaces[i]);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-    UA_DateTime currentTime = UA_DateTime_now();
-    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime,
-                                                    &UA_TYPES[UA_TYPES_DATETIME]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = currentTime;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
-                UA_Boolean isAbstract, UA_UInt32 parentid) {
-    UA_DataTypeAttributes attr;
-    UA_DataTypeAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    attr.isAbstract = isAbstract;
-    UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, datatypeid),
-                              UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                              UA_QUALIFIEDNAME(0, name), attr, NULL, NULL);
-}
-
-static void
-addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
-                  UA_Boolean isAbstract, UA_UInt32 parentid) {
-    UA_ObjectTypeAttributes attr;
-    UA_ObjectTypeAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    attr.isAbstract = isAbstract;
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, objecttypeid),
-                                UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                                UA_QUALIFIEDNAME(0, name), attr, NULL, NULL);
-}
-
-static void
-addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
-              UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 typeid) {
-    UA_ObjectAttributes object_attr;
-    UA_ObjectAttributes_init(&object_attr);
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
-                            UA_NODEID_NUMERIC(0, parentid),
-                            UA_NODEID_NUMERIC(0, referenceid),
-                            UA_QUALIFIEDNAME(0, name),
-                            UA_NODEID_NUMERIC(0, typeid),
-                            object_attr, NULL, NULL);
-
-}
-
-static void
-addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32 referencetypeid,
-                     UA_Boolean isabstract, UA_Boolean symmetric, UA_UInt32 parentid) {
-    UA_ReferenceTypeAttributes reference_attr;
-    UA_ReferenceTypeAttributes_init(&reference_attr);
-    reference_attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    reference_attr.isAbstract = isabstract;
-    reference_attr.symmetric = symmetric;
-    if(inverseName)
-        reference_attr.inverseName = UA_LOCALIZEDTEXT("en_US", inverseName);
-    UA_Server_addReferenceTypeNode(server, UA_NODEID_NUMERIC(0, referencetypeid),
-                                   UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                                   UA_QUALIFIEDNAME(0, name), reference_attr, NULL, NULL);
-}
-
-static void
-addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
-                    UA_Boolean isAbstract, UA_Int32 valueRank, UA_UInt32 dataType,
-                    UA_Variant *value, UA_UInt32 parentid) {
-    UA_VariableTypeAttributes attr;
-    UA_VariableTypeAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    attr.isAbstract = isAbstract;
-    attr.dataType = UA_NODEID_NUMERIC(0, dataType);
-    attr.valueRank = valueRank;
-    if(value)
-        attr.value = *value;
-    UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
-                                  UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
-                                  UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
-}
-
-static void
-addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueRank,
-                const UA_NodeId *dataType, UA_Variant *value, UA_UInt32 parentid,
-                UA_UInt32 referenceid, UA_UInt32 typeid) {
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
-    attr.dataType = *dataType;
-    attr.valueRank = valueRank;
-    if(value)
-        attr.value = *value;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
-                              UA_NODEID_NUMERIC(0, referenceid), UA_QUALIFIEDNAME(0, name),
-                              UA_NODEID_NUMERIC(0, typeid), attr, NULL, NULL);
-}
-
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-static UA_StatusCode
-GetMonitoredItems(void *handle, const UA_NodeId *objectId,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output) {
-    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
-    UA_Session* session = methodCallSession;
-    UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
-    if(!subscription)
-        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-
-    UA_UInt32 sizeOfOutput = 0;
-    UA_MonitoredItem* monitoredItem;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        ++sizeOfOutput;
-    }
-    if(sizeOfOutput==0)
-        return UA_STATUSCODE_GOOD;
-
-    UA_UInt32 *clientHandles = (UA_UInt32*)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32 *serverHandles = (UA_UInt32*)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32 i = 0;
-    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
-        clientHandles[i] = monitoredItem->clientHandle;
-        serverHandles[i] = monitoredItem->itemId;
-        ++i;
-    }
-    UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
-    return UA_STATUSCODE_GOOD;
-}
-#endif
 
 UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
@@ -645,13 +347,22 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
 /*************/
 
 #ifdef UA_ENABLE_DISCOVERY
+
 static UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
+    /* Use a fallback URL */
+    const char *url = "opc.tcp://localhost:4840";
+    if(discoveryServerUrl)
+        url = discoveryServerUrl;
+
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    const char *url = discoveryServerUrl != NULL ? discoveryServerUrl : "opc.tcp://localhost:4840";
+    if(!client)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Connect the client */
     UA_StatusCode retval = UA_Client_connect(client, url);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -675,7 +386,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
     if(semaphoreFilePath) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        request.server.semaphoreFilePath = UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
+        request.server.semaphoreFilePath =
+            UA_STRING((char*)(uintptr_t)semaphoreFilePath); /* dirty cast */
 #else
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
@@ -689,7 +401,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     /* Copy the discovery urls from the server config and the network layers*/
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
-    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * (config_discurls + nl_discurls));
+    size_t total_discurls = config_discurls * nl_discurls;
+    request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
     request.server.discoveryUrlsSize = config_discurls + nl_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)
@@ -728,43 +441,32 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
 
     if(serviceResult == UA_STATUSCODE_BADNOTIMPLEMENTED ||
        serviceResult == UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
-        // try RegisterServer
-        UA_RegisterServerResponse response_fallback;
-        UA_RegisterServerResponse_init(&response_fallback);
-
-        // copy from RegisterServer2 request
+        /* Try RegisterServer */
         UA_RegisterServerRequest request_fallback;
         UA_RegisterServerRequest_init(&request_fallback);
-
+        /* Copy from RegisterServer2 request */
         request_fallback.requestHeader = request.requestHeader;
         request_fallback.server = request.server;
+
+        UA_RegisterServerResponse response_fallback;
+        UA_RegisterServerResponse_init(&response_fallback);
 
         __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                             &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
-        if(response_fallback.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "RegisterServer failed with statuscode %s",
-                         UA_StatusCode_name(response_fallback.responseHeader.serviceResult));
-            serviceResult = response_fallback.responseHeader.serviceResult;
-            UA_RegisterServerResponse_deleteMembers(&response_fallback);
-            UA_Client_disconnect(client);
-            UA_Client_delete(client);
-            return serviceResult;
-        }
-    } else if(serviceResult != UA_STATUSCODE_GOOD) {
+        serviceResult = response_fallback.responseHeader.serviceResult;
+        UA_RegisterServerResponse_deleteMembers(&response_fallback);
+    }
+
+    if(serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer2 failed with statuscode %s",
+                     "RegisterServer/RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(serviceResult));
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return serviceResult;
     }
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-
-    return UA_STATUSCODE_GOOD;
+    return serviceResult;
 }
 
 UA_StatusCode
