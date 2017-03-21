@@ -479,6 +479,14 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                const UA_Argument* outputArguments);
 #endif
 
+/**********************/
+/* Create Namespace 0 */
+/**********************/
+
+#ifndef UA_ENABLE_GENERATE_NAMESPACE0
+void UA_Server_createNS0(UA_Server *server);
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
