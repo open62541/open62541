@@ -214,7 +214,7 @@ readMonitoredItems(void *handle, const UA_NodeId *objectId,
     UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     return UA_STATUSCODE_GOOD;
 }
-#endif
+#endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
 /*****************/
 /* Node Creation */
@@ -823,7 +823,7 @@ void UA_Server_createNS0(UA_Server *server) {
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                    0, NULL, 0, NULL);
-#endif
+#endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
     /* Finish adding the server object */
     UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
@@ -832,4 +832,4 @@ void UA_Server_createNS0(UA_Server *server) {
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE), NULL);
 }
 
-#endif
+#endif /* UA_ENABLE_GENERATE_NAMESPACE0 */

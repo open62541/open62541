@@ -64,17 +64,21 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 }
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-static void UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
+
+static void
+UA_ExternalNamespace_init(UA_ExternalNamespace *ens) {
     ens->index = 0;
     UA_String_init(&ens->url);
 }
 
-static void UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
+static void
+UA_ExternalNamespace_deleteMembers(UA_ExternalNamespace *ens) {
     UA_String_deleteMembers(&ens->url);
     ens->externalNodeStore.destroy(ens->externalNodeStore.ensHandle);
 }
 
-static void UA_Server_deleteExternalNamespaces(UA_Server *server) {
+static void
+UA_Server_deleteExternalNamespaces(UA_Server *server) {
     for(UA_UInt32 i = 0; i < server->externalNamespacesSize; ++i)
         UA_ExternalNamespace_deleteMembers(&server->externalNamespaces[i]);
     if(server->externalNamespacesSize > 0) {
@@ -102,6 +106,7 @@ UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
     UA_Server_addNamespace(server, urlString);
     return UA_STATUSCODE_GOOD;
 }
+
 #endif /* UA_ENABLE_EXTERNAL_NAMESPACES*/
 
 UA_StatusCode
@@ -212,48 +217,14 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
 #endif
 }
 
-UA_Server * UA_Server_new(const UA_ServerConfig config) {
-    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    if(!server)
-        return NULL;
-
-    server->config = config;
-    server->nodestore = UA_NodeStore_new();
-
-    /* Initialize the handling of repeated jobs */
-#ifdef UA_ENABLE_MULTITHREADING
-    UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
-                             server);
-#else
-    UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
-                             server);
-#endif
-
-#ifdef UA_ENABLE_MULTITHREADING
-    rcu_init();
-    cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
-    cds_lfs_init(&server->mainLoopJobs);
-#else
-    SLIST_INIT(&server->delayedCallbacks);
-#endif
-
-#ifndef UA_ENABLE_DETERMINISTIC_RNG
-    UA_random_seed((UA_UInt64)UA_DateTime_now());
-#endif
-
-    /* ns0 and ns1 */
-    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
-    server->namespacesSize = 2;
-
-    /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
+/* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
+static void
+addEndpointDefinitions(UA_Server *server) {
     server->endpointDescriptions =
         (UA_EndpointDescription*)UA_Array_new(server->config.networkLayersSize,
                                               &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     server->endpointDescriptionsSize = server->config.networkLayersSize;
+
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
         endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
@@ -293,24 +264,77 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
         /* copy the discovery url only once the networlayer has been started */
         // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
     }
+}
 
+UA_Server *
+UA_Server_new(const UA_ServerConfig config) {
+    UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
+    if(!server)
+        return NULL;
+
+    server->config = config;
+    server->startTime = UA_DateTime_now();
+    server->nodestore = UA_NodeStore_new();
+
+    /* Set a seed for non-cyptographic randomness */
+#ifndef UA_ENABLE_DETERMINISTIC_RNG
+    UA_random_seed((UA_UInt64)UA_DateTime_now());
+#endif
+
+    /* Initialize the handling of repeated jobs */
+#ifdef UA_ENABLE_MULTITHREADING
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
+                             server);
+#else
+    UA_RepeatedJobsList_init(&server->repeatedJobs,
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
+                             server);
+#endif
+
+    /* Initialized the linked list for delayed callbacks */
+#ifndef UA_ENABLE_MULTITHREADING
+    SLIST_INIT(&server->delayedCallbacks);
+#endif
+
+    /* Initialized the dispatch queue for worker threads */
+#ifdef UA_ENABLE_MULTITHREADING
+    rcu_init();
+    cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
+    cds_lfs_init(&server->mainLoopJobs);
+#endif
+
+    /* Create Namespaces 0 and 1 */
+    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
+    server->namespacesSize = 2;
+
+    /* Create Endpoint Definitions */
+    addEndpointDefinitions(server);
+
+    /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
     UA_SessionManager_init(&server->sessionManager, server);
 
-   UA_Job cleanup;
-   cleanup.type = UA_JOBTYPE_METHODCALL;
-   cleanup.job.methodCall.data = NULL;
-   cleanup.job.methodCall.method = UA_Server_cleanup;
-   UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
+    /* Add a regular job for cleanup and maintenance */
+    UA_Job cleanup;
+    cleanup.type = UA_JOBTYPE_METHODCALL;
+    cleanup.job.methodCall.data = NULL;
+    cleanup.job.methodCall.method = UA_Server_cleanup;
+    UA_Server_addRepeatedJob(server, cleanup, 10000, NULL);
 
+    /* Initialized discovery database */
 #ifdef UA_ENABLE_DISCOVERY
-    // Discovery service
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
     server->periodicServerRegisterJob = NULL;
     server->registerServerCallback = NULL;
     server->registerServerCallbackData = NULL;
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+#endif
+
+    /* Initialize multicast discovery */
+#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
     server->mdnsMainSrvAdded = UA_FALSE;
@@ -323,19 +347,16 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     server->serverOnNetworkRecordIdCounter = 0;
     server->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     memset(server->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*)*SERVER_ON_NETWORK_HASH_PRIME);
+           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_PRIME);
 
     server->serverOnNetworkCallback = NULL;
     server->serverOnNetworkCallbackData = NULL;
-# endif
 #endif
 
-    server->startTime = UA_DateTime_now();
-
+    /* Initialize Namespace 0 */
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
     UA_Server_createNS0(server);
 #else
-    /* load the generated namespace externally */
     ua_namespaceinit_generated(server);
 #endif
 
