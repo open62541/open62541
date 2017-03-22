@@ -192,13 +192,14 @@ typedef struct {
     UA_DoubleRange samplingIntervalLimits;
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 
-#ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
-    // timeout in seconds when to automatically remove a registered server from the list,
-    // if it doesn't re-register within the given time frame. A value of 0 disables automatic removal.
-    // Default is 60 Minutes (60*60). Must be bigger than 10 seconds, because cleanup is only triggered approximately
-    // ervery 10 seconds.
-    // The server will still be removed depending on the state of the semaphore file.
+#ifdef UA_ENABLE_DISCOVERY
+    /* Timeout in seconds when to automatically remove a registered server from
+     * the list, if it doesn't re-register within the given time frame. A value
+     * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
+     * bigger than 10 seconds, because cleanup is only triggered approximately
+     * ervery 10 seconds. The server will still be removed depending on the
+     * state of the semaphore file. */
     UA_UInt32 discoveryCleanupTimeout;
 #endif
 } UA_ServerConfig;
@@ -605,9 +606,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
  /**
  * Discovery
  * --------- */
-
- /**
-  * Register the given server instance at the discovery server.
+ /* Register the given server instance at the discovery server.
   * This should be called periodically.
   * The semaphoreFilePath is optional. If the given file is deleted,
   * the server will automatically be unregistered. This could be
@@ -616,23 +615,24 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   * When the server shuts down you need to call unregister.
   *
   * @param server
-  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param discoveryServerUrl if set to NULL, the default value
+  *        'opc.tcp://localhost:4840' will be used
   * @param semaphoreFilePath optional parameter pointing to semaphore file.
   */
  UA_StatusCode UA_EXPORT
- UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl, const char* semaphoreFilePath);
+ UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
+                              const char* semaphoreFilePath);
 
- /**
-  * Unregister the given server instance from the discovery server.
+ /* Unregister the given server instance from the discovery server.
   * This should only be called when the server is shutting down.
   * @param server
-  * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
+  * @param discoveryServerUrl if set to NULL, the default value
+  *        'opc.tcp://localhost:4840' will be used
   */
  UA_StatusCode UA_EXPORT
  UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
 
- /**
-  * Adds a periodic job to register the server with the LDS (local discovery server)
+ /* Adds a periodic job to register the server with the LDS (local discovery server)
   * periodically. The interval between each register call is given as second parameter.
   * It should be 10 minutes by default (= 10*60*1000).
   *
@@ -647,26 +647,28 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
   * @param discoveryServerUrl if set to NULL, the default value 'opc.tcp://localhost:4840' will be used
   * @param intervalMs
   * @param delayFirstRegisterMs
-  * @param periodicJobId
-  */
+  * @param periodicJobId */
  UA_StatusCode UA_EXPORT
-         UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl, const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs, UA_Guid* periodicJobId);
+UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl,
+                                       const UA_UInt32 intervalMs, const UA_UInt32 delayFirstRegisterMs,
+                                       UA_Guid* periodicJobId);
 
- /* Callback for RegisterServer. Data is passed from the register call */
- typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);
+/* Callback for RegisterServer. Data is passed from the register call */
+typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer, void* data);
 
-/**
- * Set the callback which is called if another server registeres or unregisteres with this instance.
- * If called multiple times, previous data will be overwritten.
+/* Set the callback which is called if another server registeres or unregisteres
+ * with this instance. If called multiple times, previous data will be
+ * overwritten.
+ *
  * @param server
  * @param cb the callback
  * @param data data passed to the callback
  * @return UA_STATUSCODE_SUCCESS on success
  */
 void UA_EXPORT
-         UA_Server_setRegisterServerCallback(UA_Server *server,
-                                             UA_Server_registerServerCallback cb,
-                                             void* data);
+ UA_Server_setRegisterServerCallback(UA_Server *server,
+                                     UA_Server_registerServerCallback cb,
+                                     void* data);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
