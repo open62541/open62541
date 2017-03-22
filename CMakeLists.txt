@@ -199,6 +199,7 @@ endif()
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
 
 if (UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
@@ -553,8 +554,15 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
         DESTINATION "${cmake_configfile_install}")
 
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
+            DESTINATION lib/pkgconfig)
+endif()
 # export amalgamated header open62541.h which is generated due to build of open62541-object
-install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+if(UA_ENABLE_AMALGAMATION)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+endif()
 install(DIRECTORY deps/ DESTINATION ${open62541_deps_dir})
 install(DIRECTORY tools/ DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
 
