@@ -4,10 +4,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-
-#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
-# include "ua_mdns_internal.h"
-#endif
+#include "ua_mdns_internal.h"
 
 #ifdef _MSC_VER
 # ifndef UNDER_CE
