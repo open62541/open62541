@@ -287,9 +287,19 @@ copyChildNode(UA_Server *server, UA_Session *session,
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
         UA_NodeId_deleteMembers(&node->nodeId);
         node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
+
+        /* Remove references, they are re-created from scratch in addnode_finish */
+        /* TODO: Be more clever in removing references that are re-added during
+         * addnode_finish. That way, we can call addnode_finish also on children that were
+         * manually added by the user during addnode_begin and addnode_finish. */
+        UA_Array_delete(node->references, node->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+        node->references = NULL;
+        node->referencesSize = 0;
                 
         /* Add the node to the nodestore */
         retval = UA_NodeStore_insert(server->nodestore, node);
+
+        /* Call addnode_finish, this recursively adds members, the type definition and so on */
         if(retval == UA_STATUSCODE_GOOD)
             retval = Service_AddNode_finish(server, session, &node->nodeId,
                                             destinationNodeId, &rd->referenceTypeId,
