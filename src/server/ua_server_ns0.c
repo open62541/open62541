@@ -53,56 +53,6 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     return UA_STATUSCODE_GOOD;
 }
 
-/** TODO: rework the code duplication in the getter methods **/
-static UA_StatusCode
-readServiceLevel(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                 const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    value->value.type = &UA_TYPES[UA_TYPES_BYTE];
-    value->value.arrayLength = 0;
-    UA_Byte *byte = UA_Byte_new();
-    *byte = 255;
-    value->value.data = byte;
-    value->value.arrayDimensionsSize = 0;
-    value->value.arrayDimensions = NULL;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-/** TODO: rework the code duplication in the getter methods **/
-static UA_StatusCode
-readAuditing(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-             const UA_NumericRange *range, UA_DataValue *value) {
-    if(range) {
-        value->hasStatus = true;
-        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
-    value->value.arrayLength = 0;
-    UA_Boolean *boolean = UA_Boolean_new();
-    *boolean = false;
-    value->value.data = boolean;
-    value->value.arrayDimensionsSize = 0;
-    value->value.arrayDimensions = NULL;
-    value->hasValue = true;
-    if(sourceTimeStamp) {
-        value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 static UA_StatusCode
 readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
                const UA_NumericRange *range, UA_DataValue *value) {
@@ -291,15 +241,15 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
 static void
 addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                     UA_Boolean isAbstract, UA_Int32 valueRank, UA_UInt32 dataType,
-                    UA_Variant *value, UA_UInt32 parentid) {
+                    const UA_DataType *type, UA_UInt32 parentid) {
     UA_VariableTypeAttributes attr;
     UA_VariableTypeAttributes_init(&attr);
     attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
     attr.isAbstract = isAbstract;
     attr.dataType = UA_NODEID_NUMERIC(0, dataType);
     attr.valueRank = valueRank;
-    if(value)
-        attr.value = *value;
+    if(type)
+        UA_Variant_setScalar(&attr.value, UA_new(type), type);
     UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
                                   UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                   UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
@@ -466,10 +416,12 @@ void UA_Server_createNS0(UA_Server *server) {
                         false, -2, UA_NS0ID_BASEDATATYPE, NULL, UA_NS0ID_BASEVARIABLETYPE);
 
     addVariableTypeNode(server, "BuildInfoType", UA_NS0ID_BUILDINFOTYPE,
-                        false, -1, UA_NS0ID_BUILDINFO, NULL, UA_NS0ID_BASEDATAVARIABLETYPE);
+                        false, -1, UA_NS0ID_BUILDINFO, &UA_TYPES[UA_TYPES_BUILDINFO],
+                        UA_NS0ID_BASEDATAVARIABLETYPE);
 
     addVariableTypeNode(server, "ServerStatusType", UA_NS0ID_SERVERSTATUSTYPE,
-                        false, -1, UA_NS0ID_SERVERSTATUSDATATYPE, NULL, UA_NS0ID_BASEDATAVARIABLETYPE);
+                        false, -1, UA_NS0ID_SERVERSTATUSDATATYPE, &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE],
+                        UA_NS0ID_BASEDATAVARIABLETYPE);
 
     /***************/
     /* ObjectTypes */
@@ -672,12 +624,20 @@ void UA_Server_createNS0(UA_Server *server) {
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERDIAGNOSTICSTYPE), NULL);
 
     // TODO: Begin Serverstatus
-    addVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS, "ServerStatus", -1,
-                    &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE].typeId, NULL,
-                    UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_VariableAttributes serverstatus_attr;
+    UA_VariableAttributes_init(&serverstatus_attr);
+    serverstatus_attr.displayName = UA_LOCALIZEDTEXT("en_US", "ServerStatus");
+    serverstatus_attr.valueRank = -1;
+    serverstatus_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSDATATYPE);
+    UA_Server_addVariableNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
+                                    UA_QUALIFIEDNAME(0, "ServerStatus"), serverstatus_attr, NULL);
     UA_DataSource statusDS = {.handle = server, .read = readStatus, .write = NULL};
     UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                                          statusDS);
+    UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), NULL);
 
     UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
     addVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME, "StartTime", -1,
@@ -685,12 +645,20 @@ void UA_Server_createNS0(UA_Server *server) {
                     UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
 
     /* TODO: UTC Time Type */
-    addVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME, "CurrentTime", -1,
-                    &UA_TYPES[UA_TYPES_DATETIME].typeId, NULL, UA_NS0ID_SERVER_SERVERSTATUS,
-                    UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
-    UA_DataSource currentDS = {.handle = NULL, .read = readCurrentTime, .write = NULL};
     const UA_NodeId currentTimeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_VariableAttributes currenttime_attr;
+    UA_VariableAttributes_init(&currenttime_attr);
+    currenttime_attr.displayName = UA_LOCALIZEDTEXT("en_US", "CurrentTime");
+    currenttime_attr.valueRank = -1;
+    currenttime_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
+    UA_Server_addVariableNode_begin(server, currentTimeId, UA_QUALIFIEDNAME(0, "CurrentTime"),
+                                    currenttime_attr, NULL);
+    UA_DataSource currentDS = {.handle = NULL, .read = readCurrentTime, .write = NULL};
     UA_Server_setVariableNode_dataSource(server, currentTimeId, currentDS);
+    UA_Server_addNode_finish(server, currentTimeId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), NULL);
 
     UA_ServerState state = UA_SERVERSTATE_RUNNING;
     UA_Variant_setScalar(&var, &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);
@@ -750,19 +718,17 @@ void UA_Server_createNS0(UA_Server *server) {
     
     /* Finish ServerStatus */
 
+    UA_Byte serviceLevel = 255;
+    UA_Variant_setScalar(&var, &serviceLevel, &UA_TYPES[UA_TYPES_BYTE]);
     addVariableNode(server, UA_NS0ID_SERVER_SERVICELEVEL, "ServiceLevel", -1,
-                    &UA_TYPES[UA_TYPES_BYTE].typeId, NULL,
-                    UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, UA_NS0ID_PROPERTYTYPE);
-    UA_DataSource servicelevelDS = {.handle = server, .read = readServiceLevel, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL),
-                                         servicelevelDS);
+                    &UA_TYPES[UA_TYPES_BYTE].typeId, &var, UA_NS0ID_SERVER,
+                    UA_NS0ID_HASCOMPONENT, UA_NS0ID_PROPERTYTYPE);
 
+    UA_Boolean auditing = false;
+    UA_Variant_setScalar(&var, &auditing, &UA_TYPES[UA_TYPES_BOOLEAN]);
     addVariableNode(server, UA_NS0ID_SERVER_AUDITING, "Auditing", -1,
-                    &UA_TYPES[UA_TYPES_BOOLEAN].typeId, NULL,
-                    UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, UA_NS0ID_PROPERTYTYPE);
-    UA_DataSource auditingDS = {.handle = server, .read = readAuditing, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING),
-                                         auditingDS);
+                    &UA_TYPES[UA_TYPES_BOOLEAN].typeId, &var, UA_NS0ID_SERVER,
+                    UA_NS0ID_HASCOMPONENT, UA_NS0ID_PROPERTYTYPE);
 
     addObjectNode(server, "VendorServerInfo", UA_NS0ID_SERVER_VENDORSERVERINFO, UA_NS0ID_SERVER,
                   UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEOBJECTTYPE);

@@ -122,6 +122,17 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
             goto cleanup;
     }
 
+    /* If no value is set, see if the vt provides one and copy that. THis needs to be done
+     * before copying the datatype from the vt. Setting the datatype triggers the
+     * typecheck. Here, we have only a typecheck when the datatype is already not null. */
+    if(!value.hasValue || !value.value.type) {
+        retval = readValueAttribute(server, (const UA_VariableNode*)vt, &value);
+        if(retval == UA_STATUSCODE_GOOD && value.hasValue && value.value.type)
+            retval = UA_Server_writeValue(server, node->nodeId, value.value);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
     /* Workaround: Replace with datatype of the vt if not set */
     const UA_NodeId *dataType = &node->dataType;
     if(UA_NodeId_isNull(dataType)) {
@@ -1531,4 +1542,3 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
 }
 
 #endif
-
