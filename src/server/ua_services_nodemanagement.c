@@ -1013,7 +1013,6 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     retval |= Service_AddNode_finish(server, &adminSession, &nodeId, &parentNodeId,
                                      &referenceTypeId, &UA_NODEID_NULL, NULL);
 
- finish:
     if(retval != UA_STATUSCODE_GOOD) {
         Service_DeleteNodes_single(server, &adminSession, &nodeId, true);
         Service_DeleteNodes_single(server, &adminSession, &inputArgsId, true);
