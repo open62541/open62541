@@ -25,79 +25,63 @@
 # define CLOSESOCKET(S) close(S)
 #endif
 
+/* All filter criteria must be fulfilled */
+static UA_Boolean
+filterServerRecord(size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                   serverOnNetwork_list_entry* current) {
+    for(size_t i = 0; i < request->serverCapabilityFilterSize; i++) {
+        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++)
+            if(!UA_String_equal(&request->serverCapabilityFilter[i],
+                                &current->serverOnNetwork.serverCapabilities[j]))
+                return false;
+    }
+    return true;
+}
+
 void Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                   const UA_FindServersOnNetworkRequest *request,
                                   UA_FindServersOnNetworkResponse *response) {
-    UA_UInt32 recordCount;
+    /* Set LastCounterResetTime */
+    UA_DateTime_copy(&server->serverOnNetworkRecordIdLastReset, &response->lastCounterResetTime);
+
+    /* Compute the max number of records to return */
+    UA_UInt32 recordCount = 0;
     if(request->startingRecordId < server->serverOnNetworkRecordIdCounter)
         recordCount = server->serverOnNetworkRecordIdCounter - request->startingRecordId;
-    else
-        recordCount = 0;
-
     if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
         recordCount = recordCount > request->maxRecordsToReturn ? request->maxRecordsToReturn : recordCount;
-
-    UA_ServerOnNetwork** filtered = NULL;
-    if(recordCount > 0) {
-        filtered = (UA_ServerOnNetwork**)UA_malloc(sizeof(UA_ServerOnNetwork*) * recordCount);
-        if(!filtered) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
-        }
-        memset(filtered, 0, sizeof(UA_ServerOnNetwork*) * recordCount);
-
-        if(request->serverCapabilityFilterSize) {
-            UA_UInt32 filteredCount = 0;
-            // iterate over all records and add to filtered list
-            serverOnNetwork_list_entry* current;
-            LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
-                if (current->serverOnNetwork.recordId < request->startingRecordId)
-                    continue;
-                UA_Boolean foundAll = UA_TRUE;
-                for(size_t i = 0; i < request->serverCapabilityFilterSize && foundAll; i++) {
-                    UA_Boolean foundSingle = UA_FALSE;
-                    for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize && !foundSingle; j++)
-                        foundSingle |= UA_String_equal(&request->serverCapabilityFilter[i],
-                                                       &current->serverOnNetwork.serverCapabilities[j]);
-                    foundAll &= foundSingle;
-                }
-                if (foundAll) {
-                    filtered[filteredCount++] = &current->serverOnNetwork;
-                    if (filteredCount >= recordCount)
-                        break;
-                }
-            }
-            recordCount = filteredCount;
-        } else {
-            UA_UInt32 filteredCount = 0;
-            serverOnNetwork_list_entry* current;
-            LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
-                if (current->serverOnNetwork.recordId < request->startingRecordId)
-                    continue;
-                filtered[filteredCount++] = &current->serverOnNetwork;
-                if (filteredCount >= recordCount)
-                    break;
-            }
-            recordCount = filteredCount;
-        }
+    if(recordCount == 0) {
+        response->serversSize = 0;
+        return;
     }
 
-    response->serversSize = recordCount;
-    if(recordCount > 0) {
-        response->servers = (UA_ServerOnNetwork *)UA_malloc(sizeof(UA_ServerOnNetwork)*recordCount);
-        if(!response->servers) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            free(filtered);
-            return;
-        }
-
-        for(size_t i = 0; i < recordCount; i++)
-            UA_ServerOnNetwork_copy(filtered[i],&response->servers[recordCount-i-1]);
+    /* Iterate over all records and add to filtered list */
+    UA_UInt32 filteredCount = 0;
+    UA_ServerOnNetwork** filtered =
+        (UA_ServerOnNetwork**)UA_alloca(sizeof(UA_ServerOnNetwork*) * recordCount);
+    serverOnNetwork_list_entry* current;
+    LIST_FOREACH(current, &server->serverOnNetwork, pointers) {
+        if(filteredCount >= recordCount)
+            break;
+        if(current->serverOnNetwork.recordId < request->startingRecordId)
+            continue;
+        if(!filterServerRecord(request->serverCapabilityFilterSize,
+                               request->serverCapabilityFilter, current))
+            continue;
+        filtered[filteredCount++] = &current->serverOnNetwork;
     }
-    free(filtered);
 
-    UA_DateTime_copy(&server->serverOnNetworkRecordIdLastReset, &response->lastCounterResetTime);
-    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    /* Allocate the array for the response */
+    response->servers = (UA_ServerOnNetwork*)UA_malloc(sizeof(UA_ServerOnNetwork)*filteredCount);
+    if(!response->servers) {
+        response->serversSize = -1;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    response->serversSize = filteredCount;
+
+    /* Copy the server names */
+    for(size_t i = 0; i < filteredCount; i++)
+        UA_ServerOnNetwork_copy(filtered[i], &response->servers[filteredCount-i-1]);
 }
 
 void
@@ -146,7 +130,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverNam
         UA_StatusCode addRetval =
                 UA_Discovery_addRecord(server, serverName, hostname,
                                        (unsigned short) port, path,
-                                       UA_DISCOVERY_TCP, updateTxt, capabilities, &capabilitiesSize);
+                                       UA_DISCOVERY_TCP, updateTxt,
+                                       capabilities, &capabilitiesSize);
         if(addRetval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                            "Could not add mDNS record for hostname %s.", serverName);
@@ -173,7 +158,8 @@ socket_mdns_set_nonblocking(int sockfd) {
 }
 
 /* Create multicast 224.0.0.251:5353 socket */
-static int discovery_createMulticastSocket(void) {
+static int
+discovery_createMulticastSocket(void) {
     int s, flag = 1, ittl = 255;
     struct sockaddr_in in;
     struct ip_mreq mc;
