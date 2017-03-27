@@ -96,8 +96,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverNam
     size_t uriSize = sizeof(char) * discoveryUrl.length + 1;
 
     // todo: malloc may fail: return a statuscode
-    char* uri = (char*)malloc(uriSize);
-    strncpy(uri, (char*) discoveryUrl.data, discoveryUrl.length);
+    char* uri = (char*)UA_malloc(uriSize);
+    strncpy(uri, (char*)discoveryUrl.data, discoveryUrl.length);
     uri[discoveryUrl.length] = '\0';
 
     UA_StatusCode retval = UA_EndpointUrl_split(uri, hostname, &port, &path);
@@ -233,7 +233,7 @@ create_fullServiceDomain(const char* servername, const char* hostname, size_t ma
         }
     }
 
-    char *fullServiceDomain = (char *)malloc(servernameLen + 1 + hostnameLen + 23 + 2);
+    char *fullServiceDomain = (char*)UA_malloc(servernameLen + 1 + hostnameLen + 23 + 2);
     if (!fullServiceDomain)
         return NULL;
 
@@ -358,7 +358,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
 
     // hostname.
     size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
-    char *localDomain = (char *)malloc(maxHostnameLen+2);
+    char *localDomain = (char*)UA_malloc(maxHostnameLen+2);
     if(!localDomain) {
         free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;

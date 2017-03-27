@@ -394,7 +394,7 @@ getInterfaces(UA_Server *server) {
     DWORD adapter_addresses_buffer_size = 16 * 1024;
     for(size_t attempts = 0; attempts != 3; ++attempts) {
         // todo: malloc may fail: return a statuscode
-        adapter_addresses = (IP_ADAPTER_ADDRESSES*)malloc(adapter_addresses_buffer_size);
+        adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
         DWORD error = GetAdaptersAddresses(AF_UNSPEC,
                                            GAA_FLAG_SKIP_ANYCAST |
                                            GAA_FLAG_SKIP_DNS_SERVER |

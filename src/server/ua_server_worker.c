@@ -328,7 +328,7 @@ UA_Server_addMdnsRecordForNetworkLayer(UA_Server *server, const char* appName, c
     char hostname[256]; hostname[0] = '\0';
     const char *path;
     {
-        char* uri = (char *)malloc(sizeof(char) * nl->discoveryUrl.length + 1);
+        char* uri = (char*)UA_malloc(sizeof(char) * nl->discoveryUrl.length + 1);
         strncpy(uri, (char*) nl->discoveryUrl.data, nl->discoveryUrl.length);
         uri[nl->discoveryUrl.length] = '\0';
         UA_StatusCode retval;
@@ -383,7 +383,7 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
 
-        char *appName = (char *)malloc(server->config.mdnsServerName.length +1);
+        char *appName = (char*)UA_malloc(server->config.mdnsServerName.length +1);
         memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
         appName[server->config.mdnsServerName.length] = '\0';
 
@@ -561,9 +561,9 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        char* hostname = (char *)malloc(sizeof(char) * 256);
+        char* hostname = (char*)UA_malloc(sizeof(char) * 256);
         if (gethostname(hostname, 255) == 0) {
-            char *appName = (char *)malloc(server->config.mdnsServerName.length +1);
+            char *appName = (char*)UA_malloc(server->config.mdnsServerName.length +1);
             memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
             appName[server->config.mdnsServerName.length] = '\0';
             UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
