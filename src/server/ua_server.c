@@ -175,7 +175,7 @@ void UA_Server_delete(UA_Server *server) {
         LIST_REMOVE(son, pointers);
         UA_ServerOnNetwork_deleteMembers(&son->serverOnNetwork);
         if(son->pathTmp)
-            free(son->pathTmp);
+            UA_free(son->pathTmp);
         UA_free(son);
     }
 
@@ -183,7 +183,7 @@ void UA_Server_delete(UA_Server *server) {
         serverOnNetwork_hash_entry* currHash = server->serverOnNetworkHash[i];
         while(currHash) {
             serverOnNetwork_hash_entry* nextHash = currHash->next;
-            free(currHash);
+            UA_free(currHash);
             currHash = nextHash;
         }
     }

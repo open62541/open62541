@@ -110,7 +110,7 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverNam
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
                            "Server url does not begin with opc.tcp://");
     }
-    free(uri);
+    UA_free(uri);
 
     if(!isOnline) {
         UA_StatusCode removeRetval =
@@ -337,7 +337,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
 
     UA_Boolean exists = UA_Discovery_recordExists(server, fullServiceDomain, port, protocol);
     if(exists == UA_TRUE) {
-        free(fullServiceDomain);
+        UA_free(fullServiceDomain);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -360,7 +360,7 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
     size_t maxHostnameLen = hostnameLen < 63 ? hostnameLen : 63;
     char *localDomain = (char*)UA_malloc(maxHostnameLen+2);
     if(!localDomain) {
-        free(fullServiceDomain);
+        UA_free(fullServiceDomain);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     sprintf(localDomain, "%.*s.",(int)(maxHostnameLen), hostname);
@@ -382,8 +382,8 @@ UA_Discovery_addRecord(UA_Server* server, const char* servername,
                         UA_Discovery_multicastConflict);
     }
 
-    free(fullServiceDomain);
-    free(localDomain);
+    UA_free(fullServiceDomain);
+    UA_free(localDomain);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -418,7 +418,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: could not remove record. "
                        "PTR Record not found for domain: %s", fullServiceDomain);
-        free(fullServiceDomain);
+        UA_free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     mdnsd_done(server->mdnsDaemon, r);
@@ -431,7 +431,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: could not remove record. Record not "
                        "found for domain: %s", fullServiceDomain);
-        free(fullServiceDomain);
+        UA_free(fullServiceDomain);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -446,7 +446,7 @@ UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char*
         r2 = next;
     }
 
-    free(fullServiceDomain);
+    UA_free(fullServiceDomain);
     return UA_STATUSCODE_GOOD;
 }
 

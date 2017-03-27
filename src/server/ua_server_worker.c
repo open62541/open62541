@@ -337,10 +337,10 @@ UA_Server_addMdnsRecordForNetworkLayer(UA_Server *server, const char* appName, c
                 UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid", uri);
             else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
                 UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' does not begin with opc.tcp://", uri);
-            free(uri);
+            UA_free(uri);
             return UA_STATUSCODE_BADINVALIDARGUMENT;
         }
-        free(uri);
+        UA_free(uri);
     }
     UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
                            server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
@@ -391,11 +391,11 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
             UA_StatusCode retVal = UA_Server_addMdnsRecordForNetworkLayer(
                     server, appName, &server->config.networkLayers[i]);
             if (UA_STATUSCODE_GOOD != retVal) {
-                free(appName);
+                UA_free(appName);
                 return retVal;
             }
         }
-        free(appName);
+        UA_free(appName);
 
         // find any other server on the net
         UA_Discovery_multicastQuery(server);
@@ -567,12 +567,12 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
             memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
             appName[server->config.mdnsServerName.length] = '\0';
             UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
-            free(appName);
+            UA_free(appName);
         } else {
             UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "Could not get hostname for multicast discovery.");
         }
-        free(hostname);
+        UA_free(hostname);
 
 # ifdef UA_ENABLE_MULTITHREADING
         UA_Discovery_multicastListenStop(server);

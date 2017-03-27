@@ -129,7 +129,7 @@ mdns_record_remove(UA_Server *server, const char *record,
         prevEntry = hash_entry;
         hash_entry = hash_entry->next;
     }
-    free(hash_entry);
+    UA_free(hash_entry);
 
     if(server->serverOnNetworkCallback)
         server->serverOnNetworkCallback(&entry->serverOnNetwork, UA_FALSE,
@@ -139,7 +139,7 @@ mdns_record_remove(UA_Server *server, const char *record,
     LIST_REMOVE(entry, pointers);
     UA_ServerOnNetwork_deleteMembers(&entry->serverOnNetwork);
     if(entry->pathTmp)
-        free(entry->pathTmp);
+        UA_free(entry->pathTmp);
 
 #ifndef UA_ENABLE_MULTITHREADING
     server->serverOnNetworkSize--;
@@ -227,11 +227,11 @@ setSrv(UA_Server *server, const struct resource *r,
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
-    free(newUrl);
+    UA_free(newUrl);
 
     if(entry->pathTmp) {
         mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
-        free(entry->pathTmp);
+        UA_free(entry->pathTmp);
     }
 }
 
@@ -342,13 +342,13 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
 
     int txtRecordLength;
     unsigned char *packet = sd2txt(h, &txtRecordLength);
-    if (allocPath)
-        free(allocPath);
-    if (caps)
-        free(caps);
+    if(allocPath)
+        UA_free(allocPath);
+    if(caps)
+        UA_free(caps);
     xht_free(h);
     mdnsd_set_raw(server->mdnsDaemon, r, (char *) packet, (unsigned short) txtRecordLength);
-    free(packet);
+    UA_free(packet);
 }
 
 mdns_record_t *
@@ -410,7 +410,7 @@ getInterfaces(UA_Server *server) {
             break;
         } else if (ERROR_BUFFER_OVERFLOW == error) {
             // Try again with the new size
-            free(adapter_addresses);
+            UA_free(adapter_addresses);
             adapter_addresses = NULL;
             continue;
         }
@@ -419,7 +419,7 @@ getInterfaces(UA_Server *server) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "GetAdaptersAddresses returned an unexpected error. "
                      "Not setting mDNS A records.");
-        free(adapter_addresses);
+        UA_free(adapter_addresses);
         adapter_addresses = NULL;
         break;
     }
@@ -474,7 +474,7 @@ void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
     }
 
     /* Cleanup */
-    free(adapter_addresses);
+    UA_free(adapter_addresses);
     adapter_addresses = NULL;
 }
 

@@ -381,10 +381,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
-            free(filePath);
+            UA_free(filePath);
             return;
         }
-        free(filePath);
+        UA_free(filePath);
 #else
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
@@ -407,7 +407,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                                                     requestServer->discoveryUrls[i],
                                                     requestServer->isOnline, updateTxt);
         }
-        free(mdnsServer);
+        UA_free(mdnsServer);
     }
 #endif
 
@@ -521,7 +521,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 #else
            semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
-           free(filePath);
+           UA_free(filePath);
         }
 #endif
 
