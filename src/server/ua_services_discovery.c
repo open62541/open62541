@@ -298,7 +298,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
-            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
+            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j],
+                                                  &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
             ++k;
         }
@@ -345,7 +346,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         *responseConfigurationResults =
             (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize,
                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
-        for(size_t i =0; i<requestDiscoveryConfigurationSize; i++) {
+        for(size_t i = 0; i < requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
             if(!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED ||
                                object->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
@@ -386,7 +387,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         free(filePath);
 #else
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+                       "Ignoring semaphore file path. open62541 not compiled "
+                       "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
     }
 
