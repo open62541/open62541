@@ -98,12 +98,12 @@ extern UA_THREAD_LOCAL UA_Session* methodCallSession;
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
+
 typedef struct registeredServer_list_entry {
     LIST_ENTRY(registeredServer_list_entry) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
-
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 typedef struct serverOnNetwork_list_entry {
@@ -116,15 +116,15 @@ typedef struct serverOnNetwork_list_entry {
     char* pathTmp;
 } serverOnNetwork_list_entry;
 
-
 #define SERVER_ON_NETWORK_HASH_PRIME 1009
 typedef struct serverOnNetwork_hash_entry {
     serverOnNetwork_list_entry* entry;
     struct serverOnNetwork_hash_entry* next;
 } serverOnNetwork_hash_entry;
-#endif
 
-#endif
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+#endif /* UA_ENABLE_DISCOVERY */
 
 struct UA_Server {
     /* Meta */
@@ -339,14 +339,25 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-UA_StatusCode UA_Discovery_multicastInit(UA_Server* server);
-void UA_Discovery_multicastDestroy(UA_Server* server);
+UA_StatusCode
+initMulticastDiscoveryServer(UA_Server* server);
+
+void startMulticastDiscoveryServer(UA_Server *server);
+
+void stopMulticastDiscoveryServer(UA_Server *server);
+
+UA_StatusCode
+iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
+                                UA_Boolean processIn);
+
+void destroyMulticastDiscoveryServer(UA_Server* server);
 
 typedef enum {
     UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
 } UA_DiscoveryProtocol;
 
+/* Send a multicast probe to find any other OPC UA server on the network through mDNS. */
 UA_StatusCode
 UA_Discovery_multicastQuery(UA_Server* server);
 
@@ -359,11 +370,6 @@ UA_StatusCode
 UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname,
                           unsigned short port, UA_Boolean removeTxt);
 
-#  ifdef UA_ENABLE_MULTITHREADING
-UA_StatusCode UA_Discovery_multicastListenStart(UA_Server* server);
-UA_StatusCode UA_Discovery_multicastListenStop(UA_Server* server);
-#  endif
-UA_StatusCode UA_Discovery_multicastIterate(UA_Server* server, UA_DateTime *nextRepeat, UA_Boolean processIn);
 # endif
 
 /*****************************/

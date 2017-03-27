@@ -168,7 +168,7 @@ void UA_Server_delete(UA_Server *server) {
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
-        UA_Discovery_multicastDestroy(server);
+        destroyMulticastDiscoveryServer(server);
 
     serverOnNetwork_list_entry *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &server->serverOnNetwork, pointers, son_tmp) {
@@ -329,9 +329,8 @@ UA_Server_new(const UA_ServerConfig config) {
     server->mdnsDaemon = NULL;
     server->mdnsSocket = 0;
     server->mdnsMainSrvAdded = UA_FALSE;
-    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        UA_Discovery_multicastInit(server);
-    }
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        initMulticastDiscoveryServer(server);
 
     LIST_INIT(&server->serverOnNetwork);
     server->serverOnNetworkSize = 0;

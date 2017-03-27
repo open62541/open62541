@@ -321,33 +321,6 @@ static void processMainLoopJobs(UA_Server *server) {
 }
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-static UA_StatusCode
-UA_Server_addMdnsRecordForNetworkLayer(UA_Server *server, const char* appName, const UA_ServerNetworkLayer* nl) {
-    UA_UInt16 port = 0;
-    char hostname[256]; hostname[0] = '\0';
-    const char *path;
-    {
-        char* uri = (char*)UA_malloc(sizeof(char) * nl->discoveryUrl.length + 1);
-        strncpy(uri, (char*) nl->discoveryUrl.data, nl->discoveryUrl.length);
-        uri[nl->discoveryUrl.length] = '\0';
-        UA_StatusCode retval;
-        if ((retval = UA_EndpointUrl_split(uri, hostname, &port, &path)) != UA_STATUSCODE_GOOD) {
-            if (retval == UA_STATUSCODE_BADOUTOFRANGE)
-                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url is invalid", uri);
-            else if (retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-                UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK, "Server url '%s' does not begin with opc.tcp://", uri);
-            UA_free(uri);
-            return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-        UA_free(uri);
-    }
-    UA_Discovery_addRecord(server, appName, hostname, port, path != NULL && strlen(path) ? path : "", UA_DISCOVERY_TCP, UA_TRUE,
-                           server->config.serverCapabilities, &server->config.serverCapabilitiesSize);
-    return UA_STATUSCODE_GOOD;
-}
-#endif //UA_ENABLE_DISCOVERY_MULTICAST
-
 UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 #ifdef UA_ENABLE_MULTITHREADING
     /* Spin up the worker threads */
@@ -381,30 +354,9 @@ UA_StatusCode UA_Server_run_startup(UA_Server *server) {
 
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-
-        char *appName = (char*)UA_malloc(server->config.mdnsServerName.length +1);
-        memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
-        appName[server->config.mdnsServerName.length] = '\0';
-
-        for(size_t i = 0; i < server->config.networkLayersSize; i++) {
-            UA_StatusCode retVal = UA_Server_addMdnsRecordForNetworkLayer(
-                    server, appName, &server->config.networkLayers[i]);
-            if (UA_STATUSCODE_GOOD != retVal) {
-                UA_free(appName);
-                return retVal;
-            }
-        }
-        UA_free(appName);
-
-        // find any other server on the net
-        UA_Discovery_multicastQuery(server);
-
-# ifdef UA_ENABLE_MULTITHREADING
-        UA_Discovery_multicastListenStart(server);
-# endif
-    }
-#endif //UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        startMulticastDiscoveryServer(server);
+#endif
 
     return result;
 }
@@ -502,20 +454,17 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     processDelayedCallbacks(server);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-# ifndef UA_ENABLE_MULTITHREADING
-    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        UA_DateTime multicastNextRepeat;
-        UA_DateTime_init(&multicastNextRepeat);
-        //TODO multicastNextRepeat does not consider new input data (requests) on the socket. It will be handled on the next call.
-        // if needed, we need to use select with timeout on the multicast socket server->mdnsSocket (see example in mdnsd library) on higher level.
-        if (UA_Discovery_multicastIterate(server, &multicastNextRepeat, UA_TRUE)) {
-            if (multicastNextRepeat < nextRepeated) {
-                UA_DateTime_copy(&multicastNextRepeat, &nextRepeated);
-            }
-        }
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_MULTITHREADING)
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        UA_DateTime multicastNextRepeat = 0;
+        // TODO multicastNextRepeat does not consider new input data (requests)
+        // on the socket. It will be handled on the next call. if needed, we
+        // need to use select with timeout on the multicast socket
+        // server->mdnsSocket (see example in mdnsd library) on higher level.
+        if(iterateMulticastDiscoveryServer(server, &multicastNextRepeat, UA_TRUE) &&
+           multicastNextRepeat < nextRepeated)
+            nextRepeated = multicastNextRepeat;
     }
-# endif
 #endif
 
     now = UA_DateTime_nowMonotonic();
@@ -560,28 +509,8 @@ UA_StatusCode UA_Server_run_shutdown(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if (server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        char* hostname = (char*)UA_malloc(sizeof(char) * 256);
-        if (gethostname(hostname, 255) == 0) {
-            char *appName = (char*)UA_malloc(server->config.mdnsServerName.length +1);
-            memcpy(appName, server->config.mdnsServerName.data, server->config.mdnsServerName.length);
-            appName[server->config.mdnsServerName.length] = '\0';
-            UA_Discovery_removeRecord(server,appName, hostname, 4840, UA_TRUE);
-            UA_free(appName);
-        } else {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Could not get hostname for multicast discovery.");
-        }
-        UA_free(hostname);
-
-# ifdef UA_ENABLE_MULTITHREADING
-        UA_Discovery_multicastListenStop(server);
-# else
-        // send out last package with TTL = 0
-        UA_Discovery_multicastIterate(server, NULL, UA_FALSE);
-# endif
-    }
-
+    if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
+        stopMulticastDiscoveryServer(server);
 #endif
 
     return UA_STATUSCODE_GOOD;
