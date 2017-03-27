@@ -449,7 +449,7 @@ ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt1
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
     UA_Int32 resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
-    if(resultsize < 0) {
+    if(resultsize <= 0) {
         *jobs = NULL;
         return 0;
     }
