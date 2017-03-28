@@ -391,8 +391,11 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
         retval = readValueAttribute(server, node, &value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        if(!value.hasValue || value.value.data == NULL)
-            goto apply; /* no value or null array */
+        if(!value.hasValue || !value.value.type) {
+            /* no value -> apply */
+            node->valueRank = valueRank;
+            return UA_STATUSCODE_GOOD;
+        }
         if(!UA_Variant_isScalar(&value.value))
             arrayDims = 1;
         UA_DataValue_deleteMembers(&value);
@@ -402,7 +405,6 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
         return retval;
 
     /* All good, apply the change */
- apply:
     node->valueRank = valueRank;
     return UA_STATUSCODE_GOOD;
 }
@@ -602,8 +604,11 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
         retval = typeCheckValue(server, &node->dataType, node->valueRank,
                                 node->arrayDimensionsSize, node->arrayDimensions,
                                 &value->value, rangeptr, &editableValue.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        if(retval != UA_STATUSCODE_GOOD) {
+            if(rangeptr)
+                UA_free(range.dimensions);
+            return retval;
+        }
     }
 
     /* Set the source timestamp if there is none */
@@ -647,7 +652,6 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     }
 
     /* Clean up */
- cleanup:
     if(rangeptr)
         UA_free(range.dimensions);
     return retval;

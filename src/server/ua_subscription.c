@@ -67,11 +67,36 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
     --mon->currentQueueSize;
 }
 
+/* Errors are returned as no change detected */
+static UA_Boolean
+detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
+                            UA_ByteString *encoding) {
+    /* Encode the data for comparison */
+    size_t binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    if(binsize == 0)
+        return false;
+
+    /* Allocate buffer on the heap if necessary */
+    if(binsize > UA_VALUENCODING_MAXSTACK &&
+       UA_ByteString_allocBuffer(encoding, binsize) != UA_STATUSCODE_GOOD)
+        return false;
+
+    /* Encode the value */
+    size_t encodingOffset = 0;
+    UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
+                                           NULL, NULL, encoding, &encodingOffset);
+    if(retval != UA_STATUSCODE_GOOD)
+        return false;
+
+    /* The value has changed */
+    encoding->length = encodingOffset;
+    return !mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue);
+}
+
 /* Has this sample changed from the last one? The method may allocate additional
  * space for the encoding buffer. Detect the change in encoding->data. */
-static UA_StatusCode
-detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
-                  UA_ByteString *encoding, UA_Boolean *changed) {
+static UA_Boolean
+detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value, UA_ByteString *encoding) {
     /* Apply Filter */
     UA_Boolean hasValue = value->hasValue;
     if(mon->trigger == UA_DATACHANGETRIGGER_STATUS)
@@ -87,44 +112,88 @@ detectValueChange(UA_MonitoredItem *mon, UA_DataValue *value,
         value->hasSourcePicoseconds = false;
     }
 
-    /* Forward declare before goto */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t encodingOffset = 0;
-    size_t binsize;
+    /* Detect the Value Change */
+    UA_Boolean res = detectValueChangeWithFilter(mon, value, encoding);
 
-    /* Encode the data for comparison */
-    binsize = UA_calcSizeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(binsize == 0) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-    /* Allocate buffer on the heap if necessary */
-    if(binsize > UA_VALUENCODING_MAXSTACK &&
-       UA_ByteString_allocBuffer(encoding, binsize) != UA_STATUSCODE_GOOD) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
-    }
-
-    /* Encode the value */
-    retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                             NULL, NULL, encoding, &encodingOffset);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* The value has changed */
-    encoding->length = encodingOffset;
-    if(!mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue))
-        *changed = true;
-
- cleanup:
     /* Reset the filter */
     value->hasValue = hasValue;
     value->hasServerTimestamp = hasServerTimestamp;
     value->hasServerPicoseconds = hasServerPicoseconds;
     value->hasSourceTimestamp = hasSourceTimestamp;
     value->hasSourcePicoseconds = hasSourcePicoseconds;
-    return retval;
+    return res;
+}
+
+/* Returns whether a new sample was created */
+static UA_Boolean
+sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
+                        UA_MonitoredItem *monitoredItem,
+                        UA_DataValue *value, UA_ByteString *valueEncoding) {
+    /* Store the pointer to the stack-allocated bytestring to see if a heap-allocation
+     * was necessary */
+    UA_Byte *stackValueEncoding = valueEncoding->data;
+
+    /* Has the value changed? */
+    UA_Boolean changed = detectValueChange(monitoredItem, value, valueEncoding);
+    if(!changed)
+        return false;
+
+    /* Allocate the entry for the publish queue */
+    MonitoredItem_queuedValue *newQueueItem =
+        (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
+    if(!newQueueItem) {
+        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                               "Subscription %u | MonitoredItem %i | "
+                               "Item for the publishing queue could not be allocated",
+                               sub->subscriptionID, monitoredItem->itemId);
+        return false;
+    }
+
+    /* Copy valueEncoding on the heap for the next comparison (if not already done) */
+    if(valueEncoding->data == stackValueEncoding) {
+        UA_ByteString cbs;
+        if(UA_ByteString_copy(valueEncoding, &cbs) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                                   "Subscription %u | MonitoredItem %i | "
+                                   "ByteString to compare values could not be created",
+                                   sub->subscriptionID, monitoredItem->itemId);
+            UA_free(newQueueItem);
+            return false;
+        }
+        *valueEncoding = cbs;
+    }
+
+    /* Prepare the newQueueItem */
+    if(value->hasValue && value->value.storageType == UA_VARIANT_DATA_NODELETE) {
+        /* Make a deep copy of the value */
+        if(UA_DataValue_copy(value, &newQueueItem->value) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
+                                   "Subscription %u | MonitoredItem %i | "
+                                   "Item for the publishing queue could not be prepared",
+                                   sub->subscriptionID, monitoredItem->itemId);
+            UA_free(newQueueItem);
+            return false;
+        }
+    } else {
+        newQueueItem->value = *value; /* Just copy the value and do not release it */
+    }
+    newQueueItem->clientHandle = monitoredItem->clientHandle;
+
+    /* <-- Point of no return --> */
+
+    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
+                         "Subscription %u | MonitoredItem %u | Sampled a new value",
+                         sub->subscriptionID, monitoredItem->itemId);
+
+    /* Replace the encoding for comparison */
+    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
+    monitoredItem->lastSampledValue = *valueEncoding;
+
+    /* Add the sample to the queue for publication */
+    ensureSpaceInMonitoredItemQueue(monitoredItem);
+    TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
+    ++monitoredItem->currentQueueSize;
+    return true;;
 }
 
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
@@ -154,81 +223,24 @@ void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monito
     UA_DataValue_init(&value);
     Service_Read_single(server, sub->session, ts, &rvid, &value);
 
-    /* Stack-allocate some memory for the value encoding */
+    /* Stack-allocate some memory for the value encoding. We might heap-allocate
+     * more memory if needed. This is just enough for scalars and small
+     * structures. */
     UA_Byte *stackValueEncoding = (UA_Byte *)UA_alloca(UA_VALUENCODING_MAXSTACK);
     UA_ByteString valueEncoding;
     valueEncoding.data = stackValueEncoding;
     valueEncoding.length = UA_VALUENCODING_MAXSTACK;
 
-    /* Forward declaration before goto */
-    MonitoredItem_queuedValue *newQueueItem;
+    /* Create a sample and compare with the last value */
+    UA_Boolean newNotification = sampleCallbackWithValue(server, sub, monitoredItem,
+                                                         &value, &valueEncoding);
 
-    /* Has the value changed? */
-    UA_Boolean changed = false;
-    UA_StatusCode retval = detectValueChange(monitoredItem, &value,
-                                             &valueEncoding, &changed);
-    if(!changed || retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Allocate the entry for the publish queue */
-    newQueueItem = (MonitoredItem_queuedValue *)UA_malloc(sizeof(MonitoredItem_queuedValue));
-    if(!newQueueItem) {
-        UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                               "Subscription %u | MonitoredItem %i | "
-                               "Item for the publishing queue could not be allocated",
-                               sub->subscriptionID, monitoredItem->itemId);
-        goto cleanup;
+    /* Clean up */
+    if(!newNotification) {
+        if(valueEncoding.data != stackValueEncoding)
+            UA_ByteString_deleteMembers(&valueEncoding);
+        UA_DataValue_deleteMembers(&value);
     }
-
-    /* Copy valueEncoding on the heap for the next comparison (if not already done) */
-    if(valueEncoding.data == stackValueEncoding) {
-        UA_ByteString cbs;
-        if(UA_ByteString_copy(&valueEncoding, &cbs) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                                   "Subscription %u | MonitoredItem %i | "
-                                   "ByteString to compare values could not be created",
-                                   sub->subscriptionID, monitoredItem->itemId);
-            UA_free(newQueueItem);
-            goto cleanup;
-        }
-        valueEncoding = cbs;
-    }
-
-    /* Prepare the newQueueItem */
-    if(value.hasValue && value.value.storageType == UA_VARIANT_DATA_NODELETE) {
-        if(UA_DataValue_copy(&value, &newQueueItem->value) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(server->config.logger, sub->session,
-                                   "Subscription %u | MonitoredItem %i | "
-                                   "Item for the publishing queue could not be prepared",
-                                   sub->subscriptionID, monitoredItem->itemId);
-            UA_free(newQueueItem);
-            goto cleanup;
-        }
-    } else {
-        newQueueItem->value = value;
-    }
-    newQueueItem->clientHandle = monitoredItem->clientHandle;
-
-    /* <-- Point of no return --> */
-
-    UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
-                         "Subscription %u | MonitoredItem %u | Sampled a new value",
-                         sub->subscriptionID, monitoredItem->itemId);
-
-    /* Replace the encoding for comparison */
-    UA_ByteString_deleteMembers(&monitoredItem->lastSampledValue);
-    monitoredItem->lastSampledValue = valueEncoding;
-
-    /* Add the sample to the queue for publication */
-    ensureSpaceInMonitoredItemQueue(monitoredItem);
-    TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
-    ++monitoredItem->currentQueueSize;
-    return;
-
- cleanup:
-    if(valueEncoding.data != stackValueEncoding)
-        UA_ByteString_deleteMembers(&valueEncoding);
-    UA_DataValue_deleteMembers(&value);
 }
 
 UA_StatusCode
@@ -380,7 +392,7 @@ prepareNotificationMessage(UA_Subscription *sub, UA_NotificationMessage *message
                            size_t notifications) {
     /* Array of ExtensionObject to hold different kinds of notifications
        (currently only DataChangeNotifications) */
-    message->notificationData = (UA_ExtensionObject *)UA_Array_new(1, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    message->notificationData = UA_ExtensionObject_new();
     if(!message->notificationData)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     message->notificationDataSize = 1;

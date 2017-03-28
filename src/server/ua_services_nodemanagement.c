@@ -82,6 +82,85 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+typeCheckVariableNodeWithValue(UA_Server *server, UA_Session *session,
+                               const UA_VariableNode *node,
+                               const UA_VariableTypeNode *vt,
+                               UA_DataValue *value) {
+    /* Workaround: set a sane valueRank (the most permissive -2) */
+    UA_Int32 valueRank = node->valueRank;
+    if(valueRank == 0 && value->hasValue && value->value.type &&
+       UA_Variant_isScalar(&value->value)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Use a default ValueRank of -2");
+        valueRank = -2;
+        UA_StatusCode retval = UA_Server_writeValueRank(server, node->nodeId, valueRank);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* If no value is set, see if the vt provides one and copy that. THis needs to be done
+     * before copying the datatype from the vt. Setting the datatype triggers the
+     * typecheck. Here, we have only a typecheck when the datatype is already not null. */
+    if(!value->hasValue || !value->value.type) {
+        UA_StatusCode retval = readValueAttribute(server, (const UA_VariableNode*)vt, value);
+        if(retval == UA_STATUSCODE_GOOD && value->hasValue && value->value.type)
+            retval = UA_Server_writeValue(server, node->nodeId, value->value);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Workaround: Replace with datatype of the vt if not set */
+    const UA_NodeId *dataType = &node->dataType;
+    if(UA_NodeId_isNull(dataType)) {
+        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: "
+                            "Use a default DataType (from the TypeDefinition)");
+        dataType = &vt->dataType;
+        UA_StatusCode retval = UA_Server_writeDataType(server, node->nodeId, vt->dataType);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Check the datatype against the vt */
+    if(!compatibleDataType(server, dataType, &vt->dataType))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Get the array dimensions */
+    size_t arrayDims = node->arrayDimensionsSize;
+    if(arrayDims == 0 && value->hasValue && value->value.type &&
+       !UA_Variant_isScalar(&value->value)) {
+        arrayDims = 1; /* No array dimensions on an array implies one dimension */
+    }
+
+    /* Check valueRank against array dimensions */
+    UA_StatusCode retval = compatibleValueRankArrayDimensions(valueRank, arrayDims);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Check valueRank against the vt */
+    retval = compatibleValueRanks(valueRank, vt->valueRank);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Check array dimensions against the vt */
+    retval = compatibleArrayDimensions(node->arrayDimensionsSize, node->arrayDimensions,
+                                       vt->arrayDimensionsSize, vt->arrayDimensions);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Typecheck the value */
+    if(value->hasValue) {
+        retval = typeCheckValue(server, dataType, valueRank,
+                                node->arrayDimensionsSize, node->arrayDimensions,
+                                &value->value, NULL, NULL);
+        /* The type-check failed. Write the same value again. The write-service
+         * tries to convert to the correct type... */
+        if(retval != UA_STATUSCODE_GOOD)
+            retval = UA_Server_writeValue(server, node->nodeId, value->value);
+    }
+    return retval;
+}
+
 /* Check the consistency of the variable (or variable type) attributes data
  * type, value rank, array dimensions internally and against the parent variable
  * type. */
@@ -103,89 +182,17 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(node->nodeClass == UA_NODECLASS_VARIABLE && vt->isAbstract)
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
-    /* We need the value for some checks. Might come from a datasource. */
+    /* We need the value for some checks. Might come from a datasource, so we perform a
+     * regular read. */
     UA_DataValue value;
     UA_DataValue_init(&value);
     UA_StatusCode retval = readValueAttribute(server, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Workaround: set a sane valueRank (the most permissive -2) */
-    UA_Int32 valueRank = node->valueRank;
-    if(valueRank == 0 && value.hasValue && value.value.type &&
-       UA_Variant_isScalar(&value.value)) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Use a default ValueRank of -2");
-        valueRank = -2;
-        retval = UA_Server_writeValueRank(server, node->nodeId, valueRank);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
+    retval = typeCheckVariableNodeWithValue(server, session, node, vt, &value);
 
-    /* If no value is set, see if the vt provides one and copy that. THis needs to be done
-     * before copying the datatype from the vt. Setting the datatype triggers the
-     * typecheck. Here, we have only a typecheck when the datatype is already not null. */
-    if(!value.hasValue || !value.value.type) {
-        retval = readValueAttribute(server, (const UA_VariableNode*)vt, &value);
-        if(retval == UA_STATUSCODE_GOOD && value.hasValue && value.value.type)
-            retval = UA_Server_writeValue(server, node->nodeId, value.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Workaround: Replace with datatype of the vt if not set */
-    const UA_NodeId *dataType = &node->dataType;
-    if(UA_NodeId_isNull(dataType)) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: "
-                            "Use a default DataType (from the TypeDefinition)");
-        dataType = &vt->dataType;
-        retval = UA_Server_writeDataType(server, node->nodeId, vt->dataType);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Check the datatype against the vt */
-    if(!compatibleDataType(server, dataType, &vt->dataType)) {
-        retval = UA_STATUSCODE_BADTYPEMISMATCH;
-        goto cleanup;
-    }
-
-    /* Get the array dimensions */
-    size_t arrayDims = node->arrayDimensionsSize;
-    if(arrayDims == 0 && value.hasValue && value.value.type &&
-       !UA_Variant_isScalar(&value.value)) {
-        arrayDims = 1; /* No array dimensions on an array implies one dimension */
-    }
-
-    /* Check valueRank against array dimensions */
-    retval = compatibleValueRankArrayDimensions(valueRank, arrayDims);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Check valueRank against the vt */
-    retval = compatibleValueRanks(valueRank, vt->valueRank);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Check array dimensions against the vt */
-    retval = compatibleArrayDimensions(node->arrayDimensionsSize, node->arrayDimensions,
-                                       vt->arrayDimensionsSize, vt->arrayDimensions);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Typecheck the value */
-    if(value.hasValue) {
-        retval = typeCheckValue(server, dataType, valueRank,
-                                node->arrayDimensionsSize, node->arrayDimensions,
-                                &value.value, NULL, NULL);
-        /* The type-check failed. Write the same value again. The write-service
-         * tries to convert to the correct type... */
-        if(retval != UA_STATUSCODE_GOOD)
-            retval = UA_Server_writeValue(server, node->nodeId, value.value);
-    }
-
- cleanup:
-    UA_DataValue_deleteMembers(&value); /* Free the value before any return clause */
+    UA_DataValue_deleteMembers(&value);
     return retval;
 }
 
