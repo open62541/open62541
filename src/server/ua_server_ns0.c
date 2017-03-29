@@ -248,8 +248,11 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
     attr.isAbstract = isAbstract;
     attr.dataType = UA_NODEID_NUMERIC(0, dataType);
     attr.valueRank = valueRank;
-    if(type)
-        UA_Variant_setScalar(&attr.value, UA_new(type), type);
+    if(type) {
+        void *val = UA_alloca(type->memSize);
+        UA_init(val, type);
+        UA_Variant_setScalar(&attr.value, val, type);
+    }
     UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
                                   UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                   UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
