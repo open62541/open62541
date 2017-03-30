@@ -156,20 +156,19 @@ else
     mkdir -p build && cd build
     cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
-    (valgrind --leak-check=yes --error-exitcode=3 ./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
 	echo -en 'travis_fold:end:script.build.unit_test_valgrind\\r'
 
     # without valgrind
-    echo -e "\r\n== Debug build and unit tests without valgrind ==" && echo -en 'travis_fold:start:script.build.unit_test\\r'
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
-    make -j && make test ARGS="-V"
-    (./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
-	echo -en 'travis_fold:end:script.build.unit_test\\r'
+    # echo -e "\r\n== Debug build and unit tests without valgrind ==" && echo -en 'travis_fold:start:script.build.unit_test\\r'
+    # cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
+    # make -j && make test ARGS="-V"
+    # (./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
+	# echo -en 'travis_fold:end:script.build.unit_test\\r'
 
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
     if [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
-         -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
+        echo -en "\r\n==   Building coveralls for ${TRAVIS_REPO_SLUG} ==" && echo -en 'travis_fold:start:script.build.coveralls\\r'
         coveralls -E '.*\.h' -E '.*CMakeCXXCompilerId\.cpp' -E '.*CMakeCCompilerId\.c' -r ../ || true # ignore result since coveralls is unreachable from time to time
         echo -en 'travis_fold:end:script.build.coveralls\\r'
     fi

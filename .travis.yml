@@ -6,7 +6,7 @@ compiler:
 
 os:
 - linux
-# - osx
+- osx
 
 # use new build environment (docker)
 dist: trusty
