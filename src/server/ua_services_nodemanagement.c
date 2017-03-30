@@ -994,7 +994,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     }
 
     /* Add the Input Arguments VariableNode */
-    if(inputArgumentsSize > 0 && !UA_NodeId_isNull(&inputArgsId)) {
+    if(inputArgumentsSize > 0 && UA_NodeId_isNull(&inputArgsId)) {
         UA_VariableAttributes inputargs;
         UA_VariableAttributes_init(&inputargs);
         inputargs.displayName = UA_LOCALIZEDTEXT("en_US", "InputArguments");
@@ -1011,7 +1011,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     }
 
     /* Add the Output Arguments VariableNode */
-    if(outputArgumentsSize > 0 && !UA_NodeId_isNull(&outputArgsId)) {
+    if(outputArgumentsSize > 0 && UA_NodeId_isNull(&outputArgsId)) {
         UA_VariableAttributes outputargs;
         UA_VariableAttributes_init(&outputargs);
         outputargs.displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
@@ -1048,6 +1048,12 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         size_t inputArgumentsSize, const UA_Argument* inputArguments, 
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId) {
+    UA_NodeId newId;
+    if(!outNewNodeId) {
+        UA_NodeId_init(&newId);
+        outNewNodeId = &newId;
+    }
+
     /* Call begin */
     UA_StatusCode retval =
         UA_Server_addMethodNode_begin(server, requestedNewNodeId, browseName,
@@ -1055,15 +1061,15 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Ensure the correct nodeid is used */
-    const UA_NodeId *newId = &requestedNewNodeId;
-    if(outNewNodeId)
-        newId = outNewNodeId;
-
     /* Call finish */
-    return UA_Server_addMethodNode_finish(server, *newId, parentNodeId, referenceTypeId,
-                                          inputArgumentsSize, inputArguments,
-                                          outputArgumentsSize, outputArguments);
+    retval = UA_Server_addMethodNode_finish(server, *outNewNodeId,
+                                            parentNodeId, referenceTypeId,
+                                            inputArgumentsSize, inputArguments,
+                                            outputArgumentsSize, outputArguments);
+
+    if(outNewNodeId == &newId)
+        UA_NodeId_deleteMembers(&newId);
+    return retval;
 }
 
 #endif
