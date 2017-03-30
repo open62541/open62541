@@ -289,9 +289,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
         channel->securityPolicy->symmetricModule.calculatePadding(channel->securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
-        uint16_t totalPaddingSize = (extraPaddingSize << 8) | paddingSize;
+        UA_UInt16 totalPaddingSize = ((UA_UInt16) extraPaddingSize << 8) | paddingSize;
 
-        for (uint16_t i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.
+        for (UA_UInt16 i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.
         {
             dst->data[offset] = paddingSize;
             ++offset;
