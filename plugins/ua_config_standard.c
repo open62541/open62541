@@ -11,7 +11,8 @@
 /* Default Connection Settings */
 /*******************************/
 
-const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
+const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard =
+{
     0, /* .protocolVersion */
     65535, /* .sendBufferSize, 64k per chunk */
     65535, /* .recvBufferSize, 64k per chunk */
@@ -43,30 +44,46 @@ const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
 const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
 const size_t usernamePasswordsSize = 2;
 
-UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
-    { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
-    { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
-const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
+UA_UsernamePasswordLogin UsernamePasswordLogin[2] =
+{
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}
+};
+const UA_UsernamePasswordLogin* usernamePasswords = UsernamePasswordLogin;
 
-const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
+const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
+{
     1, /* .nThreads */
     UA_Log_Stdout, /* .logger */
 
     /* Server Description */
-    {UA_STRING_STATIC(PRODUCT_URI),
-     UA_STRING_STATIC(MANUFACTURER_NAME),
-     UA_STRING_STATIC(PRODUCT_NAME),
-     UA_STRING_STATIC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
-                              UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL)),
-     UA_STRING_STATIC(__DATE__ " " __TIME__), 0 }, /* .buildInfo */
-     
-    {UA_STRING_STATIC(APPLICATION_URI),
-     UA_STRING_STATIC(PRODUCT_URI),
-     {UA_STRING_STATIC("en"),UA_STRING_STATIC(APPLICATION_NAME) },
-      UA_APPLICATIONTYPE_SERVER,
-      UA_STRING_STATIC_NULL,
-      UA_STRING_STATIC_NULL,
-      0, NULL }, /* .applicationDescription */
+    {
+        UA_STRING_STATIC(PRODUCT_URI),
+        UA_STRING_STATIC(MANUFACTURER_NAME),
+        UA_STRING_STATIC(PRODUCT_NAME),
+        UA_STRING_STATIC(VERSION(
+                UA_OPEN62541_VER_MAJOR,
+                UA_OPEN62541_VER_MINOR,
+                UA_OPEN62541_VER_PATCH,
+                UA_OPEN62541_VER_LABEL)
+        ),
+        UA_STRING_STATIC(__DATE__ " " __TIME__),
+        0
+    }, /* .buildInfo */
+
+    {
+        UA_STRING_STATIC(APPLICATION_URI),
+        UA_STRING_STATIC(PRODUCT_URI),
+        {
+            UA_STRING_STATIC("en"),
+            UA_STRING_STATIC(APPLICATION_NAME)
+        },
+        UA_APPLICATIONTYPE_SERVER,
+        UA_STRING_STATIC_NULL,
+        UA_STRING_STATIC_NULL,
+        0, NULL
+    }, /* .applicationDescription */
+
     UA_STRING_STATIC_NULL, /* .serverCertificate */
 #ifdef UA_ENABLE_DISCOVERY
     UA_STRING_STATIC_NULL, /* mdnsServerName */
@@ -90,11 +107,11 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
 
     /* Access Control */
     {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,
-     activateSession_default, closeSession_default,
-     getUserRightsMask_default, getUserAccessLevel_default,
-     getUserExecutable_default, getUserExecutableOnObject_default,
-     allowAddNode_default, allowAddReference_default,
-     allowDeleteNode_default, allowDeleteReference_default},
+        activateSession_default, closeSession_default,
+        getUserRightsMask_default, getUserAccessLevel_default,
+        getUserExecutable_default, getUserExecutableOnObject_default,
+        allowAddNode_default, allowAddReference_default,
+        allowDeleteNode_default, allowDeleteReference_default},
 
     /* Limits for SecureChannels */
     40, /* .maxSecureChannels */
@@ -105,18 +122,37 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
 
     /* Limits for Subscriptions */
-    {100.0,3600.0 * 1000.0 }, /* .publishingIntervalLimits */
-    {3, 15000 }, /* .lifeTimeCountLimits */
-    {1,100}, /* .keepAliveCountLimits */
+    {
+        100.0,
+        3600.0 * 1000.0
+    }, /* .publishingIntervalLimits */
+
+    {
+        3,
+        15000
+    }, /* .lifeTimeCountLimits */
+
+    {
+        1,
+        100
+    }, /* .keepAliveCountLimits */
+
     1000, /* .maxNotificationsPerPublish */
     0, /* .maxRetransmissionQueueSize, unlimited */
 
     /* Limits for MonitoredItems */
-    {50.0, 24.0 * 3600.0 * 1000.0 }, /* .samplingIntervalLimits */
-    {1,100} /* .queueSizeLimits */
+    {
+        50.0,
+        24.0 * 3600.0 * 1000.0
+    }, /* .samplingIntervalLimits */
+
+    {
+        1,
+        100
+    } /* .queueSizeLimits */
 
 #ifdef UA_ENABLE_DISCOVERY
-    , 60*60 /* .discoveryCleanupTimeout */
+    , 60 * 60 /* .discoveryCleanupTimeout */
 #endif
 };
 
@@ -130,10 +166,10 @@ const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard = {
     UA_Log_Stdout, /* .logger */
     /* .localConnectionConfig */
     {0, /* .protocolVersion */
-     65535, /* .sendBufferSize, 64k per chunk */
-     65535, /* .recvBufferSize, 64k per chunk */
-     0, /* .maxMessageSize, 0 -> unlimited */
-     0 }, /* .maxChunkCount, 0 -> unlimited */
+        65535, /* .sendBufferSize, 64k per chunk */
+        65535, /* .recvBufferSize, 64k per chunk */
+        0, /* .maxMessageSize, 0 -> unlimited */
+        0}, /* .maxChunkCount, 0 -> unlimited */
     UA_ClientConnectionTCP, /* .connectionFunc */
 
     0, /* .customDataTypesSize */

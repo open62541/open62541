@@ -309,7 +309,7 @@ processOPN(UA_Server *server,
     Service_OpenSecureChannel(server, connection, &openSecureChannelRequest, &openScResponse, preparedChannel);
     UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
 
-    /* Opening the channel failed */
+    // Opening the channel failed
     UA_SecureChannel *channel = connection->channel;
     if(!channel) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
@@ -317,7 +317,8 @@ processOPN(UA_Server *server,
         return;
     }
 
-    /* Allocate the return message */
+    /*
+    // Allocate the return message
     UA_ByteString resp_msg;
     UA_ByteString_init(&resp_msg);
     retval = connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &resp_msg);
@@ -330,9 +331,21 @@ processOPN(UA_Server *server,
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = requestId;
 
-    /* Encode the message after the secureconversationmessageheader */
-    size_t tmpPos = 12; /* skip the header */
+    // Encode the message after the secureconversationmessageheader
+    size_t tmpPos = 12; // skip the header
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
+
+    UA_ByteString_copy(&server->config.serverCertificate, &channel->serverAsymAlgSettings.senderCertificate);
+    UA_ByteString_copy(&channel->securityPolicy->policyUri, &channel->serverAsymAlgSettings.securityPolicyUri);
+
+    UA_ByteString_allocBuffer(&channel->serverAsymAlgSettings.receiverCertificateThumbprint,
+                              channel->securityPolicy->asymmetricModule.thumbprintLength);
+    
+    retval |= channel->securityPolicy->asymmetricModule.makeThumbprint(
+        &channel->serverAsymAlgSettings.senderCertificate,
+        &channel->serverAsymAlgSettings.receiverCertificateThumbprint
+    );
+
     retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&channel->clientAsymAlgSettings, &resp_msg, &tmpPos); // just mirror back
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos);
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
@@ -346,7 +359,7 @@ processOPN(UA_Server *server,
         return;
     }
 
-    /* Encode the secureconversationmessageheader (cannot fail) and send */
+    // Encode the secureconversationmessageheader (cannot fail) and send
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
@@ -354,7 +367,8 @@ processOPN(UA_Server *server,
     tmpPos = 0;
     UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
     resp_msg.length = respHeader.messageHeader.messageSize;
-    connection->send(connection, &resp_msg);
+    connection->send(connection, &resp_msg);*/
+    UA_SecureChannel_sendBinaryMessage(channel, requestId, &openScResponse, &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     // TODO: use the secure channel functions to send the data. encryption should only need to be implemented there.
 
     /* Clean up */
