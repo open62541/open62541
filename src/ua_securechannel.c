@@ -256,10 +256,13 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel* channel)
 static UA_StatusCode
 UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
 {
-    UA_SecureChannel* channel = ci->channel;
-    UA_Connection* connection = channel->connection;
+    UA_SecureChannel* const channel = ci->channel;
+    UA_Connection* const connection = channel->connection;
+    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+    
     if (!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
+
 
     /* adjust the buffer where the header was hidden */
     dst->data = &dst->data[-UA_SECURE_MESSAGE_HEADER_LENGTH];
@@ -268,7 +271,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
 
     size_t bytesToWrite = offset -
         UA_SECUREMH_AND_SYMALGH_LENGTH +
-        channel->securityPolicy->symmetricModule.signingModule.signatureSize +
+        securityPolicy->symmetricModule.signingModule.signatureSize +
         1; // + 1 for padding byte
 
     // TODO: Potentially introduce error handling to the encryption methods???
@@ -277,7 +280,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
     if (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
     {
-        dst->length += channel->securityPolicy->symmetricModule.signingModule.signatureSize;
+        dst->length += securityPolicy->symmetricModule.signingModule.signatureSize;
     }
 
     // Pad the message
@@ -288,7 +291,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
 
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
-        channel->securityPolicy->symmetricModule.calculatePadding(channel->securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
+        securityPolicy->symmetricModule.calculatePadding(securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
         UA_UInt16 totalPaddingSize = (UA_UInt16) ((extraPaddingSize << 8) | paddingSize);
 
         for (UA_UInt16 i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.
@@ -330,7 +333,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         
         bytesToWrite = offset -
             UA_SECUREMH_AND_SYMALGH_LENGTH +
-            channel->securityPolicy->symmetricModule.signingModule.signatureSize +
+            securityPolicy->symmetricModule.signingModule.signatureSize +
             1; // + 1 for padding byte
 
         // Pad the error message
@@ -338,7 +341,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         {
             UA_Byte paddingSize = 0;
             UA_Byte extraPaddingSize = 0;
-            ci->channel->securityPolicy->symmetricModule.calculatePadding(channel->securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
+            securityPolicy->symmetricModule.calculatePadding(securityPolicy, bytesToWrite, &paddingSize, &extraPaddingSize);
             UA_UInt16 totalPaddingSize = (UA_UInt16) ((extraPaddingSize << 8) | paddingSize);
 
             for (UA_UInt16 i = 0; i <= totalPaddingSize; ++i) // This is <= because the paddingSize byte also has to be written.
@@ -355,7 +358,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
     if (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
         channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
     {
-        respHeader.messageHeader.messageSize += channel->securityPolicy->symmetricModule.signingModule.signatureSize;
+        respHeader.messageHeader.messageSize += securityPolicy->symmetricModule.signingModule.signatureSize;
     }
 
     ci->messageSizeSoFar += respHeader.messageHeader.messageSize;
@@ -382,10 +385,10 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
 
         UA_ByteString signature = {
             .data = dst->data + offset,
-            .length = channel->securityPolicy->symmetricModule.signingModule.signatureSize
+            .length = securityPolicy->symmetricModule.signingModule.signatureSize
         };
 
-        channel->securityPolicy->symmetricModule.signingModule.sign(&dataToSign, channel->securityContext, &signature);
+        securityPolicy->symmetricModule.signingModule.sign(&dataToSign, channel->securityContext, &signature);
 
         offset += signature.length;
     }
@@ -401,7 +404,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         UA_ByteString encryptedData;
         UA_ByteString_allocBuffer(&encryptedData, dataToEncrypt.length);
 
-        channel->securityPolicy->symmetricModule.encrypt(&dataToEncrypt, channel->securityContext, &encryptedData);
+        securityPolicy->symmetricModule.encrypt(&dataToEncrypt, channel->securityContext, &encryptedData);
 
         memcpy(dataToEncrypt.data, encryptedData.data, encryptedData.length);
 
@@ -428,7 +431,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset)
         if (channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
             channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         {
-            dst->length -= channel->securityPolicy->symmetricModule.signingModule.signatureSize;
+            dst->length -= securityPolicy->symmetricModule.signingModule.signatureSize;
         }
 
         // Hide byte for paddingByte and potential extra padding byte
@@ -695,6 +698,8 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
                                        UA_UInt32* const requestId,
                                        size_t* const bodySize)
 {
+    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+
     size_t chunkSize = messageHeader->messageHeader.messageSize;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -728,7 +733,7 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
             return retval;
         }
 
-        retval |= channel->securityPolicy->symmetricModule.decrypt(&cipherText, channel->securityContext, &decrypted);
+        retval |= securityPolicy->symmetricModule.decrypt(&cipherText, channel->securityContext, &decrypted);
 
         if (retval != UA_STATUSCODE_GOOD)
         {
@@ -748,14 +753,14 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
             .data = chunk->data,
-            .length = chunkSize - channel->securityPolicy->symmetricModule.signingModule.signatureSize
+            .length = chunkSize - securityPolicy->symmetricModule.signingModule.signatureSize
         };
         const UA_ByteString signature = {
             .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
-            .length = channel->securityPolicy->symmetricModule.signingModule.signatureSize
+            .length = securityPolicy->symmetricModule.signingModule.signatureSize
         };
 
-        retval |= channel->securityPolicy->symmetricModule.signingModule.verify(&chunkDataToVerify,
+        retval |= securityPolicy->symmetricModule.signingModule.verify(&chunkDataToVerify,
                                                                                 &signature,
                                                                                 channel->securityContext);
 
@@ -870,11 +875,13 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         }
     }
 
+    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+
     // Create the channel context and parse the sender certificate used for the secureChannel.
     if (channel->securityContext == NULL)
     {
         UA_Channel_SecurityContext* channelContext = NULL;
-        retval |= channel->securityPolicy->makeChannelContext(channel->securityPolicy, &channelContext);
+        retval |= securityPolicy->makeChannelContext(securityPolicy, &channelContext);
         if (retval != UA_STATUSCODE_GOOD)
         {
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
@@ -904,7 +911,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     }
 
     // Verify the vertificate
-    retval |= channel->securityPolicy->verifyCertificate(&clientAsymHeader.senderCertificate, &channel->securityPolicy->context);
+    retval |= securityPolicy->verifyCertificate(&clientAsymHeader.senderCertificate, &securityPolicy->context);
     if (retval != UA_STATUSCODE_GOOD)
     {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
@@ -927,7 +934,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
             return retval;
         }
 
-        retval |= channel->securityPolicy->asymmetricModule.decrypt(&cipherText, &channel->securityPolicy->context, &decrypted);
+        retval |= securityPolicy->asymmetricModule.decrypt(&cipherText, &securityPolicy->context, &decrypted);
 
         if (retval != UA_STATUSCODE_GOOD)
         {
@@ -947,14 +954,14 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
             .data = chunk->data,
-            .length = chunkSize - channel->securityPolicy->asymmetricModule.signingModule.signatureSize
+            .length = chunkSize - securityPolicy->asymmetricModule.signingModule.signatureSize
         };
         const UA_ByteString signature = {
             .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
-            .length = channel->securityPolicy->asymmetricModule.signingModule.signatureSize
+            .length = securityPolicy->asymmetricModule.signingModule.signatureSize
         };
 
-        retval |= channel->securityPolicy->asymmetricModule.signingModule.verify(&chunkDataToVerify,
+        retval |= securityPolicy->asymmetricModule.signingModule.verify(&chunkDataToVerify,
                                                                                  &signature,
                                                                                  channel->securityContext);
 
@@ -981,7 +988,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
     // calculate body size
-    size_t signatureSize = channel->securityPolicy->asymmetricModule.signingModule.signatureSize;
+    size_t signatureSize = securityPolicy->asymmetricModule.signingModule.signatureSize;
     // TODO: padding field is not present, when dealing with securitymode none messages
     // TODO: How to get securitymode? or is securitymode none only possible when security policy is none?
     //UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1]; // TODO: Need to differentiate if extra padding byte was used
