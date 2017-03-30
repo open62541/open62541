@@ -50,7 +50,7 @@ typedef struct
                                UA_ByteString* const signature);
 
         /* The signature size in bytes */
-    size_t signatureSize;
+    UA_UInt32 signatureSize;
 } UA_SecurityPolicySigningModule;
 
 typedef struct
