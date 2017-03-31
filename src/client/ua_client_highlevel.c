@@ -13,6 +13,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
     UA_ReadValueId id;
+    UA_ReadValueId_init(&id);  
     id.attributeId = UA_ATTRIBUTEID_VALUE;
     id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
     request.nodesToRead = &id;
