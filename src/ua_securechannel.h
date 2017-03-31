@@ -81,7 +81,7 @@ void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securi
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /**
- * Generates a nonce.
+ * \brief Generates a nonce.
  *
  * Uses the random generator of the supplied security policy
  *
@@ -114,9 +114,21 @@ typedef void
                              UA_MessageType messageType, UA_UInt32 requestId,
                              const UA_ByteString *message);
 
+/**
+ * \brief Processes all chunks in the chunks ByteString.
+ *
+ * If a final chunk is processed, the callback function is called with the complete message body.
+ *
+ * \param channel the channel the chunks were recieved on.
+ * \param chunks the memory region where the chunks are stored.
+ * \param callback the callback function that gets called with the complete message body, once a final chunk is processed.
+ * \param application data pointer to application specific data that gets passed on to the callback function.
+ */
 UA_StatusCode
-UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
-                               UA_ProcessMessageCallback callback, void *application);
+UA_SecureChannel_processChunks(UA_SecureChannel *channel,
+                               const UA_ByteString *chunks,
+                               UA_ProcessMessageCallback callback,
+                               void *application);
 
 /**
  * Log Helper
