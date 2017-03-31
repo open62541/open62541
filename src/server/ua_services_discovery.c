@@ -4,10 +4,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-
-#if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
-# include "ua_mdns_internal.h"
-#endif
+#include "ua_mdns_internal.h"
 
 #ifdef _MSC_VER
 # ifndef UNDER_CE
@@ -298,7 +295,8 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
         for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
-            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j], &response->endpoints[k]);
+            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j],
+                                                  &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
             ++k;
         }
@@ -345,7 +343,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         *responseConfigurationResults =
             (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize,
                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
-        for(size_t i =0; i<requestDiscoveryConfigurationSize; i++) {
+        for(size_t i = 0; i < requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
             if(!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED ||
                                object->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
@@ -380,13 +378,14 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
-            free(filePath);
+            UA_free(filePath);
             return;
         }
-        free(filePath);
+        UA_free(filePath);
 #else
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Ignoring semaphore file path. open62541 not compiled with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
+                       "Ignoring semaphore file path. open62541 not compiled "
+                       "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
     }
 
@@ -405,7 +404,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                                                     requestServer->discoveryUrls[i],
                                                     requestServer->isOnline, updateTxt);
         }
-        free(mdnsServer);
+        UA_free(mdnsServer);
     }
 #endif
 
@@ -519,7 +518,7 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
 #else
            semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
-           free(filePath);
+           UA_free(filePath);
         }
 #endif
 
