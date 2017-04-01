@@ -73,13 +73,13 @@ cache:
     - $HOME/install
 
 before_install:
-- echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-
+- if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_linux_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
