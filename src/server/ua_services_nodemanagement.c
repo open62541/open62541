@@ -213,8 +213,8 @@ setObjectInstanceHandle(UA_Server *server, UA_Session *session, UA_ObjectNode* n
 /* Search for an instance of "browseName" in node searchInstance Used during
  * copyChildNodes to find overwritable/mergable nodes */
 static UA_StatusCode
-instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session, 
-                                  const UA_NodeId *searchInstance, 
+instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
+                                  const UA_NodeId *searchInstance,
                                   const UA_QualifiedName *browseName,
                                   UA_NodeId *outInstanceNodeId) {
     UA_BrowseDescription bd;
@@ -225,13 +225,13 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     bd.resultMask = UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
-    
+
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
     Service_Browse_single(server, session, NULL, &bd, 0, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
-    
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
@@ -241,7 +241,7 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
             break;
         }
     }
-    
+
     UA_BrowseResult_deleteMembers(&br);
     return retval;
 }

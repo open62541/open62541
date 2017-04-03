@@ -26,7 +26,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     /* invalid range */
     if(dim->min >= dim->max)
         return 0;
-    
+
     return progress + progress2;
 }
 
