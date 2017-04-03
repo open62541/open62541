@@ -73,7 +73,7 @@ returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription
 
     UA_ReferenceNode **references = &node->references;
     UA_UInt32 *referencesSize = (UA_UInt32*)&node->referencesSize;
-    
+
     ens->getOneWayReferences (ens->ensHandle, &node->nodeId, referencesSize, references);
 
     UA_Array_delete(readValueIds,5, &UA_TYPES[UA_TYPES_READVALUEID]);
@@ -233,7 +233,7 @@ browseRelevantReferences(UA_Server *server, UA_BrowseResult *result, const UA_No
 void
 Service_Browse_single(UA_Server *server, UA_Session *session,
                       struct ContinuationPointEntry *cp, const UA_BrowseDescription *descr,
-                      UA_UInt32 maxrefs, UA_BrowseResult *result) { 
+                      UA_UInt32 maxrefs, UA_BrowseResult *result) {
     struct ContinuationPointEntry *internal_cp = cp;
     if(!internal_cp) {
         /* If there is no continuation point, stack-allocate one. It gets copied
@@ -253,7 +253,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
         result->statusCode = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
         return;
     }
-    
+
     /* Get the references that match the browsedescription. reftypes == NULL
      * indicates that all references shall be returned. */
     size_t reftypesSize = 0;
@@ -301,7 +301,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     }
 
     /* Create a new continuation point */
-    if(!done && result->statusCode == UA_STATUSCODE_GOOD) {
+    if(!done) {
         if(session->availableContinuationPoints <= 0 ||
            !(cp = (struct ContinuationPointEntry *)UA_malloc(sizeof(struct ContinuationPointEntry)))) {
             result->statusCode = UA_STATUSCODE_BADNOCONTINUATIONPOINTS;
@@ -527,7 +527,7 @@ void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session 
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
     }
-        
+
     //relativePath elements should not have an empty targetName
     for(size_t i=0;i<path->relativePath.elementsSize;++i){
         UA_QualifiedName *qname = &(path->relativePath.elements[i].targetName);
