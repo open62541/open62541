@@ -92,7 +92,7 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
-copyChildNodesToNode(UA_Server *server, UA_Session *session, 
+copyChildNodesToNode(UA_Server *server, UA_Session *session,
                      const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
                      UA_InstantiationCallback *instantiationCallback);
 
@@ -159,11 +159,11 @@ copyExistingVariable(UA_Server *server, UA_Session *session, const UA_NodeId *va
     }
     retval = copyChildNodesToNode(server, session, &node->nodeId,
                                   &res.addedNodeId, instantiationCallback);
-    
+
     if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
         instantiationCallback->method(res.addedNodeId, node->nodeId,
                                       instantiationCallback->handle);
-    
+
     UA_NodeId_deleteMembers(&res.addedNodeId);
  cleanup:
     if(value.hasValue && value.value.storageType == UA_VARIANT_DATA)
@@ -213,13 +213,13 @@ copyExistingObject(UA_Server *server, UA_Session *session, const UA_NodeId *obje
     Service_AddNodes_single(server, session, &item, &res, instantiationCallback);
     if(res.statusCode != UA_STATUSCODE_GOOD)
         return res.statusCode;
-    
-    /* Copy any aggregated/nested variables/methods/subobjects this object contains 
+
+    /* Copy any aggregated/nested variables/methods/subobjects this object contains
      * These objects may not be part of the nodes type. */
     UA_StatusCode retval = copyChildNodesToNode(server, session, &node->nodeId,
                                                 &res.addedNodeId, instantiationCallback);
     if(retval == UA_STATUSCODE_GOOD && instantiationCallback)
-        instantiationCallback->method(res.addedNodeId, node->nodeId, 
+        instantiationCallback->method(res.addedNodeId, node->nodeId,
                                       instantiationCallback->handle);
 
     UA_NodeId_deleteMembers(&res.addedNodeId);
@@ -263,7 +263,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         getTypeHierarchy(server->nodestore, typenode, true, &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    
+
     /* Copy members of the type and supertypes */
     for(size_t i = 0; i < hierarchySize; ++i)
         retval |= copyChildNodesToNode(server, session, &hierarchy[i], nodeId, instantiationCallback);
@@ -294,8 +294,8 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 /* Search for an instance of "browseName" in node searchInstance
  * Used during copyChildNodes to find overwritable/mergable nodes */
 static UA_StatusCode
-instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session, 
-                                  const UA_NodeId *searchInstance, 
+instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
+                                  const UA_NodeId *searchInstance,
                                   const UA_QualifiedName *browseName,
                                   UA_NodeId *outInstanceNodeId) {
     UA_BrowseDescription bd;
@@ -306,13 +306,13 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
     bd.resultMask = UA_BROWSERESULTMASK_NODECLASS | UA_BROWSERESULTMASK_BROWSENAME;
-    
+
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
     Service_Browse_single(server, session, NULL, &bd, 0, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
-    
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
@@ -322,21 +322,21 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
             break;
         }
     }
-    
+
     UA_BrowseResult_deleteMembers(&br);
     return retval;
 }
 
-/* Copy any children of Node sourceNodeId to another node destinationNodeId 
- * Used at 2 places: 
+/* Copy any children of Node sourceNodeId to another node destinationNodeId
+ * Used at 2 places:
  *  (1) During instantiation, when any children of the Type are copied
  *  (2) During instantiation to copy any *nested* instances to the new node
  *      (2.1) Might call instantiation of a type first
  *      (2.2) *Should* then overwrite nested contents in definition --> this scenario is currently not handled!
  */
 static UA_StatusCode
-copyChildNodesToNode(UA_Server* server, UA_Session* session, 
-                     const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId, 
+copyChildNodesToNode(UA_Server* server, UA_Session* session,
+                     const UA_NodeId* sourceNodeId, const UA_NodeId* destinationNodeId,
                      UA_InstantiationCallback* instantiationCallback) {
     /* Browse to get all children */
     UA_BrowseDescription bd;
@@ -354,7 +354,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
     Service_Browse_single(server, session, NULL, &bd, 0, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
-  
+
     /* Copy all children */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId existingChild = UA_NODEID_NULL;
@@ -365,7 +365,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
                                                    &rd->browseName, &existingChild);
         if(retval != UA_STATUSCODE_GOOD)
             break;
-        
+
         if(UA_NodeId_equal(&UA_NODEID_NULL, &existingChild)) {
             /* New node in child */
             if(rd->nodeClass == UA_NODECLASS_METHOD) {
@@ -470,11 +470,11 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         goto remove_node;
     }
 
+    /* Fall back to a default typedefinition for variables and objects */
+    const UA_NodeId basedatavariabletype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    const UA_NodeId baseobjecttype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_OBJECT) {
-        /* Fall back to a default typedefinition for variables and objects */
-        const UA_NodeId basedatavariabletype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
-        const UA_NodeId baseobjecttype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
         if(!typeDefinition || UA_NodeId_isNull(typeDefinition)) {
             if(node->nodeClass == UA_NODECLASS_VARIABLE)
                 typeDefinition = &basedatavariabletype;
@@ -530,23 +530,23 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     const UA_NodeId *typeDef = &item->typeDefinition.nodeId;
     if(UA_NodeId_isNull(typeDef)) /* workaround when the variabletype is undefined */
         typeDef = &basedatavartype;
-    
+
     /* Make sure we can instantiate the basetypes themselves */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(UA_NodeId_equal(&node->nodeId, &basevartype) || 
+    if(UA_NodeId_equal(&node->nodeId, &basevartype) ||
        UA_NodeId_equal(&node->nodeId, &basedatavartype)) {
         node->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
         node->valueRank = -2;
         return retval;
     }
-    
+
     const UA_VariableTypeNode *vt =
         (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
     if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     if(node->nodeClass == UA_NODECLASS_VARIABLE && vt->isAbstract)
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-    
+
     /* Set the datatype */
     if(!UA_NodeId_isNull(&attr->dataType))
         retval  = writeDataTypeAttribute(server, node, &attr->dataType, &vt->dataType);
@@ -554,7 +554,7 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
         retval = UA_NodeId_copy(&vt->dataType, &node->dataType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-        
+
     /* Set the array dimensions. Check only against the vt. */
     retval = compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
                                        attr->arrayDimensionsSize, attr->arrayDimensions);

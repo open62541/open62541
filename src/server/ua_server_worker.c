@@ -1,5 +1,5 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  License, v. 2.0. If a copy of the MPL was not distributed with this
 *  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #include "ua_util.h"
@@ -317,8 +317,8 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatch
 /* Call this function only from the main loop! */
 static void
 removeRepeatedJob(UA_Server *server, UA_Guid *jobId) {
-    struct RepeatedJob *rj;
-    LIST_FOREACH(rj, &server->repeatedJobs, next) {
+    struct RepeatedJob *rj, *rj_tmp;
+    LIST_FOREACH_SAFE(rj, &server->repeatedJobs, next, rj_tmp) {
         if(!UA_Guid_equal(jobId, &rj->id))
             continue;
         LIST_REMOVE(rj, next);
