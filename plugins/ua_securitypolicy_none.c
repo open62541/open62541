@@ -447,21 +447,21 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
     /* Channel context prototype */
     { // .channelContextPrototype
-        .init = channelContext_init_sp_none,
-        .deleteMembers = channelContext_deleteMembers_sp_none,
+        channelContext_init_sp_none,  // .init
+        channelContext_deleteMembers_sp_none, // .deleteMembers
 
-        .setLocalEncryptingKey = channelContext_setLocalEncryptingKey_sp_none,
-        .setLocalSigningKey = channelContext_setLocalSigningKey_sp_none,
-        .setLocalIv = channelContext_setLocalIv_sp_none,
+        channelContext_setLocalEncryptingKey_sp_none, // .setLocalEncryptingKey
+        channelContext_setLocalSigningKey_sp_none, // .setLocalSigningKey
+        channelContext_setLocalIv_sp_none, // .setLocalIv
 
-        .setRemoteEncryptingKey = channelContext_setRemoteEncryptingKey_sp_none,
-        .setRemoteSigningKey = channelContext_setRemoteSigningKey_sp_none,
-        .setRemoteIv = channelContext_setRemoteIv_sp_none,
+        channelContext_setRemoteEncryptingKey_sp_none, // .setRemoteEncryptingKey
+        channelContext_setRemoteSigningKey_sp_none, // .setRemoteSigningKey
+        channelContext_setRemoteIv_sp_none, // .setRemoteIv
 
-        .parseClientCertificate = channelContext_parseClientCertificate_sp_none,
+        channelContext_parseClientCertificate_sp_none, // .parseClientCertificate
 
-        .data = NULL // data
+        NULL // .data
     },
 
-    .makeChannelContext = makeChannelContext_sp_none
+    makeChannelContext_sp_none // .makeChannelContext
 };
