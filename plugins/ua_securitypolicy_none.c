@@ -431,7 +431,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         policyContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
         policyContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
 
-        NULL // .data
+        NULL, // .data
+        NULL // .logger
     },
 
     deleteMembers_sp_none, // .deleteMembers
@@ -452,8 +453,10 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
         channelContext_parseClientCertificate_sp_none, // .parseClientCertificate
 
+        NULL, // .logger
         NULL // .data
     },
 
-    makeChannelContext_sp_none // .makeChannelContext
+    makeChannelContext_sp_none, // .makeChannelContext
+    NULL // .logger
 };
