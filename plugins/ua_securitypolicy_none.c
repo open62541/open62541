@@ -54,10 +54,6 @@ static UA_StatusCode asym_calculatePadding_sp_none(const UA_SecurityPolicy* cons
     return UA_STATUSCODE_GOOD;
 }
 
-UA_Boolean asym_extraPaddingByteUsed_sp_none(void) {
-    return UA_FALSE;
-}
-
 /////////////////////////////////////
 // End asymmetric module functions //
 /////////////////////////////////////
@@ -112,10 +108,6 @@ static UA_StatusCode sym_calculatePadding_sp_none(const UA_SecurityPolicy* const
     *paddingSize = 0;
     *extraPaddingSize = 0;
     return UA_STATUSCODE_GOOD;
-}
-
-UA_Boolean sym_extraPaddingByteUsed_sp_none(void) {
-    return UA_FALSE;
 }
 
 ////////////////////////////////////
