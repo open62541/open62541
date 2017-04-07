@@ -1,17 +1,6 @@
-/*
-* Copyright (C) 2014 the contributors as stated in the AUTHORS file
-*
-* This file is part of open62541. open62541 is free software: you can
-* redistribute it and/or modify it under the terms of the GNU Lesser General
-* Public License, version 3 (as published by the Free Software Foundation) with
-* a static linking exception as stated in the LICENSE file provided with
-* open62541.
-*
-* open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
-* WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-* A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
-* details.
-*/
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SECURITYPOLICY_H_
 #define UA_SECURITYPOLICY_H_
@@ -23,8 +12,10 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_securitycontext.h"
 
-struct _UA_SecurityPolicy;
-typedef struct _UA_SecurityPolicy UA_SecurityPolicy;
+#define UA_SECURITY_POLICY_NONE_URI {47, (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None"}
+
+struct UA_SecurityPolicy;
+typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 typedef struct
 {
@@ -102,7 +93,7 @@ typedef struct
 typedef struct
 {
     /**
-     * Encrypts the given plaintext using a symmetric algorithm and key.
+     * \brief Encrypts the given plaintext using a symmetric algorithm and key.
      *
      * \param plainText the text to encrypt.
      * \param cipher an output buffer to which the encrypted message is written.
@@ -112,7 +103,7 @@ typedef struct
                                    UA_ByteString* const cipher);
 
     /**
-     * Decrypts the given ciphertext using a symmetric algorithm and key.
+     * \brief Decrypts the given ciphertext using a symmetric algorithm and key.
      *
      * \param cipher the ciphertext to decrypt.
      * \param decrypted an output buffer to which the decrypted message is written.
@@ -122,7 +113,7 @@ typedef struct
                                    UA_ByteString* const decrypted);
 
     /**
-     * Pseudo random function that is used to generate the symmetric keys.
+     * \brief Pseudo random function that is used to generate the symmetric keys.
      *
      * For information on what parameters this function receives in what situation,
      * refer to the OPC UA specification 1.03 Part6 Table 33
@@ -137,7 +128,7 @@ typedef struct
                                        const size_t length,
                                        UA_ByteString* const out);
     /**
-     * Random generator for generating nonces.
+     * \brief Random generator for generating nonces.
      * 
      * Generates a nonce. The length will be the same as the symmetric encryptingKeyLength
      * as specified in the OPC UA Specification Part 4 - Services 1.03 on page 20
@@ -154,10 +145,10 @@ typedef struct
      *
      * \param bytesToWrite
      */
-    UA_StatusCode(*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
-                                           const size_t bytesToWrite,
-                                           UA_Byte* const paddingSize,
-                                           UA_Byte* const extraPaddingSize);
+    UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
+                                            const size_t bytesToWrite,
+                                            UA_Byte* const paddingSize,
+                                            UA_Byte* const extraPaddingSize);
 
     const UA_SecurityPolicySigningModule signingModule;
 
@@ -169,8 +160,7 @@ typedef struct
 /**
  * \brief This struct describes a security policy. All functions and modules need to be implemented.
  */
-struct _UA_SecurityPolicy
-{
+struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     const UA_ByteString policyUri;
 

@@ -47,8 +47,8 @@ struct UA_SecureChannel {
     UA_MessageSecurityMode  securityMode;
     UA_ChannelSecurityToken securityToken; // the channelId is contained in the securityToken
     UA_ChannelSecurityToken nextSecurityToken; // the channelId is contained in the securityToken
-    UA_AsymmetricAlgorithmSecurityHeader clientAsymAlgSettings;
-    UA_AsymmetricAlgorithmSecurityHeader serverAsymAlgSettings;
+    UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
+    UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 
     /** The active security policy and context of the channel */
     const UA_SecurityPolicy* securityPolicy;

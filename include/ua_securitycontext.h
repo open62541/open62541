@@ -23,13 +23,13 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_log.h"
 
-struct _UA_Channel_SecurityContext;
-typedef struct _UA_Channel_SecurityContext UA_Channel_SecurityContext;
+struct UA_Channel_SecurityContext;
+typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 
-struct _UA_Policy_SecurityContext;
-typedef struct _UA_Policy_SecurityContext UA_Policy_SecurityContext;
+struct UA_Policy_SecurityContext;
+typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
 
-struct _UA_Policy_SecurityContext
+struct UA_Policy_SecurityContext
 {
     UA_StatusCode (*const init)(UA_Policy_SecurityContext* const securityContext, UA_Logger logger);
 
@@ -49,7 +49,7 @@ struct _UA_Policy_SecurityContext
     UA_Logger logger;
 };
 
-struct _UA_Channel_SecurityContext
+struct UA_Channel_SecurityContext
 {
     /**
      * This method initializes the context data object. Needs to be called before using
