@@ -33,7 +33,7 @@ UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
 
     /* Make the array bigger */
     UA_String *newNS = (UA_String*)UA_realloc(server->namespaces,
-                                  sizeof(UA_String) * (server->namespacesSize + 1));
+                                              sizeof(UA_String) * (server->namespacesSize + 1));
     if(!newNS)
         return 0;
     server->namespaces = newNS;
@@ -119,14 +119,14 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_ReferenceNode *refs = NULL;
     size_t refssize = parent->referencesSize;
     UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
-                                         (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+        (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_RCU_UNLOCK();
         return retval;
     }
 
     for(size_t i = parent->referencesSize; i > 0; --i) {
-        UA_ReferenceNode *ref = &refs[i-1];
+        UA_ReferenceNode *ref = &refs[i - 1];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
@@ -145,8 +145,7 @@ void UA_Server_delete(UA_Server *server) {
     // Delete the timed work
     UA_RepeatedJobsList_deleteMembers(&server->repeatedJobs);
 
-    for (size_t i = 0; i < server->config.securityPolicies.count; ++i)
-    {
+    for(size_t i = 0; i < server->config.securityPolicies.count; ++i) {
         server->config.securityPolicies.policies[i].deleteMembers(&server->config.securityPolicies.policies[i]);
     }
 
@@ -219,26 +218,21 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
 // TODO: to form an endpoint. Also message security mode is always none or signandencrypt
 /* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
 static void
-addEndpointDefinitions(UA_Server* server)
-{
+addEndpointDefinitions(UA_Server* server) {
     server->endpointDescriptions = (UA_EndpointDescription *)UA_Array_new(
         server->config.networkLayersSize * server->config.securityPolicies.count,
         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]
     );
     server->endpointDescriptionsSize = server->config.networkLayersSize * server->config.securityPolicies.count;
-    for (size_t i = 0; i < server->config.networkLayersSize; ++i)
-    {
-        for (size_t j = 0; j < server->config.securityPolicies.count; ++j)
-        {
+    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
+        for(size_t j = 0; j < server->config.securityPolicies.count; ++j) {
             UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
 
             const UA_ByteString policyUriNone = UA_SECURITY_POLICY_NONE_URI;
-            if (UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone))
-            {
+            if(UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone)) {
                 endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
             }
-            else
-            {
+            else {
                 endpoint->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
             }
             UA_ByteString_copy(&server->config.securityPolicies.policies[j].policyUri, &endpoint->securityPolicyUri);
@@ -246,23 +240,21 @@ addEndpointDefinitions(UA_Server* server)
                 UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
             size_t policies = 0;
-            if (server->config.accessControl.enableAnonymousLogin)
+            if(server->config.accessControl.enableAnonymousLogin)
                 ++policies;
-            if (server->config.accessControl.enableUsernamePasswordLogin)
+            if(server->config.accessControl.enableUsernamePasswordLogin)
                 ++policies;
             endpoint->userIdentityTokensSize = policies;
             endpoint->userIdentityTokens = (UA_UserTokenPolicy *)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
 
             size_t currentIndex = 0;
-            if (server->config.accessControl.enableAnonymousLogin)
-            {
+            if(server->config.accessControl.enableAnonymousLogin) {
                 UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
                 endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
                 endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
                 ++currentIndex;
             }
-            if (server->config.accessControl.enableUsernamePasswordLogin)
-            {
+            if(server->config.accessControl.enableUsernamePasswordLogin) {
                 UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
                 endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
                 endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
@@ -286,8 +278,7 @@ UA_Server_new(const UA_ServerConfig config) {
     if(!server)
         return NULL;
 
-    if (config.securityPolicies.count == 0)
-    {
+    if(config.securityPolicies.count == 0) {
         UA_LOG_FATAL(config.logger,
                      UA_LOGCATEGORY_SERVER,
                      "There has to be at least one supported security policy but no policies were found in config.");
@@ -307,11 +298,11 @@ UA_Server_new(const UA_ServerConfig config) {
     /* Initialize the handling of repeated jobs */
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
+        (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
                              server);
 #else
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
+        (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
                              server);
 #endif
 

@@ -36,8 +36,8 @@ void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_Dat
 
 UA_StatusCode
 UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
-                                UA_SecureChannel** const pp_channel,
-                                UA_Connection* const connection);
+                                       UA_SecureChannel** const pp_channel,
+                                       UA_Connection* const connection);
 
 UA_StatusCode
 UA_SecureChannelManager_close_temporary(UA_SecureChannelManager* const cm,
