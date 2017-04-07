@@ -177,14 +177,19 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_Connection* conn,
 
     // move stuff from temporary channel to actual channel
     UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies, cm->server->config.logger);
-    entry->channel = *tmpChannel;
+    //entry->channel = *tmpChannel;
+    entry->channel.receiveSequenceNumber = tmpChannel->receiveSequenceNumber;
+    entry->channel.sendSequenceNumber = tmpChannel->sendSequenceNumber;
+    entry->channel.securityPolicy = tmpChannel->securityPolicy;
+    entry->channel.logger = tmpChannel->logger;
+    entry->channel.securityContext = tmpChannel->securityContext;
+    entry->channel.availableSecurityPolicies = tmpChannel->availableSecurityPolicies;
+    tmpChannel->securityContext = NULL; // We don't want to clean up the securityContext
     UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.remoteAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->remoteAsymAlgSettings, &entry->channel.remoteAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.localAsymAlgSettings);
     UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->localAsymAlgSettings, &entry->channel.localAsymAlgSettings);
-    tmpChannel->securityContext = NULL; // We don't want to clean up the securityContext
     UA_SecureChannelManager_close_temporary(cm, tmpChannel);
-    entry->channel.connection = NULL;
     entry->channel.temporary = UA_FALSE;
 
     entry->channel.securityToken.channelId = cm->lastChannelId++;
