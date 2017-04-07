@@ -169,6 +169,7 @@ expand(UA_NodeStore *ns) {
         if(oentries[i] <= UA_NODESTORE_TOMBSTONE)
             continue;
         UA_NodeStoreEntry **e = findSlot(ns, &oentries[i]->node.nodeId);
+        UA_assert(e);
         *e = oentries[i];
         ++j;
     }

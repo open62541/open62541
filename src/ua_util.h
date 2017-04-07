@@ -115,6 +115,9 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
  * up to that point. */
 size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
 
+#define MIN(A,B) (A > B ? B : A)
+#define MAX(A,B) (A > B ? A : B)
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

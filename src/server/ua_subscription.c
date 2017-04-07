@@ -18,6 +18,8 @@
 
 UA_MonitoredItem * UA_MonitoredItem_new() {
     UA_MonitoredItem *newItem = (UA_MonitoredItem *)UA_malloc(sizeof(UA_MonitoredItem));
+    if(!newItem)
+        return NULL;
     newItem->subscription = NULL;
     newItem->currentQueueSize = 0;
     newItem->maxQueueSize = 0;
