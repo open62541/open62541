@@ -352,13 +352,13 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset) 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         const UA_ByteString dataToSign = {
-            .data = dst->data,
-            .length = offset
+            offset,
+            dst->data
         };
 
         UA_ByteString signature = {
-            .data = dst->data + offset,
-            .length = securityPolicy->symmetricModule.signingModule.signatureSize
+            securityPolicy->symmetricModule.signingModule.signatureSize,
+            dst->data + offset
         };
 
         securityPolicy->symmetricModule.signingModule.sign(&dataToSign, channel->securityContext, &signature);
@@ -369,8 +369,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_ByteString* dst, size_t offset) 
     // Encrypt message
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         const UA_ByteString dataToEncrypt = {
-            .data = dst->data + UA_SECUREMH_AND_SYMALGH_LENGTH,
-            .length = offset - UA_SECUREMH_AND_SYMALGH_LENGTH
+            offset - UA_SECUREMH_AND_SYMALGH_LENGTH,
+            dst->data + UA_SECUREMH_AND_SYMALGH_LENGTH
         };
 
         UA_ByteString encryptedData;
@@ -418,6 +418,7 @@ static size_t UA_SecureChannel_calculateAsymAlgSecurityHeaderLength(const UA_Asy
         asymHeader->senderCertificate.length +
         asymHeader->receiverCertificateThumbprint.length;
 }
+
 /**
  * \brief Sends an OPN chunk using asymmetric encryption.
  *
@@ -544,13 +545,13 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         const UA_ByteString dataToSign = {
-            .data = dst->data,
-            .length = offset
+            offset,
+            dst->data
         };
 
         UA_ByteString signature = {
-            .data = dst->data + offset,
-            .length = securityPolicy->asymmetricModule.signingModule.signatureSize
+            securityPolicy->asymmetricModule.signingModule.signatureSize,
+            dst->data + offset
         };
 
         securityPolicy->asymmetricModule.signingModule.sign(&dataToSign, &securityPolicy->context, &signature);
@@ -562,8 +563,8 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         const UA_ByteString dataToEncrypt = {
-            .data = dst->data + UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength,
-            .length = offset - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength)
+            offset - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength),
+            dst->data + UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength
         };
 
         UA_ByteString encryptedData;
@@ -597,7 +598,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
             dst->length -= securityPolicy->asymmetricModule.signingModule.signatureSize;
 
             // Hide byte for paddingByte and potential extra padding byte
-            --dst->length;
+            dst->length -= 2;
         }
     }
     return ci->errorCode;
@@ -650,7 +651,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel,
         }
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-            --message.length;
+            message.length -= 2;
         }
 
         sendChunk = (UA_exchangeEncodeBuffer)UA_SecureChannel_sendChunk;
@@ -682,7 +683,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel,
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
            channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
             message.length -= channel->securityPolicy->asymmetricModule.signingModule.signatureSize;
-            --message.length;
+            message.length -= 2;
         }
 
         sendChunk = (UA_exchangeEncodeBuffer)UA_SecureChannel_sendOPNChunkAsymmetric;
@@ -888,8 +889,8 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
     // Decrypt message
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         const UA_ByteString cipherText = {
-            .data = chunk->data + messageAndSecurityHeaderOffset,
-            .length = chunkSize - messageAndSecurityHeaderOffset
+            chunkSize - messageAndSecurityHeaderOffset,
+            chunk->data + messageAndSecurityHeaderOffset
         };
 
         UA_ByteString decrypted;
@@ -916,12 +917,12 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN || channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
-            .data = chunk->data,
-            .length = chunkSize - securityPolicy->symmetricModule.signingModule.signatureSize
+            chunkSize - securityPolicy->symmetricModule.signingModule.signatureSize,
+            chunk->data
         };
         const UA_ByteString signature = {
-            .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
-            .length = securityPolicy->symmetricModule.signingModule.signatureSize
+            securityPolicy->symmetricModule.signingModule.signatureSize,
+            chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
         retval |= securityPolicy->symmetricModule.signingModule.verify(&chunkDataToVerify,
@@ -1070,8 +1071,8 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     // Decrypt message
     {
         const UA_ByteString cipherText = {
-            .data = chunk->data + messageAndSecurityHeaderOffset,
-            .length = chunkSize - messageAndSecurityHeaderOffset
+            chunkSize - messageAndSecurityHeaderOffset,
+            chunk->data + messageAndSecurityHeaderOffset
         };
 
         UA_ByteString decrypted;
@@ -1100,12 +1101,12 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     {
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
-            .data = chunk->data,
-            .length = chunkSize - securityPolicy->asymmetricModule.signingModule.signatureSize
+            chunkSize - securityPolicy->asymmetricModule.signingModule.signatureSize,
+            chunk->data
         };
         const UA_ByteString signature = {
-            .data = chunk->data + chunkDataToVerify.length, // Signature starts after the signed data
-            .length = securityPolicy->asymmetricModule.signingModule.signatureSize
+            securityPolicy->asymmetricModule.signingModule.signatureSize,
+            chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
         retval |= securityPolicy->asymmetricModule.signingModule.verify(&chunkDataToVerify,
@@ -1244,8 +1245,8 @@ UA_SecureChannel_processChunk(UA_SecureChannel* const channel,
     size_t processed_header = processedChunkBytes;
 
     const UA_ByteString chunkBody = {
-        .data = chunk->data + processed_header,
-        .length = bodySize
+        bodySize,
+        chunk->data + processed_header
     };
 
     switch(messageHeader.messageHeader.messageTypeAndChunkType & UA_BITMASK_CHUNKTYPE) {
@@ -1302,7 +1303,10 @@ UA_SecureChannel_processChunks(UA_SecureChannel* channel, const UA_ByteString* c
         }
         else {
             // The chunk that is being processed. The length exceeds the actual length of the chunk, since it is not yet known.
-            UA_ByteString chunk = { .data = chunks->data + offset,.length = chunks->length - offset };
+            UA_ByteString chunk = {
+                chunks->length - offset,
+                chunks->data + offset
+            };
 
             UA_SecureChannel_processChunk(channel, application, callback, &chunk);
 

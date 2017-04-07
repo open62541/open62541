@@ -232,10 +232,7 @@ addEndpointDefinitions(UA_Server* server)
         {
             UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
 
-            const UA_ByteString policyUriNone = {
-                .data = (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None",
-                .length = 47
-            };
+            const UA_ByteString policyUriNone = UA_SECURITY_POLICY_NONE_URI;
             if (UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone))
             {
                 endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
