@@ -68,8 +68,7 @@ UA_THREAD_LOCAL UA_Byte * end;
  * The only place where this is used from is UA_SecureChannel_sendBinaryMessage. */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
-UA_THREAD_LOCAL UA_ByteString *encodeBuf; /* the original buffer */
-UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
+UA_THREAD_LOCAL UA_ExchangeEncodeBuffer exchangeBufferCallback;
 UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
 /* Send the current chunk and replace the buffer */
@@ -78,24 +77,22 @@ exchangeBuffer(void) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Store context variables since chunk-sending might call UA_encode itself */
-    UA_ByteString *store_encodeBuf = encodeBuf;
-    UA_exchangeEncodeBuffer store_exchangeBufferCallback = exchangeBufferCallback;
+    /* Store context variables. This is required so that a call to UA_encode
+     * can be made from within the exchangeBufferCallback. For example to encode
+     * the chunk header */
+    UA_ExchangeEncodeBuffer store_exchangeBufferCallback = exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
+    UA_Byte *store_pos = pos;
+    UA_Byte *store_end = end;
 
-    size_t offset = ((uintptr_t)pos - (uintptr_t)encodeBuf->data) / sizeof(UA_Byte);
-    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, encodeBuf, offset);
+    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle,
+                                                  &store_pos, &store_end);
 
-    /* Restore context variables. This restores the pointer to the buffer, not the buffer
-     * itself. This is required so that a call to UA_encode can be made from within the
-     * exchangeBufferCallback. For example to encode the chunk header */
-    encodeBuf = store_encodeBuf;
+    /* Restore context variables. */
     exchangeBufferCallback = store_exchangeBufferCallback;
     exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
-
-    /* Set pos and end in order to continue encoding */
-    pos = encodeBuf->data;
-    end = &encodeBuf->data[encodeBuf->length];
+    pos = store_pos;
+    end = store_end;
     return retval;
 }
 
@@ -1343,23 +1340,35 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
 }
 
 UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle,
-                UA_ByteString *dst, size_t *offset) {
-    /* Set the (thread-local) position and end pointers to save function
-       arguments */
-    pos = &dst->data[*offset];
-    end = &dst->data[dst->length];
-
-    /* Set the (thread-local) exchangeBufferCallbacks where the buffer is exchanged and the
-       current chunk sent out */
-    encodeBuf = dst;
+UA_encodeBinary(const void *data, const UA_DataType *type,
+                UA_Byte **buf_pos, UA_Byte **buf_end,
+                UA_ExchangeEncodeBuffer exchangeCallback,
+                void *exchangeHandle) {
+    /* Set (thread-local) global variables to minimize argument chaining */
+    pos = *buf_pos;
+    end = *buf_end;
     exchangeBufferCallback = exchangeCallback;
     exchangeBufferCallbackHandle = exchangeHandle;
 
-    /* Encode and clean up */
-    UA_StatusCode retval = UA_encodeBinaryInternal(src, type);
-    *offset = (size_t)(pos - dst->data) / sizeof(UA_Byte);
+    /* Encode */
+    UA_StatusCode retval = UA_encodeBinaryInternal(data, type);
+
+    /* Set current pos / end if the buffer has been exchanged */
+    *buf_pos= pos;
+    *buf_end = end;
+    return retval;
+}
+
+UA_StatusCode
+UA_encodeBinaryWithOffset(const void *data, const UA_DataType *type,
+                          UA_ByteString *dst, size_t *offset,
+                          UA_ExchangeEncodeBuffer exchangeCallback,
+                          void *exchangeHandle) {
+    UA_Byte *buf_pos= &dst->data[*offset];
+    UA_Byte *buf_end = &dst->data[dst->length];
+    UA_StatusCode retval = UA_encodeBinary(data, type, &buf_pos, &buf_end,
+                                           exchangeCallback, exchangeHandle);
+    *offset += (uintptr_t)buf_pos - (uintptr_t)&dst->data[*offset];
     return retval;
 }
 

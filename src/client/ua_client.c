@@ -538,8 +538,8 @@ static UA_StatusCode CloseSecureChannel(UA_Client *client) {
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &message, &offset);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
     retval |= UA_NodeId_encodeBinary(&typeId, &message, &offset);
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],
-                              NULL, NULL, &message, &offset);
+    retval |= UA_encodeBinaryWithOffset(&request, &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST],
+                                        &message, &offset, NULL, NULL);
 
     msgHeader.messageHeader.messageSize = (UA_UInt32)offset;
     offset = 0;

@@ -12,7 +12,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_securitycontext.h"
 
-#define UA_SECURITY_POLICY_NONE_URI {47, (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None"}
+extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
 struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;

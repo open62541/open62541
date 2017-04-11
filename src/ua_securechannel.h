@@ -31,17 +31,6 @@ struct ChunkEntry {
     UA_ByteString bytes;
 };
 
-/* For chunked responses */
-typedef struct {
-    UA_SecureChannel *channel;
-    UA_UInt32 requestId;
-    UA_UInt32 messageType;
-    UA_UInt16 chunksSoFar;
-    size_t messageSizeSoFar;
-    UA_Boolean final;
-    UA_StatusCode errorCode;
-} UA_ChunkInfo;
-
 struct UA_SecureChannel {
     UA_Boolean temporary; // this flag is set to false if the channel is fully opened.
     UA_MessageSecurityMode  securityMode;

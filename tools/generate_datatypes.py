@@ -143,7 +143,7 @@ class Type(object):
         return funcs
 
     def encoding_h(self):
-        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_ByteString *dst, size_t *offset) {\n    return UA_encodeBinary(src, %s, NULL, NULL, dst, offset);\n}\n"
+        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_ByteString *dst, size_t *offset) {\n    return UA_encodeBinaryWithOffset(src, %s, dst, offset, NULL, NULL);\n}\n"
         enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, 0, NULL);\n}"
         return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 2))))
 
