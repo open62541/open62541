@@ -259,7 +259,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
     /* Will this chunk surpass the capacity of the SecureChannel for the message? */
     UA_Byte *buf_body_start = ci->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
     UA_Byte *buf_body_end = *buf_pos;
-    size_t bodyLength = (uintptr_t)buf_body_end- (uintptr_t)buf_body_start;
+    size_t bodyLength = (uintptr_t)buf_body_end - (uintptr_t)buf_body_start;
     ci->messageSizeSoFar += bodyLength;
     ci->chunksSoFar++;
     if(ci->messageSizeSoFar > connection->remoteConf.maxMessageSize &&
@@ -282,7 +282,6 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
 
     /* Pad the message. The bytes for the padding and signature were removed
      * from buf_end before encoding the payload. So we don't check here. */
-    // TODO: What about just SIGN?
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         size_t payloadLength = (uintptr_t)buf_body_end - (uintptr_t)ci->messageBuffer.data;
         UA_Byte paddingSize = 0;
@@ -330,7 +329,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
-    UA_encodeBinary(&symSecHeader.tokenId, &UA_TYPES[UA_TYPES_UINT32],
+    UA_encodeBinary(&symSecHeader.tokenId, &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
     UA_SequenceHeader seqHeader;
