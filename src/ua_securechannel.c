@@ -403,9 +403,9 @@ UA_SecureChannel_calculateAsymAlgSecurityHeaderLength(
  * \brief Sends an OPN chunk using asymmetric encryption.
  *
  * \param ci the chunk information that is used to send the chunk.
- * \param dst the send buffer that contains the already encoded chunk body.
- *            There must space at before the encoded body to exactly fit the headers
- *            and there must be enough space at the end of the buffer for potential signature and padding.
+ * \param buf_pos the position in the send buffer after the body was encoded.
+ *                Should be less than or equal to buf_end.
+ * \param buf_end the maximum position of the body.
  */
 static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const ci,
                                                              UA_Byte **buf_pos,
