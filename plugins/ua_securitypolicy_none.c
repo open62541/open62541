@@ -75,10 +75,9 @@ static UA_StatusCode sym_sign_sp_none(const UA_ByteString* const message,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode sym_encrypt_sp_none(const UA_ByteString* const plainText,
-                                         const UA_Channel_SecurityContext* const securityContext,
-                                         UA_ByteString* const cipher) {
-    return UA_copy(plainText, cipher, &UA_TYPES[UA_TYPES_BYTESTRING]);
+static UA_StatusCode sym_encrypt_sp_none(const UA_Channel_SecurityContext* const securityContext,
+                                         UA_ByteString* const data) {
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode sym_decrypt_sp_none(const UA_ByteString* const cipher,

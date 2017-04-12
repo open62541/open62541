@@ -358,15 +358,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
         dataToEncrypt.data = ci->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
         dataToEncrypt.length = total_length - UA_SECUREMH_AND_SYMALGH_LENGTH;
 
-        /* TODO: Is it necessary to allocate data on the heap at this place?
-           Maybe we only need to allocate data for one block or hide this inside
-           the plugin callback. */
-        UA_ByteString encryptedData;
-        UA_ByteString_allocBuffer(&encryptedData, dataToEncrypt.length);
-
-        securityPolicy->symmetricModule.encrypt(&dataToEncrypt, channel->securityContext, &encryptedData);
-        memcpy(dataToEncrypt.data, encryptedData.data, encryptedData.length);
-        UA_ByteString_deleteMembers(&encryptedData);
+        securityPolicy->symmetricModule.encrypt(channel->securityContext, &dataToEncrypt);
     }
 
     /* Send the chunk, the buffer is freed in the network layer */

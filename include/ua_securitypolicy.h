@@ -95,12 +95,12 @@ typedef struct
     /**
      * \brief Encrypts the given plaintext using a symmetric algorithm and key.
      *
-     * \param plainText the text to encrypt.
-     * \param cipher an output buffer to which the encrypted message is written.
+     * \param securityContext the SecurityContext to work on.
+     * \param data the data to encrypt. The data will be encrypted in place.
+     *             The implementation may allocate additional memory though.
      */
-    UA_StatusCode (*const encrypt)(const UA_ByteString* const plainText,
-                                   const UA_Channel_SecurityContext* const securityContext,
-                                   UA_ByteString* const cipher);
+    UA_StatusCode (*const encrypt)(const UA_Channel_SecurityContext* const securityContext,
+                                   UA_ByteString* const data);
 
     /**
      * \brief Decrypts the given ciphertext using a symmetric algorithm and key.
