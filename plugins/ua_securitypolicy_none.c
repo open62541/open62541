@@ -31,10 +31,9 @@ static UA_StatusCode asym_encrypt_sp_none(const UA_Policy_SecurityContext* const
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode asym_decrypt_sp_none(const UA_ByteString* const cipher,
-                                          const UA_Policy_SecurityContext* const securityContext,
-                                          UA_ByteString* const decrypted) {
-    return UA_copy(cipher, decrypted, &UA_TYPES[UA_TYPES_BYTESTRING]);
+static UA_StatusCode asym_decrypt_sp_none(const UA_Policy_SecurityContext* const securityContext,
+                                          UA_ByteString* const data) {
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode asym_makeThumbprint_sp_none(const UA_ByteString* const certificate,
@@ -79,10 +78,9 @@ static UA_StatusCode sym_encrypt_sp_none(const UA_Channel_SecurityContext* const
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode sym_decrypt_sp_none(const UA_ByteString* const cipher,
-                                         const UA_Channel_SecurityContext* const securityContext,
-                                         UA_ByteString* const decrypted) {
-    return UA_copy(cipher, decrypted, &UA_TYPES[UA_TYPES_BYTESTRING]);
+static UA_StatusCode sym_decrypt_sp_none(const UA_Channel_SecurityContext* const securityContext,
+                                         UA_ByteString* const data) {
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode sym_generateKey_sp_none(const UA_ByteString* const secret,

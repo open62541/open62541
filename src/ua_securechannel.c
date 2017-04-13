@@ -867,29 +867,16 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
 
     // Decrypt message
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        const UA_ByteString cipherText = {
+        UA_ByteString cipherText = {
             chunkSize - messageAndSecurityHeaderOffset,
             chunk->data + messageAndSecurityHeaderOffset
         };
 
-        UA_ByteString decrypted;
-        retval |= UA_ByteString_allocBuffer(&decrypted, cipherText.length);
+        retval |= securityPolicy->symmetricModule.decrypt(channel->securityContext, &cipherText);
 
         if(retval != UA_STATUSCODE_GOOD) {
             return retval;
         }
-
-        retval |= securityPolicy->symmetricModule.decrypt(&cipherText, channel->securityContext, &decrypted);
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_deleteMembers(&decrypted);
-            return retval;
-        }
-
-        // Write back decrypted message for further processing
-        memcpy(chunk->data + messageAndSecurityHeaderOffset, decrypted.data, decrypted.length);
-
-        UA_ByteString_deleteMembers(&decrypted);
     }
 
     // Verify signature
@@ -1049,31 +1036,16 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
     // Decrypt message
     {
-        const UA_ByteString cipherText = {
+        UA_ByteString cipherText = {
             chunkSize - messageAndSecurityHeaderOffset,
             chunk->data + messageAndSecurityHeaderOffset
         };
 
-        UA_ByteString decrypted;
-        retval |= UA_ByteString_allocBuffer(&decrypted, cipherText.length);
+        retval |= securityPolicy->asymmetricModule.decrypt(&securityPolicy->context, &cipherText);
 
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return retval;
         }
-
-        retval |= securityPolicy->asymmetricModule.decrypt(&cipherText, &securityPolicy->context, &decrypted);
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
-            UA_ByteString_deleteMembers(&decrypted);
-            return retval;
-        }
-
-        // Write back decrypted message for further processing
-        memcpy(chunk->data + messageAndSecurityHeaderOffset, decrypted.data, decrypted.length);
-
-        UA_ByteString_deleteMembers(&decrypted);
     }
 
     // Verify signature

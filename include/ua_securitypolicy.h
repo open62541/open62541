@@ -55,15 +55,13 @@ typedef struct
     UA_StatusCode (*const encrypt)(const UA_Policy_SecurityContext* const securityContext,
                                    const UA_ByteString* const data);
     /**
-     * Decrypts the given cyphertext using an asymmetric algorithm and key.
+     * \brief Decrypts the given cyphertext using an asymmetric algorithm and key.
      *
-     * \param cipher the ciphertext to decrypt.
      * \param securityContext the SecurityContext which contains information about the keys needed to decrypt the message.
-     * \param decrypted an output buffer to which the decrypted message is written.
+     * \param data the data to decrypt. The decryption is done in place.
      */
-    UA_StatusCode (*const decrypt)(const UA_ByteString* const cipher,
-                                   const UA_Policy_SecurityContext* const securityContext,
-                                   UA_ByteString* const decrypted);
+    UA_StatusCode (*const decrypt)(const UA_Policy_SecurityContext* const securityContext,
+                                   UA_ByteString* const data);
     /**
      * Generates a thumprint for the specified certificate using a SHA1 digest
      *
@@ -106,12 +104,11 @@ typedef struct
     /**
      * \brief Decrypts the given ciphertext using a symmetric algorithm and key.
      *
-     * \param cipher the ciphertext to decrypt.
-     * \param decrypted an output buffer to which the decrypted message is written.
+     * \param securityContext the SecurityContext which contains information about the keys needed to decrypt the message.
+     * \param data the data to decrypt. The decryption is done in place.
      */
-    UA_StatusCode (*const decrypt)(const UA_ByteString* const cipher,
-                                   const UA_Channel_SecurityContext* const securityContext,
-                                   UA_ByteString* const decrypted);
+    UA_StatusCode (*const decrypt)(const UA_Channel_SecurityContext* const securityContext,
+                                   UA_ByteString* const data);
 
     /**
      * \brief Pseudo random function that is used to generate the symmetric keys.
