@@ -47,7 +47,7 @@ UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response,
-                             UA_SecureChannel* preparedChannel);
+                             UA_SecureChannel* tmpChannel);
 
 UA_StatusCode
 UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
