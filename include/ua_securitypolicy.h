@@ -118,12 +118,11 @@ typedef struct
      *
      * \param secret
      * \param seed
-     * \param length the number of bytes to return
-     * \param out an output to write the data to. The length needs to be equal to the parameter length.
+     * \param out an output to write the data to. The length defines the maximum
+     *            number of output bytes that are produced.
      */
     UA_StatusCode (*const generateKey)(const UA_ByteString* const secret,
                                        const UA_ByteString* const seed,
-                                       const size_t length,
                                        UA_ByteString* const out);
     /**
      * \brief Random generator for generating nonces.

@@ -125,7 +125,6 @@ UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel) 
     // Client keys
     retval = symmetricModule->generateKey(&channel->serverNonce,
                                           &channel->clientNonce,
-                                          symmetricModule->signingKeyLength,
                                           &buffer);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -156,7 +155,6 @@ UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel) 
     // Server keys
     symmetricModule->generateKey(&channel->clientNonce,
                                  &channel->serverNonce,
-                                 symmetricModule->signingKeyLength,
                                  &buffer);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
