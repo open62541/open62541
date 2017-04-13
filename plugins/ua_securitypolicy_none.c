@@ -85,7 +85,6 @@ static UA_StatusCode sym_decrypt_sp_none(const UA_Channel_SecurityContext* const
 
 static UA_StatusCode sym_generateKey_sp_none(const UA_ByteString* const secret,
                                              const UA_ByteString* const seed,
-                                             const size_t length,
                                              UA_ByteString* const out) {
     return UA_STATUSCODE_GOOD;
 }
