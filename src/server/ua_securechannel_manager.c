@@ -141,62 +141,27 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_Connection* conn,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    //check if there exists a free SC, otherwise try to purge one SC without a session
-    //the purge has been introduced to pass CTT, it is not clear what strategy is expected here
-    if(cm->currentChannelCount >= cm->server->config.maxSecureChannels && !purgeFirstChannelWithoutSession(cm)) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Set up the channel */
-    channel_list_entry* entry = (channel_list_entry*)UA_malloc(sizeof(channel_list_entry));
-    if(!entry) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    // move stuff from temporary channel to actual channel
-    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies, cm->server->config.logger);
-    //entry->channel = *tmpChannel;
-    entry->channel.receiveSequenceNumber = tmpChannel->receiveSequenceNumber;
-    entry->channel.sendSequenceNumber = tmpChannel->sendSequenceNumber;
-    entry->channel.securityPolicy = tmpChannel->securityPolicy;
-    entry->channel.logger = tmpChannel->logger;
-    entry->channel.securityContext = tmpChannel->securityContext;
-    entry->channel.availableSecurityPolicies = tmpChannel->availableSecurityPolicies;
-    tmpChannel->securityContext = NULL; // We don't want to clean up the securityContext
-    UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.remoteAsymAlgSettings);
-    UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->remoteAsymAlgSettings, &entry->channel.remoteAsymAlgSettings);
-    UA_AsymmetricAlgorithmSecurityHeader_init(&entry->channel.localAsymAlgSettings);
-    UA_AsymmetricAlgorithmSecurityHeader_copy(&tmpChannel->localAsymAlgSettings, &entry->channel.localAsymAlgSettings);
-    UA_SecureChannelManager_close_temporary(cm, tmpChannel);
-    entry->channel.temporary = UA_FALSE;
-
-    entry->channel.securityToken.channelId = cm->lastChannelId++;
-    entry->channel.securityToken.tokenId = cm->lastTokenId++;
-    entry->channel.securityToken.createdAt = UA_DateTime_now();
-    entry->channel.securityToken.revisedLifetime =
+    tmpChannel->temporary = UA_FALSE;
+    tmpChannel->securityToken.createdAt = UA_DateTime_now();
+    tmpChannel->securityToken.revisedLifetime =
         (request->requestedLifetime > cm->server->config.maxSecurityTokenLifetime) ?
         cm->server->config.maxSecurityTokenLifetime : request->requestedLifetime;
-    if(entry->channel.securityToken.revisedLifetime == 0) /* lifetime 0 -> set the maximum possible */
-        entry->channel.securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
-    UA_ByteString_copy(&request->clientNonce, &entry->channel.clientNonce);
-    entry->channel.securityMode = request->securityMode;
-    UA_SecureChannel_generateNonce(&entry->channel.serverNonce, entry->channel.securityPolicy);
+    if(tmpChannel->securityToken.revisedLifetime == 0) // lifetime 0 -> set the maximum possible
+        tmpChannel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
+    UA_ByteString_copy(&request->clientNonce, &tmpChannel->clientNonce);
+    tmpChannel->securityMode = request->securityMode;
+    UA_SecureChannel_generateNonce(&tmpChannel->serverNonce, tmpChannel->securityPolicy);
 
-    // Generate initial set of keys
-    UA_SecureChannel_generateNewKeys(&entry->channel);
+    UA_SecureChannel_generateNewKeys(tmpChannel);
 
-    /* Set the response */
-    UA_ByteString_copy(&entry->channel.serverNonce, &response->serverNonce);
-    UA_ChannelSecurityToken_copy(&entry->channel.securityToken, &response->securityToken);
+    // Set the response
+    UA_ByteString_copy(&tmpChannel->serverNonce, &response->serverNonce);
+    UA_ChannelSecurityToken_copy(&tmpChannel->securityToken, &response->securityToken);
     response->responseHeader.timestamp = UA_DateTime_now();
 
-    /* Now overwrite the creation date with the internal monotonic clock */
-    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
+    // Now overwrite the creation date with the internal monotonic clock
+    tmpChannel->securityToken.createdAt = UA_DateTime_nowMonotonic();
 
-    /* Set all the pointers internally */
-    UA_Connection_attachSecureChannel(conn, &entry->channel);
-    LIST_INSERT_HEAD(&cm->channels, entry, pointers);
-    UA_atomic_add(&cm->currentChannelCount, 1);
     return UA_STATUSCODE_GOOD;
 }
 
