@@ -47,15 +47,13 @@ typedef struct
 typedef struct
 {
     /**
-     * Encrypt the given plaintext using an asymmetric algorithm and keys.
+     * \brief Encrypt the given data in place using an asymmetric algorithm and keys.
      *
-     * \param plainText the text to encrypt.
      * \param securityContext the SecurityContext which contains information about the keys needed to decrypt the message.
-     * \param cipher an output buffer to which the encrypted message is written.
+     * \param data the data that is encrypted. The encrypted data will overwrite the data that was supplied.
      */
-    UA_StatusCode (*const encrypt)(const UA_ByteString* const plainText,
-                                   const UA_Policy_SecurityContext* const securityContext,
-                                   UA_ByteString* const cipher);
+    UA_StatusCode (*const encrypt)(const UA_Policy_SecurityContext* const securityContext,
+                                   const UA_ByteString* const data);
     /**
      * Decrypts the given cyphertext using an asymmetric algorithm and key.
      *
@@ -77,9 +75,12 @@ typedef struct
                                           UA_ByteString* const thumbprint);
 
     /**
-     * Calculates the padding size for a message with the specified amount of bytes.
+     * \brief Calculates the padding size for a message with the specified amount of bytes.
      *
-     * \param bytesToWrite
+     * \param securityPolicy the securityPolicy the function is invoked on.
+     * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
+     * \param paddingSize out parameter. Will contain the paddingSize byte.
+     * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
      */
     UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
                                             const size_t bytesToWrite,
@@ -141,9 +142,12 @@ typedef struct
                                          UA_ByteString* const out);
 
     /**
-     * Calculates the padding size for a message with the specified amount of bytes.
+     * \brief Calculates the padding size for a message with the specified amount of bytes.
      *
-     * \param bytesToWrite
+     * \param securityPolicy the securityPolicy the function is invoked on.
+     * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
+     * \param paddingSize out parameter. Will contain the paddingSize byte.
+     * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
      */
     UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
                                             const size_t bytesToWrite,

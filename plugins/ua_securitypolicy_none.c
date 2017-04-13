@@ -26,10 +26,9 @@ static UA_StatusCode asym_sign_sp_none(const UA_ByteString* const message,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode asym_encrypt_sp_none(const UA_ByteString* const plainText,
-                                          const UA_Policy_SecurityContext* const securityContext,
-                                          UA_ByteString* const cipher) {
-    return UA_copy(plainText, cipher, &UA_TYPES[UA_TYPES_BYTESTRING]);
+static UA_StatusCode asym_encrypt_sp_none(const UA_Policy_SecurityContext* const securityContext,
+                                          const UA_ByteString* const data) {
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode asym_decrypt_sp_none(const UA_ByteString* const cipher,
