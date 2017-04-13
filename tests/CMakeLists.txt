@@ -153,3 +153,7 @@ add_test_valgrind(check_client ${CMAKE_CURRENT_BINARY_DIR}/check_client)
 add_executable(check_client_subscriptions check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(check_client_subscriptions ${CMAKE_CURRENT_BINARY_DIR}/check_client_subscriptions)
+
+add_executable(check_client_highlevel check_client_highlevel.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_client_highlevel ${LIBS})
+add_test_valgrind(check_client_highlevel ${CMAKE_CURRENT_BINARY_DIR}/check_client_highlevel)
