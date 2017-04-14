@@ -15,6 +15,11 @@
 static UA_StatusCode
 checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeClass,
                      const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+    /* Objects do not need a parent (e.g. mandatory/optional modellingrules) */
+    if(nodeClass == UA_NODECLASS_OBJECT && UA_NodeId_isNull(parentNodeId) &&
+       UA_NodeId_isNull(referenceTypeId))
+        return UA_STATUSCODE_GOOD;
+
     /* See if the parent exists */
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
@@ -89,8 +94,8 @@ typeCheckVariableNodeWithValue(UA_Server *server, UA_Session *session,
                                UA_DataValue *value) {
     /* Workaround: set a sane valueRank (the most permissive -2) */
     UA_Int32 valueRank = node->valueRank;
-    if(valueRank == 0 && value->hasValue && value->value.type &&
-       UA_Variant_isScalar(&value->value)) {
+    if(valueRank == 0 &&
+       (!value->hasValue || !value->value.type || UA_Variant_isScalar(&value->value))) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Use a default ValueRank of -2");
         valueRank = -2;
@@ -99,7 +104,7 @@ typeCheckVariableNodeWithValue(UA_Server *server, UA_Session *session,
             return retval;
     }
 
-    /* If no value is set, see if the vt provides one and copy that. THis needs to be done
+    /* If no value is set, see if the vt provides one and copy that. This needs to be done
      * before copying the datatype from the vt. Setting the datatype triggers the
      * typecheck. Here, we have only a typecheck when the datatype is already not null. */
     if(!value->hasValue || !value->value.type) {
@@ -246,6 +251,30 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+static UA_Boolean
+mandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
+    const UA_NodeId mandatoryId = UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY);
+    const UA_NodeId hasModellingRuleId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
+
+    /* Get the child */
+    const UA_Node *child = UA_NodeStore_get(server->nodestore, childNodeId);
+    if(!child)
+        return false;
+
+    /* Look for the reference making the child mandatory */
+    for(size_t i = 0; i < child->referencesSize; ++i) {
+        UA_ReferenceNode *ref = &child->references[i];
+        if(!UA_NodeId_equal(&hasModellingRuleId, &ref->referenceTypeId))
+            continue;
+        if(!UA_NodeId_equal(&mandatoryId, &ref->targetId.nodeId))
+            continue;
+        if(ref->isInverse)
+            continue;
+        return true;
+    }
+    return false;
+}
+
 static UA_StatusCode
 copyChildNodes(UA_Server *server, UA_Session *session, 
                const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, 
@@ -353,9 +382,18 @@ copyChildNodes(UA_Server *server, UA_Session *session,
   
     /* Copy all children from source to destination */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < br.referencesSize; ++i)
+    for(size_t i = 0; i < br.referencesSize; ++i) {
+        UA_ReferenceDescription *rd = &br.references[i];
+
+        /* Is the child mandatory? If not, skip */
+        if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
+            continue;
+
+        /* TODO: If a child is optional, check whether optional children that
+         * were manually added fit the constraints. */
         retval |= copyChildNode(server, session, destinationNodeId, 
-                                &br.references[i], instantiationCallback);
+                                rd, instantiationCallback);
+    }
     UA_BrowseResult_deleteMembers(&br);
     return retval;
 }
@@ -665,17 +703,13 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
     }
 
     /* Check parent reference. Objects may have no parent. */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(node->nodeClass != UA_NODECLASS_OBJECT || !UA_NodeId_isNull(parentNodeId) ||
-       !UA_NodeId_isNull(referenceTypeId)) {
-        retval = checkParentReference(server, session, node->nodeClass,
-                                      parentNodeId, referenceTypeId);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "AddNodes: The parent reference is invalid");
-            Service_DeleteNodes_single(server, &adminSession, nodeId, true);
-            return retval;
-        }
+    UA_StatusCode retval = checkParentReference(server, session, node->nodeClass,
+                                                parentNodeId, referenceTypeId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: The parent reference is invalid");
+        Service_DeleteNodes_single(server, &adminSession, nodeId, true);
+        return retval;
     }
 
     /* Instantiate node. We need the variable type for type checking (e.g. when
@@ -693,8 +727,7 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
     /* Type check node */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
-        retval = typeCheckVariableNode(server, session, (const UA_VariableNode*)node,
-                                       typeDefinition);
+        retval = typeCheckVariableNode(server, session, (const UA_VariableNode*)node, typeDefinition);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Type checking failed with error code %s",
@@ -1288,6 +1321,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* TODO: check if the information model consistency is violated */
+    /* TODO: Check if the node is a mandatory child of an object */
 
     /* Destroy an object before removing it */
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
