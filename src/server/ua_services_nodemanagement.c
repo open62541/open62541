@@ -334,9 +334,15 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
 
 static UA_Boolean
 mandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
-    const UA_Node *child = UA_NodeStore_get(server->nodestore, childNodeId);
     const UA_NodeId mandatoryId = UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY);
     const UA_NodeId hasModellingRuleId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
+
+    /* Get the child */
+    const UA_Node *child = UA_NodeStore_get(server->nodestore, childNodeId);
+    if(!child)
+        return false;
+
+    /* Look for the reference making the child mandatory */
     for(size_t i = 0; i < child->referencesSize; ++i) {
         UA_ReferenceNode *ref = &child->references[i];
         if(!UA_NodeId_equal(&hasModellingRuleId, &ref->referenceTypeId))
