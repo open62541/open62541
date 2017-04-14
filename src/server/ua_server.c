@@ -869,6 +869,8 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     UA_NodeStore_insert(server->nodestore, (UA_Node*)baseobjtype);
     UA_RCU_UNLOCK();
 
+    addObjectTypeNode(server, "ModellingRuleType", UA_NS0ID_MODELLINGRULETYPE,
+                      UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
                       UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_HASSUBTYPE);
     addObjectTypeNode(server, "ServerType", UA_NS0ID_SERVERTYPE,
@@ -953,6 +955,22 @@ UA_Server * UA_Server_new(const UA_ServerConfig config) {
     views->nodeId.identifier.numeric = UA_NS0ID_VIEWSFOLDER;
     addNodeInternalWithType(server, (UA_Node*)views, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
                             nodeIdOrganizes, nodeIdFolderType);
+
+    /*******************/
+    /* Modelling Rules */
+    /*******************/
+
+    UA_ObjectNode *mandatory = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)mandatory, "Mandatory");
+    mandatory->nodeId.identifier.numeric = UA_NS0ID_MODELLINGRULE_MANDATORY;
+    addNodeInternalWithType(server, (UA_Node*)mandatory, UA_NODEID_NULL,
+                            UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULETYPE));
+
+    UA_ObjectNode *optional = UA_NodeStore_newObjectNode();
+    copyNames((UA_Node*)optional, "Optional");
+    optional->nodeId.identifier.numeric = UA_NS0ID_MODELLINGRULE_OPTIONAL;
+    addNodeInternalWithType(server, (UA_Node*)optional, UA_NODEID_NULL,
+                            UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULETYPE));
 
 #else
     /* load the generated namespace externally */

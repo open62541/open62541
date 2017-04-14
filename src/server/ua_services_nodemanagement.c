@@ -15,6 +15,11 @@
 static UA_StatusCode
 checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeClass,
                      const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId) {
+    /* Objects do not need a parent (e.g. mandatory/optional modellingrules) */
+    if(nodeClass == UA_NODECLASS_OBJECT && UA_NodeId_isNull(parentNodeId) &&
+       UA_NodeId_isNull(referenceTypeId))
+        return UA_STATUSCODE_GOOD;
+
     /* See if the parent exists */
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
@@ -327,6 +332,24 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+static UA_Boolean
+mandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
+    const UA_Node *child = UA_NodeStore_get(server->nodestore, childNodeId);
+    const UA_NodeId mandatoryId = UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY);
+    const UA_NodeId hasModellingRuleId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
+    for(size_t i = 0; i < child->referencesSize; ++i) {
+        UA_ReferenceNode *ref = &child->references[i];
+        if(!UA_NodeId_equal(&hasModellingRuleId, &ref->referenceTypeId))
+            continue;
+        if(!UA_NodeId_equal(&mandatoryId, &ref->targetId.nodeId))
+            continue;
+        if(ref->isInverse)
+            continue;
+        return true;
+    }
+    return false;
+}
+
 /* Copy any children of Node sourceNodeId to another node destinationNodeId
  * Used at 2 places:
  *  (1) During instantiation, when any children of the Type are copied
@@ -360,7 +383,15 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
     UA_NodeId existingChild = UA_NODEID_NULL;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        // Check for deduplication
+
+        /* Is the child mandatory? If not, skip */
+        if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
+            continue;
+
+        /* TODO: If a child is optional, check whether optional children that
+         * were manually added fit the constraints. */
+
+        /* Check for deduplication */
         retval = instanceFindAggregateByBrowsename(server, session, destinationNodeId,
                                                    &rd->browseName, &existingChild);
         if(retval != UA_STATUSCODE_GOOD)
@@ -430,7 +461,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
                                                 parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Checking the reference to the parent returned"
+                            "AddNodes: Checking the reference to the parent returned "
                             "error code %s", UA_StatusCode_name(retval));
         UA_NodeStore_deleteNode(node);
         return retval;
@@ -456,18 +487,20 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
     }
 
     /* Hierarchical reference back to the parent */
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = node->nodeId;
-    item.referenceTypeId = *referenceTypeId;
-    item.isForward = false;
-    item.targetNodeId.nodeId = *parentNodeId;
-    retval = Service_AddReferences_single(server, session, &item);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Could not add the reference to the parent"
-                            "with error code %s", UA_StatusCode_name(retval));
-        goto remove_node;
+    if(!UA_NodeId_isNull(parentNodeId)) {
+        UA_AddReferencesItem item;
+        UA_AddReferencesItem_init(&item);
+        item.sourceNodeId = node->nodeId;
+        item.referenceTypeId = *referenceTypeId;
+        item.isForward = false;
+        item.targetNodeId.nodeId = *parentNodeId;
+        retval = Service_AddReferences_single(server, session, &item);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: Could not add the reference to the parent"
+                                "with error code %s", UA_StatusCode_name(retval));
+            goto remove_node;
+        }
     }
 
     /* Fall back to a default typedefinition for variables and objects */
@@ -1204,6 +1237,7 @@ Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* TODO: check if the information model consistency is violated */
+    /* TODO: Check if the node is a mandatory child of an object */
 
     /* Destroy an object before removing it */
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
