@@ -379,6 +379,34 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     return retval;
 }
 
+static UA_StatusCode
+processReadArrayDimensionsResult(UA_ReadResponse *response,
+                                 UA_Int32 **outArrayDimensions,
+                                 size_t *outArrayDimensionsSize) {
+    UA_StatusCode retval = response->responseHeader.serviceResult;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(response->resultsSize != 1)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    UA_DataValue *res = response->results;
+    if(res->hasStatus != UA_STATUSCODE_GOOD)
+        return res->hasStatus;
+
+    if(!res->hasValue ||
+       UA_Variant_isScalar(&res->value) ||
+       res->value.type != &UA_TYPES[UA_TYPES_INT32])
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+
+    /* Move results */
+    *outArrayDimensions = (UA_Int32 *)res->value.data;
+    *outArrayDimensionsSize = res->value.arrayLength;
+    res->value.data = NULL;
+    res->value.arrayLength = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        UA_Int32 **outArrayDimensions,
@@ -391,36 +419,10 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_ReadRequest_init(&request);
     request.nodesToRead = &item;
     request.nodesToReadSize = 1;
+
     UA_ReadResponse response = UA_Client_Service_read(client, request);
-    UA_StatusCode retval = response.responseHeader.serviceResult;
-    UA_DataValue *res = response.results;
-
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    if(res->hasStatus != UA_STATUSCODE_GOOD)
-        retval = res->hasStatus;
-    else if(!res->hasValue || UA_Variant_isScalar(&res->value))
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    if(UA_Variant_isScalar(&res->value) ||
-       res->value.type != &UA_TYPES[UA_TYPES_INT32]) {
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-        goto cleanup;
-    }
-
-    *outArrayDimensions = (UA_Int32 *)res->value.data;
-    *outArrayDimensionsSize = res->value.arrayLength;
-    UA_free(res->value.data);
-    res->value.data = NULL;
-    res->value.arrayLength = 0;
-
- cleanup:
+    UA_StatusCode retval = processReadArrayDimensionsResult(&response, outArrayDimensions,
+                                                            outArrayDimensionsSize);
     UA_ReadResponse_deleteMembers(&response);
     return retval;
-
 }
