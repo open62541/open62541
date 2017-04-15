@@ -51,35 +51,31 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
 UA_StatusCode
 UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-  UA_BrowseRequest bReq;
-  UA_BrowseRequest_init(&bReq);
-  bReq.requestedMaxReferencesPerNode = 0;
-  bReq.nodesToBrowse = UA_BrowseDescription_new();
-  bReq.nodesToBrowseSize = 1;
-  UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
-  bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
-  bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
+    UA_BrowseRequest bReq;
+    UA_BrowseRequest_init(&bReq);
+    bReq.requestedMaxReferencesPerNode = 0;
+    bReq.nodesToBrowse = UA_BrowseDescription_new();
+    bReq.nodesToBrowseSize = 1;
+    UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
+    bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_BOTH;
 
-  UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
+    UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
 
-  UA_StatusCode retval = UA_STATUSCODE_GOOD;
-  if(bResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-      for (size_t i = 0; i < bResp.resultsSize; ++i) {
-          for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
-              UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
-              retval |= callback(ref->nodeId.nodeId, !ref->isForward,
-                                 ref->referenceTypeId, handle);
-          }
-      }
-  }
-  else
-      retval = bResp.responseHeader.serviceResult;
+    UA_StatusCode retval = bResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < bResp.resultsSize; ++i) {
+            for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
+                UA_ReferenceDescription *ref = &bResp.results[i].references[j];
+                retval |= callback(ref->nodeId.nodeId, !ref->isForward,
+                                   ref->referenceTypeId, handle);
+            }
+        }
+    }
 
-
-  UA_BrowseRequest_deleteMembers(&bReq);
-  UA_BrowseResponse_deleteMembers(&bResp);
-
-  return retval;
+    UA_BrowseRequest_deleteMembers(&bReq);
+    UA_BrowseResponse_deleteMembers(&bResp);
+    return retval;
 }
 
 /*******************/
@@ -182,7 +178,6 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
                     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
                     const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
                     const UA_DataType *attributeType, UA_NodeId *outNewNodeId) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
     UA_AddNodesItem item;
@@ -199,20 +194,25 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
     request.nodesToAdd = &item;
     request.nodesToAddSize = 1;
     UA_AddNodesResponse response = UA_Client_Service_addNodes(client, request);
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        retval = response.responseHeader.serviceResult;
+
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_AddNodesResponse_deleteMembers(&response);
         return retval;
     }
+
     if(response.resultsSize != 1) {
         UA_AddNodesResponse_deleteMembers(&response);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(outNewNodeId && response.results[0].statusCode == UA_STATUSCODE_GOOD) {
+
+    /* Move the id of the created node */
+    retval = response.results[0].statusCode;
+    if(retval == UA_STATUSCODE_GOOD && outNewNodeId) {
         *outNewNodeId = response.results[0].addedNodeId;
         UA_NodeId_init(&response.results[0].addedNodeId);
     }
-    retval = response.results[0].statusCode;
+
     UA_AddNodesResponse_deleteMembers(&response);
     return retval;
 }
