@@ -437,6 +437,9 @@ void UA_Server_createNS0(UA_Server *server) {
     UA_Server_addObjectTypeNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                       UA_QUALIFIEDNAME(0, "BaseObjectType"), baseobj_attr, NULL);
 
+    addObjectTypeNode(server, "ModellingRuleType", UA_NS0ID_MODELLINGRULETYPE,
+                      false, UA_NS0ID_BASEOBJECTTYPE);
+
     addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
                       false, UA_NS0ID_BASEOBJECTTYPE);
 
@@ -492,6 +495,16 @@ void UA_Server_createNS0(UA_Server *server) {
 
     addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
+
+    /*******************/
+    /* Modelling Rules */
+    /*******************/
+
+    addObjectNode(server, "Mandatory", UA_NS0ID_MODELLINGRULE_MANDATORY,
+                  0, 0, UA_NS0ID_MODELLINGRULETYPE);
+
+    addObjectNode(server, "Optional", UA_NS0ID_MODELLINGRULE_OPTIONAL,
+                  0, 0, UA_NS0ID_MODELLINGRULETYPE);
 
     /*********************/
     /* The Server Object */

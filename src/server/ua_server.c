@@ -298,12 +298,10 @@ UA_Server_new(const UA_ServerConfig config) {
     /* Initialize the handling of repeated jobs */
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-        (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
-                             server);
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob, server);
 #else
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-        (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
-                             server);
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob, server);
 #endif
 
     /* Initialized the linked list for delayed callbacks */

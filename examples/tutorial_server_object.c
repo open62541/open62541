@@ -133,7 +133,7 @@ manuallyDefinePump(UA_Server *server) {
  *
  *    { rank=same
  *      point_1 [shape=point]
- *      node_1 [label=< <I>VariableNode</I><BR/>ManufacturerName >] }
+ *      node_1 [label=< <I>VariableNode</I><BR/>ManufacturerName<BR/>(mandatory) >] }
  *    node_root -> point_1 [arrowhead=none]
  *    point_1 -> node_1 [label="hasComponent"]
  *
@@ -151,7 +151,7 @@ manuallyDefinePump(UA_Server *server) {
  *
  *    {  rank=same
  *       point_4 [shape=point]
- *       node_4 [label=< <I>VariableNode</I><BR/>Status >] }
+ *       node_4 [label=< <I>VariableNode</I><BR/>Status<BR/>(mandatory) >] }
  *    node_3 -> point_4 [arrowhead=none]
  *    point_4 -> node_4 [label="hasComponent"]
  *
@@ -163,7 +163,9 @@ manuallyDefinePump(UA_Server *server) {
  *
  *    }
  *
- */
+ * Children that are marked mandatory are automatically instantiated together
+ * with the parent object. This is indicated by a `hasModellingRule` reference
+ * to an object that representes the `mandatory` modelling rule. */
 
 /* predefined identifier for later use */
 UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
@@ -184,10 +186,16 @@ defineObjectTypes(UA_Server *server) {
     UA_VariableAttributes mnAttr;
     UA_VariableAttributes_init(&mnAttr);
     mnAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ManufacturerName");
+    UA_NodeId manufacturerNameId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
-                              UA_NODEID_NULL, mnAttr, NULL, NULL);
+                              UA_NODEID_NULL, mnAttr, NULL, &manufacturerNameId);
+    /* Make the manufacturer name mandatory */
+    UA_Server_addReference(server, manufacturerNameId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+
 
     UA_VariableAttributes modelAttr;
     UA_VariableAttributes_init(&modelAttr);
@@ -210,10 +218,15 @@ defineObjectTypes(UA_Server *server) {
     UA_VariableAttributes_init(&statusAttr);
     statusAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Status");
     statusAttr.valueRank = -1;
+    UA_NodeId statusId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Status"),
-                              UA_NODEID_NULL, statusAttr, NULL, NULL);
+                              UA_NODEID_NULL, statusAttr, NULL, &statusId);
+    /* Make the status variable mandatory */
+    UA_Server_addReference(server, statusId,
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
 
     UA_VariableAttributes rpmAttr;
     UA_VariableAttributes_init(&rpmAttr);
@@ -227,10 +240,10 @@ defineObjectTypes(UA_Server *server) {
 
 /**
  * Now we add the derived ObjectType for the pump that inherits from the device
- * object type. The resulting object contains all four inherited child
- * variables. The object has a reference of type ``hasTypeDefinition`` to the
- * object type. Clients can browse this information at runtime and adjust
- * accordingly.
+ * object type. The resulting object contains all mandatory child variables.
+ * These are simply copied over from the object type. The object has a reference
+ * of type ``hasTypeDefinition`` to the object type, so that clients can detect
+ * the type-instance relation at runtime.
  */
 
 static void

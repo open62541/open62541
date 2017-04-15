@@ -273,7 +273,9 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 #else
     UA_StatusCode retval;
     do {
+        UA_RCU_LOCK();
         UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
+        UA_RCU_UNLOCK();
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
@@ -281,7 +283,9 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
             UA_NodeStore_deleteNode(copy);
             return retval;
         }
+        UA_RCU_LOCK();
         retval = UA_NodeStore_replace(server->nodestore, copy);
+        UA_RCU_UNLOCK();
     } while(retval != UA_STATUSCODE_GOOD);
     return UA_STATUSCODE_GOOD;
 #endif
