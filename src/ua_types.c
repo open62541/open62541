@@ -981,6 +981,8 @@ UA_delete(void *p, const UA_DataType *type) {
 
 void *
 UA_Array_new(size_t size, const UA_DataType *type) {
+    if(size > UA_INT32_MAX)
+        return NULL;
     if(size == 0)
         return UA_EMPTY_ARRAY_SENTINEL;
     return UA_calloc(size, type->memSize);
