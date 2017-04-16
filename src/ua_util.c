@@ -6,17 +6,17 @@
 #include "ua_connection.h"
 
 size_t
-UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
+UA_readNumber(u8 *buf, size_t buflen, u32 *number) {
     UA_assert(buf);
     UA_assert(number);
-    UA_UInt32 n = 0;
+    u32 n = 0;
     size_t progress = 0;
     /* read numbers until the end or a non-number character appears */
     while(progress < buflen) {
-        UA_Byte c = buf[progress];
+        u8 c = buf[progress];
         if(c < '0' || c > '9')
             break;
-        n = (n*10) + (UA_UInt32)(c-'0');
+        n = (n*10) + (u32)(c-'0');
         ++progress;
     }
     *number = n;
@@ -25,7 +25,7 @@ UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
-                    UA_UInt16 *outPort, UA_String *outPath) {
+                    u16 *outPort, UA_String *outPath) {
     /* Url must begin with "opc.tcp://" */
     if(endpointUrl->length < 11 || strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0)
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
@@ -59,14 +59,14 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     if(endpointUrl->data[pos] == ':') {
         if(++pos == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        UA_UInt32 largeNum;
+        u32 largeNum;
         size_t progress = UA_readNumber(&endpointUrl->data[pos], endpointUrl->length - pos, &largeNum);
         if(progress == 0 || largeNum > 65535)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         /* Test if the end of a valid port was reached */
         pos += progress;
         if(pos == endpointUrl->length || endpointUrl->data[pos] == '/')
-            *outPort = (UA_UInt16)largeNum;
+            *outPort = (u16)largeNum;
         if(pos == endpointUrl->length)
             return UA_STATUSCODE_GOOD;
     }
