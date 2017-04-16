@@ -109,7 +109,8 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
  * EndpointURL Helper
  * ^^^^^^^^^^^^^^^^^^ */
 /* Split the given endpoint url into hostname, port and path. All arguments must
- * be non-NULL.
+ * be non-NULL. EndpointUrls have the form "opc.tcp://hostname:port/path", port
+ * and path may be omitted (together with the prefix colon and slash).
  *
  * @param endpointUrl The endpoint URL.
  * @param outHostname Set to the parsed hostname. The string points into the
