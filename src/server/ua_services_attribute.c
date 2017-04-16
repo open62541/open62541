@@ -513,7 +513,7 @@ readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -588,7 +588,7 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
