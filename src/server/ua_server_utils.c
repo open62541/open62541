@@ -31,7 +31,7 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
 }
 
 UA_StatusCode
-parse_numericrange(const UA_String *str, UA_NumericRange *range) {
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
     size_t idx = 0;
     size_t dimensionsMax = 0;
     UA_NumericRangeDimension *dimensions = NULL;

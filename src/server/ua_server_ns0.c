@@ -519,8 +519,15 @@ void UA_Server_createNS0(UA_Server *server) {
     server_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Server");
     UA_Server_addObjectNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                   UA_QUALIFIEDNAME(0, "Server"), server_attr, NULL);
+
+    /* ServerArray */
+    UA_Variant_setArray(&var, &server->config.applicationDescription.applicationUri,
+                        1, &UA_TYPES[UA_TYPES_STRING]);
+    addVariableNode(server, UA_NS0ID_SERVER_SERVERARRAY, "ServerArray", 1,
+                    &UA_TYPES[UA_TYPES_STRING].typeId, &var,
+                    UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, UA_NS0ID_PROPERTYTYPE);
     
-    /* Server-NamespaceArray */
+    /* NamespaceArray */
     UA_VariableAttributes nsarray_attr;
     UA_VariableAttributes_init(&nsarray_attr);
     nsarray_attr.displayName = UA_LOCALIZEDTEXT("en_US", "NamespaceArray");
@@ -538,11 +545,6 @@ void UA_Server_createNS0(UA_Server *server) {
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), NULL);
-
-    UA_Variant_setArray(&var, &server->config.applicationDescription.applicationUri, 1,
-                        &UA_TYPES[UA_TYPES_STRING]);
-    addVariableNode(server, UA_NS0ID_SERVER_SERVERARRAY, "ServerArray", 1, &UA_TYPES[UA_TYPES_STRING].typeId,
-                    &var, UA_NS0ID_SERVER, UA_NS0ID_HASPROPERTY, UA_NS0ID_PROPERTYTYPE);
 
     /* Begin ServerCapabilities */
     UA_ObjectAttributes servercap_attr;

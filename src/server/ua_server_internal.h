@@ -223,7 +223,7 @@ UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
 /*********************/
 
 UA_StatusCode
-parse_numericrange(const UA_String *str, UA_NumericRange *range);
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
 
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 

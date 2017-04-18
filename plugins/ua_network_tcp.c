@@ -635,26 +635,26 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
     connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
     connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
 
-    char hostname[512];
+    UA_String endpointUrlString = UA_STRING((char*)(uintptr_t)endpointUrl);
+    UA_String hostnameString = UA_STRING_NULL;
+    UA_String pathString = UA_STRING_NULL;
     UA_UInt16 port = 0;
-    const char *path = NULL;
+    char hostname[512];
 
-    UA_StatusCode parse_retval = UA_EndpointUrl_split(endpointUrl, hostname, &port, &path);
-    if(parse_retval != UA_STATUSCODE_GOOD) {
-        if(parse_retval == UA_STATUSCODE_BADOUTOFRANGE)
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "Server url is invalid: %s", endpointUrl);
-        else if(parse_retval == UA_STATUSCODE_BADATTRIBUTEIDINVALID)
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                           "Server url does not begin with 'opc.tcp://'  '%s'", endpointUrl);
+    UA_StatusCode parse_retval =
+        UA_parseEndpointUrl(&endpointUrlString, &hostnameString, &port, &pathString);
+    if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "Server url is invalid: %s", endpointUrl);
         return connection;
     }
-
     if(port == 0) {
         port = 4840;
         UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
                     "No port defined, using standard port %d", port);
     }
+    memcpy(hostname, hostnameString.data, hostnameString.length);
+    hostname[hostnameString.length] = 0;
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
