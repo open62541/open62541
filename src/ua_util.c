@@ -31,54 +31,54 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
     /* Where does the hostname end? */
-    size_t pos = 10;
-    if(endpointUrl->data[pos] == '[') {
+    size_t curr = 10;
+    if(endpointUrl->data[curr] == '[') {
         /* IPv6: opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path */
-        for(; pos < endpointUrl->length; ++pos) {
-            if(endpointUrl->data[pos] == ']')
+        for(; curr < endpointUrl->length; ++curr) {
+            if(endpointUrl->data[curr] == ']')
                 break;
         }
-        if(pos == endpointUrl->length)
+        if(curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        pos++;
+        curr++;
     } else {
         /* IPv4 or hostname: opc.tcp://something.something:1234/path */
-        for(; pos < endpointUrl->length; ++pos) {
-            if(endpointUrl->data[pos] == ':' || endpointUrl->data[pos] == '/')
+        for(; curr < endpointUrl->length; ++curr) {
+            if(endpointUrl->data[curr] == ':' || endpointUrl->data[curr] == '/')
                 break;
         }
     }
 
     /* Set the hostname */
     outHostname->data = &endpointUrl->data[10];
-    outHostname->length = pos - 10;
-    if(pos == endpointUrl->length)
+    outHostname->length = curr - 10;
+    if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
     /* Set the port */
-    if(endpointUrl->data[pos] == ':') {
-        if(++pos == endpointUrl->length)
+    if(endpointUrl->data[curr] == ':') {
+        if(++curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         u32 largeNum;
-        size_t progress = UA_readNumber(&endpointUrl->data[pos], endpointUrl->length - pos, &largeNum);
+        size_t progress = UA_readNumber(&endpointUrl->data[curr], endpointUrl->length - curr, &largeNum);
         if(progress == 0 || largeNum > 65535)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
         /* Test if the end of a valid port was reached */
-        pos += progress;
-        if(pos == endpointUrl->length || endpointUrl->data[pos] == '/')
+        curr += progress;
+        if(curr == endpointUrl->length || endpointUrl->data[curr] == '/')
             *outPort = (u16)largeNum;
-        if(pos == endpointUrl->length)
+        if(curr == endpointUrl->length)
             return UA_STATUSCODE_GOOD;
     }
 
     /* Set the path */
-    UA_assert(pos < endpointUrl->length);
-    if(endpointUrl->data[pos] != '/')
+    UA_assert(curr < endpointUrl->length);
+    if(endpointUrl->data[curr] != '/')
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-    if(++pos == endpointUrl->length)
+    if(++curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    outPath->data = &endpointUrl->data[pos];
-    outPath->length = endpointUrl->length - pos;
+    outPath->data = &endpointUrl->data[curr];
+    outPath->length = endpointUrl->length - curr;
 
     /* Remove trailing slash from the path */
     if(endpointUrl->data[endpointUrl->length - 1] == '/')
