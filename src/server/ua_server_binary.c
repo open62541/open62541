@@ -320,8 +320,14 @@ processOPN(UA_Server *server,
     UA_ByteString_copy(&server->config.serverCertificate, &channel->localAsymAlgSettings.senderCertificate);
     UA_ByteString_copy(&channel->securityPolicy->policyUri, &channel->localAsymAlgSettings.securityPolicyUri);
 
-    UA_ByteString_allocBuffer(&channel->localAsymAlgSettings.receiverCertificateThumbprint,
-                              channel->securityPolicy->asymmetricModule.thumbprintLength);
+    retval |= UA_ByteString_allocBuffer(&channel->localAsymAlgSettings.receiverCertificateThumbprint,
+                                        channel->securityPolicy->asymmetricModule.thumbprintLength);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
+        connection->close(connection);
+        return;
+    }
 
     retval |= channel->securityPolicy->asymmetricModule.makeThumbprint(
         &channel->localAsymAlgSettings.senderCertificate,
