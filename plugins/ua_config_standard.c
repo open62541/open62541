@@ -6,10 +6,12 @@
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_types_generated.h"
+#include "ua_securitypolicy_none.h"
 
-/*******************************/
-/* Default Connection Settings */
-/*******************************/
+
+ /*******************************/
+ /* Default Connection Settings */
+ /*******************************/
 
 const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard =
 {
@@ -113,47 +115,47 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
         allowAddNode_default, allowAddReference_default,
         allowDeleteNode_default, allowDeleteReference_default},
 
-    /* Limits for SecureChannels */
-    40, /* .maxSecureChannels */
-    10 * 60 * 1000, /* .maxSecurityTokenLifetime, 10 minutes */
+        /* Limits for SecureChannels */
+        40, /* .maxSecureChannels */
+        10 * 60 * 1000, /* .maxSecurityTokenLifetime, 10 minutes */
 
-    /* Limits for Sessions */
-    100, /* .maxSessions */
-    60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
+        /* Limits for Sessions */
+        100, /* .maxSessions */
+        60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
 
-    /* Limits for Subscriptions */
-    {
-        100.0,
-        3600.0 * 1000.0
-    }, /* .publishingIntervalLimits */
+        /* Limits for Subscriptions */
+        {
+            100.0,
+            3600.0 * 1000.0
+        }, /* .publishingIntervalLimits */
 
-    {
-        3,
-        15000
-    }, /* .lifeTimeCountLimits */
+        {
+            3,
+            15000
+        }, /* .lifeTimeCountLimits */
 
-    {
-        1,
-        100
-    }, /* .keepAliveCountLimits */
+        {
+            1,
+            100
+        }, /* .keepAliveCountLimits */
 
-    1000, /* .maxNotificationsPerPublish */
-    0, /* .maxRetransmissionQueueSize, unlimited */
+        1000, /* .maxNotificationsPerPublish */
+        0, /* .maxRetransmissionQueueSize, unlimited */
 
-    /* Limits for MonitoredItems */
-    {
-        50.0,
-        24.0 * 3600.0 * 1000.0
-    }, /* .samplingIntervalLimits */
+        /* Limits for MonitoredItems */
+        {
+            50.0,
+            24.0 * 3600.0 * 1000.0
+        }, /* .samplingIntervalLimits */
 
-    {
-        1,
-        100
-    } /* .queueSizeLimits */
+        {
+            1,
+            100
+        } /* .queueSizeLimits */
 
-#ifdef UA_ENABLE_DISCOVERY
-    , 60 * 60 /* .discoveryCleanupTimeout */
-#endif
+    #ifdef UA_ENABLE_DISCOVERY
+        , 60 * 60 /* .discoveryCleanupTimeout */
+    #endif
 };
 
 /***************************/
@@ -192,3 +194,31 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
 };
 
 #endif
+
+UA_EXPORT UA_StatusCode UA_ServerConfig_standard_new(UA_ServerConfig *outConf) {
+
+    UA_ServerConfig conf = UA_ServerConfig_standard;
+
+    conf.securityPolicies.count = 1;
+
+    conf.securityPolicies.policies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy) * conf.securityPolicies.count);
+
+    memcpy(&conf.securityPolicies.policies[0], &UA_SecurityPolicy_None, sizeof(UA_SecurityPolicy));
+
+    for(size_t i = 0; i < conf.securityPolicies.count; ++i) {
+        UA_SecurityPolicy *const policy = &conf.securityPolicies.policies[i];
+        policy->init(policy, conf.logger);
+    }
+
+    *outConf = conf;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
+
+    for(size_t i = 0; i < config->securityPolicies.count; ++i) {
+        UA_SecurityPolicy *const policy = &config->securityPolicies.policies[i];
+
+        policy->deleteMembers(policy);
+    }
+}

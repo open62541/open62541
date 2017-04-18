@@ -15,6 +15,9 @@ extern "C" {
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
 
+UA_EXPORT UA_StatusCode UA_ServerConfig_standard_new(UA_ServerConfig *outConf);
+UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config);
+
 #ifdef __cplusplus
 }
 #endif

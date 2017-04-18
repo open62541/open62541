@@ -20,12 +20,8 @@
 #include "ua_types_encoding_binary.h"
 
 int main(int argc, char** argv) {
-    UA_ServerConfig config = UA_ServerConfig_standard;
-
-    // Set desired security policies
-    UA_SecurityPolicy securityPolicies[] = { UA_SecurityPolicy_None };
-    config.securityPolicies.count = sizeof(securityPolicies) / sizeof(securityPolicies[0]);
-    config.securityPolicies.policies = securityPolicies;
+    UA_ServerConfig config;
+    UA_ServerConfig_standard_new(&config);
 
     UA_Server *server = UA_Server_new(config);
 
@@ -93,5 +89,6 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
     UA_Server_delete(server);
+    UA_ServerConfig_standard_deleteMembers(&config);
     return (int)retval;
 }
