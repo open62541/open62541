@@ -134,7 +134,7 @@ static UA_StatusCode init_sp_none(UA_SecurityPolicy* const securityPolicy, UA_Lo
 
     securityPolicy->logger = logger;
 
-    return securityPolicy->context.init(&securityPolicy->context, logger);
+    return securityPolicy->context.init(&securityPolicy->context, securityPolicy, logger);
 }
 
 static UA_StatusCode makeChannelContext_sp_none(const UA_SecurityPolicy* const securityPolicy, UA_Channel_SecurityContext** const pp_SecurityContext) {
@@ -162,11 +162,15 @@ typedef struct {
     int callCounter;
 } UA_SP_NONE_PolicyContextData;
 
-static UA_StatusCode policyContext_init_sp_none(UA_Policy_SecurityContext* const securityContext,
+static UA_StatusCode policyContext_init_sp_none(UA_Policy_SecurityContext *const securityContext,
+                                                const UA_SecurityPolicy *const securityPolicy,
                                                 UA_Logger logger) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    securityContext->logger = logger;
+    securityContext->securityPolicy = securityPolicy;
 
     securityContext->data = (UA_SP_NONE_PolicyContextData*)UA_malloc(sizeof(UA_SP_NONE_PolicyContextData));
 
@@ -178,8 +182,6 @@ static UA_StatusCode policyContext_init_sp_none(UA_Policy_SecurityContext* const
     UA_SP_NONE_PolicyContextData* data = (UA_SP_NONE_PolicyContextData*)securityContext->data;
 
     data->callCounter = 0;
-
-    securityContext->logger = logger;
 
     UA_LOG_DEBUG(securityContext->logger, UA_LOGCATEGORY_SECURITYPOLICY, "Initialized PolicyContext for sp_none");
 
@@ -244,10 +246,15 @@ typedef struct {
     int callCounter;
 } UA_SP_NONE_ChannelContextData;
 
-static UA_StatusCode channelContext_init_sp_none(UA_Channel_SecurityContext* const securityContext, UA_Logger logger) {
+static UA_StatusCode channelContext_init_sp_none(UA_Channel_SecurityContext *const securityContext,
+                                                 const UA_SecurityPolicy *const securityPolicy,
+                                                 UA_Logger logger) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    securityContext->logger = logger;
+    securityContext->securityPolicy = securityPolicy;
 
     securityContext->data = (UA_SP_NONE_ChannelContextData*)UA_malloc(sizeof(UA_SP_NONE_ChannelContextData));
     if(securityContext->data == NULL) {

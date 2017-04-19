@@ -1005,7 +1005,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
             return retval;
         }
 
-        retval |= channelContext->init(channelContext, channel->logger);
+        retval |= channelContext->init(channelContext, securityPolicy, channel->logger);
         if(retval != UA_STATUSCODE_GOOD) {
             channelContext->deleteMembers(channelContext);
             UA_free(channelContext);

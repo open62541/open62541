@@ -29,24 +29,32 @@ typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 struct UA_Policy_SecurityContext;
 typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
 
+struct UA_SecurityPolicy;
+typedef struct UA_SecurityPolicy UA_SecurityPolicy;
+
 struct UA_Policy_SecurityContext
 {
-    UA_StatusCode (*const init)(UA_Policy_SecurityContext* const securityContext, UA_Logger logger);
+    UA_StatusCode (*const init)(UA_Policy_SecurityContext *const securityContext,
+                                const UA_SecurityPolicy *const securityPolicy,
+                                UA_Logger logger);
 
-    UA_StatusCode (*const deleteMembers)(UA_Policy_SecurityContext* const securityContext);
+    UA_StatusCode (*const deleteMembers)(UA_Policy_SecurityContext *const securityContext);
 
-    UA_StatusCode (*const setServerPrivateKey)(UA_Policy_SecurityContext* const securityContext,
-                                               const UA_ByteString* const privateKey);
+    UA_StatusCode (*const setServerPrivateKey)(UA_Policy_SecurityContext *const securityContext,
+                                               const UA_ByteString *const privateKey);
 
-    UA_StatusCode (*const setCertificateTrustList)(UA_Policy_SecurityContext* const securityContext,
-                                                   const UA_ByteString* const trustList);
+    UA_StatusCode (*const setCertificateTrustList)(UA_Policy_SecurityContext *const securityContext,
+                                                   const UA_ByteString *const trustList);
 
-    UA_StatusCode (*const setCertificateRevocationList)(UA_Policy_SecurityContext* const securityContext,
-                                                        const UA_ByteString* const revocationList);
+    UA_StatusCode (*const setCertificateRevocationList)(UA_Policy_SecurityContext *const securityContext,
+                                                        const UA_ByteString *const revocationList);
 
     void* data;
 
     UA_Logger logger;
+
+    /** Pointer to securityPolicy this context is linked with */
+    const UA_SecurityPolicy *securityPolicy;
 };
 
 struct UA_Channel_SecurityContext
@@ -57,9 +65,12 @@ struct UA_Channel_SecurityContext
      * 
      * \param securityContext the SecurityContext to initialize. Should always be the context this is called on.
      *                        example: myCtx.init(&myCtx);
+     * \param securityPolicy the security policy the context is linked to.
      * \param logger the logger this SecurityContext may use.
      */
-    UA_StatusCode (*const init)(UA_Channel_SecurityContext* const securityContext, UA_Logger logger);
+    UA_StatusCode (*const init)(UA_Channel_SecurityContext* const securityContext,
+                                const UA_SecurityPolicy *const securityPolicy,
+                                UA_Logger logger);
 
     /**
      * Deletes the members of the security context.
@@ -133,7 +144,10 @@ struct UA_Channel_SecurityContext
 
     UA_Logger logger;
 
-    void* data;
+    void *data;
+
+    /** Pointer to securityPolicy this context is linked with */
+    const UA_SecurityPolicy *securityPolicy;
 };
 
 #ifdef __cplusplus
