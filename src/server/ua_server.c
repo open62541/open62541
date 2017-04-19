@@ -222,7 +222,7 @@ addEndpointDefinitions(UA_Server* server) {
     server->endpointDescriptionsSize = server->config.networkLayersSize * server->config.securityPolicies.count;
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         for(size_t j = 0; j < server->config.securityPolicies.count; ++j) {
-            UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
+            UA_EndpointDescription *endpoint = &server->endpointDescriptions[i * (server->config.securityPolicies.count) + j];
 
             const UA_ByteString policyUriNone = UA_SECURITY_POLICY_NONE_URI;
             if(UA_ByteString_equal(&server->config.securityPolicies.policies[j].policyUri, &policyUriNone)) {
