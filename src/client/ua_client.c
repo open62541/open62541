@@ -355,8 +355,8 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     if(response.responseHeader.serviceResult) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with statuscode 0x%08x",
-                     response.responseHeader.serviceResult);
+                     "ActivateSession failed with error code %s",
+                     UA_StatusCode_name(response.responseHeader.serviceResult));
     }
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
@@ -384,7 +384,8 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = response.responseHeader.serviceResult;
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with statuscode 0x%08x", retval);
+                     "GetEndpointRequest failed with error code %s",
+                     UA_StatusCode_name(retval));
         UA_GetEndpointsResponse_deleteMembers(&response);
         return retval;
     }
@@ -700,7 +701,8 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
     if(messageType == UA_MESSAGETYPE_ERR) {
         UA_TcpErrorMessage *msg = (UA_TcpErrorMessage*)message;
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Server replied with an error message: %s %.*s", UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
+                     "Server replied with an error message: %s %.*s",
+                     UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
         retval = msg->error;
         goto finish;
     } else if(messageType != UA_MESSAGETYPE_MSG) {
