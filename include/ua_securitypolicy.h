@@ -60,8 +60,8 @@ typedef struct
      * \param securityContext the SecurityContext which contains information about the keys needed to decrypt the message.
      * \param data the data to decrypt. The decryption is done in place.
      */
-    UA_StatusCode (*const decrypt)(const UA_Policy_SecurityContext* const securityContext,
-                                   UA_ByteString* const data);
+    UA_StatusCode (*const decrypt)(const UA_Policy_SecurityContext *const securityContext,
+                                   UA_ByteString *const data);
     /**
      * Generates a thumprint for the specified certificate using a SHA1 digest
      *
@@ -69,8 +69,8 @@ typedef struct
      * \param thumbprint an output buffer for the resulting thumbprint. Always
                          has the length specified in the thumprintLenght in the asymmetricModule.
      */
-    UA_StatusCode (*const makeThumbprint)(const UA_ByteString* const certificate,
-                                          UA_ByteString* const thumbprint);
+    UA_StatusCode (*const makeThumbprint)(const UA_ByteString *const certificate,
+                                          UA_ByteString *const thumbprint);
 
     /**
      * \brief Calculates the padding size for a message with the specified amount of bytes.
@@ -79,13 +79,17 @@ typedef struct
      * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
      * \param paddingSize out parameter. Will contain the paddingSize byte.
      * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
+     * \return the total padding size consiting of high and low byte.
      */
-    UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
-                                            const size_t bytesToWrite,
-                                            UA_Byte* const paddingSize,
-                                            UA_Byte* const extraPaddingSize);
+    UA_UInt16 (*const calculatePadding)(const UA_SecurityPolicy *const securityPolicy,
+                                        const size_t bytesToWrite,
+                                        UA_Byte *const paddingSize,
+                                        UA_Byte *const extraPaddingSize);
 
+    const size_t minAsymmetricKeyLength;
+    const size_t maxAsymmetricKeyLength;
     const size_t thumbprintLength;
+
     const UA_SecurityPolicySigningModule signingModule;
 } UA_SecurityPolicyAsymmetricModule;
 
@@ -144,11 +148,12 @@ typedef struct
      * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
      * \param paddingSize out parameter. Will contain the paddingSize byte.
      * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
+     * \return the total padding size consisting of high and low bytes.
      */
-    UA_StatusCode (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
-                                            const size_t bytesToWrite,
-                                            UA_Byte* const paddingSize,
-                                            UA_Byte* const extraPaddingSize);
+    UA_UInt16 (*const calculatePadding)(const UA_SecurityPolicy* const securityPolicy,
+                                        const size_t bytesToWrite,
+                                        UA_Byte* const paddingSize,
+                                        UA_Byte* const extraPaddingSize);
 
     const UA_SecurityPolicySigningModule signingModule;
 
@@ -165,13 +170,13 @@ struct UA_SecurityPolicy {
     const UA_ByteString policyUri;
 
     /**
-     * Verifies the certificate using the trust list and revocation list in the security configuration
+     * \brief Verifies the certificate using the trust list and revocation list in the policy context
      *
-     * \param certificate the certificate to verify.
-     * \param securityConfig the security configuration which contains the trust list and the revocation list.
+     * \param policyContext the policy context that contains the revocation and trust lists.
+     * \param channelContext the channel context that contains the already parsed certificate.
      */
-    UA_StatusCode (*const verifyCertificate)(const UA_ByteString* const certificate,
-                                             const UA_Policy_SecurityContext* const context);
+    UA_StatusCode (*const verifyCertificate)(const UA_Policy_SecurityContext *const policyContext,
+                                             const UA_Channel_SecurityContext *const channelContext);
 
     const UA_SecurityPolicyAsymmetricModule asymmetricModule;
     const UA_SecurityPolicySymmetricModule symmetricModule;

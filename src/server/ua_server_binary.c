@@ -624,9 +624,11 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                                     (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage,
                                                     server);
             if(retval != UA_STATUSCODE_GOOD) {
+                // TODO: Maybe send error message?
                 UA_SecureChannelManager_close_temporary(&server->secureChannelManager, tmpChannel);
+                connection->close(connection);
                 UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                             "Procesing chunks resulted in error code %s", UA_StatusCode_name(retval));
+                             "Processing chunks resulted in error code %s (0x%08x)", UA_StatusCode_name(retval), retval);
             }
             break;
         }

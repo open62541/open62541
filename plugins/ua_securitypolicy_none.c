@@ -44,13 +44,16 @@ static UA_StatusCode asym_makeThumbprint_sp_none(const UA_ByteString* const cert
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode asym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
-                                                   const size_t bytesToWrite,
-                                                   UA_Byte* const paddingSize,
-                                                   UA_Byte* const extraPaddingSize) {
+static UA_UInt16 asym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
+                                               const size_t bytesToWrite,
+                                               UA_Byte* const paddingSize,
+                                               UA_Byte* const extraPaddingSize) {
+    if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
+        return 0;
+
     *paddingSize = 0;
     *extraPaddingSize = 0;
-    return UA_STATUSCODE_GOOD;
+    return 0;
 }
 
 /////////////////////////////////////
@@ -97,13 +100,16 @@ static UA_StatusCode sym_generateNonce_sp_none(const UA_SecurityPolicy* const se
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode sym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
-                                                  const size_t bytesToWrite,
-                                                  UA_Byte* const paddingSize,
-                                                  UA_Byte* const extraPaddingSize) {
+static UA_UInt16 sym_calculatePadding_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                              const size_t bytesToWrite,
+                                              UA_Byte *const paddingSize,
+                                              UA_Byte *const extraPaddingSize) {
+    if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
+        return 0;
+
     *paddingSize = 0;
     *extraPaddingSize = 0;
-    return UA_STATUSCODE_GOOD;
+    return 0;
 }
 
 ////////////////////////////////////
@@ -113,8 +119,10 @@ static UA_StatusCode sym_calculatePadding_sp_none(const UA_SecurityPolicy* const
 ///////////////////////////////
 // Security policy functions //
 ///////////////////////////////
-static UA_StatusCode verifyCertificate_sp_none(const UA_ByteString* const certificate,
-                                               const UA_Policy_SecurityContext* const context) {
+static UA_StatusCode verifyCertificate_sp_none(const UA_Policy_SecurityContext* const policyContext,
+                                               const UA_Channel_SecurityContext *const channelContext) {
+    if(policyContext == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -357,8 +365,8 @@ static UA_StatusCode channelContext_setRemoteSigningKey_sp_none(UA_Channel_Secur
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                        const UA_ByteString* const iv) {
+static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityContext *const securityContext,
+                                                        const UA_ByteString *const iv) {
     if(securityContext == NULL || iv == NULL) {
         fprintf(stderr, "Error while calling channelContext_setRemoteIv_sp_none. Null pointer passed.");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -371,9 +379,9 @@ static UA_StatusCode channelContext_setRemoteIv_sp_none(UA_Channel_SecurityConte
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode channelContext_parseClientCertificate_sp_none(UA_Channel_SecurityContext* const securityContext,
-                                                                   const UA_ByteString* const clientCertificate) {
-    if(securityContext == NULL || clientCertificate == NULL) {
+static UA_StatusCode channelContext_parseRemoteCertificate_sp_none(UA_Channel_SecurityContext *const securityContext,
+                                                                   const UA_ByteString *const remoteCertificate) {
+    if(securityContext == NULL || remoteCertificate == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -397,6 +405,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         asym_makeThumbprint_sp_none, // .makeThumbprint
         asym_calculatePadding_sp_none, // .calculatePadding
 
+        0, // .minAsymmetricKeyLength
+        0, // .maxAsymmetricKeyLength
         20, // .thumbprintLength
 
         /* Asymmetric signing module */
@@ -454,7 +464,7 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         channelContext_setRemoteSigningKey_sp_none, // .setRemoteSigningKey
         channelContext_setRemoteIv_sp_none, // .setRemoteIv
 
-        channelContext_parseClientCertificate_sp_none, // .parseClientCertificate
+        channelContext_parseRemoteCertificate_sp_none, // .parseRemoteCertificate
 
         NULL, // .logger
         NULL // .data

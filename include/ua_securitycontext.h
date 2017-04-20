@@ -121,8 +121,8 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param key the remote signing key to store in the context.
      */
-    UA_StatusCode (*const setRemoteSigningKey)(UA_Channel_SecurityContext* const securityContext,
-                                               const UA_ByteString* const key);
+    UA_StatusCode (*const setRemoteSigningKey)(UA_Channel_SecurityContext *const securityContext,
+                                               const UA_ByteString *const key);
 
     /**
     * Sets the remote initialization vector in the supplied context.
@@ -130,17 +130,17 @@ struct UA_Channel_SecurityContext
     * \param securityContext the context to work on. Should always be the context this is called on.
     * \param iv the remote initialization vector to store in the context.
     */
-    UA_StatusCode (*const setRemoteIv)(UA_Channel_SecurityContext* const securityContext,
-                                       const UA_ByteString* const iv);
+    UA_StatusCode (*const setRemoteIv)(UA_Channel_SecurityContext *const securityContext,
+                                       const UA_ByteString *const iv);
     /**
-     * Parses a given certificate to extract the client public key from it.
+     * Parses a given certificate to extract the remote public key from it.
      * Fails, if the certificate is invalid or expired.
      *
      * \param securityContext the context to work on. Should always be the context this is called on.
-     * \param clientPublicKey the client certificate to extract the client public key from.
+     * \param remoteCertificate the remote certificate to extract the client public key from.
      */
-    UA_StatusCode (*const parseClientCertificate)(UA_Channel_SecurityContext* const securityContext,
-                                                  const UA_ByteString* const clientCertificate);
+    UA_StatusCode (*const parseRemoteCertificate)(UA_Channel_SecurityContext *const securityContext,
+                                                  const UA_ByteString *const remoteCertificate);
 
     UA_Logger logger;
 
