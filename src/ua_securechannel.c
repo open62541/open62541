@@ -1063,10 +1063,23 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
     // calculate body size
     size_t signatureSize = securityPolicy->asymmetricModule.signingModule.signatureSize;
-    // TODO: padding field is not present, when dealing with securitymode none messages
-    // TODO: How to get securitymode? or is securitymode none only possible when security policy is none?
-    //UA_Byte paddingSize = chunk->data[chunkSize - signatureSize - 1]; // TODO: Need to differentiate if extra padding byte was used
-    UA_Byte paddingSize = 0;
+
+    UA_UInt16 paddingSize = 0;
+    if(UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI) != 0) {
+        UA_Byte lastPaddingByte = chunk->data[chunkSize - signatureSize - 1];
+        if(paddingSize >= 1) {
+            UA_Byte secondToLastPaddingByte = chunk->data[chunkSize - signatureSize - 2];
+            // extra padding byte!
+            if(secondToLastPaddingByte != lastPaddingByte) {
+                paddingSize = (lastPaddingByte << 8) | secondToLastPaddingByte;
+                paddingSize += 2; // paddingSize byte and extraPaddingSize byte
+            }
+            else {
+                paddingSize = lastPaddingByte;
+                paddingSize++; // paddingSize byte
+            }
+        }
+    }
     *bodySize = chunkSize - *processedBytes - signatureSize - paddingSize;
     if(*bodySize > chunkSize) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
