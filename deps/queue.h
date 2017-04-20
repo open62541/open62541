@@ -98,7 +98,12 @@ struct name {								\
  
 #define	SLIST_HEAD_INITIALIZER(head)					\
 	{ NULL }
- 
+
+/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+# ifdef SLIST_ENTRY
+#  undef SLIST_ENTRY
+# endif
+
 #define SLIST_ENTRY(type)						\
 struct {								\
 	struct type *sle_next;	/* next element */			\
