@@ -5,6 +5,10 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+static UA_StatusCode
+addReference(UA_Server *server, UA_Session *session,
+             const UA_AddReferencesItem *item);
+
 /**********************/
 /* Consistency Checks */
 /**********************/
@@ -293,7 +297,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     addref.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
     addref.isForward = true;
     addref.targetNodeId.nodeId = *typeId;
-    return Service_AddReferences_single(server, session, &addref);
+    return addReference(server, session, &addref);
 }
 
 /* Search for an instance of "browseName" in node searchInstance
@@ -414,7 +418,7 @@ copyChildNodesToNode(UA_Server* server, UA_Session* session,
                 newItem.isForward = true;
                 newItem.targetNodeId = rd->nodeId;
                 newItem.targetNodeClass = UA_NODECLASS_METHOD;
-                retval = Service_AddReferences_single(server, session, &newItem);
+                retval = addReference(server, session, &newItem);
             } else if(rd->nodeClass == UA_NODECLASS_VARIABLE)
                 retval = copyExistingVariable(server, session, &rd->nodeId.nodeId,
                                               &rd->referenceTypeId, destinationNodeId,
@@ -500,7 +504,7 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         item.referenceTypeId = *referenceTypeId;
         item.isForward = false;
         item.targetNodeId.nodeId = *parentNodeId;
-        retval = Service_AddReferences_single(server, session, &item);
+        retval = addReference(server, session, &item);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Could not add the reference to the parent"
@@ -1070,9 +1074,9 @@ addOneWayReference(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-UA_StatusCode
-Service_AddReferences_single(UA_Server *server, UA_Session *session,
-                             const UA_AddReferencesItem *item) {
+static UA_StatusCode
+addReference(UA_Server *server, UA_Session *session,
+             const UA_AddReferencesItem *item) {
     /* Currently no expandednodeids are allowed */
     if(item->targetServerUri.length > 0)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1166,7 +1170,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_EXTERNAL_NAMESPACES
     for(size_t i = 0; i < response->resultsSize; ++i)
         response->results[i] =
-            Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
+            addReference(server, session, &request->referencesToAdd[i]);
 #else
     size_t size = request->referencesToAddSize;
 # ifdef NO_ALLOCA
@@ -1197,7 +1201,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < response->resultsSize; ++i) {
         if(!isExternal[i])
             response->results[i] =
-                Service_AddReferences_single(server, session, &request->referencesToAdd[i]);
+                addReference(server, session, &request->referencesToAdd[i]);
     }
 #endif
 }
@@ -1213,7 +1217,7 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
     item.isForward = isForward;
     item.targetNodeId = targetId;
     UA_RCU_LOCK();
-    UA_StatusCode retval = Service_AddReferences_single(server, &adminSession, &item);
+    UA_StatusCode retval = addReference(server, &adminSession, &item);
     UA_RCU_UNLOCK();
     return retval;
 }
