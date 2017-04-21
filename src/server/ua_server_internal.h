@@ -228,10 +228,6 @@ UA_StatusCode
 Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
                            const UA_NodeId *nodeId, UA_Boolean deleteReferences);
 
-UA_StatusCode
-Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
-                                const UA_DeleteReferencesItem *item);
-
 void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp,
                            const UA_BrowseDescription *descr,

@@ -5,9 +5,17 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+/************************/
+/* Forward Declarations */
+/************************/
+
 static UA_StatusCode
 addReference(UA_Server *server, UA_Session *session,
              const UA_AddReferencesItem *item);
+
+static UA_StatusCode
+deleteReference(UA_Server *server, UA_Session *session,
+                const UA_DeleteReferencesItem *item);
 
 /**********************/
 /* Consistency Checks */
@@ -1235,7 +1243,7 @@ removeReferences(UA_Server *server, UA_Session *session, const UA_Node *node) {
         item.isForward = node->references[i].isInverse;
         item.sourceNodeId = node->references[i].targetId.nodeId;
         item.referenceTypeId = node->references[i].referenceTypeId;
-        Service_DeleteReferences_single(server, session, &item);
+        deleteReference(server, session, &item);
     }
 }
 
@@ -1333,9 +1341,9 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
     return UA_STATUSCODE_GOOD;;
 }
 
-UA_StatusCode
-Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
-                                const UA_DeleteReferencesItem *item) {
+static UA_StatusCode
+deleteReference(UA_Server *server, UA_Session *session,
+                const UA_DeleteReferencesItem *item) {
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                               (UA_EditNodeCallback)deleteOneWayReference, item);
     if(retval != UA_STATUSCODE_GOOD)
@@ -1372,7 +1380,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->referencesToDeleteSize; ++i)
         response->results[i] =
-            Service_DeleteReferences_single(server, session, &request->referencesToDelete[i]);
+            deleteReference(server, session, &request->referencesToDelete[i]);
 }
 
 UA_StatusCode
@@ -1387,7 +1395,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
     item.targetNodeId = targetNodeId;
     item.deleteBidirectional = deleteBidirectional;
     UA_RCU_LOCK();
-    UA_StatusCode retval = Service_DeleteReferences_single(server, &adminSession, &item);
+    UA_StatusCode retval = deleteReference(server, &adminSession, &item);
     UA_RCU_UNLOCK();
     return retval;
 }
