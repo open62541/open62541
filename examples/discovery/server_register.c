@@ -75,10 +75,13 @@ int main(int argc, char **argv) {
     attr.description = UA_LOCALIZEDTEXT("en_US", "the answer");
     attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
 
-    UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
+    UA_Server_addVariableNode_begin(server, myIntegerNodeId,
+                                    myIntegerName, attr, NULL);
+    UA_Server_setVariableNode_dataSource(server, myIntegerNodeId, dateDataSource);
+    UA_Server_addNode_finish(server, myIntegerNodeId,
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                             UA_NODEID_NULL, NULL);
 
 
     // periodic server register after 10 Minutes, delay first register for 500ms
