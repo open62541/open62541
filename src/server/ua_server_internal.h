@@ -224,10 +224,6 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
 /* Some services take an array of "independent" requests. The single-services
    are stored here to keep ua_services.h clean for documentation purposes. */
 
-UA_StatusCode
-Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
-                           const UA_NodeId *nodeId, UA_Boolean deleteReferences);
-
 void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp,
                            const UA_BrowseDescription *descr,
