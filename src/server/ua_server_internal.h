@@ -32,13 +32,13 @@
 #  define UA_ASSERT_RCU_UNLOCKED()
 # else
    extern UA_THREAD_LOCAL bool rcu_locked;
-#   define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
-#   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
-#   define UA_RCU_LOCK() do {                     \
+#  define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
+#  define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
+#  define UA_RCU_LOCK() do {                      \
         UA_ASSERT_RCU_UNLOCKED();                 \
         rcu_locked = true;                        \
         rcu_read_lock(); } while(0)
-#   define UA_RCU_UNLOCK() do {                   \
+#  define UA_RCU_UNLOCK() do {                    \
         UA_ASSERT_RCU_LOCKED();                   \
         rcu_locked = false;                       \
         rcu_read_unlock(); } while(0)
