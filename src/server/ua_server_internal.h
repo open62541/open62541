@@ -126,12 +126,15 @@ struct UA_Server {
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
-
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
    the nodestore. */
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
+
+/********************/
+/* Event Processing */
+/********************/
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                     const UA_ByteString *message);

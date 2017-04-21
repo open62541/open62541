@@ -9,7 +9,6 @@
 extern "C" {
 #endif
 
-#include "ua_types_generated.h"
 #include "ua_nodes.h"
 
 /**
