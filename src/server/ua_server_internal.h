@@ -229,11 +229,6 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
-void
-Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
-                                             const UA_BrowsePath *path,
-                                             UA_BrowsePathResult *result);
-
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v);
