@@ -207,7 +207,7 @@ UA_EXPORT UA_StatusCode UA_ServerConfig_standard_new(UA_ServerConfig *outConf) {
 
     for(size_t i = 0; i < conf.securityPolicies.count; ++i) {
         UA_SecurityPolicy *const policy = &conf.securityPolicies.policies[i];
-        policy->init(policy, conf.logger);
+        policy->init(policy, conf.logger, NULL);
     }
 
     *outConf = conf;
