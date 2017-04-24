@@ -135,14 +135,14 @@ static UA_StatusCode deleteMembers_sp_none(UA_SecurityPolicy* const securityPoli
 }
 
 
-static UA_StatusCode init_sp_none(UA_SecurityPolicy* const securityPolicy, UA_Logger logger) {
+static UA_StatusCode init_sp_none(UA_SecurityPolicy* const securityPolicy, UA_Logger logger, void *const initData) {
     if(securityPolicy == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     securityPolicy->logger = logger;
 
-    return securityPolicy->context.init(&securityPolicy->context, securityPolicy, logger);
+    return securityPolicy->context.init(&securityPolicy->context, securityPolicy, logger, initData);
 }
 
 static UA_StatusCode makeChannelContext_sp_none(const UA_SecurityPolicy* const securityPolicy, UA_Channel_SecurityContext** const pp_SecurityContext) {
@@ -172,7 +172,8 @@ typedef struct {
 
 static UA_StatusCode policyContext_init_sp_none(UA_Policy_SecurityContext *const securityContext,
                                                 const UA_SecurityPolicy *const securityPolicy,
-                                                UA_Logger logger) {
+                                                UA_Logger logger,
+                                                void *const initData) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -388,6 +389,10 @@ static UA_StatusCode channelContext_parseRemoteCertificate_sp_none(UA_Channel_Se
     return UA_STATUSCODE_GOOD;
 }
 
+static size_t channelContext_getSignatureSize_sp_none(const UA_Channel_SecurityContext *const securityContext) {
+    return 0;
+}
+
 //////////////////////////////////
 // End ChannelContext functions //
 //////////////////////////////////
@@ -465,6 +470,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         channelContext_setRemoteIv_sp_none, // .setRemoteIv
 
         channelContext_parseRemoteCertificate_sp_none, // .parseRemoteCertificate
+
+        channelContext_getSignatureSize_sp_none,
 
         NULL, // .logger
         NULL // .data

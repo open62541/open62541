@@ -202,9 +202,11 @@ struct UA_SecurityPolicy {
      *
      * \param securityPolicy
      * \param logger
-     * \param securityContext
+     * \param initData pointer to memory area where data required for initialization is stored.
+     *                 Usually the policy will supply a struct, which can be filled and passed.
+     *                 The securityPolicy may acceppt NULL and use default. This depends on implementation.
      */
-    UA_StatusCode (*const init)(UA_SecurityPolicy* const securityPolicy, UA_Logger logger);
+    UA_StatusCode (*const init)(UA_SecurityPolicy* const securityPolicy, UA_Logger logger, void *const initData);
 
     /* The channelContext prototype. This is copied by makeChannelContext */
     const UA_Channel_SecurityContext channelContextPrototype;

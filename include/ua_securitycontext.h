@@ -36,7 +36,8 @@ struct UA_Policy_SecurityContext
 {
     UA_StatusCode (*const init)(UA_Policy_SecurityContext *const securityContext,
                                 const UA_SecurityPolicy *const securityPolicy,
-                                UA_Logger logger);
+                                UA_Logger logger,
+                                void *const initData);
 
     UA_StatusCode (*const deleteMembers)(UA_Policy_SecurityContext *const securityContext);
 
@@ -141,6 +142,11 @@ struct UA_Channel_SecurityContext
      */
     UA_StatusCode (*const parseRemoteCertificate)(UA_Channel_SecurityContext *const securityContext,
                                                   const UA_ByteString *const remoteCertificate);
+
+    /**
+     * Gets the signature size. This will return 0 as long as no remote certificate was set.
+     */
+    size_t (*const getSignatureSize)(const UA_Channel_SecurityContext *const securityContext);
 
     UA_Logger logger;
 

@@ -96,7 +96,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel* channel) {
  * \param securityPolicy the SecurityPolicy to use.
  */
 UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString* const nonce, const UA_SecurityPolicy* const securityPolicy) {
-    nonce->data = (UA_Byte *)UA_malloc(securityPolicy->symmetricModule.encryptingKeyLength);
+    UA_ByteString_deleteMembers(nonce);
+    UA_ByteString_allocBuffer(nonce, securityPolicy->symmetricModule.encryptingKeyLength);
     if(!nonce->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -1018,7 +1019,9 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
             chunk->data + messageAndSecurityHeaderOffset
         };
 
+        size_t sizeBeforeDecryption = cipherText.length;
         retval |= securityPolicy->asymmetricModule.decrypt(&securityPolicy->context, &cipherText);
+        chunkSize -= (sizeBeforeDecryption - cipherText.length);
 
         if(retval != UA_STATUSCODE_GOOD) {
             return retval;
@@ -1029,11 +1032,11 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     {
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
-            chunkSize - securityPolicy->asymmetricModule.signingModule.signatureSize,
+            chunkSize - channel->securityContext->getSignatureSize(channel->securityContext),
             chunk->data
         };
         const UA_ByteString signature = {
-            securityPolicy->asymmetricModule.signingModule.signatureSize,
+            channel->securityContext->getSignatureSize(channel->securityContext),
             chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
@@ -1062,12 +1065,12 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
     // calculate body size
-    size_t signatureSize = securityPolicy->asymmetricModule.signingModule.signatureSize;
+    size_t signatureSize = channel->securityContext->getSignatureSize(channel->securityContext);
 
     UA_UInt16 paddingSize = 0;
-    if(UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI) != 0) {
+    if(!UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
         UA_Byte lastPaddingByte = chunk->data[chunkSize - signatureSize - 1];
-        if(paddingSize >= 1) {
+        if(lastPaddingByte >= 1) {
             UA_Byte secondToLastPaddingByte = chunk->data[chunkSize - signatureSize - 2];
             // extra padding byte!
             if(secondToLastPaddingByte != lastPaddingByte) {
@@ -1171,6 +1174,8 @@ UA_SecureChannel_processChunk(UA_SecureChannel* const channel,
     case UA_MESSAGETYPE_OPN:
     {
         retval |= UA_SecureChannel_processAsymmetricOPNChunk(chunk, channel, &messageHeader, &processedChunkBytes, &requestId, &bodySize);
+        // TODO: maybe we want to introduce a random timeout here if an error concerning security was encountered,
+        // TODO: so that attackers cannot guess, which part failed.
         break;
     }
     default:
