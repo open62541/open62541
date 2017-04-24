@@ -50,7 +50,13 @@ extern "C" {
 #endif
 
 #include <stddef.h>
-#include "ms_stdint.h" /* Includes stdint.h or workaround for older Visual Studios */
+
+/* Include stdint.h or workaround for older Visual Studios */
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+# include <stdint.h>
+#else
+# include "ms_stdint.h"
+#endif
 
 #ifndef __cplusplus
 # include <stdbool.h> /* C99 Boolean */
