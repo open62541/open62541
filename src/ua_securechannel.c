@@ -460,8 +460,11 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
-        UA_UInt16 totalPaddingSize = securityPolicy->asymmetricModule.calculatePadding(securityPolicy, bytesToWrite,
-                                                                                       &paddingSize, &extraPaddingSize);
+        UA_UInt16 totalPaddingSize = securityPolicy->asymmetricModule.calculatePadding(securityPolicy,
+                                                                                       channel->securityContext,
+                                                                                       bytesToWrite,
+                                                                                       &paddingSize,
+                                                                                       &extraPaddingSize);
 
         // This is <= because the paddingSize byte also has to be written.
         for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
@@ -478,6 +481,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     // The total message length
     UA_UInt32 pre_sig_length = (UA_UInt32)((uintptr_t)(*buf_pos) - (uintptr_t)ci->messageBuffer.data);
     UA_UInt32 total_length = pre_sig_length;
+    // TODO: need to fix this to use the calculated signature size that depends on the asymmetric key
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length += securityPolicy->asymmetricModule.signingModule.signatureSize;
@@ -1032,11 +1036,11 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     {
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
-            chunkSize - channel->securityContext->getSignatureSize(channel->securityContext),
+            chunkSize - channel->securityContext->getRemoteAsymSignatureSize(channel->securityContext),
             chunk->data
         };
         const UA_ByteString signature = {
-            channel->securityContext->getSignatureSize(channel->securityContext),
+            channel->securityContext->getRemoteAsymSignatureSize(channel->securityContext),
             chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
@@ -1065,7 +1069,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     channel->receiveSequenceNumber = sequenceHeader.sequenceNumber;
 
     // calculate body size
-    size_t signatureSize = channel->securityContext->getSignatureSize(channel->securityContext);
+    size_t signatureSize = channel->securityContext->getRemoteAsymSignatureSize(channel->securityContext);
 
     UA_UInt16 paddingSize = 0;
     if(!UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {

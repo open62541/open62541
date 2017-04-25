@@ -44,7 +44,8 @@ static UA_StatusCode asym_makeThumbprint_sp_none(const UA_ByteString* const cert
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_UInt16 asym_calculatePadding_sp_none(const UA_SecurityPolicy* const securityPolicy,
+static UA_UInt16 asym_calculatePadding_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                               const UA_Channel_SecurityContext *const channelContext,
                                                const size_t bytesToWrite,
                                                UA_Byte* const paddingSize,
                                                UA_Byte* const extraPaddingSize) {
@@ -197,7 +198,7 @@ static UA_StatusCode policyContext_init_sp_none(UA_Policy_SecurityContext *const
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode policyContext_deleteMembers_sp_none(UA_Policy_SecurityContext* const securityContext) {
+static UA_StatusCode policyContext_deleteMembers_sp_none(UA_Policy_SecurityContext *const securityContext) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -214,8 +215,8 @@ static UA_StatusCode policyContext_deleteMembers_sp_none(UA_Policy_SecurityConte
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode policyContext_setServerPrivateKey_sp_none(UA_Policy_SecurityContext* const securityContext,
-                                                               const UA_ByteString* const privateKey) {
+static UA_StatusCode policyContext_setServerPrivateKey_sp_none(UA_Policy_SecurityContext *const securityContext,
+                                                               const UA_ByteString *const privateKey) {
     if(securityContext == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -224,7 +225,7 @@ static UA_StatusCode policyContext_setServerPrivateKey_sp_none(UA_Policy_Securit
 }
 
 static UA_StatusCode policyContext_setCertificateTrustList_sp_none(UA_Policy_SecurityContext* const securityContext,
-                                                                   const UA_ByteString* const trustList) {
+                                                                   const UA_ByteString *const trustList) {
     if(securityContext == NULL || trustList == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -232,13 +233,17 @@ static UA_StatusCode policyContext_setCertificateTrustList_sp_none(UA_Policy_Sec
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode policyContext_setCertificateRevocationList_sp_none(UA_Policy_SecurityContext* const securityContext,
-                                                                        const UA_ByteString* const revocationList) {
+static UA_StatusCode policyContext_setCertificateRevocationList_sp_none(UA_Policy_SecurityContext *const securityContext,
+                                                                        const UA_ByteString *const revocationList) {
     if(securityContext == NULL || revocationList == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+static size_t policyContext_getLocalAsymSignatureSize_sp_none(const UA_Policy_SecurityContext *const securityContext) {
+    return 0;
 }
 
 /////////////////////////////////
@@ -389,7 +394,11 @@ static UA_StatusCode channelContext_parseRemoteCertificate_sp_none(UA_Channel_Se
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t channelContext_getSignatureSize_sp_none(const UA_Channel_SecurityContext *const securityContext) {
+static size_t channelContext_getRemoteAsymSignatureSize_sp_none(const UA_Channel_SecurityContext *const securityContext) {
+    return 0;
+}
+
+static size_t channelContext_getRemoteAsymPlainTextBlockSize_sp_none(const UA_Channel_SecurityContext *const securityContext) {
     return 0;
 }
 
@@ -448,6 +457,7 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         policyContext_setServerPrivateKey_sp_none, // .setServerPrivateKey
         policyContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
         policyContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
+        policyContext_getLocalAsymSignatureSize_sp_none, // .getLocalAsymSignatureSize
 
         NULL, // .data
         NULL, // .logger
@@ -472,7 +482,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
         channelContext_parseRemoteCertificate_sp_none, // .parseRemoteCertificate
 
-        channelContext_getSignatureSize_sp_none,
+        channelContext_getRemoteAsymSignatureSize_sp_none, // .getRemoteAsymSignatureSize
+        channelContext_getRemoteAsymPlainTextBlockSize_sp_none, // .getRemoteAsymPlainTextBlockSize
 
         NULL, // .logger
         NULL, // .data

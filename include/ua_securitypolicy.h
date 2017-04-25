@@ -74,12 +74,15 @@ typedef struct
      * \brief Calculates the padding size for a message with the specified amount of bytes.
      *
      * \param securityPolicy the securityPolicy the function is invoked on.
+     * \param channelContext the channel context that is used to obtain the plaintext block size.
+     *                       Has to have a remote certificate set.
      * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
      * \param paddingSize out parameter. Will contain the paddingSize byte.
      * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
      * \return the total padding size consiting of high and low byte.
      */
     UA_UInt16 (*const calculatePadding)(const UA_SecurityPolicy *const securityPolicy,
+                                        const UA_Channel_SecurityContext *const channelContext,
                                         const size_t bytesToWrite,
                                         UA_Byte *const paddingSize,
                                         UA_Byte *const extraPaddingSize);

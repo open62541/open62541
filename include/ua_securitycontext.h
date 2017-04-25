@@ -43,6 +43,12 @@ struct UA_Policy_SecurityContext
     UA_StatusCode (*const setCertificateRevocationList)(UA_Policy_SecurityContext *const securityContext,
                                                         const UA_ByteString *const revocationList);
 
+    /**
+     * Gets the signature size that depends on the local private key.
+     * This will return 0 as long as no remote certificate was set.
+     */
+    size_t(*const getLocalAsymSignatureSize)(const UA_Policy_SecurityContext *const securityContext);
+
     void* data;
 
     UA_Logger logger;
@@ -137,9 +143,16 @@ struct UA_Channel_SecurityContext
                                                   const UA_ByteString *const remoteCertificate);
 
     /**
-     * Gets the signature size. This will return 0 as long as no remote certificate was set.
+     * Gets the signature size that depends on the remote public key.
+     * This will return 0 as long as no remote certificate was set.
      */
-    size_t (*const getSignatureSize)(const UA_Channel_SecurityContext *const securityContext);
+    size_t (*const getRemoteAsymSignatureSize)(const UA_Channel_SecurityContext *const securityContext);
+
+    /**
+     * Gets the plaintext block size that depends on the remote public key.
+     * This will return 0 as long as no remote certificate was set.
+     */
+    size_t (*const getRemoteAsymPlainTextBlockSize)(const UA_Channel_SecurityContext *const securityContext);
 
     UA_Logger logger;
 
