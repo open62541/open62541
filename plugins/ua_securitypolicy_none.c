@@ -450,7 +450,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         policyContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
 
         NULL, // .data
-        NULL // .logger
+        NULL, // .logger
+        NULL // .securityPolicy
     },
 
     deleteMembers_sp_none, // .deleteMembers
@@ -474,7 +475,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         channelContext_getSignatureSize_sp_none,
 
         NULL, // .logger
-        NULL // .data
+        NULL, // .data
+        NULL // .securityPolicy
     },
 
     makeChannelContext_sp_none, // .makeChannelContext
