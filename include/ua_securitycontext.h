@@ -22,15 +22,8 @@ extern "C" {
 
 #include "ua_types.h"
 #include "ua_log.h"
-
-struct UA_Channel_SecurityContext;
-typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
-
-struct UA_Policy_SecurityContext;
-typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
-
-struct UA_SecurityPolicy;
-typedef struct UA_SecurityPolicy UA_SecurityPolicy;
+#include "ua_securitypolicy_fwd.h"
+#include "ua_securitycontext_fwd.h"
 
 struct UA_Policy_SecurityContext
 {

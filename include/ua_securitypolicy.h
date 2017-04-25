@@ -11,11 +11,9 @@ extern "C" {
 
 #include "ua_types.h"
 #include "ua_securitycontext.h"
+#include "ua_securitypolicy_fwd.h"
 
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
-
-struct UA_SecurityPolicy;
-typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 typedef struct
 {
