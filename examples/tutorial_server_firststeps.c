@@ -33,25 +33,12 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
+    UA_ServerConfig config;
+    UA_ServerConfig_standard_new(&config);
     UA_ServerNetworkLayer nl =
         UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
-    
-    // Set desired security policies
-    UA_SecurityPolicy securityPolicies[] = { UA_SecurityPolicy_None };
-    config.securityPolicies.count = sizeof(securityPolicies) / sizeof(securityPolicies[0]);
-    config.securityPolicies.policies = securityPolicies;
-
-    // Populate policy with needed information
-    UA_SecurityPolicy* policy = &config.securityPolicies.policies[0];
-    policy->init(policy, config.logger);
-    UA_ByteString privateKey = { 1, (UA_Byte*)"A" };
-    UA_ByteString certList = { 1,(UA_Byte*)"B" };
-    policy->context.setServerPrivateKey(&policy->context, &privateKey);
-    policy->context.setCertificateTrustList(&policy->context, &certList);
-    policy->context.setCertificateRevocationList(&policy->context, &certList);
 
     UA_Server *server = UA_Server_new(config);
 
