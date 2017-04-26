@@ -46,6 +46,7 @@ struct UA_Session {
     UA_UInt32         maxResponseMessageSize;
     UA_Double         timeout; // [ms]
     UA_DateTime       validTill;
+    UA_ByteString     serverNonce;
     UA_SecureChannel *channel;
     UA_UInt16 availableContinuationPoints;
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;

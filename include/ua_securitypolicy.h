@@ -39,7 +39,8 @@ typedef struct
                                UA_ByteString* const signature);
 
         /* The signature size in bytes */
-    UA_UInt32 signatureSize;
+    const UA_UInt32 signatureSize;
+    const UA_String signatureAlgorithmUri;
 } UA_SecurityPolicySigningModule;
 
 typedef struct
@@ -134,12 +135,11 @@ typedef struct
     /**
      * \brief Random generator for generating nonces.
      * 
-     * Generates a nonce. The length will be the same as the symmetric encryptingKeyLength
-     * as specified in the OPC UA Specification Part 4 - Services 1.03 on page 20
+     * Generates a nonce.
      * 
      * \param securityPolicy the securityPolicy this function is invoked on. Example: myPolicy->generateNonce(myPolicy, &outBuff);
      * \param out pointer to a buffer to store the nonce in. Needs to be allocated by the caller.
-     *            The size must be equal to the symmetric encrypting key length.
+     *            The buffer is filled with random data.
      */
     UA_StatusCode (*const generateNonce)(const UA_SecurityPolicy* const securityPolicy,
                                          UA_ByteString* const out);

@@ -10,6 +10,13 @@
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_ByteString_equal(&request->clientCertificate, &channel->remoteAsymAlgSettings.senderCertificate)) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
+            return;
+        }
+    }
     if(channel->securityToken.channelId == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
@@ -18,7 +25,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Copy the server's endpoint into the response */
     response->responseHeader.serviceResult =
         UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
-                      (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+        (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
     response->serverEndpointsSize = server->endpointDescriptionsSize;
@@ -48,13 +55,68 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
     if(server->endpointDescriptionsSize > 0)
         response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
-                               &response->serverCertificate);
+        UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+                           &response->serverCertificate);
+
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_StatusCode retval = UA_STATUSCODE_GOOD;
+        retval |= UA_SecureChannel_generateNonce(channel->securityPolicy, 32, &response->serverNonce); // FIXME: remove magic number???
+        retval |= UA_ByteString_copy(&response->serverNonce, &newSession->serverNonce);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+            return;
+        }
+
+        size_t signatureSize = channel->securityPolicy->context.getLocalAsymSignatureSize(&channel->securityPolicy->context);
+
+        UA_SignatureData signatureData;
+        UA_SignatureData_init(&signatureData);
+        retval |= UA_ByteString_allocBuffer(&signatureData.signature, signatureSize);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+            return;
+        }
+
+        UA_ByteString dataToSign;
+        retval |= UA_ByteString_allocBuffer(&dataToSign, request->clientCertificate.length + request->clientNonce.length);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_SignatureData_deleteMembers(&signatureData);
+            UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+            return;
+        }
+
+        memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
+        memcpy(dataToSign.data + request->clientCertificate.length, request->clientNonce.data, request->clientNonce.length);
+
+        retval |= UA_String_copy(&channel->securityPolicy->asymmetricModule.signingModule.signatureAlgorithmUri, &signatureData.algorithm);
+
+        retval |= channel->securityPolicy->asymmetricModule.signingModule.sign(&dataToSign,
+                                                                               &channel->securityPolicy->context,
+                                                                               &signatureData.signature);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&dataToSign);
+            UA_SignatureData_deleteMembers(&signatureData);
+            UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+            return;
+        }
+
+        retval |= UA_SignatureData_copy(&signatureData, &response->serverSignature);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ByteString_deleteMembers(&dataToSign);
+            UA_SignatureData_deleteMembers(&signatureData);
+            UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
+            return;
+        }
+
+        UA_ByteString_deleteMembers(&dataToSign);
+        UA_SignatureData_deleteMembers(&signatureData);
+    }
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
-         return;
+        return;
     }
 
     UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " UA_PRINTF_GUID_FORMAT " created",
@@ -72,7 +134,38 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    // TODO: Verify client signature and generate nonce??
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+        UA_ByteString dataToVerify;
+        retval |= UA_ByteString_allocBuffer(&dataToVerify, server->config.serverCertificate.length + session->serverNonce.length);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            return;
+        }
+
+        memcpy(dataToVerify.data, server->config.serverCertificate.data, server->config.serverCertificate.length);
+        memcpy(dataToVerify.data + server->config.serverCertificate.length, session->serverNonce.data, session->serverNonce.length);
+
+        retval |= channel->securityPolicy->asymmetricModule.signingModule.verify(&dataToVerify,
+                                                                                 &request->clientSignature.signature,
+                                                                                 channel->securityContext);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            UA_ByteString_deleteMembers(&dataToVerify);
+            return;
+        }
+
+        retval |= UA_SecureChannel_generateNonce(channel->securityPolicy, 32, &response->serverNonce);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            UA_ByteString_deleteMembers(&dataToVerify);
+            return;
+        }
+
+        UA_ByteString_deleteMembers(&dataToVerify);
+    }
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =

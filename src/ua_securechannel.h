@@ -77,7 +77,9 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
  * \param nonce will contain the nonce after being successfully called.
  * \param securityPolicy the SecurityPolicy to use.
  */
-UA_StatusCode UA_SecureChannel_generateNonce(UA_ByteString* const nonce, const UA_SecurityPolicy* const securityPolicy);
+UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecurityPolicy* const securityPolicy,
+                                             const size_t nonceLength,
+                                             UA_ByteString *const nonce);
 
 /**
  * Generates new keys and sets them in the channel context

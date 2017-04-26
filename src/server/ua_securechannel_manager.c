@@ -150,7 +150,9 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_Connection* conn,
         tmpChannel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     UA_ByteString_copy(&request->clientNonce, &tmpChannel->clientNonce);
     tmpChannel->securityMode = request->securityMode;
-    UA_SecureChannel_generateNonce(&tmpChannel->serverNonce, tmpChannel->securityPolicy);
+    UA_SecureChannel_generateNonce(tmpChannel->securityPolicy,
+                                   tmpChannel->securityPolicy->symmetricModule.encryptingKeyLength,
+                                   &tmpChannel->serverNonce);
 
     UA_SecureChannel_generateNewKeys(tmpChannel);
 
@@ -195,7 +197,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_Connection* conn,
 
     /* set the response */
     UA_ByteString_copy(&request->clientNonce, &channel->clientNonce);
-    UA_SecureChannel_generateNonce(&channel->serverNonce, channel->securityPolicy);
+    UA_SecureChannel_generateNonce(channel->securityPolicy, channel->securityPolicy->symmetricModule.encryptingKeyLength, &channel->serverNonce);
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
 

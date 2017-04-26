@@ -433,7 +433,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         {
             asym_verify_sp_none, // .verify
             asym_sign_sp_none, // .sign
-            0 // .signatureSize // size_t signatureSize; in bytes
+            0, // .signatureSize // size_t signatureSize; in bytes
+            UA_STRING_STATIC_NULL // .signatureAlgorithmUri
         }
     },
 
@@ -449,7 +450,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         { // .signingModule
             sym_verify_sp_none, // .verify
             sym_sign_sp_none, // .sign
-            0 // .signatureSize // size_t signatureSize; in bytes
+            0, // .signatureSize // size_t signatureSize; in bytes
+            UA_STRING_STATIC_NULL // .signatureAlgorithmUri
         },
 
         0, // .signingKeyLength
