@@ -416,7 +416,7 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
         *buf_start +=
         UA_SecureChannel_calculateAsymAlgSecurityHeaderLength(&channel->localAsymAlgSettings);
 
-    size_t potentialEncryptionMaxSize = (*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
+    size_t potentialEncryptionMaxSize = (size_t)(*buf_end - *buf_start) + UA_SEQUENCE_HEADER_LENGTH;
 
     // Hide bytes for signature and padding
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
@@ -516,7 +516,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += channel->securityPolicy->context.getLocalAsymSignatureSize(&channel->securityPolicy->context);
+        total_length += (UA_UInt32)channel->securityPolicy->context.getLocalAsymSignatureSize(&channel->securityPolicy->context);
 
     // Encode the chunk headers at the beginning of the buffer
     UA_Byte *header_pos = ci->messageBuffer.data;
@@ -526,8 +526,8 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     {
         size_t dataToEncryptLength = total_length - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
         respHeader.messageHeader.messageSize = total_length +
-            channel->securityContext->getRemoteAsymEncryptionBufferLengthOverhead(channel->securityContext,
-                                                                                  dataToEncryptLength);
+            (UA_UInt32)channel->securityContext->getRemoteAsymEncryptionBufferLengthOverhead(channel->securityContext,
+                                                                                             dataToEncryptLength);
     }
     if(ci->errorCode == UA_STATUSCODE_GOOD) {
         if(ci->final)

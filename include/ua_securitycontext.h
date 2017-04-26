@@ -47,7 +47,7 @@ struct UA_Policy_SecurityContext
      * Gets the signature size that depends on the local private key.
      * This will return 0 as long as no remote certificate was set.
      */
-    size_t(*const getLocalAsymSignatureSize)(const UA_Policy_SecurityContext *const securityContext);
+    size_t (*const getLocalAsymSignatureSize)(const UA_Policy_SecurityContext *const securityContext);
 
     void* data;
 
