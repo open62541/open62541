@@ -86,7 +86,7 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param key the local encrypting key to store in the context.
      */
-    UA_StatusCode (*const setLocalEncryptingKey)(UA_Channel_SecurityContext* const securityContext,
+    UA_StatusCode (*const setLocalSymEncryptingKey)(UA_Channel_SecurityContext* const securityContext,
                                                  const UA_ByteString* const key);
 
     /**
@@ -95,7 +95,7 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param key the local signing key to store in the context.
      */
-    UA_StatusCode (*const setLocalSigningKey)(UA_Channel_SecurityContext* const securityContext,
+    UA_StatusCode (*const setLocalSymSigningKey)(UA_Channel_SecurityContext* const securityContext,
                                               const UA_ByteString* const key);
 
     /**
@@ -104,7 +104,7 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param iv the local initialization vector to store in the context.
      */
-    UA_StatusCode (*const setLocalIv)(UA_Channel_SecurityContext* const securityContext,
+    UA_StatusCode (*const setLocalSymIv)(UA_Channel_SecurityContext* const securityContext,
                                       const UA_ByteString* const iv);
     /**
      * Sets the remote encrypting key in the supplied context.
@@ -112,7 +112,7 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param key the remote encrypting key to store in the context.
      */
-    UA_StatusCode (*const setRemoteEncryptingKey)(UA_Channel_SecurityContext* const securityContext,
+    UA_StatusCode (*const setRemoteSymEncryptingKey)(UA_Channel_SecurityContext* const securityContext,
                                                   const UA_ByteString* const key);
 
     /**
@@ -121,7 +121,7 @@ struct UA_Channel_SecurityContext
      * \param securityContext the context to work on. Should always be the context this is called on.
      * \param key the remote signing key to store in the context.
      */
-    UA_StatusCode (*const setRemoteSigningKey)(UA_Channel_SecurityContext *const securityContext,
+    UA_StatusCode (*const setRemoteSymSigningKey)(UA_Channel_SecurityContext *const securityContext,
                                                const UA_ByteString *const key);
 
     /**
@@ -130,7 +130,7 @@ struct UA_Channel_SecurityContext
     * \param securityContext the context to work on. Should always be the context this is called on.
     * \param iv the remote initialization vector to store in the context.
     */
-    UA_StatusCode (*const setRemoteIv)(UA_Channel_SecurityContext *const securityContext,
+    UA_StatusCode (*const setRemoteSymIv)(UA_Channel_SecurityContext *const securityContext,
                                        const UA_ByteString *const iv);
     /**
      * Parses a given certificate to extract the remote public key from it.
@@ -153,6 +153,17 @@ struct UA_Channel_SecurityContext
      * This will return 0 as long as no remote certificate was set.
      */
     size_t (*const getRemoteAsymPlainTextBlockSize)(const UA_Channel_SecurityContext *const securityContext);
+
+    /**
+     * Gets the number of bytes that are needed by the encryption function in addition to the length of the plaintext message.
+     * This is needed, since most rsa encryption methods have their own padding mechanism included. This makes the encrypted
+     * message larger than the plainText, so we need to have enough room in the buffer for the overhead.
+     *
+     * \param securityContext the context to work on
+     * \param maxEncryptionLength the maximum number of bytes that the data to encrypt can be.
+     */
+    size_t (*const getRemoteAsymEncryptionBufferLengthOverhead)(const UA_Channel_SecurityContext *const securityContext,
+                                                                const size_t maxEncryptionLength);
 
     UA_Logger logger;
 

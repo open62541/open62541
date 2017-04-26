@@ -47,11 +47,13 @@ typedef struct
     /**
      * \brief Encrypt the given data in place using an asymmetric algorithm and keys.
      *
-     * \param securityContext the SecurityContext which contains information about the keys needed to decrypt the message.
+     * \param policyContext the policyContext which contains information about entropy generation.
+     * \param channelContext the channelContext which contains information about the keys to encrypt data.
      * \param data the data that is encrypted. The encrypted data will overwrite the data that was supplied.
      */
-    UA_StatusCode (*const encrypt)(const UA_Policy_SecurityContext* const securityContext,
-                                   const UA_ByteString* const data);
+    UA_StatusCode (*const encrypt)(const UA_Policy_SecurityContext *const policyContext,
+                                   const UA_Channel_SecurityContext *const channelContext,
+                                   const UA_ByteString *const data);
     /**
      * \brief Decrypts the given cyphertext using an asymmetric algorithm and key.
      *
