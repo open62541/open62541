@@ -999,7 +999,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
         inputArgumentsVariableNode->description = UA_LOCALIZEDTEXT_ALLOC("en_US", "InputArguments");
         inputArgumentsVariableNode->valueRank = 1;
 
-        /* UAExport creates a monitoreditem on inputarguments ... */
+        /* UAExpert creates a monitoreditem on inputarguments ... */
         inputArgumentsVariableNode->minimumSamplingInterval = 10000.0f;
 
         //TODO: 0.3 work item: the addMethodNode API does not have the possibility to set nodeIDs
@@ -1417,7 +1417,7 @@ setValueCallback(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
                                         const UA_ValueCallback callback) {
     UA_RCU_LOCK();
@@ -1466,7 +1466,7 @@ setOLM(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm) {
     UA_RCU_LOCK();
@@ -1499,7 +1499,7 @@ editMethodCallback(UA_Server *server, UA_Session* session,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
                                  UA_MethodCallback method, void *handle) {
     struct addMethodCallback cb = { method, handle };
