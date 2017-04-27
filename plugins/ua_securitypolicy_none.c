@@ -201,9 +201,6 @@ endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
     if(securityPolicy == NULL || pp_contextData == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_SP_NONE_EndpointContextData *const policyInitData =
-        (UA_SP_NONE_EndpointContextData*)initData;
-
     *pp_contextData = UA_malloc(sizeof(UA_SP_NONE_EndpointContextData));
 
     if(*pp_contextData == NULL)
