@@ -206,8 +206,8 @@ static UA_INLINE UA_DeleteReferencesResponse
 UA_Client_Service_deleteReferences(UA_Client *client,
                                    const UA_DeleteReferencesRequest request) {
     UA_DeleteReferencesResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
     return response;
 }
 
