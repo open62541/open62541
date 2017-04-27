@@ -330,6 +330,7 @@ processOPN(UA_Server *server,
     }
 
     retval |= channel->securityPolicy->asymmetricModule.makeThumbprint(
+        channel->securityPolicy,
         &channel->remoteAsymAlgSettings.senderCertificate,
         &channel->localAsymAlgSettings.receiverCertificateThumbprint
     );

@@ -40,8 +40,8 @@ struct UA_SecureChannel {
     UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 
     /** The active security policy and context of the channel */
-    const UA_SecurityPolicy* securityPolicy;
-    UA_Channel_SecurityContext* securityContext;
+    const UA_SecurityPolicy *securityPolicy;
+    void *securityContext;
 
     /** Stores all available security policies that may be used when establishing a connection. */
     UA_SecurityPolicies availableSecurityPolicies;

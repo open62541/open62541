@@ -12,7 +12,7 @@
 struct UA_Channel_SecurityContext;
 typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 
-struct UA_Policy_SecurityContext;
-typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
+struct UA_Endpoint_SecurityContext;
+typedef struct UA_Endpoint_SecurityContext UA_Endpoint_SecurityContext;
 
 #endif // UA_SECURITYCONTEXT_FWD_H_
