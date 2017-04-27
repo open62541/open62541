@@ -58,9 +58,11 @@
 #endif
 
 /* unsigned int for windows and workaround to a glibc bug */
+/* Additionally if GNU_LIBRARY is not defined, it may be using musl libc (e.g. Docker Alpine) */
 #if defined(_WIN32) || defined(__OpenBSD__) || \
     (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
-     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16))
+     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
+    !defined(__GNU_LIBRARY__))
 # define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
 # define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
 #else
