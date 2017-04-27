@@ -1,4 +1,4 @@
-FROM alpine:3.3
+FROM alpine:3.5
 RUN apk add --no-cache cmake gcc g++ musl-dev python make && rm -rf /var/cache/apk/*
 ADD . /tmp/open62541
 WORKDIR /tmp/open62541/build
