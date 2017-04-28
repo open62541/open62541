@@ -42,8 +42,8 @@ typedef struct {
     UA_Boolean final;
 } UA_ChunkInfo;
 
-void UA_SecureChannel_init(UA_SecureChannel* channel,
-                           UA_SecurityPolicies securityPolicies,
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_SecurityPolicies *securityPolicies,
                            UA_Logger logger) {
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->availableSecurityPolicies = securityPolicies;
@@ -1043,15 +1043,15 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
                      "Trying to open connection with policy %.*s",
                      clientAsymHeader.securityPolicyUri.length,
                      clientAsymHeader.securityPolicyUri.data);
-        for(size_t i = 0; i < channel->availableSecurityPolicies.count; ++i) {
+        for(size_t i = 0; i < channel->availableSecurityPolicies->count; ++i) {
             if(UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
-                                   &channel->availableSecurityPolicies.policies[i].policyUri)) {
+                                   &channel->availableSecurityPolicies->policies[i].policyUri)) {
                 UA_LOG_DEBUG(channel->logger,
                              UA_LOGCATEGORY_SECURECHANNEL,
                              "Using security policy %s",
-                             channel->availableSecurityPolicies.policies[i].policyUri.data);
+                             channel->availableSecurityPolicies->policies[i].policyUri.data);
 
-                securityPolicy = &channel->availableSecurityPolicies.policies[i];
+                securityPolicy = &channel->availableSecurityPolicies->policies[i];
                 break;
             }
         }

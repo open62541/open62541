@@ -100,7 +100,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_SecureChannel_init(&entry->channel, cm->server->config.securityPolicies, cm->server->config.logger);
+    UA_SecureChannel_init(&entry->channel, &cm->server->config.securityPolicies, cm->server->config.logger);
     entry->channel.temporary = UA_TRUE;
     entry->channel.securityToken.channelId = cm->lastChannelId++;
     entry->channel.securityToken.tokenId = cm->lastTokenId++;

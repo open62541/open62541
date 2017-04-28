@@ -44,7 +44,7 @@ struct UA_SecureChannel {
     void *securityContext;
 
     /** Stores all available security policies that may be used when establishing a connection. */
-    UA_SecurityPolicies availableSecurityPolicies;
+    const UA_SecurityPolicies *availableSecurityPolicies;
 
     UA_ByteString  clientNonce;
     UA_ByteString  serverNonce;
@@ -66,7 +66,9 @@ struct UA_SecureChannel {
  *                         the channel may choose from when a channel is being established.
  * \param logger the logger the securechannel may use to log messages.
  */
-void UA_SecureChannel_init(UA_SecureChannel *channel, UA_SecurityPolicies securityPolicies, UA_Logger logger);
+void UA_SecureChannel_init(UA_SecureChannel *channel,
+                           const UA_SecurityPolicies *securityPolicies,
+                           UA_Logger logger);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /**

@@ -233,7 +233,7 @@ typedef struct {
     /** The number of policies */
     size_t count;
     /** The policy array */
-    UA_SecurityPolicy* policies;
+    UA_SecurityPolicy *policies;
 } UA_SecurityPolicies;
 
 #ifdef __cplusplus
