@@ -447,7 +447,7 @@ START_TEST(ReadSingleAttributeArrayDimensionsWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     ck_assert_int_eq(0, resp.value.arrayLength);
-    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_INT32], resp.value.type);
+    ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_UINT32], resp.value.type);
     ck_assert_ptr_eq((UA_Int32*)resp.value.data,0);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);

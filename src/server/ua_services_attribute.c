@@ -206,7 +206,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
 static UA_StatusCode
 readArrayDimensionsAttribute(const UA_VariableNode *vn, UA_DataValue *v) {
     UA_Variant_setArray(&v->value, vn->arrayDimensions,
-                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     v->value.storageType = UA_VARIANT_DATA_NODELETE;
     v->hasValue = true;
     return UA_STATUSCODE_GOOD;

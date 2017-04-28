@@ -294,14 +294,22 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
     wReq.nodesToWriteSize = 1;
 
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+
     UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(wResp.resultsSize == 1)
+            retval = wResp.results[0];
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
     UA_WriteResponse_deleteMembers(&wResp);
     return retval;
 }
 
 UA_StatusCode
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Int32 *newArrayDimensions,
+                                        const UA_UInt32 *newArrayDimensions,
                                         size_t newArrayDimensionsSize) {
     if(!newArrayDimensions)
       return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -311,7 +319,7 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
     wValue.nodeId = nodeId;
     wValue.attributeId = UA_ATTRIBUTEID_ARRAYDIMENSIONS;
     UA_Variant_setArray(&wValue.value.value, (void*)(uintptr_t)newArrayDimensions,
-                        newArrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                        newArrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     wValue.value.hasValue = true;
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
@@ -319,7 +327,14 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
     wReq.nodesToWriteSize = 1;
 
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
+
     UA_StatusCode retval = wResp.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(wResp.resultsSize == 1)
+            retval = wResp.results[0];
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
     UA_WriteResponse_deleteMembers(&wResp);
     return retval;
 }
@@ -375,13 +390,20 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(response.resultsSize == 1)
+            retval = response.results[0].status;
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
     UA_ReadResponse_deleteMembers(&response);
     return retval;
 }
 
 UA_StatusCode
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_Int32 **outArrayDimensions,
+                                       UA_UInt32 **outArrayDimensions,
                                        size_t *outArrayDimensionsSize) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
@@ -407,7 +429,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
         goto cleanup;
 
     if(UA_Variant_isScalar(&res->value) ||
-       res->value.type != &UA_TYPES[UA_TYPES_INT32]) {
+       res->value.type != &UA_TYPES[UA_TYPES_UINT32]) {
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         goto cleanup;
     }
@@ -417,6 +439,11 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     UA_free(res->value.data);
     res->value.data = NULL;
     res->value.arrayLength = 0;
+
+    if(response.resultsSize == 1)
+        retval = response.results[0].status;
+    else
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
 
  cleanup:
     UA_ReadResponse_deleteMembers(&response);
