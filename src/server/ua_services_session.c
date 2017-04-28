@@ -143,17 +143,12 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                          UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
-void
-Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        UA_Session *session, const UA_ActivateSessionRequest *request,
-                        UA_ActivateSessionResponse *response) {
-    if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session has timed out", channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        return;
-    }
-
+static void
+Service_ActivateSession_checkSignature(const UA_Server *const server,
+                                       const UA_SecureChannel *const channel,
+                                       const UA_Session *const session,
+                                       const UA_ActivateSessionRequest *const request,
+                                       UA_ActivateSessionResponse *const response) {
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -189,6 +184,26 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
         UA_ByteString_deleteMembers(&dataToVerify);
     }
+}
+
+void
+Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                        UA_Session *session, const UA_ActivateSessionRequest *request,
+                        UA_ActivateSessionResponse *response) {
+    if(session->validTill < UA_DateTime_nowMonotonic()) {
+        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
+                            "to activate, but the session has timed out", channel->securityToken.channelId);
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
+
+    Service_ActivateSession_checkSignature(server,
+                                           channel,
+                                           session,
+                                           request,
+                                           response);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return;
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
