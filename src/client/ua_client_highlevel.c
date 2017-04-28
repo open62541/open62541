@@ -434,7 +434,12 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
         goto cleanup;
     }
 
-    *outArrayDimensions = res->value.data;
+    *outArrayDimensions = UA_Array_new(res->value.arrayLength, &UA_TYPES[UA_TYPES_UINT32]);
+    retval = UA_Array_copy(res->value.data, res->value.arrayLength, (void **)&(*outArrayDimensions), &UA_TYPES[UA_TYPES_UINT32]);
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_free(res->value.data);
+        goto cleanup;
+    }
     *outArrayDimensionsSize = res->value.arrayLength;
     UA_free(res->value.data);
     res->value.data = NULL;
