@@ -1245,10 +1245,10 @@ UA_SecureChannel_processERRChunk(UA_SecureChannel* const channel,
  *              after processing the chunk.
  */
 static UA_StatusCode
-UA_SecureChannel_processChunk(UA_SecureChannel* const channel,
-                              void* const application,
+UA_SecureChannel_processChunk(UA_SecureChannel *const channel,
+                              void *const application,
                               UA_ProcessMessageCallback callback,
-                              UA_ByteString* const chunk) {
+                              UA_ByteString *const chunk) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t processedChunkBytes = 0;
 
