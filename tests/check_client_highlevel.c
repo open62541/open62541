@@ -393,14 +393,18 @@ START_TEST(Node_ReadWrite)
         ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
         value = *(UA_Int32*)val->data;
         ck_assert_int_eq(value, 5678);
+        UA_Variant_delete(val);
 
         /* Write attribute */
         value++;
+        val = UA_Variant_new();
         UA_Variant_setScalarCopy(val, &value, &UA_TYPES[UA_TYPES_INT32]);
         retval = UA_Client_writeValueAttribute(client, nodeIntId, val);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_delete(val);
 
         /* Read again to check value */
+        val = UA_Variant_new();
         retval = UA_Client_readValueAttribute(client, nodeIntId, val);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -420,6 +424,7 @@ START_TEST(Node_ReadWrite)
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_int_eq(arrayDimsReadSize, 1);
         ck_assert_int_eq(arrayDimsRead[0], 3);
+        UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 
     }
 END_TEST
