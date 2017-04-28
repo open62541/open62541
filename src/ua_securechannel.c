@@ -1079,33 +1079,26 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     if(channel->securityContext == NULL) {
         void *channelContext = NULL;
 
+        // create new channel context and verify the certificate
         retval |= securityPolicy->channelContext.init(securityPolicy,
+                                                      securityPolicy->endpointContextData,
+                                                      &clientAsymHeader.senderCertificate,
                                                       &channelContext);
         if(retval != UA_STATUSCODE_GOOD) {
-            securityPolicy->channelContext.deleteMembers(securityPolicy, channelContext);
-            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
-            return retval;
-        }
-
-        retval |= securityPolicy->channelContext.parseRemoteCertificate(securityPolicy,
-                                                                        &clientAsymHeader.senderCertificate,
-                                                                        channelContext);
-        if(retval != UA_STATUSCODE_GOOD) {
-            securityPolicy->channelContext.deleteMembers(securityPolicy, channelContext);
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return retval;
         }
 
         channel->securityContext = channelContext;
     }
-
-    // Verify the vertificate
-    retval |= securityPolicy->verifyCertificate(securityPolicy,
-                                                securityPolicy->endpointContextData,
-                                                channel->securityContext);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
-        return retval;
+    else {
+        retval |= securityPolicy->channelContext.compareCertificate(securityPolicy,
+                                                                    channel->securityContext,
+                                                                    &clientAsymHeader.senderCertificate);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
+            return retval;
+        }
     }
 
     // Decrypt message

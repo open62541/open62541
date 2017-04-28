@@ -196,8 +196,8 @@ typedef struct {
 
 static UA_StatusCode
 endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                           const void *const initData,
-                           void **const pp_contextData) {
+                             const void *const initData,
+                             void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -219,7 +219,7 @@ endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 endpointContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                    void *const securityContext) {
+                                      void *const securityContext) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -239,8 +239,8 @@ endpointContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPol
 
 static UA_StatusCode
 endpointContext_setServerPrivateKey_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                          const UA_ByteString *const privateKey,
-                                          void *const endpointContext) {
+                                            const UA_ByteString *const privateKey,
+                                            void *const endpointContext) {
     if(securityPolicy == NULL || privateKey == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -250,8 +250,8 @@ endpointContext_setServerPrivateKey_sp_none(const UA_SecurityPolicy *const secur
 
 static UA_StatusCode
 endpointContext_setCertificateTrustList_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                              const UA_ByteString *const trustList,
-                                              void *const endpointContext) {
+                                                const UA_ByteString *const trustList,
+                                                void *const endpointContext) {
     if(securityPolicy == NULL || trustList == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -261,8 +261,8 @@ endpointContext_setCertificateTrustList_sp_none(const UA_SecurityPolicy *const s
 
 static UA_StatusCode
 endpointContext_setCertificateRevocationList_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                   const UA_ByteString *const revocationList,
-                                                   void *const endpointContext) {
+                                                     const UA_ByteString *const revocationList,
+                                                     void *const endpointContext) {
     if(securityPolicy == NULL || revocationList == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -272,7 +272,7 @@ endpointContext_setCertificateRevocationList_sp_none(const UA_SecurityPolicy *co
 
 static size_t
 endpointContext_getLocalAsymSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                const void *const endpointContext) {
+                                                  const void *const endpointContext) {
     return 0;
 }
 
@@ -292,6 +292,8 @@ typedef struct {
 
 static UA_StatusCode
 channelContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                            const void *const endpointContext,
+                            const UA_ByteString *const remoteCertificate,
                             void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -432,10 +434,10 @@ channelContext_setRemoteSymIv_sp_none(const UA_SecurityPolicy *const securityPol
 }
 
 static UA_StatusCode
-channelContext_parseRemoteCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                              const UA_ByteString *const remoteCertificate,
-                                              void *const contextData) {
-    if(securityPolicy == NULL || remoteCertificate == NULL) {
+channelContext_compareCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                          const void *const channelContext,
+                                          const UA_ByteString *const certificate) {
+    if(securityPolicy == NULL || channelContext == NULL || certificate == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -468,8 +470,6 @@ channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_none(const UA_Secu
 UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     /* The policy uri that identifies the implemented algorithms */
     UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None"), // .policyUri
-
-    verifyCertificate_sp_none, // .verifyCertificate
 
     /* Asymmetric module */
     { // .asymmetricModule
@@ -533,7 +533,7 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         channelContext_setRemoteSymSigningKey_sp_none, // .setRemoteSymSigningKey
         channelContext_setRemoteSymIv_sp_none, // .setRemoteSymIv
 
-        channelContext_parseRemoteCertificate_sp_none, // .parseRemoteCertificate
+        channelContext_compareCertificate_sp_none, // .parseRemoteCertificate
 
         channelContext_getRemoteAsymSignatureSize_sp_none, // .getRemoteAsymSignatureSize
         channelContext_getRemoteAsymPlainTextBlockSize_sp_none, // .getRemoteAsymPlainTextBlockSize

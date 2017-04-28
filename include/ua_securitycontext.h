@@ -59,13 +59,20 @@ struct UA_Channel_SecurityContext
     /**
      * \brief This method initializes a new context data object.
      * The caller needs to call deleteMembers on the recieved object to free allocated memory.
+     *
+     * Memory is only allocated if the function succeeds so there is no need to manually free
+     * the memory pointed to by *pp_contextData or to call deleteMembers.
      * 
      * \param securityPolicy contains the function pointers associated with the policy.
-     * \param logger the logger this SecurityContext may use.
+     * \param remoteCertificate the remote certificate contains the remote asymmetric key.
+     *                          The certificate will be verified and then stored in the context
+     *                          so that its details may be accessed.
      * \param contextData the initialized contextData that is passed to functions that work
      *                    on a context.
      */
     UA_StatusCode (*const init)(const UA_SecurityPolicy *securityPolicy,
+                                const void *endpointContext,
+                                const UA_ByteString *remoteCertificate,
                                 void **pp_contextData);
 
     /**
@@ -141,17 +148,19 @@ struct UA_Channel_SecurityContext
     UA_StatusCode (*const setRemoteSymIv)(const UA_SecurityPolicy *securityPolicy,
                                           const UA_ByteString *iv,
                                           void *contextData);
+
     /**
-     * \brief Parses a given certificate to extract the remote public key from it.
-     * Fails, if the certificate is invalid or expired.
+     * \brief Compares the supplied certificate with the certificate in the channel context.
      *
      * \param securityPolicy contains the function pointers associated with the policy.
-     * \param remoteCertificate the remote certificate to extract the client public key from.
-     * \param contextData the context to work on.
+     * \param channelContext the channel context data that contains the certificate to compare to.
+     * \param certificate the certificate to compare to the one stored in the context.
+     * \return if the certificates match UA_STATUSCODE_GOOD is returned. If they don't match
+     *         or an errror occured an error code is returned.
      */
-    UA_StatusCode (*const parseRemoteCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                                  const UA_ByteString *remoteCertificate,
-                                                  void *contextData);
+    UA_StatusCode (*const compareCertificate)(const UA_SecurityPolicy *securityPolicy,
+                                              const void *channelContext,
+                                              const UA_ByteString *certificate);
 
     /**
      * \brief Gets the signature size that depends on the remote public key.

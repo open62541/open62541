@@ -182,16 +182,6 @@ struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     const UA_ByteString policyUri;
 
-    /**
-     * \brief Verifies the certificate using the trust list and revocation list in the policy context
-     *
-     * \param policyContext the policy context that contains the revocation and trust lists.
-     * \param channelContext the channel context that contains the already parsed certificate.
-     */
-    UA_StatusCode (*const verifyCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                             const void *endpointContext,
-                                             const void *channelContext);
-
     const UA_SecurityPolicyAsymmetricModule asymmetricModule;
     const UA_SecurityPolicySymmetricModule symmetricModule;
 
