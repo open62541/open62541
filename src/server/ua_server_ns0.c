@@ -173,15 +173,9 @@ readMonitoredItems(void *handle, const UA_NodeId *objectId,
 static void
 addReferenceInternal(UA_Server *server, UA_UInt32 sourceId, UA_UInt32 refTypeId,
                      UA_UInt32 targetId, UA_Boolean isForward) {
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId.identifier.numeric = sourceId;
-    item.referenceTypeId.identifier.numeric = refTypeId;
-    item.isForward = isForward;
-    item.targetNodeId.nodeId.identifier.numeric = targetId;
-    UA_RCU_LOCK();
-    Service_AddReferences_single(server, &adminSession, &item);
-    UA_RCU_UNLOCK();
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, sourceId),
+                           UA_NODEID_NUMERIC(0, refTypeId),
+                           UA_EXPANDEDNODEID_NUMERIC(0, targetId), isForward);
 }
 
 static void

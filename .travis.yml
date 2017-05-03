@@ -22,6 +22,7 @@ env:
     # Do both, compile with static code analysis and without
     - ANALYZE=false
     - ANALYZE=true
+    - DOCKER=true
 
 matrix:
   exclude:
@@ -30,6 +31,15 @@ matrix:
       compiler: gcc
     - os: osx
       env: ANALYZE=true
+    - os: osx
+      env: DOCKER=true
+    - os: linux
+      compiler: clang
+      env: DOCKER=true
+
+# Required for docker build test
+services:
+  - docker
 
 addons:
   apt:
