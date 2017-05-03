@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
     rvi.nodeId = myIntegerNodeId;
     rvi.attributeId = UA_ATTRIBUTEID_VALUE;
     rvi.indexRange = UA_STRING_NULL;
-    rvi.dataEncoding = UA_QUALIFIEDNAME(0, "DefaultBinary");
+    rvi.dataEncoding = UA_QUALIFIEDNAME(0, "Default Binary");
     request.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
     request.nodesToReadSize = 1;
     request.nodesToRead = &rvi;
