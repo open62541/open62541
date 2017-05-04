@@ -196,9 +196,7 @@ START_TEST(Node_Add)
             attr.description = UA_LOCALIZEDTEXT("en_US", "Top Coordinate");
             attr.displayName = UA_LOCALIZEDTEXT("en_US", "Top");
 
-            UA_Int32 values[2];
-            values[1] = 10;
-            values[2] = 20;
+            UA_Int32 values[2] = {10, 20};
 
             UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
             attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
@@ -278,6 +276,155 @@ START_TEST(Node_Add)
 
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
+
+    }
+END_TEST
+
+unsigned int iteratedNodeCount = 0;
+UA_NodeId iteratedNodes[2];
+
+static UA_StatusCode
+nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
+    if (isInverse ||
+            (referenceTypeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+                    referenceTypeId.identifier.numeric == UA_NS0ID_HASTYPEDEFINITION)
+            )
+        return UA_STATUSCODE_GOOD;
+
+    if (iteratedNodeCount >= 2)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+    UA_NodeId_copy(&childId, &iteratedNodes[iteratedNodeCount]);
+
+    iteratedNodeCount++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(Node_ReadWrite)
+    {
+        UA_StatusCode retval;
+        // Create a folder with two variables for testing
+
+        UA_NodeId unitTestNodeId;
+
+        UA_NodeId nodeArrayId;
+        UA_NodeId nodeIntId;
+
+        // create Coordinates Object within ObjectsFolder
+        {
+            UA_ObjectAttributes attr;
+            UA_ObjectAttributes_init(&attr);
+            attr.description = UA_LOCALIZEDTEXT("en_US", "UnitTest");
+            attr.displayName = UA_LOCALIZEDTEXT("en_US", "UnitTest");
+
+            retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                             UA_QUALIFIEDNAME(1, "UnitTest"),
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &unitTestNodeId);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+
+        // create Variable 'Top' within UnitTest Object
+        {
+            UA_VariableAttributes attr;
+            UA_VariableAttributes_init(&attr);
+            attr.description = UA_LOCALIZEDTEXT("en_US", "Array");
+            attr.displayName = UA_LOCALIZEDTEXT("en_US", "Array");
+
+            /*UA_Int32 values[2];
+            values[1] = 10;
+            values[2] = 20;
+
+            UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);*/
+            attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+            attr.valueRank = 1; /* array with one dimension */
+            UA_UInt32 arrayDims[1] = {2};
+            attr.arrayDimensions = arrayDims;
+            attr.arrayDimensionsSize = 1;
+
+            retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                               unitTestNodeId,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                               UA_QUALIFIEDNAME(1, "Array"),
+                                               UA_NODEID_NULL, attr, &nodeArrayId);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+
+        // create Variable 'Bottom' within UnitTest Object
+        {
+            UA_VariableAttributes attr;
+            UA_VariableAttributes_init(&attr);
+            attr.description = UA_LOCALIZEDTEXT("en_US", "Int");
+            attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int");
+
+            UA_Int32 int_value = 5678;
+
+            UA_Variant_setScalar(&attr.value, &int_value, &UA_TYPES[UA_TYPES_INT32]);
+            attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+
+            retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                               unitTestNodeId,
+                                               UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                               UA_QUALIFIEDNAME(1, "Int"),
+                                               UA_NODEID_NULL, attr, &nodeIntId);
+
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        }
+
+        // iterate over children
+        {
+            retval = UA_Client_forEachChildNodeCall(client, unitTestNodeId,
+                                                    nodeIter, NULL);
+            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+            ck_assert(UA_NodeId_equal(&nodeArrayId, &iteratedNodes[0]));
+            ck_assert(UA_NodeId_equal(&nodeIntId, &iteratedNodes[1]));
+        }
+
+
+        /* Read attribute */
+        UA_Int32 value = 0;
+        UA_Variant *val = UA_Variant_new();
+        retval = UA_Client_readValueAttribute(client, nodeIntId, val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
+        value = *(UA_Int32*)val->data;
+        ck_assert_int_eq(value, 5678);
+        UA_Variant_delete(val);
+
+        /* Write attribute */
+        value++;
+        val = UA_Variant_new();
+        UA_Variant_setScalarCopy(val, &value, &UA_TYPES[UA_TYPES_INT32]);
+        retval = UA_Client_writeValueAttribute(client, nodeIntId, val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_delete(val);
+
+        /* Read again to check value */
+        val = UA_Variant_new();
+        retval = UA_Client_readValueAttribute(client, nodeIntId, val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
+        value = *(UA_Int32*)val->data;
+        ck_assert_int_eq(value, 5679);
+        UA_Variant_delete(val);
+
+        UA_UInt32 arrayDimsNew[] = {3};
+        retval = UA_Client_writeArrayDimensionsAttribute(client, nodeArrayId, arrayDimsNew , 1);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+        UA_UInt32 *arrayDimsRead;
+        size_t arrayDimsReadSize;
+        retval = UA_Client_readArrayDimensionsAttribute(client, nodeArrayId, &arrayDimsRead , &arrayDimsReadSize);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(arrayDimsReadSize, 1);
+        ck_assert_int_eq(arrayDimsRead[0], 3);
+        UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
 
     }
 END_TEST
@@ -407,6 +554,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_nodes, setup, teardown);
     tcase_add_test(tc_nodes, Node_Add);
     tcase_add_test(tc_nodes, Node_Browse);
+    tcase_add_test(tc_nodes, Node_ReadWrite);
     tcase_add_test(tc_nodes, Node_Register);
     suite_add_tcase(s, tc_nodes);
     return s;
