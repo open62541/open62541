@@ -357,8 +357,12 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(response.resultsSize == 1)
+            retval = response.results[0].status;
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ReadResponse_deleteMembers(&response);
         return retval;
@@ -390,13 +394,6 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        if(response.resultsSize == 1)
-            retval = response.results[0].status;
-        else
-            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-
     UA_ReadResponse_deleteMembers(&response);
     return retval;
 }
@@ -415,8 +412,12 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
     request.nodesToReadSize = 1;
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(response.resultsSize == 1)
+            retval = response.results[0].status;
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -434,20 +435,11 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
         goto cleanup;
     }
 
-    retval = UA_Array_copy(res->value.data, res->value.arrayLength, (void **)&(*outArrayDimensions), &UA_TYPES[UA_TYPES_UINT32]);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_free(res->value.data);
-        goto cleanup;
-    }
+    /* Move data out of the results structure instead of copying */
+    *outArrayDimensions = res->value.data;
     *outArrayDimensionsSize = res->value.arrayLength;
-    UA_free(res->value.data);
     res->value.data = NULL;
     res->value.arrayLength = 0;
-
-    if(response.resultsSize == 1)
-        retval = response.results[0].status;
-    else
-        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
 
  cleanup:
     UA_ReadResponse_deleteMembers(&response);
