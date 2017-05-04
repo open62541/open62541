@@ -33,14 +33,13 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config;
-    UA_ServerConfig_standard_new(&config);
+    UA_ServerConfig *config = UA_ServerConfig_standard_new();
     UA_ServerNetworkLayer nl =
         UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    config->networkLayers = &nl;
+    config->networkLayersSize = 1;
 
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new(*config);
 
     if (server == NULL)
         return -1;
@@ -49,6 +48,7 @@ int main(void) {
 
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
+    UA_ServerConfig_standard_deleteMembers(config);
     return 0;
 }
 
