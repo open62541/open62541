@@ -83,8 +83,8 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
 
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not remove subscription %u with statuscode 0x%08x",
-                    sub->subscriptionID, retval);
+                    "Could not remove subscription %u with error code %s",
+                    sub->subscriptionID, UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -169,7 +169,8 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     *newMonitoredItemId = newMon->monitoredItemId;
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Created a monitored item with client handle %u", client->monitoredItemHandles);
+                 "Created a monitored item with client handle %u",
+                 client->monitoredItemHandles);
 
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
@@ -209,8 +210,8 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     if(retval != UA_STATUSCODE_GOOD &&
        retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not remove monitoreditem %u with statuscode 0x%08x",
-                    monitoredItemId, retval);
+                    "Could not remove monitoreditem %u with error code %s",
+                    monitoredItemId, UA_StatusCode_name(retval));
         return retval;
     }
 

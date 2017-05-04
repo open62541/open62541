@@ -57,7 +57,7 @@ As an open source project, we invite new contributors to help improve open62541.
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
-Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server```.
+Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32```).
 ```c
 #include <signal.h>
 #include "open62541.h"

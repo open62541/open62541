@@ -82,7 +82,7 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
 /* Node Management */
 /*******************/
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
                        const UA_NodeId referenceTypeId, UA_Boolean isForward,
                        const UA_String targetServerUri,
@@ -115,7 +115,7 @@ UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,
     return retval;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId,
                           const UA_NodeId referenceTypeId, UA_Boolean isForward,
                           const UA_ExpandedNodeId targetNodeId,

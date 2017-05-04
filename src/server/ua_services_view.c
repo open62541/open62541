@@ -521,8 +521,9 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_Node *node, cons
     return retval;
 }
 
-void Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
-                                                  const UA_BrowsePath *path, UA_BrowsePathResult *result) {
+static void
+translateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
+                              const UA_BrowsePath *path, UA_BrowsePathResult *result) {
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -570,7 +571,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
     UA_RCU_LOCK();
-    Service_TranslateBrowsePathsToNodeIds_single(server, &adminSession, browsePath, &result);
+    translateBrowsePathsToNodeIds(server, &adminSession, browsePath, &result);
     UA_RCU_UNLOCK();
     return result;
 }
@@ -623,8 +624,8 @@ void Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *sessio
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
 #endif
-            Service_TranslateBrowsePathsToNodeIds_single(server, session, &request->browsePaths[i],
-                                                         &response->results[i]);
+            translateBrowsePathsToNodeIds(server, session, &request->browsePaths[i],
+                                          &response->results[i]);
     }
 }
 

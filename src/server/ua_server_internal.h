@@ -41,13 +41,13 @@ extern "C" {
 #  define UA_ASSERT_RCU_UNLOCKED()
 # else
    extern UA_THREAD_LOCAL bool rcu_locked;
-#   define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
-#   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
-#   define UA_RCU_LOCK() do {                     \
+#  define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
+#  define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
+#  define UA_RCU_LOCK() do {                      \
         UA_ASSERT_RCU_UNLOCKED();                 \
         rcu_locked = true;                        \
         rcu_read_lock(); } while(0)
-#   define UA_RCU_UNLOCK() do {                   \
+#  define UA_RCU_UNLOCK() do {                    \
         UA_ASSERT_RCU_LOCKED();                   \
         rcu_locked = false;                       \
         rcu_read_unlock(); } while(0)
@@ -205,12 +205,15 @@ struct UA_Server {
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
-
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
    the nodestore. */
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
+
+/********************/
+/* Event Processing */
+/********************/
 
 void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                     const UA_ByteString *message);
@@ -304,27 +307,10 @@ compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 /* Some services take an array of "independent" requests. The single-services
  * are stored here to keep ua_services.h clean for documentation purposes. */
 
-UA_StatusCode
-Service_AddReferences_single(UA_Server *server, UA_Session *session,
-                             const UA_AddReferencesItem *item);
-
-UA_StatusCode
-Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
-                           const UA_NodeId *nodeId, UA_Boolean deleteReferences);
-
-UA_StatusCode
-Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
-                                const UA_DeleteReferencesItem *item);
-
 void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
-
-void
-Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
-                                             const UA_BrowsePath *path,
-                                             UA_BrowsePathResult *result);
 
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,

@@ -81,7 +81,7 @@ UA_Server_deleteExternalNamespaces(UA_Server *server) {
     }
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore,
                                UA_UInt16 *assignedNamespaceIndex) {
