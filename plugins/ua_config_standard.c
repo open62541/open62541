@@ -195,30 +195,43 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
 
 #endif
 
-UA_EXPORT UA_StatusCode UA_ServerConfig_standard_new(UA_ServerConfig *outConf) {
+UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new() {
 
-    UA_ServerConfig conf = UA_ServerConfig_standard;
+    UA_ServerConfig *conf = UA_malloc(sizeof(UA_ServerConfig));
+    if(conf == NULL)
+        return NULL;
 
-    conf.securityPolicies.count = 1;
+    *conf = UA_ServerConfig_standard;
 
-    conf.securityPolicies.policies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy) * conf.securityPolicies.count);
-
-    memcpy(&conf.securityPolicies.policies[0], &UA_SecurityPolicy_None, sizeof(UA_SecurityPolicy));
-
-    for(size_t i = 0; i < conf.securityPolicies.count; ++i) {
-        UA_SecurityPolicy *const policy = &conf.securityPolicies.policies[i];
-        policy->init(policy, conf.logger, NULL);
+    conf->securityPolicies.count = 1;
+    conf->securityPolicies.policies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy) * conf->securityPolicies.count);
+    if(conf->securityPolicies.policies == NULL) {
+        UA_free(conf);
+        return NULL;
     }
 
-    *outConf = conf;
-    return UA_STATUSCODE_GOOD;
+    // This is needed since policies are const
+    // Maybe there is a better way of doing this
+    memcpy(&conf->securityPolicies.policies[0], &UA_SecurityPolicy_None, sizeof(UA_SecurityPolicy));
+
+    for(size_t i = 0; i < conf->securityPolicies.count; ++i) {
+        UA_SecurityPolicy *const policy = &conf->securityPolicies.policies[i];
+        policy->init(policy, conf->logger, NULL);
+    }
+
+    return conf;
 }
 
 UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
+
+    if(config == NULL)
+        return;
 
     for(size_t i = 0; i < config->securityPolicies.count; ++i) {
         UA_SecurityPolicy *const policy = &config->securityPolicies.policies[i];
 
         policy->deleteMembers(policy);
     }
+
+    UA_free(config);
 }

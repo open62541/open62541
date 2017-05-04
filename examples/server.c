@@ -108,20 +108,21 @@ int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    UA_ServerConfig config;
-    UA_ServerConfig_standard_new(&config);
+    UA_ServerConfig *config = UA_ServerConfig_standard_new();
+    if(config == NULL)
+        return -1;
 
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    config->networkLayers = &nl;
+    config->networkLayersSize = 1;
 
     /* load certificate */
-    config.serverCertificate = loadCertificate();
+    config->serverCertificate = loadCertificate();
 
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new(*config);
 
     if (server == NULL)
     {
-        UA_ServerConfig_standard_deleteMembers(&config);
+        UA_ServerConfig_standard_deleteMembers(config);
         return -1;
     }
 
@@ -402,11 +403,11 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
 
     /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&config.serverCertificate);
+    UA_ByteString_deleteMembers(&config->serverCertificate);
 
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 
-    UA_ServerConfig_standard_deleteMembers(&config);
+    UA_ServerConfig_standard_deleteMembers(config);
     return (int)retval;
 }
