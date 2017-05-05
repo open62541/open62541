@@ -53,6 +53,14 @@ As an open source project, we invite new contributors to help improve open62541.
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
 
+Besides the general open62541 community, a group of core maintainers jointly steers the long-term development.
+The current core maintainers are (as of Mai 2017, in alphabetical order):
+
+- Chris-Paul Iatrou (Dresden University of Technology, Chair for Process Control Systems Engineering)
+- Florian Palm (RWTH Aachen University, Chair of Process Control Engineering)
+- Julius Pfrommer (Fraunhofer IOSB)
+- Stefan Profanter (fortiss)
+
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
 Using the GCC compiler, just run ```gcc -std=c99 <server.c> open62541.c -o server``` (under Windows you may need to add ``` -lws2_32```).
