@@ -54,8 +54,8 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 
 - Chris-Paul Iatrou (Dresden University of Technology, Chair for Process Control Systems Engineering)
 - Florian Palm (RWTH Aachen University, Chair of Process Control Engineering)
-- Julius Pfrommer (Fraunhofer IOSB)
-- Stefan Profanter (fortiss)
+- Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
+- Stefan Profanter (fortiss, Munich)
 
 As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
