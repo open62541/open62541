@@ -46,6 +46,20 @@ extern "C" {
 # define UA_THREAD_LOCAL
 #endif
 
+/* Integer Shortnames
+ * ------------------
+ * These are not exposed on the public API, since many user-applications make
+ * the same in their headers. */
+
+typedef UA_Byte u8;
+typedef UA_SByte i8;
+typedef UA_UInt16 u16;
+typedef UA_Int16 i16;
+typedef UA_UInt32 u32;
+typedef UA_Int32 i32;
+typedef UA_UInt64 u64;
+typedef UA_Int64 i64;
+
 /* Atomic Operations
  * -----------------
  * Atomic operations that synchronize across processor cores (for
@@ -113,7 +127,10 @@ UA_atomic_add(volatile uint32_t *addr, uint32_t increase) {
 /* Convert given byte string to a positive number. Returns the number of valid
  * digits. Stops if a non-digit char is found and returns the number of digits
  * up to that point. */
-size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number);
+size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
+
+#define MIN(A,B) (A > B ? B : A)
+#define MAX(A,B) (A > B ? A : B)
 
 #ifdef __cplusplus
 } // extern "C"

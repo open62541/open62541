@@ -4,16 +4,13 @@
 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
-#include "ua_util.h"
+#include "ua_server_internal.h"
 #include "check.h"
-
-/* copied definition */
-UA_StatusCode parse_numericrange(const UA_String *str, UA_NumericRange *range);
 
 START_TEST(parseRange) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,0:3,5");
-    UA_StatusCode retval = parse_numericrange(&str, &range);
+    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(range.dimensionsSize,3);
     ck_assert_int_eq(range.dimensions[0].min,1);
@@ -28,7 +25,7 @@ START_TEST(parseRange) {
 START_TEST(parseRangeMinEqualMax) {
     UA_NumericRange range;
     UA_String str = UA_STRING("1:2,1");
-    UA_StatusCode retval = parse_numericrange(&str, &range);
+    UA_StatusCode retval = UA_NumericRange_parseFromString(&range, &str);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(range.dimensionsSize,2);
     ck_assert_int_eq(range.dimensions[0].min,1);
@@ -47,7 +44,7 @@ START_TEST(copySimpleArrayRange) {
 
     UA_NumericRange r;
     UA_String sr = UA_STRING("1:3");
-    UA_StatusCode retval = parse_numericrange(&sr, &r);
+    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Variant_copyRange(&v, &v2, r);
@@ -71,7 +68,7 @@ START_TEST(copyIntoStringArrayRange) {
 
     UA_NumericRange r;
     UA_String sr = UA_STRING("0:1,1:2");
-    UA_StatusCode retval = parse_numericrange(&sr, &r);
+    UA_StatusCode retval = UA_NumericRange_parseFromString(&r, &sr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Variant_copyRange(&v, &v2, r);

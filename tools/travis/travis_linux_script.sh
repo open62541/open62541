@@ -1,6 +1,16 @@
 #!/bin/bash
 set -ev
 
+# Docker build test
+if ! [ -z ${DOCKER+x} ]; then
+    docker build -t open62541 .
+    docker run -d -p 127.0.0.1:80:80 --name open62541 open62541 /bin/sh
+    docker ps | grep -q open62541
+    # disabled since it randomly fails
+    # docker ps | grep -q open62541
+    exit 0
+fi
+
 if [ $ANALYZE = "true" ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if [ "$CC" = "clang" ]; then

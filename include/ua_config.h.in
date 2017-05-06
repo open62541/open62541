@@ -68,7 +68,13 @@ extern "C" {
 #endif
 
 #include <stddef.h>
-#include "ms_stdint.h" /* Includes stdint.h or workaround for older Visual Studios */
+
+/* Include stdint.h or workaround for older Visual Studios */
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+# include <stdint.h>
+#else
+# include "ms_stdint.h"
+#endif
 
 #ifndef __cplusplus
 # include <stdbool.h> /* C99 Boolean */
@@ -78,22 +84,15 @@ typedef uint8_t bool;
 #define false 0 */
 #endif
 
-/* Manually define some function on libc */
-#ifndef UA_ENABLE_EMBEDDED_LIBC
-# include <string.h>
-#else
-  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
-  void *memset(void *dest, int c, size_t n);
-  size_t strlen(const char *s);
-  int memcmp(const void *vl, const void *vr, size_t n);
-#endif
-
-/* Memory Management */
 #include <stdlib.h>
-#ifdef _WIN32
-# ifndef __clang__
-#  include <malloc.h>
-# endif
+
+/**
+ * Memory Management
+ * ---------------
+ * The default malloc implementation from ``stdlib.h`` is used internally.
+ * Override if required. */
+#if defined(_WIN32) && !defined(__clang__)
+# include <malloc.h>
 #endif
 
 #define UA_free(ptr) free(ptr)
@@ -101,15 +100,13 @@ typedef uint8_t bool;
 #define UA_calloc(num, size) calloc(num, size)
 #define UA_realloc(ptr, size) realloc(ptr, size)
 
-#ifndef NO_ALLOCA
-# if defined(__GNUC__) || defined(__clang__)
-#  define UA_alloca(size) __builtin_alloca (size)
-# elif defined(_WIN32)
-#  define UA_alloca(SIZE) _alloca(SIZE)
-# else
-#  include <alloca.h>
-#  define UA_alloca(SIZE) alloca(SIZE)
-# endif
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_alloca(size) __builtin_alloca (size)
+#elif defined(_WIN32)
+# define UA_alloca(SIZE) _alloca(SIZE)
+#else
+# include <alloca.h>
+# define UA_alloca(SIZE) alloca(SIZE)
 #endif
 
 /**
@@ -178,15 +175,32 @@ typedef uint8_t bool;
 #endif
 
 /**
+ * String Manipulation
+ * -------------------
+ * The header ``string.h`` is defined in the C-standard. If no libc is provided
+ * (e.g. on some embedded target), use the following definitions and the
+ * implementation in ``/deps/libc_string.c`` */
+#ifndef UA_ENABLE_EMBEDDED_LIBC
+# include <string.h>
+#else
+  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
+  void *memset(void *dest, int c, size_t n);
+  size_t strlen(const char *s);
+  int memcmp(const void *vl, const void *vr, size_t n);
+#endif
+
+/**
  * Binary Encoding Overlays
  * ------------------------
- * Integers and floating point numbers are transmitted in little-endian (IEE 754
+ * Integers and floating point numbers are transmitted in little-endian (IEEE 754
  * for floating point) encoding. If the target architecture uses the same
  * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
  * This speeds up encoding.
  *
  * Integer Endianness
- * ^^^^^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^^^
+ * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
+ * representation of the target architecture is little-endian. */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
                         (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define UA_BINARY_OVERLAYABLE_INTEGER 1
@@ -231,7 +245,11 @@ typedef uint8_t bool;
 
 /**
  * Float Endianness
- * ^^^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^
+ * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
+ * point number representation of the target architecture is IEEE 754. Note that
+ * this cannot be reliable detected with macros for the clang compiler
+ * (beginning of 2017). Just override if necessary. */
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \

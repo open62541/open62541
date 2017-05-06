@@ -1,6 +1,7 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
+include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${CHECK_INCLUDE_DIRS})
@@ -12,7 +13,6 @@ include_directories(${CHECK_INCLUDE_DIRS})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
-###
 
 set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 
@@ -172,3 +172,7 @@ add_test_valgrind(check_client ${TESTS_BINARY_DIR}/check_client)
 add_executable(check_client_subscriptions check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test_valgrind(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
+
+add_executable(check_client_highlevel check_client_highlevel.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_client_highlevel ${LIBS})
+add_test_valgrind(check_client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)

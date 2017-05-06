@@ -14,12 +14,15 @@ sudo: required
 
 env:
   global:
+    # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-    - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
+    # COVERITY_SCAN_TOKEN:
+    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
   matrix:
     # Do both, compile with static code analysis and without
     - ANALYZE=false
     - ANALYZE=true
+    - DOCKER=true
 
 matrix:
   exclude:
@@ -28,6 +31,15 @@ matrix:
       compiler: gcc
     - os: osx
       env: ANALYZE=true
+    - os: osx
+      env: DOCKER=true
+    - os: linux
+      compiler: clang
+      env: DOCKER=true
+
+# Required for docker build test
+services:
+  - docker
 
 addons:
   apt:
@@ -57,11 +69,11 @@ addons:
       - texlive-fonts-recommended
   coverity_scan:
     project:
-      name: acplt/open62541
-      description: Open-source OPC UA
+      name: "open62541/open62541"
+      description: "Build submitted by Travis"
     notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: mkdir build && cd build && cmake ..
-    build_command: make
+    build_command_prepend: "mkdir build && cd build && cmake .."
+    build_command: "make"
     branch_pattern: coverity_scan
 
 cache:
@@ -71,12 +83,13 @@ cache:
     - $HOME/install
 
 before_install:
+- if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
 - if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_linux_script.sh; fi
+- if [ ${TRAVIS_OS_NAME} == "osx" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
 after_success:
 - if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi

@@ -70,7 +70,7 @@ static void UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
         LIST_REMOVE(n, listEntry);
-        free(n);
+        UA_free(n);
     }
     UA_Client_Subscription *sub, *tmps;
     LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
@@ -88,7 +88,7 @@ void UA_Client_delete(UA_Client* client){
     UA_free(client);
 }
 
-UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client) {
+UA_ClientState UA_Client_getState(UA_Client *client) {
     if(!client)
         return UA_CLIENTSTATE_ERRORED;
     return client->state;
@@ -100,7 +100,8 @@ UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client) {
 
 #define UA_MINMESSAGESIZE 8192
 
-static UA_StatusCode HelAckHandshake(UA_Client *client) {
+static UA_StatusCode
+HelAckHandshake(UA_Client *client) {
     /* Get a buffer */
     UA_ByteString message;
     UA_Connection *conn = &client->connection;
@@ -198,32 +199,36 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     if(conn->state != UA_CONNECTION_ESTABLISHED)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
-    UA_SecureConversationMessageHeader messageHeader;
-    messageHeader.messageHeader.messageTypeAndChunkType =
-        UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    if(renew)
-        messageHeader.secureChannelId = client->channel.securityToken.channelId;
-    else
-        messageHeader.secureChannelId = 0;
+    UA_ByteString message;
+    UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
+    /* Jump over the messageHeader that will be encoded last */
+    size_t offset = 12;
+
+    /* Encode the Asymmetric Security Header */
+    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
+    asymHeader.securityPolicyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    retval = UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
+
+    /* Encode the sequence header */
     UA_SequenceHeader seqHeader;
     seqHeader.sequenceNumber = ++client->channel.sendSequenceNumber;
     seqHeader.requestId = ++client->requestId;
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
 
-    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
-    UA_AsymmetricAlgorithmSecurityHeader_init(&asymHeader);
-    asymHeader.securityPolicyUri =
-        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-
-    /* id of opensecurechannelrequest */
+    /* Encode the NodeId of the OpenSecureChannel Service */
     UA_NodeId requestType =
         UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId);
+    retval |= UA_NodeId_encodeBinary(&requestType, &message, &offset);
 
+    /* Encode the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
     opnSecRq.requestHeader.timestamp = UA_DateTime_now();
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
-    opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
     if(renew) {
         opnSecRq.requestType = UA_SECURITYTOKENREQUESTTYPE_RENEW;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -233,39 +238,35 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Requesting to open a SecureChannel");
     }
-
-    UA_ByteString_copy(&client->channel.clientNonce, &opnSecRq.clientNonce);
     opnSecRq.securityMode = UA_MESSAGESECURITYMODE_NONE;
-
-    UA_ByteString message;
-    UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
-        return retval;
-    }
-
-    size_t offset = 12;
-    retval = UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &message, &offset);
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &message, &offset);
-    retval |= UA_NodeId_encodeBinary(&requestType, &message, &offset);
+    opnSecRq.clientNonce = client->channel.clientNonce;
+    opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
     retval |= UA_OpenSecureChannelRequest_encodeBinary(&opnSecRq, &message, &offset);
+
+    /* Encode the message header at the beginning */
+    UA_SecureConversationMessageHeader messageHeader;
+    messageHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     messageHeader.messageHeader.messageSize = (UA_UInt32)offset;
+    if(renew)
+        messageHeader.secureChannelId = client->channel.securityToken.channelId;
+    else
+        messageHeader.secureChannelId = 0;
     offset = 0;
     retval |= UA_SecureConversationMessageHeader_encodeBinary(&messageHeader, &message, &offset);
 
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-    UA_OpenSecureChannelRequest_deleteMembers(&opnSecRq);
+    /* Clean up and return if encoding the message failed */
     if(retval != UA_STATUSCODE_GOOD) {
         client->connection.releaseSendBuffer(&client->connection, &message);
         return retval;
     }
 
+    /* Send the message */
     message.length = messageHeader.messageHeader.messageSize;
     retval = conn->send(conn, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Receive the response */
     UA_ByteString reply = UA_BYTESTRING_NULL;
     UA_Boolean realloced = false;
     retval = UA_Connection_receiveChunksBlocking(conn, &reply, &realloced,
@@ -278,13 +279,13 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
 
     /* Decode the header */
     offset = 0;
-    UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
-    UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
-    UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
-    UA_NodeId_decodeBinary(&reply, &offset, &requestType);
+    retval = UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
+    retval |= UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
+    retval |= UA_NodeId_decodeBinary(&reply, &offset, &requestType);
     UA_NodeId expectedRequest =
         UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
-    if(!UA_NodeId_equal(&requestType, &expectedRequest)) {
+    if(retval != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&requestType, &expectedRequest)) {
         UA_ByteString_deleteMembers(&reply);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
@@ -340,15 +341,15 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     }
 
     /* Clean up */
-    UA_OpenSecureChannelResponse_deleteMembers(&response);
     UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
 
-static UA_StatusCode ActivateSession(UA_Client *client) {
+static UA_StatusCode
+ActivateSession(UA_Client *client) {
     UA_ActivateSessionRequest request;
     UA_ActivateSessionRequest_init(&request);
-
     request.requestHeader.requestHandle = ++client->requestHandle;
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 600000;
@@ -378,8 +379,8 @@ static UA_StatusCode ActivateSession(UA_Client *client) {
 
     if(response.responseHeader.serviceResult) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with statuscode 0x%08x",
-                     response.responseHeader.serviceResult);
+                     "ActivateSession failed with error code %s",
+                     UA_StatusCode_name(response.responseHeader.serviceResult));
     }
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
@@ -417,9 +418,9 @@ static UA_StatusCode UpdateNamespaceIndices(UA_Client* client){
 }
 
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-static UA_StatusCode
-GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
-             UA_EndpointDescription** endpointDescriptions) {
+UA_StatusCode
+__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
+                         UA_EndpointDescription** endpointDescriptions) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
     request.requestHeader.timestamp = UA_DateTime_now();
@@ -435,7 +436,8 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = response.responseHeader.serviceResult;
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "GetEndpointRequest failed with statuscode 0x%08x", retval);
+                     "GetEndpointRequest failed with error code %s",
+                     UA_StatusCode_name(retval));
         UA_GetEndpointsResponse_deleteMembers(&response);
         return retval;
     }
@@ -447,10 +449,11 @@ GetEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode EndpointsHandshake(UA_Client *client) {
+static UA_StatusCode
+EndpointsHandshake(UA_Client *client) {
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = GetEndpoints(client, &endpointArraySize, &endpointArray);
+    UA_StatusCode retval = __UA_Client_getEndpoints(client, &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -512,7 +515,8 @@ static UA_StatusCode EndpointsHandshake(UA_Client *client) {
     return retval;
 }
 
-static UA_StatusCode SessionHandshake(UA_Client *client) {
+static UA_StatusCode
+SessionHandshake(UA_Client *client) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
 
@@ -536,7 +540,8 @@ static UA_StatusCode SessionHandshake(UA_Client *client) {
     return retval;
 }
 
-static UA_StatusCode CloseSession(UA_Client *client) {
+static UA_StatusCode
+CloseSession(UA_Client *client) {
     UA_CloseSessionRequest request;
     UA_CloseSessionRequest_init(&request);
 
@@ -553,7 +558,8 @@ static UA_StatusCode CloseSession(UA_Client *client) {
     return retval;
 }
 
-static UA_StatusCode CloseSecureChannel(UA_Client *client) {
+static UA_StatusCode
+CloseSecureChannel(UA_Client *client) {
     UA_SecureChannel *channel = &client->channel;
     UA_CloseSecureChannelRequest request;
     UA_CloseSecureChannelRequest_init(&request);
@@ -653,8 +659,9 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     return UA_Client_connect(client, endpointUrl);
 }
 
-static UA_StatusCode
-_UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpointsHandshake, UA_Boolean createSession) {
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession) {
     if(client->state == UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
     if(client->state == UA_CLIENTSTATE_ERRORED) {
@@ -702,7 +709,7 @@ _UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpoi
 
 UA_StatusCode
 UA_Client_connect(UA_Client *client, const char *endpointUrl) {
-    return _UA_Client_connect(client, endpointUrl, UA_TRUE, UA_TRUE);
+    return __UA_Client_connect(client, endpointUrl, UA_TRUE, UA_TRUE);
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {
@@ -723,129 +730,6 @@ UA_StatusCode UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = SecureChannelHandshake(client, true);
     if(retval == UA_STATUSCODE_GOOD)
         client->state = UA_CLIENTSTATE_CONNECTED;
-    return retval;
-}
-
-UA_StatusCode
-UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-                       size_t* endpointDescriptionsSize,
-                       UA_EndpointDescription** endpointDescriptions) {
-    if (client->state == UA_CLIENTSTATE_CONNECTED &&
-        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
-        // client is already connected but to a different endpoint url.
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_FALSE, UA_FALSE);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = GetEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
-
-    UA_Client_disconnect(client);
-    UA_Client_reset(client);
-    return retval;
-}
-
-UA_StatusCode
-UA_Client_findServers(UA_Client *client, const char *serverUrl,
-                      size_t serverUrisSize, UA_String *serverUris,
-                      size_t localeIdsSize, UA_String *localeIds,
-                      size_t *registeredServerSize, UA_ApplicationDescription **registeredServers) {
-
-    if (client->state == UA_CLIENTSTATE_CONNECTED &&
-       strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
-        // client is already connected but to a different endpoint url.
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
-        UA_Client_reset(client);
-        return retval;
-    }
-
-    UA_FindServersRequest request;
-    UA_FindServersRequest_init(&request);
-
-    request.serverUrisSize = serverUrisSize;
-    request.serverUris = serverUris;
-
-    request.localeIdsSize = localeIdsSize;
-    request.localeIds = localeIds;
-
-    // now send the request
-    UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
-    retval = response.responseHeader.serviceResult;
-    if (retval != UA_STATUSCODE_GOOD) {
-        *registeredServerSize = 0;
-        goto cleanup;
-    }
-
-    *registeredServerSize = response.serversSize;
-    *registeredServers = (UA_ApplicationDescription *) UA_Array_new(response.serversSize,
-                                                                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-    for (size_t i = 0; i < response.serversSize; i++)
-        UA_ApplicationDescription_copy(&response.servers[i], &(*registeredServers)[i]);
-
-    /* always cleanup */
-    cleanup:
-    UA_FindServersResponse_deleteMembers(&response);
-    UA_Client_disconnect(client);
-    UA_Client_reset(client);
-    return retval;
-}
-
-UA_StatusCode
-UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
-                               UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
-                               size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
-                               size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork) {
-
-    if (client->state == UA_CLIENTSTATE_CONNECTED &&
-        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
-        // client is already connected but to a different endpoint url.
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StatusCode retval = _UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
-        UA_Client_reset(client);
-        return retval;
-    }
-
-    UA_FindServersOnNetworkRequest request;
-    UA_FindServersOnNetworkRequest_init(&request);
-
-    request.startingRecordId = startingRecordId;
-    request.maxRecordsToReturn = maxRecordsToReturn;
-
-    request.serverCapabilityFilterSize = serverCapabilityFilterSize;
-    request.serverCapabilityFilter = serverCapabilityFilter;
-
-    // now send the request
-    UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
-    retval = response.responseHeader.serviceResult;
-    if (retval != UA_STATUSCODE_GOOD) {
-        *serverOnNetworkSize = 0;
-        goto cleanup;
-    }
-
-    *serverOnNetworkSize = response.serversSize;
-    *serverOnNetwork = (UA_ServerOnNetwork *) UA_Array_new(response.serversSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
-    for (size_t i = 0; i < response.serversSize; i++)
-        UA_ServerOnNetwork_copy(&response.servers[i], &(*serverOnNetwork)[i]);
-
-    cleanup:
-    UA_FindServersOnNetworkResponse_deleteMembers(&response);
-    UA_Client_disconnect(client);
-    UA_Client_reset(client);
     return retval;
 }
 

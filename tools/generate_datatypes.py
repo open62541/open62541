@@ -420,8 +420,8 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else '')+'''
-''')
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
@@ -494,7 +494,6 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "stddef.h"
 #include "''' + outname + '''_generated.h"''')
 
 for t in iter_types(types):

@@ -10,95 +10,112 @@
 #include "check.h"
 
 START_TEST(EndpointUrl_split) {
-    // check for null
-    ck_assert_uint_eq(UA_EndpointUrl_split(NULL, NULL, NULL, NULL), UA_STATUSCODE_BADINVALIDARGUMENT);
-
-    char hostname[256];
-    UA_UInt16 port;
-    const char* path;
-
-    // check for max url length
-    // this string has 256 chars
-    char *overlength = "wEgfH2Sqe8AtFcUqX6VnyvZz6A4AZtbKRvGwQWvtPLrt7aaLb6wtqFzqQ2dLYLhTwJpAuVbsRTGfjvP2kvsVSYQLLeGuPjJyYnMt5e8TqtmYuPTb78uuAx7KyQB9ce95eacs3Jp32KMNtb7BTuKjQ236MnMX3mFWYAkALcj5axpQnFaGyU3HvpYrX24FTEztuZ3zpNnqBWQyHPVa6efGTzmUXMADxjw3AbG5sTGzDca7rucsfQRAZby8ZWKm66pV";
-    ck_assert_uint_eq(UA_EndpointUrl_split(overlength, hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 0;
 
     // check for too short url
-    ck_assert_uint_eq(UA_EndpointUrl_split("inv.ali:/", hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
+    UA_String endPointUrl = UA_STRING("inv.ali:/");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 
     // check for opc.tcp:// protocol
-    ck_assert_uint_eq(UA_EndpointUrl_split("inv.ali://", hostname, &port, &path), UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    endPointUrl = UA_STRING("inv.ali://");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 
     // empty url
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(strlen(hostname), 0);
+    endPointUrl = UA_STRING("opc.tcp://");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    ck_assert(UA_String_equal(&hostname, &UA_STRING_NULL));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // only hostname
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    endPointUrl = UA_STRING("opc.tcp://hostname");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    UA_String expected = UA_STRING("hostname");
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // empty port
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    endPointUrl = UA_STRING("opc.tcp://hostname:");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // specific port
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    endPointUrl = UA_STRING("opc.tcp://hostname:1234");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // IPv6
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"[2001:0db8:85a3::8a2e:0370:7334]");
+    endPointUrl = UA_STRING("opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    expected = UA_STRING("[2001:0db8:85a3::8a2e:0370:7334]");
+    UA_String expectedPath = UA_STRING("path");
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
-    ck_assert_str_eq(path, "path");
+    ck_assert(UA_String_equal(&path, &expectedPath));
 
     // empty hostname
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://:", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(strlen(hostname),0);
+    endPointUrl = UA_STRING("opc.tcp://:");
+    port = 0;
+    path = UA_STRING_NULL;
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    ck_assert(UA_String_equal(&hostname, &UA_STRING_NULL));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // empty hostname and no port
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp:///", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(strlen(hostname),0);
+    endPointUrl = UA_STRING("opc.tcp:///");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &UA_STRING_NULL));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // overlength port
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:12345678", hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
-
-    // too high port
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:65536", hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
+    endPointUrl = UA_STRING("opc.tcp://hostname:12345678");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
 
     // port not a number
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:6x6", hostname, &port, &path), UA_STATUSCODE_BADOUTOFRANGE);
+    endPointUrl = UA_STRING("opc.tcp://hostname:6x6");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path),
+                      UA_STATUSCODE_BADTCPENDPOINTURLINVALID);
+    expected = UA_STRING("hostname");
+    ck_assert(UA_String_equal(&hostname, &expected));
+    ck_assert_uint_eq(port, 0);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // no port but path
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname/", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    endPointUrl = UA_STRING("opc.tcp://hostname/");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 0);
-    ck_assert(path == NULL);
+    ck_assert(UA_String_equal(&path, &UA_STRING_NULL));
 
     // port and path
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234/path", hostname, &port, &path), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    endPointUrl = UA_STRING("opc.tcp://hostname:1234/path");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
-    ck_assert_str_eq(path, "path");
+    ck_assert(UA_String_equal(&path, &expectedPath));
 
-    // full url, but only hostname required
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234/path", hostname, NULL, NULL), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
-
-    // full url, but only hostname and port required
-    ck_assert_uint_eq(UA_EndpointUrl_split("opc.tcp://hostname:1234/path", hostname, &port, NULL), UA_STATUSCODE_GOOD);
-    ck_assert_str_eq(hostname,"hostname");
+    // port and path with a slash
+    endPointUrl = UA_STRING("opc.tcp://hostname:1234/path/");
+    ck_assert_uint_eq(UA_parseEndpointUrl(&endPointUrl, &hostname, &port, &path), UA_STATUSCODE_GOOD);
+    ck_assert(UA_String_equal(&hostname, &expected));
     ck_assert_uint_eq(port, 1234);
+    ck_assert(UA_String_equal(&path, &expectedPath));
 }
 END_TEST
 

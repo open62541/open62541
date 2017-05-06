@@ -22,7 +22,8 @@ forceVariantSetScalar(UA_Variant *v, const void *p, const UA_DataType *t) {
 }
 
 static UA_UInt32
-getUserWriteMask(UA_Server *server, const UA_Session *session, const UA_Node *node) {
+getUserWriteMask(UA_Server *server, const UA_Session *session,
+                 const UA_Node *node) {
     if(session == &adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     return node->writeMask &
@@ -245,8 +246,15 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                const UA_NumericRange *range, UA_Variant *editableValue) {
     /* Empty variant is only allowed for BaseDataType */
-    if(!value->type)
-        return UA_STATUSCODE_GOOD;
+    if(!value->type) {
+        if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
+           UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
+            return UA_STATUSCODE_GOOD;
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Only Variables with data type BaseDataType may contain "
+                    "a null (empty) value");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
 
     /* Has the value a subtype of the required type? BaseDataType (Variant) can
      * be anything... */
@@ -404,8 +412,11 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
         retval = readValueAttribute(server, node, &value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
-        if(!value.hasValue || value.value.data == NULL)
-            goto apply; /* no value or null array */
+        if(!value.hasValue || !value.value.type) {
+            /* no value -> apply */
+            node->valueRank = valueRank;
+            return UA_STATUSCODE_GOOD;
+        }
         if(!UA_Variant_isScalar(&value.value))
             arrayDims = 1;
         UA_DataValue_deleteMembers(&value);
@@ -415,7 +426,6 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
         return retval;
 
     /* All good, apply the change */
- apply:
     node->valueRank = valueRank;
     return UA_STATUSCODE_GOOD;
 }
@@ -424,7 +434,7 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 value
 /* DataType Attribute */
 /**********************/
 
-UA_StatusCode
+static UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
                        const UA_NodeId *dataType, const UA_NodeId *constraintDataType) {
     /* If this is a variabletype, there must be no instances or subtypes of it
@@ -530,7 +540,7 @@ readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -597,7 +607,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+static UA_StatusCode
 writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                     const UA_DataValue *value, const UA_String *indexRange) {
     /* Parse the range */
@@ -605,7 +615,7 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -625,8 +635,11 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
         retval = typeCheckValue(server, &node->dataType, node->valueRank,
                                 node->arrayDimensionsSize, node->arrayDimensions,
                                 &value->value, rangeptr, &editableValue.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        if(retval != UA_STATUSCODE_GOOD) {
+            if(rangeptr)
+                UA_free(range.dimensions);
+            return retval;
+        }
     }
 
     /* Set the source timestamp if there is none */
@@ -663,7 +676,6 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     }
 
     /* Clean up */
- cleanup:
     if(rangeptr)
         UA_free(range.dimensions);
          /*JGrothoff: editableValue has to be freed, because a copy is made */
@@ -723,8 +735,8 @@ writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
 /* Read Service */
 /****************/
 
-static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
-/* static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"}; */
+static const UA_String binEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
+/* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
 
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
@@ -1087,7 +1099,7 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
 /* This function implements the main part of the write service and operates on a
    copy of the node (not in single-threaded mode). */
 static UA_StatusCode
-CopyAttributeIntoNode(UA_Server *server, UA_Session *session,
+copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                       UA_Node *node, const UA_WriteValue *wvalue) {
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, node);
@@ -1243,7 +1255,7 @@ Service_Write(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_EXTERNAL_NAMESPACES
     for(size_t i = 0;i < request->nodesToWriteSize;++i) {
         response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
-                                                  (UA_EditNodeCallback)CopyAttributeIntoNode,
+                                                  (UA_EditNodeCallback)copyAttributeIntoNode,
                                                   &request->nodesToWrite[i]);
     }
 #else
@@ -1270,7 +1282,7 @@ Service_Write(UA_Server *server, UA_Session *session,
         if(isExternal[i])
             continue;
         response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
-                                                  (UA_EditNodeCallback)CopyAttributeIntoNode,
+                                                  (UA_EditNodeCallback)copyAttributeIntoNode,
                                                   &request->nodesToWrite[i]);
     }
 #endif
@@ -1281,7 +1293,7 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &value->nodeId,
-                           (UA_EditNodeCallback)CopyAttributeIntoNode, value);
+                           (UA_EditNodeCallback)copyAttributeIntoNode, value);
     UA_RCU_UNLOCK();
     return retval;
 }

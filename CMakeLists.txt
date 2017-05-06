@@ -39,7 +39,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if("${OPEN62541_VER_COMMIT}" STREQUAL "")
+if(NOT ${OPEN62541_VER_COMMIT} OR ${OPEN62541_VER_COMMIT} STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
@@ -202,6 +202,7 @@ endif()
 
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
+configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
 
 if (UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
@@ -258,12 +259,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/ua_namespace.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -289,6 +293,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies
@@ -561,8 +566,15 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
               "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
         DESTINATION "${cmake_configfile_install}")
 
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
+            DESTINATION lib/pkgconfig)
+endif()
 # export amalgamated header open62541.h which is generated due to build of open62541-object
-install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+if(UA_ENABLE_AMALGAMATION)
+    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
+endif()
 install(DIRECTORY deps/ DESTINATION ${open62541_deps_dir})
 install(DIRECTORY tools/ DESTINATION ${open62541_tools_dir} USE_SOURCE_PERMISSIONS)
 
