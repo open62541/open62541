@@ -24,9 +24,14 @@ typedef struct UA_SessionManager {
 UA_StatusCode
 UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server);
 
+/* Deletes all sessions */
 void UA_SessionManager_deleteMembers(UA_SessionManager *sm);
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMonotonic);
+/* Deletes all sessions that have timed out. Deletion is implemented via a
+ * delayed callback. So all currently scheduled jobs with a pointer to the
+ * session can complete. */
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
+                                       UA_DateTime nowMonotonic);
 
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
