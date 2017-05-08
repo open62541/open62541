@@ -39,7 +39,7 @@ removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
      * scheduled jobs have completed */
     UA_StatusCode retval = UA_Server_delayedCallback(sm->server, removeSessionCallback, sentry);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+        UA_LOG_WARNING_SESSION(sm->server->config.logger, &sentry->session,
                        "Could not remove session with error code %s",
                        UA_StatusCode_name(retval));
         return retval; /* Try again next time */
@@ -69,19 +69,25 @@ UA_Session *
 UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
-            if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-                UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                             "Try to use Session with token " UA_PRINTF_GUID_FORMAT ", but has timed out",
-                             UA_PRINTF_GUID_DATA(token->identifier.guid));
-                return NULL;
-            }
-            return &current->session;
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.authenticationToken, token))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
         }
+
+        /* Ok, return */
+        return &current->session;
     }
-    UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
-                 UA_PRINTF_GUID_DATA(token->identifier.guid));
+
+    /* Session not found */
+    UA_INFO_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                  "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
+                  UA_PRINTF_GUID_DATA(token->identifier.guid));
     return NULL;
 }
 
