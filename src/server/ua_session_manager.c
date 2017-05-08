@@ -33,9 +33,6 @@ removeSessionCallback(UA_Server *server, void *entry) {
 static UA_StatusCode
 removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
     /* Deactivate the session */
-    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                "Session with token %i has timed out and is removed",
-                sentry->session.sessionId.identifier.numeric);
     sentry->session.activated = false;
 
     /* Add a delayed callback to remove the session when the currently
@@ -62,6 +59,8 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
+        UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
+                            "Session has timed out");
         removeSession(sm, sentry);
     }
 }

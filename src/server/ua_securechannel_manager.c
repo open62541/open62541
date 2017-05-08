@@ -37,9 +37,6 @@ removeSecureChannelCallback(UA_Server *server, void *entry) {
 
 static UA_StatusCode
 removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry){
-    UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
-                         "SecureChannel has timed out");
-
     /* Add a delayed callback to remove the channel when the currently
      * scheduled jobs have completed */
     UA_StatusCode retval = UA_Server_delayedCallback(cm->server, removeSecureChannelCallback, entry);
@@ -64,6 +61,8 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
         UA_DateTime timeout = entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < nowMonotonic || !entry->channel.connection) {
+            UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
+                                "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
         } else if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
