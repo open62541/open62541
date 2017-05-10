@@ -28,25 +28,41 @@ void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm) {
     }
 }
 
-static void removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry){
+static void
+removeSecureChannelCallback(UA_Server *server, void *entry) {
+    channel_list_entry *centry = (channel_list_entry*)entry;
+    UA_SecureChannel_deleteMembersCleanup(&centry->channel);
+    UA_free(entry);
+}
+
+static UA_StatusCode
+removeSecureChannel(UA_SecureChannelManager *cm, channel_list_entry *entry){
+    /* Add a delayed callback to remove the channel when the currently
+     * scheduled jobs have completed */
+    UA_StatusCode retval = UA_Server_delayedCallback(cm->server, removeSecureChannelCallback, entry);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(cm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                       "Could not remove the secure channel with error code %s",
+                       UA_StatusCode_name(retval));
+        return retval; /* Try again next time */
+    }
+
+    /* Detach the channel and make the capacity available */
     LIST_REMOVE(entry, pointers);
     UA_atomic_add(&cm->currentChannelCount, (UA_UInt32)-1);
-    UA_SecureChannel_deleteMembersCleanup(&entry->channel);
-#ifndef UA_ENABLE_MULTITHREADING
-    UA_free(entry);
-#else
-    UA_Server_delayedFree(cm->server, entry);
-#endif
+    return UA_STATUSCODE_GOOD;
 }
 
 /* remove channels that were not renewed or who have no connection attached */
-void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime nowMonotonic) {
+void
+UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime nowMonotonic) {
     channel_list_entry *entry, *temp;
     LIST_FOREACH_SAFE(entry, &cm->channels, pointers, temp) {
         UA_DateTime timeout = entry->channel.securityToken.createdAt +
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < nowMonotonic || !entry->channel.connection) {
-            UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, &entry->channel, "SecureChannel has timed out");
+            UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
+                                "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
         } else if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
@@ -60,7 +76,8 @@ static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager *cm) {
     LIST_FOREACH(entry, &cm->channels, pointers) {
         if(LIST_EMPTY(&(entry->channel.sessions))){
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, &entry->channel,
-                                 "Channel was purged since maxSecureChannels was reached and channel had no session attached");
+                                 "Channel was purged since maxSecureChannels was "
+                                 "reached and channel had no session attached");
             removeSecureChannel(cm, entry);
             UA_assert(entry != LIST_FIRST(&cm->channels));
             return true;
@@ -169,6 +186,5 @@ UA_SecureChannelManager_close(UA_SecureChannelManager *cm, UA_UInt32 channelId) 
     }
     if(!entry)
         return UA_STATUSCODE_BADINTERNALERROR;
-    removeSecureChannel(cm, entry);
-    return UA_STATUSCODE_GOOD;
+    return removeSecureChannel(cm, entry);
 }

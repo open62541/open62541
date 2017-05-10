@@ -22,27 +22,46 @@ void UA_SessionManager_deleteMembers(UA_SessionManager *sm) {
     }
 }
 
+/* Delayed callback to free the session memory */
 static void
-removeSessionEntry(UA_SessionManager *sm, session_list_entry *sentry) {
-    LIST_REMOVE(sentry, pointers);
-    UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
-    UA_Session_deleteMembersCleanup(&sentry->session, sm->server);
-#ifndef UA_ENABLE_MULTITHREADING
+removeSessionCallback(UA_Server *server, void *entry) {
+    session_list_entry *sentry = (session_list_entry*)entry;
+    UA_Session_deleteMembersCleanup(&sentry->session, server);
     UA_free(sentry);
-#else
-    UA_Server_delayedFree(sm->server, sentry);
-#endif
 }
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm, UA_DateTime nowMonotonic) {
+static UA_StatusCode
+removeSession(UA_SessionManager *sm, session_list_entry *sentry) {
+    /* Deactivate the session */
+    sentry->session.activated = false;
+
+    /* Add a delayed callback to remove the session when the currently
+     * scheduled jobs have completed */
+    UA_StatusCode retval = UA_Server_delayedCallback(sm->server, removeSessionCallback, sentry);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(sm->server->config.logger, &sentry->session,
+                       "Could not remove session with error code %s",
+                       UA_StatusCode_name(retval));
+        return retval; /* Try again next time */
+    }
+
+    /* Detach the session and make the capacity available */
+    LIST_REMOVE(sentry, pointers);
+    UA_atomic_add(&sm->currentSessionCount, (UA_UInt32)-1);
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
+                                  UA_DateTime nowMonotonic) {
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &sm->sessions, pointers, temp) {
-        if(sentry->session.validTill < nowMonotonic) {
-            UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                         "Session with token %i has timed out and is removed",
-                         sentry->session.sessionId.identifier.numeric);
-            removeSessionEntry(sm, sentry);
-        }
+        /* Session has timed out? */
+        if(sentry->session.validTill >= nowMonotonic)
+            continue;
+        UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
+                            "Session has timed out");
+        removeSession(sm, sentry);
     }
 }
 
@@ -50,19 +69,25 @@ UA_Session *
 UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
-        if(UA_NodeId_equal(&current->session.authenticationToken, token)) {
-            if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-                UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                             "Try to use Session with token " UA_PRINTF_GUID_FORMAT ", but has timed out",
-                             UA_PRINTF_GUID_DATA(token->identifier.guid));
-                return NULL;
-            }
-            return &current->session;
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.authenticationToken, token))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
         }
+
+        /* Ok, return */
+        return &current->session;
     }
-    UA_LOG_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                 "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
-                 UA_PRINTF_GUID_DATA(token->identifier.guid));
+
+    /* Session not found */
+    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
+                UA_PRINTF_GUID_DATA(token->identifier.guid));
     return NULL;
 }
 
@@ -103,6 +128,5 @@ UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token) {
     }
     if(!current)
         return UA_STATUSCODE_BADSESSIONIDINVALID;
-    removeSessionEntry(sm, current);
-    return UA_STATUSCODE_GOOD;
+    return removeSession(sm, current);
 }
