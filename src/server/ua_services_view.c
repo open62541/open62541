@@ -420,63 +420,58 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /***********************/
 
 static void
-walkBrowsePathElementNode(UA_BrowsePathResult *result, size_t *targetsSize,
-                          UA_NodeId **next, size_t *nextSize, size_t *nextCount,
-                          UA_UInt32 elemDepth, UA_Boolean inverse, UA_Boolean all_refs,
-                          const UA_NodeId *reftypes, size_t reftypes_count, const UA_Node *node) {
-    /* Loop over the nodes references */
-    for(size_t i = 0; i < node->referencesSize &&
-            result->statusCode == UA_STATUSCODE_GOOD; i++) {
-        UA_ReferenceNode *reference = &node->references[i];
+walkBrowsePathElementNodeReference(UA_BrowsePathResult *result, size_t *targetsSize,
+                                   UA_NodeId **next, size_t *nextSize, size_t *nextCount,
+                                   UA_UInt32 elemDepth, UA_Boolean inverse, UA_Boolean all_refs,
+                                   const UA_NodeId *reftypes, size_t reftypes_count,
+                                   const UA_ReferenceNode *reference) {
+    /* Does the direction of the reference match? */
+    if(reference->isInverse != inverse)
+        return;
 
-        /* Does the direction of the reference match? */
-        if(reference->isInverse != inverse)
-            continue;
-
-        /* Is the node relevant? */
-        if(!all_refs) {
-            UA_Boolean match = false;
-            for(size_t j = 0; j < reftypes_count; ++j) {
-                if(UA_NodeId_equal(&reference->referenceTypeId, &reftypes[j])) {
-                    match = true;
-                    break;
-                }
+    /* Is the node relevant? */
+    if(!all_refs) {
+        UA_Boolean match = false;
+        for(size_t j = 0; j < reftypes_count; ++j) {
+            if(UA_NodeId_equal(&reference->referenceTypeId, &reftypes[j])) {
+                match = true;
+                break;
             }
-            if(!match)
-                continue;
         }
-
-        /* Does the reference point to an external server? Then add to the
-           targets with the right path "depth" */
-        if(reference->targetId.serverIndex != 0) {
-            UA_BrowsePathTarget *tempTargets =
-                UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) * (*targetsSize) * 2);
-            if(!tempTargets) {
-                result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-                return;
-            }
-            result->targets = tempTargets;
-            (*targetsSize) *= 2;
-            result->statusCode = UA_ExpandedNodeId_copy(&reference->targetId,
-                                                        &result->targets[result->targetsSize].targetId);
-            result->targets[result->targetsSize].remainingPathIndex = elemDepth;
-            continue;
-        }
-
-        /* Add the node to the next array for the following path element */
-        if(*nextSize <= *nextCount) {
-            UA_NodeId *tempNext = UA_realloc(*next, sizeof(UA_NodeId) * (*nextSize) * 2);
-            if(!tempNext) {
-                result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-                return;
-            }
-            *next = tempNext;
-            (*nextSize) *= 2;
-        }
-        result->statusCode = UA_NodeId_copy(&reference->targetId.nodeId,
-                                            &(*next)[*nextCount]);
-        ++(*nextCount);
+        if(!match)
+            return;
     }
+
+    /* Does the reference point to an external server? Then add to the
+     * targets with the right path "depth" */
+    if(reference->targetId.serverIndex != 0) {
+        UA_BrowsePathTarget *tempTargets =
+            UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) * (*targetsSize) * 2);
+        if(!tempTargets) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        result->targets = tempTargets;
+        (*targetsSize) *= 2;
+        result->statusCode = UA_ExpandedNodeId_copy(&reference->targetId,
+                                                    &result->targets[result->targetsSize].targetId);
+        result->targets[result->targetsSize].remainingPathIndex = elemDepth;
+        return;
+    }
+
+    /* Add the node to the next array for the following path element */
+    if(*nextSize <= *nextCount) {
+        UA_NodeId *tempNext = UA_realloc(*next, sizeof(UA_NodeId) * (*nextSize) * 2);
+        if(!tempNext) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        *next = tempNext;
+        (*nextSize) *= 2;
+    }
+    result->statusCode = UA_NodeId_copy(&reference->targetId.nodeId,
+                                        &(*next)[*nextCount]);
+    ++(*nextCount);
 }
 
 static void
@@ -522,8 +517,14 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             continue;
 
         /* Walk over the references in the node */
-        walkBrowsePathElementNode(result, targetsSize, next, nextSize, nextCount, elemDepth,
-                                  elem->isInverse, all_refs, reftypes, reftypes_count, node);
+        /* Loop over the nodes references */
+        for(size_t r = 0; r < node->referencesSize &&
+                result->statusCode == UA_STATUSCODE_GOOD; ++r) {
+            UA_ReferenceNode *reference = &node->references[r];
+            walkBrowsePathElementNodeReference(result, targetsSize, next, nextSize, nextCount,
+                                               elemDepth, elem->isInverse, all_refs,
+                                               reftypes, reftypes_count, reference);
+        }
     }
 
     if(!all_refs && elem->includeSubtypes)
