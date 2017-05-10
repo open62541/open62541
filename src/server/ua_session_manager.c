@@ -85,9 +85,9 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     }
 
     /* Session not found */
-    UA_INFO_DEBUG(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
-                  "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
-                  UA_PRINTF_GUID_DATA(token->identifier.guid));
+    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
+                UA_PRINTF_GUID_DATA(token->identifier.guid));
     return NULL;
 }
 
