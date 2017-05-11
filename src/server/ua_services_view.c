@@ -584,7 +584,7 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
 
         /* When no targets are left or an error occurred. None of next's
          * elements will be copied to result->targets */
-        if(nextCount == 0 || result->statusCode != UA_STATUSCODE_GOOD) {
+        if(*nextCount == 0 || result->statusCode != UA_STATUSCODE_GOOD) {
             UA_assert(*currentCount == 0);
             UA_assert(*nextCount == 0);
             return;
