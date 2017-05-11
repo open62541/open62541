@@ -214,7 +214,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
     UA_StatusCode retval = UA_parseEndpointUrl(discoveryUrl, &hostname, &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                       "Server url size invalid");
+                       "Server url invalid: %.*s",
+                       discoveryUrl->length, discoveryUrl->data);
         return;
     }
 
@@ -224,7 +225,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                           port, updateTxt);
         if(removeRetval != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Could not remove mDNS record for hostname %s.", serverName);
+                           "Could not remove mDNS record for hostname %s.",
+                           serverName);
         return;
     }
     
