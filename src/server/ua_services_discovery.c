@@ -339,10 +339,15 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     const UA_String* mdnsServerName = NULL;
     if(requestDiscoveryConfigurationSize) {
-        *responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
         *responseConfigurationResults =
             (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize,
                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!(*responseConfigurationResults)) {
+            responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        *responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
+
         for(size_t i = 0; i < requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
             if(!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED ||
@@ -350,9 +355,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                (object->content.decoded.type == &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION])) {
                 mdnsConfig = (UA_MdnsDiscoveryConfiguration *)object->content.decoded.data;
                 mdnsServerName = &mdnsConfig->mdnsServerName;
-                *responseConfigurationResults[i] = UA_STATUSCODE_GOOD;
+                (*responseConfigurationResults)[i] = UA_STATUSCODE_GOOD;
             } else {
-                *responseConfigurationResults[i] = UA_STATUSCODE_BADNOTSUPPORTED;
+                (*responseConfigurationResults)[i] = UA_STATUSCODE_BADNOTSUPPORTED;
             }
         }
     }
