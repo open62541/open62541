@@ -37,6 +37,7 @@
 #define checkWait registerTimeout + 11
 
 UA_Server *server_lds;
+UA_ServerConfig *config_lds_dyn;
 UA_Boolean *running_lds;
 UA_ServerNetworkLayer nl_lds;
 pthread_t server_thread_lds;
@@ -51,7 +52,8 @@ static void setup_lds(void) {
     // start LDS server
     running_lds = UA_Boolean_new();
     *running_lds = true;
-    UA_ServerConfig config_lds = UA_ServerConfig_standard;
+    config_lds_dyn = UA_ServerConfig_standard_new();
+    UA_ServerConfig config_lds = *config_lds_dyn;
     config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
     config_lds.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.local_discovery_server");
     config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("en");
@@ -83,10 +85,12 @@ static void teardown_lds(void) {
     UA_Array_delete(server_lds->config.serverCapabilities, server_lds->config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server_lds);
     nl_lds.deleteMembers(&nl_lds);
+    UA_ServerConfig_standard_deleteMembers(config_lds_dyn);
 }
 
 
 UA_Server *server_register;
+UA_ServerConfig *config;
 UA_Boolean *running_register;
 UA_ServerNetworkLayer nl_register;
 pthread_t server_thread_register;
@@ -103,7 +107,8 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
-    UA_ServerConfig config_register = UA_ServerConfig_standard;
+    config = UA_ServerConfig_standard_new();
+    UA_ServerConfig config_register = *config;
     config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_register");
     config_register.applicationDescription.applicationName.locale = UA_String_fromChars("de");
     config_register.applicationDescription.applicationName.text = UA_String_fromChars("Anmeldungsserver");
@@ -126,6 +131,7 @@ static void teardown_register(void) {
     UA_String_deleteMembers(&server_register->config.mdnsServerName);
     UA_Server_delete(server_register);
     nl_register.deleteMembers(&nl_register);
+    UA_ServerConfig_standard_deleteMembers(config);
 }
 
 

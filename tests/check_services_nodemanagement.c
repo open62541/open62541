@@ -20,13 +20,24 @@
 #include <urcu.h>
 #endif
 
+UA_ServerConfig *config;
+
+static void setup_config(void) {
+    config = UA_ServerConfig_standard_new();
+}
+
+static void teardown_config(void) {
+    UA_ServerConfig_standard_deleteMembers(config);
+}
+
 static UA_StatusCode
 instantiationMethod(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
   *((UA_Int32 *) handle) += 1;
   return UA_STATUSCODE_GOOD;
 }
 START_TEST(AddVariableNode) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -43,10 +54,12 @@ START_TEST(AddVariableNode) {
                                                   myIntegerName, UA_NODEID_NULL, attr, NULL, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
-  UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+  setup_config();
+  UA_Server *server = UA_Server_new(*config);
   
   /* add a variable node to the address space */
   UA_ObjectAttributes attr;
@@ -66,10 +79,12 @@ START_TEST(AddComplexTypeWithInheritance) {
   ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
   ck_assert_int_gt(handleCalled, 0); // Should be 58, but may depend on NS0 XML detail
   UA_Server_delete(server);
+  teardown_config();
 } END_TEST
 
 START_TEST(AddNodeTwiceGivesError) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -89,6 +104,7 @@ START_TEST(AddNodeTwiceGivesError) {
                                     myIntegerName, UA_NODEID_NULL, attr, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 static UA_Boolean constructorCalled = false;
@@ -99,7 +115,8 @@ static void * objectConstructor(const UA_NodeId instance) {
 }
 
 START_TEST(AddObjectWithConstructor) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
@@ -130,6 +147,7 @@ START_TEST(AddObjectWithConstructor) {
     ck_assert_int_eq(constructorCalled, true);
 
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 static UA_Boolean destructorCalled = false;
@@ -139,7 +157,8 @@ static void objectDestructor(const UA_NodeId instance, void *handle) {
 }
 
 START_TEST(DeleteObjectWithDestructor) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
@@ -174,10 +193,12 @@ START_TEST(DeleteObjectWithDestructor) {
     ck_assert_int_eq(destructorCalled, true);
 
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 START_TEST(DeleteObjectAndReferences) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* Add an object of the type */
     UA_ObjectAttributes attr;
@@ -242,6 +263,7 @@ START_TEST(DeleteObjectAndReferences) {
     UA_BrowseResult_deleteMembers(&br);
 
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 static Suite * testSuite_services_nodemanagement(void) {

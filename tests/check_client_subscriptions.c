@@ -15,6 +15,7 @@
 #include "check.h"
 
 UA_Server *server;
+UA_ServerConfig *server_conf;
 UA_Boolean *running;
 UA_ServerNetworkLayer nl;
 pthread_t server_thread;
@@ -28,7 +29,8 @@ static void * serverloop(void *_) {
 static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
-    UA_ServerConfig config = UA_ServerConfig_standard;
+    server_conf = UA_ServerConfig_standard_new();
+    UA_ServerConfig config = *server_conf;
     nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
     config.networkLayersSize = 1;
@@ -44,6 +46,7 @@ static void teardown(void) {
     UA_Boolean_delete(running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
+    UA_ServerConfig_standard_deleteMembers(server_conf);
 }
 
 UA_Boolean notificationReceived;

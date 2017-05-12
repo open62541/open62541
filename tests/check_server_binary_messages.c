@@ -35,9 +35,9 @@ static UA_ByteString readFile(char *filename) {
 
 START_TEST(processMessage) {
     UA_Connection c = createDummyConnection();
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = UA_Log_Stdout;
-    UA_Server *server = UA_Server_new(config);
+    UA_ServerConfig *config = UA_ServerConfig_standard_new();
+    config->logger = UA_Log_Stdout;
+    UA_Server *server = UA_Server_new(*config);
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
         UA_Boolean reallocated;
@@ -48,6 +48,7 @@ START_TEST(processMessage) {
     }
     UA_Server_delete(server);
     UA_Connection_deleteMembers(&c);
+    UA_ServerConfig_standard_deleteMembers(config);
 }
 END_TEST
 
