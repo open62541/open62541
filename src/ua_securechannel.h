@@ -107,6 +107,20 @@ typedef void
                              UA_MessageType messageType, UA_UInt32 requestId,
                              const UA_ByteString *message);
 
+/* For chunked responses */
+typedef struct {
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
+    UA_UInt32 messageType;
+
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+
+    UA_ByteString messageBuffer;
+    UA_StatusCode errorCode;
+    UA_Boolean final;
+} UA_ChunkInfo;
+
 /**
  * \brief Processes all chunks in the chunks ByteString.
  *

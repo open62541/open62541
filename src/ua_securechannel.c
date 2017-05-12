@@ -28,20 +28,6 @@ UA_SECURITY_POLICY_NONE_URI = { 47, (UA_Byte*)"http://opcfoundation.org/UA/Secur
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
-/* For chunked responses */
-typedef struct {
-    UA_SecureChannel *channel;
-    UA_UInt32 requestId;
-    UA_UInt32 messageType;
-
-    UA_UInt16 chunksSoFar;
-    size_t messageSizeSoFar;
-
-    UA_ByteString messageBuffer;
-    UA_StatusCode errorCode;
-    UA_Boolean final;
-} UA_ChunkInfo;
-
 void UA_SecureChannel_init(UA_SecureChannel *channel,
                            const UA_SecurityPolicies *securityPolicies,
                            UA_Logger logger) {

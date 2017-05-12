@@ -17,18 +17,17 @@ size_t counter;
 size_t dataCount;
 
 static UA_StatusCode
-sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_t offset) {
+sendChunkMockUp(UA_ChunkInfo *const ci, UA_Byte **buf_pos, UA_Byte **buf_end) {
+    dataCount += (*buf_pos - buffers[bufIndex].data);
     bufIndex++;
-    dst->data = buffers[bufIndex].data;
-    dst->length = buffers[bufIndex].length;
+    *buf_pos = buffers[bufIndex].data;
+    *buf_end = &buffers[bufIndex].data[buffers[bufIndex].length];
     counter++;
-    dataCount += offset;
     return UA_STATUSCODE_GOOD;
 }
 START_TEST(encodeArrayIntoFiveChunksShallWork) {
 
     size_t arraySize = 30; //number of elements within the array which should be encoded
-    size_t offset = 0; // encoding offset
     size_t chunkCount = 6; // maximum chunk count
     size_t chunkSize = 30; //size in bytes of each chunk
     UA_ChunkInfo ci;
@@ -49,14 +48,19 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     UA_Variant v;
     UA_Variant_setArrayCopy(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
 
+    UA_Byte *buf_start = workingBuffer.data;
+    UA_Byte *buf_end = &workingBuffer.data[workingBuffer.length];
+
     UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],
-                                           (UA_exchangeEncodeBuffer)sendChunkMockUp,
-                                           &ci,&workingBuffer,&offset);
+                                           &buf_start,
+                                           &buf_end,
+                                           (UA_ExchangeEncodeBuffer)sendChunkMockUp,
+                                           &ci);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
 
-    dataCount += offset; //last piece of data - no callback was called
+    dataCount += (buf_start - buffers[bufIndex].data); //last piece of data - no callback was called
     ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);
@@ -69,7 +73,6 @@ END_TEST
 START_TEST(encodeStringIntoFiveChunksShallWork) {
 
     size_t stringLength = 120; //number of elements within the array which should be encoded
-    size_t offset = 0; // encoding offset
     size_t chunkCount = 6; // maximum chunk count
     size_t chunkSize = 30; //size in bytes of each chunk
 
@@ -97,12 +100,19 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_Variant v;
     UA_Variant_setScalarCopy(&v,&string,&UA_TYPES[UA_TYPES_STRING]);
 
-    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_Byte *buf_start = workingBuffer.data;
+    UA_Byte *buf_end = &workingBuffer.data[workingBuffer.length];
+
+    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],
+                                           &buf_start,
+                                           &buf_end,
+                                           (UA_ExchangeEncodeBuffer)sendChunkMockUp,
+                                           &ci);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
 
-    dataCount += offset; //last piece of data - no callback was called
+    dataCount += (buf_start - buffers[bufIndex].data); //last piece of data - no callback was called
     ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);

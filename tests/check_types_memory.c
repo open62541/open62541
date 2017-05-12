@@ -66,7 +66,7 @@ START_TEST(encodeShallYieldDecode) {
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_encodeBinary(obj1, &UA_TYPES[_i], NULL, NULL, &msg1, &pos);
+    retval = UA_encodeBinaryWithOffset(obj1, &UA_TYPES[_i], &msg1, &pos, NULL, NULL);
     msg1.length = pos;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
@@ -82,7 +82,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     retval = UA_ByteString_allocBuffer(&msg2, 65000);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], NULL, NULL, &msg2, &pos);
+    pos = 0; retval = UA_encodeBinaryWithOffset(obj2, &UA_TYPES[_i], &msg2, &pos, NULL, NULL);
     msg2.length = pos;
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -106,7 +106,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     void *obj1 = UA_new(&UA_TYPES[_i]);
     size_t pos = 0;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
-    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], NULL, NULL, &msg1, &pos);
+    retval |= UA_encodeBinaryWithOffset(obj1, &UA_TYPES[_i], &msg1, &pos, NULL, NULL);
     UA_delete(obj1, &UA_TYPES[_i]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&msg1);
@@ -206,7 +206,7 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     size_t offset = 0;
-    retval = UA_encodeBinary(obj, &UA_TYPES[_i], NULL, NULL, &msg, &offset);
+    retval = UA_encodeBinaryWithOffset(obj, &UA_TYPES[_i], &msg, &offset, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);

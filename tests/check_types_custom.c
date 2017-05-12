@@ -85,8 +85,7 @@ START_TEST(parseCustomScalar) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t offset = 0;
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL,
-                             &buf, &offset);
+    retval = UA_encodeBinaryWithOffset(&var, &UA_TYPES[UA_TYPES_VARIANT], &buf, &offset, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
@@ -120,8 +119,7 @@ START_TEST(parseCustomArray) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t offset = 0;
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL,
-                             &buf, &offset);
+    retval = UA_encodeBinaryWithOffset(&var, &UA_TYPES[UA_TYPES_VARIANT], &buf, &offset, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
