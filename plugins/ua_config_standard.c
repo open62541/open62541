@@ -233,5 +233,7 @@ UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
         policy->deleteMembers(policy);
     }
 
+    UA_free(config->securityPolicies.policies);
+
     UA_free(config);
 }
