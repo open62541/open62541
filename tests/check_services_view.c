@@ -85,8 +85,7 @@ END_TEST
 
 START_TEST(Service_TranslateBrowsePathsToNodeIds)
     {
-        setup_config();
-        UA_Client *client = UA_Client_new(*config);
+        UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
         UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:16664");
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
