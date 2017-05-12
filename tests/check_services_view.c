@@ -14,6 +14,7 @@
 
 UA_Server *server_translate_browse;
 UA_Boolean *running_translate_browse;
+UA_ServerConfig *config;
 UA_ServerNetworkLayer nl_translate_browse;
 pthread_t server_thread_translate_browse;
 
@@ -23,11 +24,20 @@ static void *serverloop_register(void *_) {
     return NULL;
 }
 
+static void setup_config(void) {
+    config = UA_ServerConfig_standard_new();
+}
+
+static void teardown_config(void) {
+    UA_ServerConfig_standard_deleteMembers(config);
+}
+
 static void setup_server(void) {
     // start server
+    setup_config();
     running_translate_browse = UA_Boolean_new();
     *running_translate_browse = true;
-    UA_ServerConfig config_register = UA_ServerConfig_standard;
+    UA_ServerConfig config_register = *config;
     config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_translate_browse");
     nl_translate_browse = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config_register.networkLayers = &nl_translate_browse;
@@ -45,12 +55,14 @@ static void teardown_server(void) {
     UA_String_deleteMembers(&server_translate_browse->config.applicationDescription.applicationUri);
     UA_Server_delete(server_translate_browse);
     nl_translate_browse.deleteMembers(&nl_translate_browse);
+    teardown_config();
 }
 
 
 START_TEST(Service_Browse_WithBrowseName)
     {
-        UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+        setup_config();
+        UA_Server *server = UA_Server_new(*config);
 
         UA_BrowseDescription bd;
         UA_BrowseDescription_init(&bd);
@@ -67,12 +79,14 @@ START_TEST(Service_Browse_WithBrowseName)
 
         UA_BrowseResult_deleteMembers(&br);
         UA_Server_delete(server);
+        teardown_config();
     }
 END_TEST
 
 START_TEST(Service_TranslateBrowsePathsToNodeIds)
     {
-        UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+        setup_config();
+        UA_Client *client = UA_Client_new(*config);
 
         UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:16664");
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
