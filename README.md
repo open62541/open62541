@@ -11,7 +11,7 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 [![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
 [![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
 [![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=0.2)](https://coveralls.io/r/open62541/open62541?branch=0.2)
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/1864/badge.svg)](https://scan.coverity.com/projects/1864)
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/12248/badge.svg)](https://scan.coverity.com/projects/open62541-open62541)
 
 ### Features
 
@@ -40,6 +40,7 @@ Features still missing in the 0.2 release are:
 - Event-loop (background tasks) and asynchronous service requests in the client
 
 ### Using open62541
+
 A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
 To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
@@ -49,8 +50,16 @@ For discussion and help, you can use
 - our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
 - the [bugtracker](https://github.com/open62541/open62541/issues)
 
-### Contribute to open62541
-As an open source project, we invite new contributors to help improve open62541. Issue reports, bugfixes and new features are very welcome. Note that there are ways to begin contributing without deep knowledge of the OPC UA standard:
+### Development
+
+Besides the general open62541 community, a group of core maintainers jointly steers the long-term development. The current core maintainers are (as of Mai 2017, in alphabetical order):
+
+- Chris-Paul Iatrou (Dresden University of Technology, Chair for Process Control Systems Engineering)
+- Florian Palm (RWTH Aachen University, Chair of Process Control Engineering)
+- Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
+- Stefan Profanter (fortiss, Munich)
+
+As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
 - Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"

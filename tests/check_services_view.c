@@ -70,8 +70,6 @@ START_TEST(Service_Browse_WithBrowseName)
     }
 END_TEST
 
-#define BROWSE_PATHS_SIZE 3
-
 START_TEST(Service_TranslateBrowsePathsToNodeIds)
     {
         UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
@@ -84,50 +82,40 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds)
         // Equals the following node IDs:
         // /85/2253/2256/2259
 
+#define BROWSE_PATHS_SIZE 3
         char *paths[BROWSE_PATHS_SIZE] = {"Server", "ServerStatus", "State"};
-        UA_UInt32 ids[BROWSE_PATHS_SIZE] = {2253, 2256, 2259};
+        UA_UInt32 ids[BROWSE_PATHS_SIZE] = {UA_NS0ID_ORGANIZES, UA_NS0ID_HASCOMPONENT, UA_NS0ID_HASCOMPONENT};
+        UA_BrowsePath browsePath;
+        UA_BrowsePath_init(&browsePath);
+        browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+        browsePath.relativePath.elements = UA_Array_new(BROWSE_PATHS_SIZE, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+        browsePath.relativePath.elementsSize = BROWSE_PATHS_SIZE;
 
-
-        UA_BrowsePath *browsePaths = UA_Array_new(BROWSE_PATHS_SIZE, &UA_TYPES[UA_TYPES_BROWSEPATH]);
-
-        for (unsigned int i = 0; i < BROWSE_PATHS_SIZE; i++) {
-            UA_BrowsePath_init(&browsePaths[i]);
-            browsePaths[i].startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-            browsePaths[i].relativePath.elementsSize = i + 1;
-            browsePaths[i].relativePath.elements = UA_Array_new(i + 1, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
-            for (unsigned int j = 0; j <= i; j++) {
-                UA_RelativePathElement_init(&browsePaths[i].relativePath.elements[j]);
-                browsePaths[i].relativePath.elements[j].isInverse = UA_TRUE;
-
-                browsePaths[i].relativePath.elements[j].targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[j]);
-            }
+        for(size_t i = 0; i < BROWSE_PATHS_SIZE; i++) {
+            UA_RelativePathElement *elem = &browsePath.relativePath.elements[i];
+            elem->referenceTypeId = UA_NODEID_NUMERIC(0, ids[i]);
+            elem->targetName = UA_QUALIFIEDNAME_ALLOC(0, paths[i]);
         }
 
         UA_TranslateBrowsePathsToNodeIdsRequest request;
         UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
-        request.browsePaths = browsePaths;
-        request.browsePathsSize = BROWSE_PATHS_SIZE;
+        request.browsePaths = &browsePath;
+        request.browsePathsSize = 1;
 
-        {
+        UA_TranslateBrowsePathsToNodeIdsResponse response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
 
-            UA_TranslateBrowsePathsToNodeIdsResponse response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
+        ck_assert_int_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+        ck_assert_int_eq(response.resultsSize, 1);
 
-            ck_assert_int_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-            ck_assert_int_eq(response.resultsSize, BROWSE_PATHS_SIZE);
+        ck_assert_int_eq(response.results[0].targetsSize, 1);
+        ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+        ck_assert_int_eq(response.results[0].targets[0].targetId.nodeId.identifier.numeric, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
 
-            for (int i = 0; i < BROWSE_PATHS_SIZE; i++) {
-                ck_assert_int_eq(response.results[i].targetsSize, 1);
-                ck_assert_int_eq(response.results[i].targets[0].targetId.nodeId.identifierType, UA_NODEIDTYPE_NUMERIC);
-                ck_assert_int_eq(response.results[i].targets[0].targetId.nodeId.identifier.numeric, ids[i]);
-
-            }
-
-            UA_TranslateBrowsePathsToNodeIdsRequest_deleteMembers(&request);
-            UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
-            retVal = UA_Client_disconnect(client);
-            ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-            UA_Client_delete(client);
-        }
+        UA_BrowsePath_deleteMembers(&browsePath);
+        UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
+        retVal = UA_Client_disconnect(client);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Client_delete(client);
     }
 END_TEST
 

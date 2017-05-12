@@ -339,10 +339,15 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     const UA_String* mdnsServerName = NULL;
     if(requestDiscoveryConfigurationSize) {
-        *responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
         *responseConfigurationResults =
             (UA_StatusCode *)UA_Array_new(requestDiscoveryConfigurationSize,
                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        if(!(*responseConfigurationResults)) {
+            responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        *responseConfigurationResultsSize = requestDiscoveryConfigurationSize;
+
         for(size_t i = 0; i < requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
             if(!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED ||
@@ -350,9 +355,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                (object->content.decoded.type == &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION])) {
                 mdnsConfig = (UA_MdnsDiscoveryConfiguration *)object->content.decoded.data;
                 mdnsServerName = &mdnsConfig->mdnsServerName;
-                *responseConfigurationResults[i] = UA_STATUSCODE_GOOD;
+                (*responseConfigurationResults)[i] = UA_STATUSCODE_GOOD;
             } else {
-                *responseConfigurationResults[i] = UA_STATUSCODE_BADNOTSUPPORTED;
+                (*responseConfigurationResults)[i] = UA_STATUSCODE_BADNOTSUPPORTED;
             }
         }
     }
@@ -391,20 +396,14 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
-        // todo: malloc may fail: return a statuscode
-        char* mdnsServer = (char *)UA_malloc(sizeof(char) * mdnsServerName->length + 1);
-        memcpy(mdnsServer, mdnsServerName->data, mdnsServerName->length);
-        mdnsServer[mdnsServerName->length] = '\0';
-
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Discovery_update_MdnsForDiscoveryUrl(server, mdnsServer, mdnsConfig,
-                                                    requestServer->discoveryUrls[i],
+            UA_Discovery_update_MdnsForDiscoveryUrl(server, mdnsServerName, mdnsConfig,
+                                                    &requestServer->discoveryUrls[i],
                                                     requestServer->isOnline, updateTxt);
         }
-        UA_free(mdnsServer);
     }
 #endif
 

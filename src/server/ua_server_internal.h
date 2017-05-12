@@ -348,13 +348,15 @@ UA_StatusCode
 UA_Discovery_multicastQuery(UA_Server* server);
 
 UA_StatusCode
-UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname,
-                       unsigned short port, const char* path,
-                       const UA_DiscoveryProtocol protocol, UA_Boolean createTxt,
-                       const UA_String* capabilites, const size_t *capabilitiesSize);
+UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
+                       const UA_String *hostname, UA_UInt16 port,
+                       const UA_String *path, const UA_DiscoveryProtocol protocol,
+                       UA_Boolean createTxt, const UA_String* capabilites,
+                       size_t *capabilitiesSize);
 UA_StatusCode
-UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname,
-                          unsigned short port, UA_Boolean removeTxt);
+UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
+                          const UA_String *hostname, UA_UInt16 port,
+                          UA_Boolean removeTxt);
 
 # endif
 

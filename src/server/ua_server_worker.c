@@ -151,6 +151,15 @@ emptyDispatchQueue(UA_Server *server) {
 /* Delayed Jobs */
 /****************/
 
+static void
+delayed_free(UA_Server *server, void *data) {
+    UA_free(data);
+}
+
+UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data) {
+    return UA_Server_delayedCallback(server, delayed_free, data);
+}
+
 #ifndef UA_ENABLE_MULTITHREADING
 
 typedef struct UA_DelayedJob {
@@ -202,7 +211,8 @@ static void getCounters(UA_Server *server, struct DelayedJobs *delayed) {
 /* Call from the main thread only. This is the only function that modifies */
 /* server->delayedWork. processDelayedWorkQueue modifies the "next" (after the */
 /* head). */
-static void addDelayedJob(UA_Server *server, UA_Job *job) {
+static void
+addDelayedJob(UA_Server *server, UA_Job *job) {
     struct DelayedJobs *dj = server->delayedJobs;
     if(!dj || dj->jobsCount >= DELAYEDJOBSSIZE) {
         /* create a new DelayedJobs and add it to the linked list */
@@ -227,15 +237,6 @@ static void addDelayedJob(UA_Server *server, UA_Job *job) {
     }
     dj->jobs[dj->jobsCount] = *job;
     ++dj->jobsCount;
-}
-
-static void
-delayed_free(UA_Server *server, void *data) {
-    UA_free(data);
-}
-
-UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data) {
-    return UA_Server_delayedCallback(server, delayed_free, data);
 }
 
 static void

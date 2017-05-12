@@ -5,10 +5,10 @@ open62541 Supported Features
 |:----------------------------|:--------------------------------|:--------------------:|:---------------------|
 | Discovery Service Set       |                                 |                      |                      |
 |                             | FindServers()                   |  :white_check_mark:  |                      |
-|                             | FindServersOnNetwork()          |     :full_moon:      | Branch: master       |
+|                             | FindServersOnNetwork()          |     :full_moon:      | Branch: master, Release 0.3  |
 |                             | GetEndpoints()                  |  :white_check_mark:  |                      |
 |                             | RegisterServer()                |  :white_check_mark:  |                      |
-|                             | RegisterServer2()               |     :full_moon:      | Branch: master       |
+|                             | RegisterServer2()               |     :full_moon:      | Branch: master, Release 0.3  |
 | Secure Channel Service Set  |                                 |                      |                      |
 |                             | OpenSecureChannel()             |  :white_check_mark:  |                      |
 |                             | CloseSecureChannel()            |  :white_check_mark:  |                      |
@@ -63,9 +63,9 @@ open62541 Supported Features
 | SOAP-HTTP WS-SC UA XML-UA Binary        |      :new_moon:      |                      |
 | **Encryption**                          |                      |                      |
 | None                                    |  :white_check_mark:  |                      |
-| Basic128Rsa15                           |      :new_moon:      |                      |
-| Basic256                                |      :new_moon:      |                      |
-| Basic256Sha256                          |      :new_moon:      |                      |
+| Basic128Rsa15                           |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
+| Basic256                                |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
+| Basic256Sha256                          |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
 | **Authentication**                      |                      |                      |
 | Anonymous                               |  :white_check_mark:  |                      |
 | User Name Password                      |  :white_check_mark:  |                      |
@@ -92,6 +92,6 @@ open62541 Supported Features
 | Method call                             |  :white_check_mark:  |                      |
 | Advanced Type                           |  :white_check_mark:  |                      |
 | **Discovery**                           |                      | See Discovery Service Set |
-| Local Disovery Server                   |     :full_moon:      | Branch: master       |
-| Local Discovery Server Multicast Ext.   |     :full_moon:      | Branch: master       |
+| Local Disovery Server                   |     :full_moon:      | Branch: master, Release 0.3  |
+| Local Discovery Server Multicast Ext.   |     :full_moon:      | Branch: master, Release 0.3  |
 | Global Discovery Server                 |      :new_moon:      |                      |
