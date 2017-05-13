@@ -1571,9 +1571,11 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
+    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setDataSource,
                                               &dataSource);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1593,8 +1595,10 @@ setOLM(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm) {
+    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setOLM, &olm);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1628,9 +1632,11 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
     cb.callback = method;
     cb.handle = handle;
 
+    UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession,
                            &methodNodeId, editMethodCallback, &cb);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
