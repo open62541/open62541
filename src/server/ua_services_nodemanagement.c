@@ -341,6 +341,10 @@ copyChildNode(UA_Server *server, UA_Session *session,
         return retval;
     }
 
+    /* Is the child mandatory? If not, skip */
+    if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
+        return UA_STATUSCODE_GOOD;
+
     /* No existing child with that browsename. Create it. */
     if(rd->nodeClass == UA_NODECLASS_METHOD) {
         /* Add a reference to the method in the objecttype */
@@ -416,13 +420,6 @@ copyChildNodes(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-
-        /* Is the child mandatory? If not, skip */
-        if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
-            continue;
-
-        /* TODO: If a child is optional, check whether optional children that
-         * were manually added fit the constraints. */
         retval |= copyChildNode(server, session, destinationNodeId, 
                                 rd, instantiationCallback);
     }
