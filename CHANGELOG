@@ -5,7 +5,7 @@ Internal refactorings and bug fixes are not reported here.
 
     * Array dimensions are UInt32 also for the highlevel client read service
 	
-2017-04-16 jpfr <julius.pfrommer@web.de>
+2017-04-16 jpfr <julius.pfrommer at web.de>
 
     * Refactor UA_parseEndpointUrl to work with UA_String
 
