@@ -470,8 +470,8 @@ static size_t
 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs,
                               UA_UInt16 timeout) {
     /* Every open socket can generate two jobs */
-    ServerNetworkLayerTCP *layer = nl->handle;
-    UA_Job *js = malloc(sizeof(UA_Job) * (size_t)((layer->mappingsSize * 2)));
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+    UA_Job *js = (UA_Job *)malloc(sizeof(UA_Job) * (size_t)((layer->mappingsSize * 2)));
     if(!js)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
