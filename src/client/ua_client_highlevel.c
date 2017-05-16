@@ -416,7 +416,7 @@ processReadArrayDimensionsResult(UA_ReadResponse *response,
     UA_DataValue *res = &response->results[0];
     if(!res->hasValue ||
        UA_Variant_isScalar(&res->value) ||
-       res->value.type != &UA_TYPES[UA_TYPES_INT32])
+       res->value.type != &UA_TYPES[UA_TYPES_UINT32])
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
     /* Move results */
