@@ -211,8 +211,10 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session,
        v.status != UA_STATUSCODE_BADCOMMUNICATIONERROR &&
        v.status != UA_STATUSCODE_BADWAITINGFORINITIALDATA) {
         result->statusCode = v.status;
-        UA_DataValue_deleteMembers(&v);
-        return;
+        if (result->statusCode & 0xFF000000) {
+            UA_DataValue_deleteMembers(&v);
+            return;
+        }   
     }
     UA_DataValue_deleteMembers(&v);
 
