@@ -332,6 +332,8 @@ START_TEST(Node_ReadWrite)
             UA_VariableAttributes_init(&attr);
             attr.description = UA_LOCALIZEDTEXT("en_US", "Array");
             attr.displayName = UA_LOCALIZEDTEXT("en_US", "Array");
+            attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+            attr.writeMask = UA_WRITEMASK_ARRRAYDIMENSIONS;
 
             /*UA_Int32 values[2];
             values[1] = 10;
@@ -358,6 +360,7 @@ START_TEST(Node_ReadWrite)
             UA_VariableAttributes_init(&attr);
             attr.description = UA_LOCALIZEDTEXT("en_US", "Int");
             attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int");
+            attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
             UA_Int32 int_value = 5678;
 
