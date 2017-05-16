@@ -204,7 +204,7 @@ addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
 
 static void
 addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
-              UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 typeid) {
+              UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_ObjectAttributes object_attr;
     UA_ObjectAttributes_init(&object_attr);
     object_attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
@@ -212,7 +212,7 @@ addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
                             UA_NODEID_NUMERIC(0, parentid),
                             UA_NODEID_NUMERIC(0, referenceid),
                             UA_QUALIFIEDNAME(0, name),
-                            UA_NODEID_NUMERIC(0, typeid),
+                            UA_NODEID_NUMERIC(0, type_id),
                             object_attr, NULL, NULL);
 
 }
@@ -255,7 +255,7 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 static void
 addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueRank,
                 const UA_NodeId *dataType, UA_Variant *value, UA_UInt32 parentid,
-                UA_UInt32 referenceid, UA_UInt32 typeid) {
+                UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
     attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
@@ -265,7 +265,7 @@ addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueR
         attr.value = *value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
                               UA_NODEID_NUMERIC(0, referenceid), UA_QUALIFIEDNAME(0, name),
-                              UA_NODEID_NUMERIC(0, typeid), attr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, type_id), attr, NULL, NULL);
 }
 
 /**********************/
@@ -531,8 +531,11 @@ void UA_Server_createNS0(UA_Server *server) {
     nsarray_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Server_addVariableNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                     UA_QUALIFIEDNAME(0, "NamespaceArray"), nsarray_attr, NULL);
-    UA_DataSource nsarray_datasource =  {.handle = server, .read = readNamespaces,
-                                         .write = writeNamespaces};
+    UA_DataSource nsarray_datasource =  {
+        server, //handle
+        readNamespaces, //read
+        writeNamespaces //write
+    };
     UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                          nsarray_datasource);
     UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
@@ -643,7 +646,11 @@ void UA_Server_createNS0(UA_Server *server) {
     serverstatus_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSDATATYPE);
     UA_Server_addVariableNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                                     UA_QUALIFIEDNAME(0, "ServerStatus"), serverstatus_attr, NULL);
-    UA_DataSource statusDS = {.handle = server, .read = readStatus, .write = NULL};
+    UA_DataSource statusDS = {
+        server, //handle
+        readStatus, //read
+        NULL //write
+    };
     UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
                                          statusDS);
     UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
@@ -665,7 +672,11 @@ void UA_Server_createNS0(UA_Server *server) {
     currenttime_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
     UA_Server_addVariableNode_begin(server, currentTimeId, UA_QUALIFIEDNAME(0, "CurrentTime"),
                                     currenttime_attr, NULL);
-    UA_DataSource currentDS = {.handle = NULL, .read = readCurrentTime, .write = NULL};
+    UA_DataSource currentDS = {
+        NULL, //handle
+        readCurrentTime, //read
+        NULL //write
+    };
     UA_Server_setVariableNode_dataSource(server, currentTimeId, currentDS);
     UA_Server_addNode_finish(server, currentTimeId,
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),

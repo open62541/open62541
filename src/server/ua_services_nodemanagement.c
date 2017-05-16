@@ -886,9 +886,9 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
-    item.nodeAttributes = (UA_ExtensionObject) {
-        .encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
-        .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type =attributeType;
+    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
 
     /* Call the normal addnodes service */
     UA_AddNodesResult result;

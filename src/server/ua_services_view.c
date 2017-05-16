@@ -202,7 +202,7 @@ browseRelevantReferences(UA_Server *server, UA_BrowseResult *result, const UA_No
     /* No relevant references, return array of length zero */
     if(referencesCount == 0) {
         UA_free(result->references);
-        result->references = UA_EMPTY_ARRAY_SENTINEL;
+        result->references = (UA_ReferenceDescription *)UA_EMPTY_ARRAY_SENTINEL;
         result->referencesSize = 0;
     }
 
@@ -238,7 +238,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
     if(!internal_cp) {
         /* If there is no continuation point, stack-allocate one. It gets copied
          * on the heap when this is required at a later point. */
-        internal_cp = UA_alloca(sizeof(struct ContinuationPointEntry));
+        internal_cp = (struct ContinuationPointEntry *)UA_alloca(sizeof(struct ContinuationPointEntry));
         memset(internal_cp, 0, sizeof(struct ContinuationPointEntry));
         internal_cp->maxReferences = maxrefs;
     } else {
@@ -473,7 +473,7 @@ walkBrowsePathElementNodeReference(UA_BrowsePathResult *result, size_t *targetsS
      * targets with the right path "depth" */
     if(reference->targetId.serverIndex != 0) {
         UA_BrowsePathTarget *tempTargets =
-            UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) * (*targetsSize) * 2);
+            (UA_BrowsePathTarget *)UA_realloc(result->targets, sizeof(UA_BrowsePathTarget) * (*targetsSize) * 2);
         if(!tempTargets) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -488,7 +488,7 @@ walkBrowsePathElementNodeReference(UA_BrowsePathResult *result, size_t *targetsS
 
     /* Add the node to the next array for the following path element */
     if(*nextSize <= *nextCount) {
-        UA_NodeId *tempNext = UA_realloc(*next, sizeof(UA_NodeId) * (*nextSize) * 2);
+        UA_NodeId *tempNext = (UA_NodeId *)UA_realloc(*next, sizeof(UA_NodeId) * (*nextSize) * 2);
         if(!tempNext) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
