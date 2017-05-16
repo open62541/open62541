@@ -12,6 +12,7 @@ environment:
         CYG_CACHE: C:\cygwin\var\cache\setup
         CYG_BASH: C:/cygwin/bin/bash
 
+      
     matrix:
         - CC_NAME: MinGW Makefiles
           CC_SHORTNAME: mingw
@@ -19,15 +20,18 @@ environment:
           FORCE_CXX: OFF
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: ON
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: OFF
         - CC_NAME: Visual Studio 12 2013 Win64
           CC_SHORTNAME: vs2013-x64
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: OFF
 
 cache:

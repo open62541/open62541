@@ -344,6 +344,10 @@ copyChildNode(UA_Server *server, UA_Session *session,
         return retval;
     }
 
+    /* Is the child mandatory? If not, skip */
+    if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
+        return UA_STATUSCODE_GOOD;
+
     /* No existing child with that browsename. Create it. */
     if(rd->nodeClass == UA_NODECLASS_METHOD) {
         /* Add a reference to the method in the objecttype */
@@ -419,13 +423,6 @@ copyChildNodes(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-
-        /* Is the child mandatory? If not, skip */
-        if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
-            continue;
-
-        /* TODO: If a child is optional, check whether optional children that
-         * were manually added fit the constraints. */
         retval |= copyChildNode(server, session, destinationNodeId, 
                                 rd, instantiationCallback);
     }
@@ -892,9 +889,9 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
-    item.nodeAttributes = (UA_ExtensionObject) {
-        .encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE,
-        .content.decoded = {attributeType, (void*)(uintptr_t)attr}};
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type =attributeType;
+    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
 
     /* Call the normal addnodes service */
     UA_AddNodesResult result;
@@ -1577,9 +1574,11 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
+    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setDataSource,
                                               &dataSource);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1599,8 +1598,10 @@ setOLM(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm) {
+    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setOLM, &olm);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1634,9 +1635,11 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
     cb.callback = method;
     cb.handle = handle;
 
+    UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession,
                            &methodNodeId, editMethodCallback, &cb);
+    UA_RCU_UNLOCK();
     return retval;
 }
 
