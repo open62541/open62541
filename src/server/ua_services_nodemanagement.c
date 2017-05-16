@@ -962,9 +962,11 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_DataSource dataSource,
                                     UA_NodeId *outNewNodeId) {
     UA_NodeId newNodeId;
+    UA_Boolean  deleteNodeId = UA_FALSE;
     if(!outNewNodeId) {
         newNodeId = UA_NODEID_NULL;
         outNewNodeId = &newNodeId;
+        deleteNodeId = UA_TRUE;
     }
     UA_StatusCode retval = UA_Server_addVariableNode_begin(server, requestedNewNodeId,
                                                            browseName, attr, outNewNodeId);
@@ -975,9 +977,9 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
         retval = UA_Server_addNode_finish(server, *outNewNodeId,
                                           parentNodeId, referenceTypeId,
                                           typeDefinition, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD || deleteNodeId)
         UA_NodeId_deleteMembers(outNewNodeId);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 #ifdef UA_ENABLE_METHODCALLS
