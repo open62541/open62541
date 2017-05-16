@@ -7,4 +7,4 @@ RUN cmake -DUA_ENABLE_AMALGAMATION=true  \
           /tmp/open62541 
 RUN make -j
 RUN cp *.h /usr/include/ && \
-    cp *.so /usr/lib
+    cp bin/*.so /usr/lib
