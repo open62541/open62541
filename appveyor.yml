@@ -68,10 +68,21 @@ build_script:
   - md build
   - cd build
   - echo "Testing %CC_NAME% with amalgamation"
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=OFF -G"%CC_NAME%" ..
   - '%MAKE%'
+  - 7z a -tzip open62541-%CC_SHORTNAME%-static.zip %APPVEYOR_BUILD_FOLDER%\build\*
+  - move open62541-%CC_SHORTNAME%-static.zip %APPVEYOR_BUILD_FOLDER%
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
+  - echo "Testing %CC_NAME% with amalgamation and .dll"
+  - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=ON -G"%CC_NAME%" ..
+  - '%MAKE%'
+  - 7z a -tzip open62541-%CC_SHORTNAME%-dynamic.zip %APPVEYOR_BUILD_FOLDER%\build\*
+  - move open62541-%CC_SHORTNAME%-dynamic.zip %APPVEYOR_BUILD_FOLDER%
   - cd ..
 
 after_build:
-  - 7z a open62541-%CC_SHORTNAME%.zip %APPVEYOR_BUILD_FOLDER%\build*
-  - appveyor PushArtifact open62541-%CC_SHORTNAME%.zip
+  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
+  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip

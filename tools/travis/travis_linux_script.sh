@@ -135,11 +135,16 @@ else
     cd .. && rm build -rf
 	echo -en 'travis_fold:end:script.build.example\\r'
 
-    echo -e "\r\n== Compile multithreaded version ==" && echo -en 'travis_fold:start:script.build.multithread\\r'
-    mkdir -p build && cd build
-    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    cd .. && rm build -rf
+	echo "Compile as shared lib version" && echo -en 'travis_fold:start:script.build.shared_libs\\r'
+	mkdir -p build && cd build
+	cmake -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
+	make -j
+	cd .. && rm build -rf
+	echo -en 'travis_fold:end:script.build.shared_libs\\r'echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
+	mkdir -p build && cd build
+	cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+	make -j
+	cd .. && rm build -rf
 	echo -en 'travis_fold:end:script.build.multithread\\r'
 
     echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
