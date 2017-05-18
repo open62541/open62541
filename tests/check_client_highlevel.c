@@ -336,8 +336,8 @@ START_TEST(Node_ReadWrite)
             attr.writeMask = UA_WRITEMASK_ARRRAYDIMENSIONS;
 
             UA_Int32 values[2];
-            values[1] = 10;
-            values[2] = 20;
+            values[0] = 10;
+            values[1] = 20;
 
             UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
             attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
@@ -416,7 +416,7 @@ START_TEST(Node_ReadWrite)
         ck_assert_int_eq(value, 5679);
         UA_Variant_delete(val);
 
-		// Disabled for now, we need a better unit test for this
+        // Disabled for now, we need a better unit test for this
         /*UA_UInt32 arrayDimsNew[] = {3};
         retval = UA_Client_writeArrayDimensionsAttribute(client, nodeArrayId, arrayDimsNew , 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
