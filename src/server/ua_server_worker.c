@@ -455,7 +455,7 @@ UA_UInt16 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     processDelayedCallbacks(server);
 #endif
 
-#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_MULTITHREADING)
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && !defined(UA_ENABLE_MULTITHREADING)
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER) {
         UA_DateTime multicastNextRepeat = 0;
         // TODO multicastNextRepeat does not consider new input data (requests)

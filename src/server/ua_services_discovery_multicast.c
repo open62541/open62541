@@ -360,7 +360,7 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
         memcpy(&outServiceDomain[pos], hostname->data, hostnameLen);
         pos += hostnameLen;
     }
-    memcpy(&outServiceDomain[pos], "._opcua-tcp._tcp.local.", hostnameLen);
+    memcpy(&outServiceDomain[pos], "._opcua-tcp._tcp.local.", 23);
     pos += 23;
     outServiceDomain[pos] = 0;
 }
@@ -449,6 +449,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
         server->mdnsMainSrvAdded = UA_TRUE;
     }
 
+    // [servername]-[hostname]._opcua-tcp._tcp.local.
     char fullServiceDomain[63+24];
     createFullServiceDomain(fullServiceDomain, 63+24, servername, hostname);
 
@@ -476,6 +477,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
     char localDomain[65];
     memcpy(localDomain, hostname->data, maxHostnameLen);
     localDomain[maxHostnameLen] = '.';
+    localDomain[maxHostnameLen+1] = '\0';
 
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     r = mdnsd_unique(server->mdnsDaemon, fullServiceDomain, QTYPE_SRV, 600,
