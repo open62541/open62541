@@ -91,6 +91,7 @@ detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
     if(retval != UA_STATUSCODE_GOOD)
         return false;
 
+    encoding->length = (size_t)(buf_start - encoding->data);
     /* The value has changed */
     return !mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue);
 }
