@@ -197,7 +197,7 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
 
 UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
 
-    UA_ServerConfig *conf = UA_malloc(sizeof(UA_ServerConfig));
+    UA_ServerConfig *conf = (UA_ServerConfig*)UA_malloc(sizeof(UA_ServerConfig));
     if(conf == NULL)
         return NULL;
 
