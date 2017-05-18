@@ -91,8 +91,12 @@ add_example(server_instantiation server_instantiation.c)
 
 add_example(server_repeated_job server_repeated_job.c)
 
-add_example(server_readspeed server_readspeed.c)
-target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+
+if(NOT BUILD_SHARED_LIBS)
+    # needs internal methods which are not exported in the dynamic lib
+    add_example(server_readspeed server_readspeed.c)
+    target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+endif()
 
 add_example(server_inheritance server_inheritance.c)
 
@@ -112,14 +116,6 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
   add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der ca.crt)
   target_link_libraries(server_certificate ${LIBS})
 endif()
-
-if(NOT BUILD_SHARED_LIBS)
-  # needs internal methods which are not exported in the dynamic lib
-  add_executable(server_readspeed server_readspeed.c ${STATIC_OBJECTS})
-  target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-  target_link_libraries(server_readspeed ${LIBS})
-endif()
-
 
 if(UA_ENABLE_DISCOVERY)
     add_example(discovery_server_lds discovery/server_lds.c)
