@@ -242,7 +242,7 @@ endpointContext_getServerCertificate_sp_none(const UA_SecurityPolicy *const secu
     if(securityPolicy == NULL || endpointContext == NULL)
         return NULL;
 
-    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
+    const UA_SP_NONE_EndpointContextData *const data = (const UA_SP_NONE_EndpointContextData*)endpointContext;
 
     return &data->localCert;
 }
