@@ -280,10 +280,10 @@ endpointContext_compareCertificateThumbprint_sp_none(const UA_SecurityPolicy *co
                                                      const void *const endpointContext,
                                                      const UA_ByteString *const certificateThumbprint) {
     if(securityPolicy == NULL || endpointContext == NULL || certificateThumbprint == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Null pointer supplied while calling"
                      "endpointContext_compareCertificateThumbprint_sp_none");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     // The certificatethumbprint doesn't exist if the security policy is none
