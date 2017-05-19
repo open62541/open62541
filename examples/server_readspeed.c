@@ -20,7 +20,7 @@
 #include "ua_types_encoding_binary.h"
 
 int main(int argc, char** argv) {
-    UA_ServerConfig *config = UA_ServerConfig_standard_new();
+    UA_ServerConfig *config = UA_ServerConfig_standard_new(4840, NULL);
 
     UA_Server *server = UA_Server_new(*config);
 

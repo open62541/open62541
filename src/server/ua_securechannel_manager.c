@@ -117,7 +117,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_SecureChannel_init(&entry->channel, &cm->server->config.securityPolicies, cm->server->config.logger);
+    UA_SecureChannel_init(&entry->channel, &cm->server->endpoints, cm->server->config.logger);
     entry->channel.temporary = UA_TRUE;
     entry->channel.securityToken.channelId = cm->lastChannelId++;
     entry->channel.securityToken.tokenId = cm->lastTokenId++;
@@ -167,8 +167,8 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_Connection* conn,
         tmpChannel->securityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     UA_ByteString_copy(&request->clientNonce, &tmpChannel->clientNonce);
     tmpChannel->securityMode = request->securityMode;
-    UA_SecureChannel_generateNonce(tmpChannel->securityPolicy,
-                                   tmpChannel->securityPolicy->symmetricModule.encryptingKeyLength,
+    UA_SecureChannel_generateNonce(tmpChannel,
+                                   tmpChannel->endpoint->securityPolicy->symmetricModule.encryptingKeyLength,
                                    &tmpChannel->serverNonce);
 
     UA_SecureChannel_generateNewKeys(tmpChannel);
@@ -214,7 +214,9 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_Connection* conn,
 
     /* set the response */
     UA_ByteString_copy(&request->clientNonce, &channel->clientNonce);
-    UA_SecureChannel_generateNonce(channel->securityPolicy, channel->securityPolicy->symmetricModule.encryptingKeyLength, &channel->serverNonce);
+    UA_SecureChannel_generateNonce(channel,
+                                   channel->endpoint->securityPolicy->symmetricModule.encryptingKeyLength,
+                                   &channel->serverNonce);
     UA_ByteString_copy(&channel->serverNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
 

@@ -11,11 +11,25 @@ extern "C" {
 #include "ua_server.h"
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
+#include "ua_types.h"
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
 extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
 
+/**
+ * \brief Creates a new server config with one endpoint.
+ * 
+ * The config will set the tcp network layer and the security policy
+ * SecurityPolicy#None, creating one endpoint. A certificate may be supplied but can be omitted.
+ *
+ * \param portNumber the port number for the tcp network layer
+ * \param certificate an optional certificate for the endpoint
+ */
+UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(UA_UInt16 portNumber,
+                                                        const UA_ByteString *certificate);
+
 UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void);
+
 UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config);
 
 #ifdef __cplusplus

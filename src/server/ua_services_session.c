@@ -23,13 +23,24 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Copy the server's endpoint into the response */
-    response->responseHeader.serviceResult =
-        UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
-        (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    /* Copy the server's endpoints into the response */
+    response->serverEndpoints = UA_Array_new(server->endpoints.count,
+                                             &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    if(response->serverEndpoints == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+
+    for(size_t i = 0; i < server->endpoints.count; ++i) {
+        response->responseHeader.serviceResult |= UA_EndpointDescription_copy(
+            &server->endpoints.endpoints[i].endpointDescription,
+            &response->serverEndpoints[i]);
+    }
+
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    response->serverEndpointsSize = server->endpointDescriptionsSize;
+    response->serverEndpointsSize = server->endpoints.count;
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i)
@@ -57,19 +68,19 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpointDescriptionsSize > 0)
+    if(server->endpoints.count > 0)
         response->responseHeader.serviceResult |=
-        UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+        UA_ByteString_copy(&channel->endpoint->endpointDescription.serverCertificate,
                            &response->serverCertificate);
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-        const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+        const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
 
         retval |=
-            UA_SecureChannel_generateNonce(securityPolicy, 32, &response->serverNonce); // FIXME: remove magic number???
+            UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce); // FIXME: remove magic number???
         retval |= UA_ByteString_copy(&response->serverNonce, &newSession->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
@@ -78,7 +89,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
         size_t signatureSize =
             securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
-                                                                      securityPolicy->endpointContextData);
+                                                                      channel->endpoint->securityContext);
 
         UA_SignatureData signatureData;
         UA_SignatureData_init(&signatureData);
@@ -111,7 +122,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
         retval |=
             securityPolicy->asymmetricModule.signingModule.sign(securityPolicy,
-                                                                securityPolicy->endpointContextData,
+                                                                channel->endpoint->securityContext,
                                                                 &dataToSign,
                                                                 &signatureData.signature);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -153,17 +164,21 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-        const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+        const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
+
+        const UA_ByteString *const localCertificate =
+            securityPolicy->endpointContext.getLocalCertificate(securityPolicy,
+                                                                channel->endpoint->securityContext);
 
         UA_ByteString dataToVerify;
-        retval |= UA_ByteString_allocBuffer(&dataToVerify, server->config.serverCertificate.length + session->serverNonce.length);
+        retval |= UA_ByteString_allocBuffer(&dataToVerify, localCertificate->length + session->serverNonce.length);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
             return;
         }
 
-        memcpy(dataToVerify.data, server->config.serverCertificate.data, server->config.serverCertificate.length);
-        memcpy(dataToVerify.data + server->config.serverCertificate.length, session->serverNonce.data, session->serverNonce.length);
+        memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
+        memcpy(dataToVerify.data + localCertificate->length, session->serverNonce.data, session->serverNonce.length);
 
         retval |= securityPolicy->asymmetricModule.signingModule.verify(securityPolicy,
                                                                         channel->securityContext,
@@ -175,7 +190,7 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
             return;
         }
 
-        retval |= UA_SecureChannel_generateNonce(securityPolicy, 32, &response->serverNonce);
+        retval |= UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
             UA_ByteString_deleteMembers(&dataToVerify);

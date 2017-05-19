@@ -10,6 +10,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
+#include "ua_types_generated.h"
 #include "ua_securitycontext.h"
 #include "ua_securitypolicy_fwd.h"
 
@@ -188,43 +189,23 @@ struct UA_SecurityPolicy {
     const UA_Endpoint_SecurityContext endpointContext;
     const UA_Channel_SecurityContext channelContext;
 
-    /**
-     * Deletes the members (namely the context) of the security policy.
-     * This method is only safe when passing the security policy this method is invoked on to itself.
-     * The implementer of this method should somehow assert this.
-     *
-     * \param securityPolicy the security policy to delete the members of. Should only be the security policy the method is invoked on.
-     *                       example: mySecurityPolicy.deleteMembers(&mySecurityPolicy);
-     */
-    UA_StatusCode (*const deleteMembers)(UA_SecurityPolicy *securityPolicy);
-
-    /**
-     * Initializes the security policy.
-     *
-     * \param securityPolicy
-     * \param logger
-     * \param initData pointer to memory area where data required for initialization is stored.
-     *                 Usually the policy will supply a struct, which can be filled and passed.
-     *                 The securityPolicy may acceppt NULL and use default. This depends on implementation.
-     */
-    UA_StatusCode (*const init)(UA_SecurityPolicy *securityPolicy,
-                                UA_Logger logger,
-                                void *initData);
-
     UA_Logger logger;
-
-    void *endpointContextData; // TODO: move this to endpoints!
 };
 
 /**
- * \brief A helper struct that makes it easier passing around the available policies.
- */
+* Holds an endpoint description and the corresponding security policy
+* Also holds the context for the endpoint.
+*/
 typedef struct {
-    /** The number of policies */
+    UA_SecurityPolicy *securityPolicy;
+    void *securityContext;
+    UA_EndpointDescription endpointDescription;
+} UA_Endpoint;
+
+typedef struct {
     size_t count;
-    /** The policy array */
-    UA_SecurityPolicy *policies;
-} UA_SecurityPolicies;
+    UA_Endpoint *endpoints;
+} UA_Endpoints;
 
 #ifdef __cplusplus
 }

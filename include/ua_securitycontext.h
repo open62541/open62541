@@ -34,9 +34,16 @@ struct UA_Endpoint_SecurityContext
     UA_StatusCode (*const deleteMembers)(const UA_SecurityPolicy *securityPolicy,
                                          void *endpointContext);
 
-    UA_StatusCode (*const setServerPrivateKey)(const UA_SecurityPolicy *securityPolicy,
-                                               const UA_ByteString *privateKey,
+    UA_StatusCode (*const setLocalPrivateKey)(const UA_SecurityPolicy *securityPolicy,
+                                              const UA_ByteString *privateKey,
+                                              void *endpointContext);
+
+    UA_StatusCode (*const setLocalCertificate)(const UA_SecurityPolicy *securityPolicy,
+                                               const UA_ByteString *certificate,
                                                void *endpointContext);
+
+    const UA_ByteString * (*const getLocalCertificate)(const UA_SecurityPolicy *securityPolicy,
+                                                       const void *endpointContext);
 
     UA_StatusCode (*const setCertificateTrustList)(const UA_SecurityPolicy *securityPolicy,
                                                    const UA_ByteString *trustList,
@@ -52,6 +59,19 @@ struct UA_Endpoint_SecurityContext
      */
     size_t(*const getLocalAsymSignatureSize)(const UA_SecurityPolicy *securityPolicy,
                                              const void *endpointContext);
+
+    /**
+    * \brief Compares the supplied certificate with the certificate in the endpoit context.
+    *
+    * \param securityPolicy contains the function pointers associated with the policy.
+    * \param endpointContext the endpoint context data that contains the certificate to compare to.
+    * \param certificateThumbprint the certificate thumbprint to compare to the one stored in the context.
+    * \return if the thumbprints match UA_STATUSCODE_GOOD is returned. If they don't match
+    *         or an errror occured an error code is returned.
+    */
+    UA_StatusCode(*const compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
+                                                       const void *endpointContext,
+                                                       const UA_ByteString *certificateThumbprint);
 };
 
 struct UA_Channel_SecurityContext

@@ -317,11 +317,17 @@ processOPN(UA_Server *server,
         return;
     }
 
-    UA_ByteString_copy(&server->config.serverCertificate, &channel->localAsymAlgSettings.senderCertificate);
-    UA_ByteString_copy(&channel->securityPolicy->policyUri, &channel->localAsymAlgSettings.securityPolicyUri);
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
+
+    const UA_ByteString *const endpointCert =
+        securityPolicy->endpointContext.getLocalCertificate(securityPolicy,
+                                                            channel->endpoint->securityContext);
+
+    UA_ByteString_copy(endpointCert, &channel->localAsymAlgSettings.senderCertificate);
+    UA_ByteString_copy(&securityPolicy->policyUri, &channel->localAsymAlgSettings.securityPolicyUri);
 
     retval |= UA_ByteString_allocBuffer(&channel->localAsymAlgSettings.receiverCertificateThumbprint,
-                                        channel->securityPolicy->asymmetricModule.thumbprintLength);
+                                        channel->endpoint->securityPolicy->asymmetricModule.thumbprintLength);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
@@ -329,8 +335,8 @@ processOPN(UA_Server *server,
         return;
     }
 
-    retval |= channel->securityPolicy->asymmetricModule.makeThumbprint(
-        channel->securityPolicy,
+    retval |= channel->endpoint->securityPolicy->asymmetricModule.makeThumbprint(
+        channel->endpoint->securityPolicy,
         &channel->remoteAsymAlgSettings.senderCertificate,
         &channel->localAsymAlgSettings.receiverCertificateThumbprint
     );

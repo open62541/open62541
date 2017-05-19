@@ -29,10 +29,10 @@ UA_SECURITY_POLICY_NONE_URI = { 47, (UA_Byte*)"http://opcfoundation.org/UA/Secur
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
 void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_SecurityPolicies *securityPolicies,
+                           const UA_Endpoints *endpoints,
                            UA_Logger logger) {
     memset(channel, 0, sizeof(UA_SecureChannel));
-    channel->availableSecurityPolicies = securityPolicies;
+    channel->endpoints = endpoints;
     channel->logger = logger;
     /* Linked lists are also initialized by zeroing out */
     /* LIST_INIT(&channel->sessions); */
@@ -49,8 +49,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel* channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
 
     if(channel->securityContext != NULL) {
-        channel->securityPolicy->channelContext.deleteMembers(channel->securityPolicy,
-                                                              channel->securityContext);
+        channel->endpoint->securityPolicy->channelContext.deleteMembers(channel->endpoint->securityPolicy,
+                                                                        channel->securityContext);
     }
 
     /* Detach from the channel */
@@ -75,24 +75,17 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel* channel) {
     }
 }
 
-/**
- * Generates a nonce.
- *
- * Uses the random generator of the supplied security policy
- *
- * \param nonce will contain the nonce after being successfully called.
- * \param securityPolicy the SecurityPolicy to use.
- */
-UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecurityPolicy *const securityPolicy,
+UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
                                              const size_t nonceLength,
                                              UA_ByteString *const nonce) {
     UA_ByteString_allocBuffer(nonce, nonceLength);
     if(!nonce->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    return securityPolicy->symmetricModule.generateNonce(securityPolicy,
-                                                         securityPolicy->endpointContextData,
-                                                         nonce);
+    return channel->endpoint->securityPolicy->symmetricModule.generateNonce(
+        channel->endpoint->securityPolicy,
+        channel->endpoint->securityContext,
+        nonce);
 }
 
 /**
@@ -101,7 +94,7 @@ UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecurityPolicy *const secu
  * \param channel the channel to generate new keys for
  */
 UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel) {
-    const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
     const UA_Channel_SecurityContext *const securityContext =
         &securityPolicy->channelContext;
     const UA_SecurityPolicySymmetricModule *const symmetricModule =
@@ -263,7 +256,7 @@ static UA_StatusCode
 UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_end) {
     UA_SecureChannel* const channel = ci->channel;
     UA_Connection* const connection = channel->connection;
-    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
 
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -440,8 +433,10 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
                                            UA_Byte **const buf_end) {
     *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + UA_SEQUENCE_HEADER_LENGTH;
 
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
+
     // Add the SecurityHeaderLength
-    if(UA_ByteString_equal(&UA_SECURITY_POLICY_NONE_URI, &channel->securityPolicy->policyUri))
+    if(UA_ByteString_equal(&UA_SECURITY_POLICY_NONE_URI, &securityPolicy->policyUri))
         *buf_start +=
         UA_SecureChannel_calculateAsymAlgSecurityHeaderLength(&channel->remoteAsymAlgSettings);
     else
@@ -454,15 +449,15 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         *buf_end -=
-            channel->securityPolicy->endpointContext
-            .getLocalAsymSignatureSize(channel->securityPolicy,
-                                       channel->securityPolicy->endpointContextData);
+            securityPolicy->endpointContext
+            .getLocalAsymSignatureSize(securityPolicy,
+                                       channel->endpoint->securityContext);
         *buf_end -= 2; // padding byte and extraPadding byte
 
         // see documentation of getRemoteAsymEncryptionBufferLengthOverhead for why this is needed.
         *buf_end -=
-            channel->securityPolicy->channelContext
-            .getRemoteAsymEncryptionBufferLengthOverhead(channel->securityPolicy,
+            securityPolicy->channelContext
+            .getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
                                                          channel->securityContext,
                                                          potentialEncryptionMaxSize);
     }
@@ -481,7 +476,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
                                                              UA_Byte **buf_end) {
     UA_SecureChannel* const channel = ci->channel;
     UA_Connection* const connection = channel->connection;
-    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
 
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -535,7 +530,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         UA_UInt16 totalPaddingSize =
             securityPolicy->asymmetricModule.calculatePadding(securityPolicy,
                                                               channel->securityContext,
-                                                              securityPolicy->endpointContextData,
+                                                              channel->endpoint->securityContext,
                                                               bytesToWrite,
                                                               &paddingSize,
                                                               &extraPaddingSize);
@@ -561,7 +556,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length +=
         (UA_UInt32)securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
-                                                                             securityPolicy->endpointContextData);
+                                                                             channel->endpoint->securityContext);
 
     // Encode the chunk headers at the beginning of the buffer
     UA_Byte *header_pos = ci->messageBuffer.data;
@@ -614,7 +609,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         };
 
         securityPolicy->asymmetricModule.signingModule.sign(securityPolicy,
-                                                            securityPolicy->endpointContextData,
+                                                            channel->endpoint->securityContext,
                                                             &dataToSign,
                                                             &signature);
     }
@@ -633,7 +628,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         };
 
         securityPolicy->asymmetricModule.encrypt(securityPolicy,
-                                                 securityPolicy->endpointContextData,
+                                                 channel->endpoint->securityContext,
                                                  channel->securityContext,
                                                  &dataToEncrypt);
     }
@@ -703,7 +698,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
         /* Hide bytes for signature */
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
            channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-            buf_end -= channel->securityPolicy->symmetricModule.signingModule.signatureSize;
+            buf_end -= channel->endpoint->securityPolicy->symmetricModule.signingModule.signatureSize;
 
         /* Hide bytes for padding */
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -901,7 +896,7 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
                                        size_t* const processedBytes,
                                        UA_UInt32* const requestId,
                                        size_t* const bodySize) {
-    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
 
     size_t chunkSize = messageHeader->messageHeader.messageSize;
 
@@ -1021,45 +1016,48 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
     }
 
 
-    if(channel->securityPolicy == NULL) {
+    if(channel->endpoint == NULL) {
         // iterate available security policies and choose the correct one
-        const UA_SecurityPolicy* securityPolicy = NULL;
-        UA_LOG_DEBUG(channel->logger,
-                     UA_LOGCATEGORY_SECURECHANNEL,
-                     "Trying to open connection with policy %.*s",
-                     clientAsymHeader.securityPolicyUri.length,
-                     clientAsymHeader.securityPolicyUri.data);
-        for(size_t i = 0; i < channel->availableSecurityPolicies->count; ++i) {
-            if(UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
-                                   &channel->availableSecurityPolicies->policies[i].policyUri)) {
-                UA_LOG_DEBUG(channel->logger,
-                             UA_LOGCATEGORY_SECURECHANNEL,
-                             "Using security policy %s",
-                             channel->availableSecurityPolicies->policies[i].policyUri.data);
+        const UA_Endpoint *endpoint = NULL;
 
-                securityPolicy = &channel->availableSecurityPolicies->policies[i];
-                break;
+        for(size_t i = 0; i < channel->endpoints->count; ++i) {
+            if(UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
+                                   &channel->endpoints->endpoints[i].securityPolicy->policyUri)) {
+
+                endpoint = &channel->endpoints->endpoints[i];
+                if(endpoint->securityPolicy->endpointContext.compareCertificateThumbprint(
+                    endpoint->securityPolicy,
+                    endpoint->securityContext,
+                    &clientAsymHeader.receiverCertificateThumbprint) == UA_STATUSCODE_GOOD) {
+                    // We found the correct endpoint (except for security mode)
+                    // The endpoint needs to be changed by the client / server to match
+                    // the security mode. The server does this in the securechannel manager
+                    break;
+                }
+                endpoint = NULL;
             }
         }
 
-        if(securityPolicy == NULL) {
+        if(endpoint == NULL) {
             // TODO: Abort connection?
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         }
 
-        channel->securityPolicy = securityPolicy;
+        channel->endpoint = endpoint;
     }
     else {
         // Policy not the same as when channel was originally opened
         if(!UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
-                                &channel->securityPolicy->policyUri)) {
+                                &channel->endpoint->securityPolicy->policyUri)) {
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
         }
+
+        // TODO: check if certificate thumbprint changed?
     }
 
-    const UA_SecurityPolicy* const securityPolicy = channel->securityPolicy;
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
 
     // Create the channel context and parse the sender certificate used for the secureChannel.
     if(channel->securityContext == NULL) {
@@ -1067,7 +1065,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
         // create new channel context and verify the certificate
         retval |= securityPolicy->channelContext.init(securityPolicy,
-                                                      securityPolicy->endpointContextData,
+                                                      channel->endpoint->securityContext,
                                                       &clientAsymHeader.senderCertificate,
                                                       &channelContext);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -1096,7 +1094,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
         size_t sizeBeforeDecryption = cipherText.length;
         retval |= securityPolicy->asymmetricModule.decrypt(securityPolicy,
-                                                           securityPolicy->endpointContextData,
+                                                           channel->endpoint->securityContext,
                                                            &cipherText);
         chunkSize -= (sizeBeforeDecryption - cipherText.length);
 

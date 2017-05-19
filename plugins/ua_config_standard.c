@@ -7,7 +7,10 @@
 #include "ua_accesscontrol_default.h"
 #include "ua_types_generated.h"
 #include "ua_securitypolicy_none.h"
+#include "ua_types.h"
 
+#define ANONYMOUS_POLICY "open62541-anonymous-policy"
+#define USERNAME_POLICY "open62541-username-policy"
 
  /*******************************/
  /* Default Connection Settings */
@@ -86,7 +89,6 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
         0, NULL
     }, /* .applicationDescription */
 
-    UA_STRING_STATIC_NULL, /* .serverCertificate */
 #ifdef UA_ENABLE_DISCOVERY
     UA_STRING_STATIC_NULL, /* mdnsServerName */
     0, /* serverCapabilitiesSize */
@@ -101,11 +103,9 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
     0, /* .networkLayersSize */
     NULL, /* .networkLayers */
 
-    /* Security policies */
-    {
-        0,
-        NULL,
-    },
+    /* Endpoints */
+    0,
+    NULL,
 
     /* Access Control */
     {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,
@@ -195,7 +195,57 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
 
 #endif
 
-UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
+static UA_StatusCode createSecurityPolicyNoneEndpoint(UA_ServerConfig *const conf,
+                                                      const UA_ByteString *const cert,
+                                                      size_t slot) {
+    UA_Endpoint *endpoint_sp_none = &conf->endpoints[slot];
+
+    UA_EndpointDescription_init(&endpoint_sp_none->endpointDescription);
+
+    endpoint_sp_none->securityPolicy = &UA_SecurityPolicy_None;
+    endpoint_sp_none->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    UA_ByteString_copy(&endpoint_sp_none->securityPolicy->policyUri,
+                       &endpoint_sp_none->endpointDescription.securityPolicyUri);
+    endpoint_sp_none->endpointDescription.transportProfileUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+    size_t policies = 0;
+    if(conf->accessControl.enableAnonymousLogin)
+        ++policies;
+    if(conf->accessControl.enableUsernamePasswordLogin)
+        ++policies;
+    endpoint_sp_none->endpointDescription.userIdentityTokensSize = policies;
+    endpoint_sp_none->endpointDescription.userIdentityTokens =
+        (UA_UserTokenPolicy *)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+
+    size_t currentIndex = 0;
+    if(conf->accessControl.enableAnonymousLogin) {
+        UA_UserTokenPolicy_init(&endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex]);
+        endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex].tokenType =
+            UA_USERTOKENTYPE_ANONYMOUS;
+        endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex].policyId =
+            UA_STRING_ALLOC(ANONYMOUS_POLICY);
+        ++currentIndex;
+    }
+    if(conf->accessControl.enableUsernamePasswordLogin) {
+        UA_UserTokenPolicy_init(&endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex]);
+        endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex].tokenType =
+            UA_USERTOKENTYPE_USERNAME;
+        endpoint_sp_none->endpointDescription.userIdentityTokens[currentIndex].policyId =
+            UA_STRING_ALLOC(USERNAME_POLICY);
+    }
+
+    if(cert != NULL)
+        UA_String_copy(cert, &endpoint_sp_none->endpointDescription.serverCertificate);
+
+    UA_ApplicationDescription_copy(&conf->applicationDescription,
+                                   &endpoint_sp_none->endpointDescription.server);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(UA_UInt16 portNumber,
+                                                        const UA_ByteString *certificate) {
 
     UA_ServerConfig *conf = (UA_ServerConfig*)UA_malloc(sizeof(UA_ServerConfig));
     if(conf == NULL)
@@ -203,23 +253,32 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
 
     *conf = UA_ServerConfig_standard;
 
-    conf->securityPolicies.count = 1;
-    conf->securityPolicies.policies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy) * conf->securityPolicies.count);
-    if(conf->securityPolicies.policies == NULL) {
+    conf->networkLayersSize = 1;
+    conf->networkLayers = (UA_ServerNetworkLayer*)UA_malloc(sizeof(UA_ServerNetworkLayer) * conf->networkLayersSize);
+    conf->networkLayers[0] = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+
+    conf->endpointsSize = 1;
+    conf->endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint) * conf->endpointsSize);
+    if(conf->endpoints == NULL) {
         UA_free(conf);
         return NULL;
     }
 
-    // This is needed since policies are const
-    // Maybe there is a better way of doing this
-    memcpy(&conf->securityPolicies.policies[0], &UA_SecurityPolicy_None, sizeof(UA_SecurityPolicy));
+    createSecurityPolicyNoneEndpoint(conf, certificate, 0);
 
-    for(size_t i = 0; i < conf->securityPolicies.count; ++i) {
-        UA_SecurityPolicy *const policy = &conf->securityPolicies.policies[i];
-        policy->init(policy, conf->logger, NULL);
+    // Initialize policy contexts
+    for(size_t i = 0; i < conf->endpointsSize; ++i) {
+        UA_SecurityPolicy *const policy = conf->endpoints[i].securityPolicy;
+        policy->logger = conf->logger;
+        
+        policy->endpointContext.init(policy, NULL, &conf->endpoints[i].securityContext);
     }
 
     return conf;
+}
+
+UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
+    return UA_ServerConfig_standard_new(4840, NULL);
 }
 
 UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
@@ -227,13 +286,20 @@ UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
     if(config == NULL)
         return;
 
-    for(size_t i = 0; i < config->securityPolicies.count; ++i) {
-        UA_SecurityPolicy *const policy = &config->securityPolicies.policies[i];
+    for(size_t i = 0; i < config->endpointsSize; ++i) {
+        UA_SecurityPolicy *const policy = config->endpoints[i].securityPolicy;
 
-        policy->deleteMembers(policy);
+        policy->endpointContext.deleteMembers(policy, config->endpoints[i].securityContext);
+
+        UA_EndpointDescription_deleteMembers(&config->endpoints[i].endpointDescription);
     }
 
-    UA_free(config->securityPolicies.policies);
+    for(size_t i = 0; i < config->networkLayersSize; ++i) {
+        config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
+    }
+
+    UA_free(config->endpoints);
+    UA_free(config->networkLayers);
 
     UA_free(config);
 }

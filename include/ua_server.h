@@ -156,7 +156,6 @@ typedef struct {
     /* Server Description */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
-    UA_ByteString serverCertificate;
 #ifdef UA_ENABLE_DISCOVERY
     UA_String mdnsServerName;
     size_t serverCapabilitiesSize;
@@ -171,8 +170,9 @@ typedef struct {
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
 
-    /* Security policies */
-    UA_SecurityPolicies securityPolicies;
+    /* Available endpoints */
+    size_t endpointsSize;
+    UA_Endpoint *endpoints;
 
     /* Access Control */
     UA_AccessControl accessControl;

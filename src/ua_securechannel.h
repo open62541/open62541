@@ -39,12 +39,12 @@ struct UA_SecureChannel {
     UA_AsymmetricAlgorithmSecurityHeader remoteAsymAlgSettings;
     UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 
-    /** The active security policy and context of the channel */
-    const UA_SecurityPolicy *securityPolicy;
+    /* The endpoint and context of the channel */
+    const UA_Endpoint *endpoint;
     void *securityContext;
 
-    /** Stores all available security policies that may be used when establishing a connection. */
-    const UA_SecurityPolicies *availableSecurityPolicies;
+    /* The available endpoints */
+    const UA_Endpoints *endpoints;
 
     UA_ByteString  clientNonce;
     UA_ByteString  serverNonce;
@@ -62,24 +62,24 @@ struct UA_SecureChannel {
  * \brief Initializes the secure channel.
  *
  * \param channel the channel to initialize.
- * \param securityPolicies the securityPolicies struct that contains all available policies
- *                         the channel may choose from when a channel is being established.
+ * \param endpoints the endpoints struct that contains all available endpoints
+ *                         the channel will try to match when a channel is being established.
  * \param logger the logger the securechannel may use to log messages.
  */
 void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_SecurityPolicies *securityPolicies,
+                           const UA_Endpoints *endpoints,
                            UA_Logger logger);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 
 /**
  * \brief Generates a nonce.
  *
- * Uses the random generator of the supplied security policy
+ * Uses the random generator of the channels security policy
  *
  * \param nonce will contain the nonce after being successfully called.
  * \param securityPolicy the SecurityPolicy to use.
  */
-UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecurityPolicy* const securityPolicy,
+UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
                                              const size_t nonceLength,
                                              UA_ByteString *const nonce);
 

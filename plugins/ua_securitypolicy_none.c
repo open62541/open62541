@@ -156,30 +156,6 @@ verifyCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-deleteMembers_sp_none(UA_SecurityPolicy *const securityPolicy) {
-    if(securityPolicy == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return securityPolicy->endpointContext.deleteMembers(securityPolicy,
-                                                         securityPolicy->endpointContextData);
-}
-
-
-static UA_StatusCode
-init_sp_none(UA_SecurityPolicy *const securityPolicy, UA_Logger logger, void *const initData) {
-    if(securityPolicy == NULL || logger == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    securityPolicy->logger = logger;
-
-    return securityPolicy->endpointContext.init(securityPolicy,
-                                                initData,
-                                                &securityPolicy->endpointContextData);
-}
-
 ///////////////////////////////////
 // End security policy functions //
 ///////////////////////////////////
@@ -191,7 +167,7 @@ init_sp_none(UA_SecurityPolicy *const securityPolicy, UA_Logger logger, void *co
 // this is not really needed in security policy none because no context is required
 // it is there to serve as a small example for policies that need context per policy
 typedef struct {
-    int callCounter;
+    UA_ByteString localCert;
 } UA_SP_NONE_EndpointContextData;
 
 static UA_StatusCode
@@ -209,7 +185,7 @@ endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
     // Initialize the PolicyContext data to sensible values
     UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)*pp_contextData;
 
-    data->callCounter = 0;
+    UA_ByteString_init(&data->localCert);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Initialized PolicyContext for sp_none");
@@ -227,7 +203,7 @@ endpointContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPol
     // delete all allocated members in the data block
     UA_SP_NONE_EndpointContextData* data = (UA_SP_NONE_EndpointContextData*)securityContext;
 
-    data->callCounter = 0;
+    UA_ByteString_deleteMembers(&data->localCert);
 
     UA_free(securityContext);
 
@@ -238,7 +214,7 @@ endpointContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPol
 }
 
 static UA_StatusCode
-endpointContext_setServerPrivateKey_sp_none(const UA_SecurityPolicy *const securityPolicy,
+endpointContext_setLocalPrivateKey_sp_none(const UA_SecurityPolicy *const securityPolicy,
                                             const UA_ByteString *const privateKey,
                                             void *const endpointContext) {
     if(securityPolicy == NULL || privateKey == NULL) {
@@ -246,6 +222,29 @@ endpointContext_setServerPrivateKey_sp_none(const UA_SecurityPolicy *const secur
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+endpointContext_setLocalCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                            const UA_ByteString *const certificate,
+                                            void *endpointContext) {
+    if(securityPolicy == NULL || certificate == NULL || endpointContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
+
+    return UA_ByteString_copy(certificate, &data->localCert);
+}
+
+static const UA_ByteString*
+endpointContext_getLocalCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                            const void *const endpointContext) {
+    if(securityPolicy == NULL || endpointContext == NULL)
+        return NULL;
+
+    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
+
+    return &data->localCert;
 }
 
 static UA_StatusCode
@@ -274,6 +273,24 @@ static size_t
 endpointContext_getLocalAsymSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
                                                   const void *const endpointContext) {
     return 0;
+}
+
+static UA_StatusCode
+endpointContext_compareCertificateThumbprint_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                                     const void *const endpointContext,
+                                                     const UA_ByteString *const certificateThumbprint) {
+    if(securityPolicy == NULL || endpointContext == NULL || certificateThumbprint == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Null pointer supplied while calling"
+                     "endpointContext_compareCertificateThumbprint_sp_none");
+    }
+
+    // The certificatethumbprint doesn't exist if the security policy is none
+    if(certificateThumbprint->length != 0)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /////////////////////////////////
@@ -515,10 +532,13 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     { // .context
         endpointContext_init_sp_none, // .init
         endpointContext_deleteMembers_sp_none, // .deleteMembers
-        endpointContext_setServerPrivateKey_sp_none, // .setServerPrivateKey
+        endpointContext_setLocalPrivateKey_sp_none, // .setLocalPrivateKey
+        endpointContext_setLocalCertificate_sp_none,
+        endpointContext_getLocalCertificate_sp_none,
         endpointContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
         endpointContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
-        endpointContext_getLocalAsymSignatureSize_sp_none // .getLocalAsymSignatureSize
+        endpointContext_getLocalAsymSignatureSize_sp_none, // .getLocalAsymSignatureSize
+        endpointContext_compareCertificateThumbprint_sp_none
     },
 
     { // .channelContext
@@ -540,9 +560,5 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_none // .getRemoteAsymEncryptionBufferLengthOverhead
     },
 
-    deleteMembers_sp_none, // .deleteMembers
-    init_sp_none, // .init
-
-    NULL, // .logger
-    NULL // .endpointContextData
+    NULL // .logger
 };
