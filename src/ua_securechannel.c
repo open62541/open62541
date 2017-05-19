@@ -29,7 +29,7 @@ UA_SECURITY_POLICY_NONE_URI = { 47, (UA_Byte*)"http://opcfoundation.org/UA/Secur
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
 void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_Endpoints *endpoints,
+                           UA_Endpoints *endpoints,
                            UA_Logger logger) {
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->endpoints = endpoints;
@@ -1018,7 +1018,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
     if(channel->endpoint == NULL) {
         // iterate available security policies and choose the correct one
-        const UA_Endpoint *endpoint = NULL;
+        UA_Endpoint *endpoint = NULL;
 
         for(size_t i = 0; i < channel->endpoints->count; ++i) {
             if(UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,

@@ -38,12 +38,12 @@ struct UA_Endpoint_SecurityContext
                                               const UA_ByteString *privateKey,
                                               void *endpointContext);
 
-    UA_StatusCode (*const setLocalCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                               const UA_ByteString *certificate,
-                                               void *endpointContext);
+    UA_StatusCode (*const setServerCertificate)(const UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString *certificate,
+                                                void *endpointContext);
 
-    const UA_ByteString * (*const getLocalCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                                       const void *endpointContext);
+    const UA_ByteString * (*const getServerCertificate)(const UA_SecurityPolicy *securityPolicy,
+                                                        const void *endpointContext);
 
     UA_StatusCode (*const setCertificateTrustList)(const UA_SecurityPolicy *securityPolicy,
                                                    const UA_ByteString *trustList,

@@ -40,11 +40,11 @@ struct UA_SecureChannel {
     UA_AsymmetricAlgorithmSecurityHeader localAsymAlgSettings;
 
     /* The endpoint and context of the channel */
-    const UA_Endpoint *endpoint;
+    UA_Endpoint *endpoint;
     void *securityContext;
 
     /* The available endpoints */
-    const UA_Endpoints *endpoints;
+    UA_Endpoints *endpoints;
 
     UA_ByteString  clientNonce;
     UA_ByteString  serverNonce;
@@ -67,7 +67,7 @@ struct UA_SecureChannel {
  * \param logger the logger the securechannel may use to log messages.
  */
 void UA_SecureChannel_init(UA_SecureChannel *channel,
-                           const UA_Endpoints *endpoints,
+                           UA_Endpoints *endpoints,
                            UA_Logger logger);
 void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel);
 

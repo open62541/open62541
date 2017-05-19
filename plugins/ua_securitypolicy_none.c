@@ -225,9 +225,9 @@ endpointContext_setLocalPrivateKey_sp_none(const UA_SecurityPolicy *const securi
 }
 
 static UA_StatusCode
-endpointContext_setLocalCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                            const UA_ByteString *const certificate,
-                                            void *endpointContext) {
+endpointContext_setServerCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                             const UA_ByteString *const certificate,
+                                             void *endpointContext) {
     if(securityPolicy == NULL || certificate == NULL || endpointContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -237,8 +237,8 @@ endpointContext_setLocalCertificate_sp_none(const UA_SecurityPolicy *const secur
 }
 
 static const UA_ByteString*
-endpointContext_getLocalCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                            const void *const endpointContext) {
+endpointContext_getServerCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                             const void *const endpointContext) {
     if(securityPolicy == NULL || endpointContext == NULL)
         return NULL;
 
@@ -533,8 +533,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         endpointContext_init_sp_none, // .init
         endpointContext_deleteMembers_sp_none, // .deleteMembers
         endpointContext_setLocalPrivateKey_sp_none, // .setLocalPrivateKey
-        endpointContext_setLocalCertificate_sp_none,
-        endpointContext_getLocalCertificate_sp_none,
+        endpointContext_setServerCertificate_sp_none,
+        endpointContext_getServerCertificate_sp_none,
         endpointContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
         endpointContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
         endpointContext_getLocalAsymSignatureSize_sp_none, // .getLocalAsymSignatureSize

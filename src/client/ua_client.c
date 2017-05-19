@@ -12,6 +12,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_util.h"
 #include "ua_nodeids.h"
+#include "ua_securitypolicy_none.h"
 
 /*********************/
 /* Create and Delete */
@@ -20,6 +21,15 @@
 static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     client->channel.connection = &client->connection;
+    client->channel.endpoint = UA_malloc(sizeof(UA_Endpoint));
+    client->channel.endpoints = UA_malloc(sizeof(UA_Endpoints));
+    UA_EndpointDescription_init(&client->channel.endpoint->endpointDescription);
+    client->channel.endpoints->endpoints = client->channel.endpoint;
+    client->channel.endpoints->count = 1;
+    client->channel.endpoint->securityPolicy = &UA_SecurityPolicy_None;
+    UA_SecurityPolicy_None.endpointContext.init(&UA_SecurityPolicy_None,
+                                                NULL,
+                                                &client->channel.endpoint->securityContext);
     client->config = config;
 }
 
@@ -33,6 +43,8 @@ UA_Client * UA_Client_new(UA_ClientConfig config) {
 
 static void UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_disconnect(client);
+    UA_free(client->channel.endpoint);
+    UA_free(client->channel.endpoints);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
     UA_Connection_deleteMembers(&client->connection);
     if(client->endpointUrl.data)

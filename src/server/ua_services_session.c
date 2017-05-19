@@ -167,7 +167,7 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
         const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
 
         const UA_ByteString *const localCertificate =
-            securityPolicy->endpointContext.getLocalCertificate(securityPolicy,
+            securityPolicy->endpointContext.getServerCertificate(securityPolicy,
                                                                 channel->endpoint->securityContext);
 
         UA_ByteString dataToVerify;
