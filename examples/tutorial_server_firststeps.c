@@ -33,7 +33,7 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_standard_new(4840, NULL);
+    UA_ServerConfig *config = UA_ServerConfig_standard_new();
 
     UA_Server *server = UA_Server_new(*config);
 

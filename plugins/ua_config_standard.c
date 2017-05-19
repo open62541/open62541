@@ -244,8 +244,8 @@ static UA_StatusCode createSecurityPolicyNoneEndpoint(UA_ServerConfig *const con
     return UA_STATUSCODE_GOOD;
 }
 
-UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(UA_UInt16 portNumber,
-                                                        const UA_ByteString *certificate) {
+UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 portNumber,
+                                                                     const UA_ByteString *certificate) {
 
     UA_ServerConfig *conf = (UA_ServerConfig*)UA_malloc(sizeof(UA_ServerConfig));
     if(conf == NULL)
@@ -278,7 +278,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(UA_UInt16 portNumber,
 }
 
 UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
-    return UA_ServerConfig_standard_new(4840, NULL);
+    return UA_ServerConfig_standard_parametrized_new(4840, NULL);
 }
 
 UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {

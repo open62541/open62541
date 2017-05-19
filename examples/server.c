@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
 
     UA_ByteString cert = loadCertificate();
 
-    UA_ServerConfig *config = UA_ServerConfig_standard_new(16664, &cert);
+    UA_ServerConfig *config = UA_ServerConfig_standard_parametrized_new(16664, &cert);
     if(config == NULL)
         return -1;
 
