@@ -21,8 +21,8 @@
 static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     client->channel.connection = &client->connection;
-    client->channel.endpoint = UA_malloc(sizeof(UA_Endpoint));
-    client->channel.endpoints = UA_malloc(sizeof(UA_Endpoints));
+    client->channel.endpoint = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint));
+    client->channel.endpoints = (UA_Endpoints*)UA_malloc(sizeof(UA_Endpoints));
     UA_EndpointDescription_init(&client->channel.endpoint->endpointDescription);
     client->channel.endpoints->endpoints = client->channel.endpoint;
     client->channel.endpoints->count = 1;

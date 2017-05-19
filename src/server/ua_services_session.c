@@ -24,8 +24,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Copy the server's endpoints into the response */
-    response->serverEndpoints = UA_Array_new(server->endpoints.count,
-                                             &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    response->serverEndpoints =
+        (UA_EndpointDescription*)UA_Array_new(server->endpoints.count,
+                                              &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(response->serverEndpoints == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
