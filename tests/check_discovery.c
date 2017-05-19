@@ -516,6 +516,7 @@ static Suite* testSuite_Client(void) {
 
     suite_add_tcase(s,tc_register_retry);
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");
     tcase_add_unchecked_fixture(tc_register_find, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register_find, setup_register, teardown_register);
@@ -531,6 +532,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_find, Client_find_discovery);
     tcase_add_test(tc_register_find, Client_filter_discovery);
     suite_add_tcase(s,tc_register_find);
+#endif
+
 
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");
@@ -541,12 +544,14 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_timeout, Client_find_registered);
     tcase_add_test(tc_register_timeout, Util_wait_timeout);
     tcase_add_test(tc_register_timeout, Client_find_discovery);
+#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
     // now check if semaphore file works
     tcase_add_test(tc_register_timeout, Server_register_semaphore);
     tcase_add_test(tc_register_timeout, Client_find_registered);
     tcase_add_test(tc_register_timeout, Server_unregister_semaphore);
     tcase_add_test(tc_register_timeout, Util_wait_timeout);
     tcase_add_test(tc_register_timeout, Client_find_discovery);
+#endif
     suite_add_tcase(s,tc_register_timeout);
     return s;
 }
