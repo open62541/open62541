@@ -820,22 +820,29 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
     return retval;
 }
 
-static UA_StatusCode
-findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
+/* The binary encoding has a different nodeid from the data type. So it is not
+ * possible to reuse UA_findDataType */
+static const UA_DataType *
+findDataTypeByBinary(const UA_NodeId *typeId) {
+    /* We only store a numeric identifier for the encoding nodeid of data types */
+    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+
+    /* Custom or standard data type? */
     const UA_DataType *types = UA_TYPES;
     size_t typesSize = UA_TYPES_COUNT;
     if(typeId->namespaceIndex != 0) {
         types = customTypesArray;
         typesSize = customTypesArraySize;
     }
+
+    /* Iterate over the array */
     for(size_t i = 0; i < typesSize; ++i) {
-        if(types[i].binaryEncodingId == typeId->identifier.numeric) {
-            // cppcheck-suppress autoVariables
-            *findtype = &types[i];
-            return UA_STATUSCODE_GOOD;
-        }
+        if(types[i].binaryEncodingId == typeId->identifier.numeric &&
+           types[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            return &types[i];
     }
-    return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    return NULL;
 }
 
 /* ExtensionObject */
@@ -892,8 +899,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
 static UA_StatusCode
 ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *typeId) {
     /* Lookup the datatype */
-    const UA_DataType *type = NULL;
-    findDataTypeByBinary(typeId, &type);
+    const UA_DataType *type = findDataTypeByBinary(typeId);
 
     /* Unknown type, just take the binary content */
     if(!type) {
@@ -1036,7 +1042,8 @@ Variant_encodeBinary(const UA_Variant *src, const UA_DataType *_) {
 
 static UA_StatusCode
 Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
-    /* Save the position in the ByteString */
+    /* Save the position in the ByteString. If unwrapping is not possible, start
+     * from here to decode a normal ExtensionObject. */
     UA_Byte *old_pos = pos;
 
     /* Decode the DataType */
@@ -1056,13 +1063,12 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
 
     /* Search for the datatype. Default to ExtensionObject. */
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       findDataTypeByBinary(&typeId, &dst->type) == UA_STATUSCODE_GOOD) {
+       (dst->type = findDataTypeByBinary(&typeId)) != NULL) {
         /* Jump over the length field (TODO: check if length matches) */
         pos += 4; 
     } else {
         /* Reset and decode as ExtensionObject */
-        UA_assert(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         pos = old_pos;
         UA_NodeId_deleteMembers(&typeId);
     }
@@ -1082,8 +1088,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
     return retval;
 }
 
-/* The resulting variant always has the storagetype UA_VARIANT_DATA. Currently,
- we only support ns0 types (todo: attach typedescriptions to datatypenodes) */
+/* The resulting variant always has the storagetype UA_VARIANT_DATA. */
 static UA_StatusCode
 Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
     /* Decode the encoding byte */
