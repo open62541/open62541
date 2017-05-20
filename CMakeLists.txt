@@ -27,7 +27,7 @@ include(AssignSourceGroup)
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
