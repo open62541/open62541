@@ -5,33 +5,48 @@ clone_depth: 20
 
 environment:
     global:
+        APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
         CYG_ARCH: x86
         CYG_ROOT: C:/cygwin
         CYG_SETUP_URL: http://cygwin.com/setup-x86.exe
         CYG_MIRROR: http://cygwin.mirror.constant.com
         CYG_CACHE: C:\cygwin\var\cache\setup
         CYG_BASH: C:/cygwin/bin/bash
-
+      
     matrix:
         - CC_NAME: MinGW Makefiles
           CC_SHORTNAME: mingw
           MAKE: mingw32-make
           FORCE_CXX: OFF
+          OUT_DIR_LIB: bin
+          OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: ON
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: OFF
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013 Win64
           CC_SHORTNAME: vs2013-x64
-          MAKE: msbuild open62541.sln /m
+          # Do not use multicore switch (/m), it causes appveyor to randomly fail
+          MAKE: msbuild open62541.sln
           FORCE_CXX: OFF
+          OUT_DIR_LIB: bin\Debug
+          OUT_DIR_EXAMPLES: bin\examples\Debug
 
 cache:
   - '%CYG_CACHE%'
+  # Caching miktex is too big currently, so skip it
+  #- 'c:\miktex'
+  #- 'c:\python27'
 
 init:
   - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
@@ -45,15 +60,42 @@ install:
   - ps: echo "Downloaded. Now ready to install."
   - cmd: '"%CYG_ROOT%/setup-x86.exe" --quiet-mode --no-shortcuts --only-site -R "%CYG_ROOT%" -s "%CYG_MIRROR%" -l "%CYG_CACHE%" --packages cmake,python'
   - cmd: '%CYG_BASH% -lc "cygcheck -dc cygwin"'
+  # Install miktex to get pdflatex, if we don't get it from the cache
+  - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe appveyor DownloadFile http://mirrors.ctan.org/systems/win32/miktex/setup/miktex-portable.exe
+  - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe 7z x miktex-portable.exe -oc:\miktex >NUL
+  - pip install --user sphinx sphinx_rtd_theme
 
 before_build:
   # use MinGW64
   - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  # Miktex
+  - set "PATH=%PATH%;c:\miktex\texmfs\install\miktex\bin;%APPDATA%\Python\Scripts"
+  # autoinstall latex packages (0=no, 1=autoinstall, 2=ask)
+  # this adds this to the registry!
+  - initexmf --set-config-value [MPM]AutoInstall=1
+  - initexmf --update-fndb
 
 build_script:
+  # log is loaded from cache, so we strip it here
+  - rd /s /q c:\miktex\texmfs\data\miktex\log
+
   - cd c:\projects\open62541
+  # Collect files for .zip packing
+  - md pack
+  - copy "%APPVEYOR_BUILD_FOLDER%\LICENSE" pack\
+  - copy "%APPVEYOR_BUILD_FOLDER%\AUTHORS" pack\
+  - copy "%APPVEYOR_BUILD_FOLDER%\README.md" pack\
+  # now start build
+  - md build
+  - cd build
+  - echo "Building Documentation on %CC_NAME%"
+  - cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DUA_BUILD_EXAMPLES:BOOL=OFF -G"%CC_NAME%" ..
+  - cmake --build . --target doc_latex & cmake --build . --target doc_pdf
+  - move "%APPVEYOR_BUILD_FOLDER%\build\doc_latex\open62541.pdf" %APPVEYOR_BUILD_FOLDER%\pack\
+  - cd ..
+  - rd /s /q build
   - md build
   - cd build
   - echo "Testing %CC_NAME%"
@@ -64,10 +106,38 @@ build_script:
   - md build
   - cd build
   - echo "Testing %CC_NAME% with amalgamation"
-  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=OFF -G"%CC_NAME%" ..
   - '%MAKE%'
+  - md %APPVEYOR_BUILD_FOLDER%\pack_tmp
+  - move "%APPVEYOR_BUILD_FOLDER%\build\open62541.c" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\open62541.h" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_EXAMPLES%\server.exe" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_EXAMPLES%\client.exe" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\libopen62541.a" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if not "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\open62541.lib" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
   - cd ..
+  - 7z a -tzip open62541-%CC_SHORTNAME%-static.zip "%APPVEYOR_BUILD_FOLDER%\pack\*" "%APPVEYOR_BUILD_FOLDER%\pack_tmp\*"
+  - rd /s /q pack_tmp
+  - rd /s /q build
+  - md build
+  - cd build
+  - echo "Testing %CC_NAME% with amalgamation and .dll"
+  - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=ON -G"%CC_NAME%" ..
+  - '%MAKE%'
+  - md %APPVEYOR_BUILD_FOLDER%\pack_tmp
+  - move "%APPVEYOR_BUILD_FOLDER%\build\open62541.c" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\open62541.h" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_EXAMPLES%\server.exe" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_EXAMPLES%\client.exe" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\libopen62541.dll" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\libopen62541.dll.a" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if not "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\open62541.dll" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - if not "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\open62541.pdb" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
+  - cd ..
+  - 7z a -tzip open62541-%CC_SHORTNAME%-dynamic.zip "%APPVEYOR_BUILD_FOLDER%\pack\*" "%APPVEYOR_BUILD_FOLDER%\pack_tmp\*"
+  # do not cache log
+  - rd /s /q c:\miktex\texmfs\data\miktex\log
 
 after_build:
-  - 7z a open62541-%CC_SHORTNAME%.zip %APPVEYOR_BUILD_FOLDER%\build*
-  - appveyor PushArtifact open62541-%CC_SHORTNAME%.zip
+  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
+  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip

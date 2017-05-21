@@ -31,6 +31,7 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
     printf("[%.23s] %s/%s\t", t.data, LogLevelNames[level], LogCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");
+    fflush(stdout);
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_unlock(&printf_mutex);
 #endif

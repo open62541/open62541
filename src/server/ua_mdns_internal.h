@@ -37,10 +37,10 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
 
 void
-UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const char *serverName,
-                                        UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                        const UA_String discoveryUrl, UA_Boolean isOnline,
-                                        UA_Boolean updateTxt);
+UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serverName,
+                                        const UA_MdnsDiscoveryConfiguration *mdnsConfig,
+                                        const UA_String *discoveryUrl,
+                                        UA_Boolean isOnline, UA_Boolean updateTxt);
 
 #ifdef __cplusplus
 } // extern "C"

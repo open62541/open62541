@@ -98,4 +98,12 @@ struct UA_Client {
 UA_StatusCode UA_EXPORT
 UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession);
+
+UA_StatusCode
+__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
+                         UA_EndpointDescription** endpointDescriptions);
+
 #endif /* UA_CLIENT_INTERNAL_H_ */

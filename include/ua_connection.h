@@ -108,21 +108,22 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 /**
  * EndpointURL Helper
  * ^^^^^^^^^^^^^^^^^^ */
-/* Split the given endpoint url into hostname and port
- * @param endpointUrl The endpoint URL to split up
- * @param hostname the target array for hostname. Has to be at least 256 size.
- *        If an IPv6 address is given, hostname contains e.g.
- *        '[2001:0db8:85a3::8a2e:0370:7334]'
- * @param port set to the port of the url or 0
- * @param path pointing to the end of given endpointUrl or to NULL if no
- *        path given. The starting '/' is NOT included in path
- * @return UA_STATUSCODE_BADOUTOFRANGE if url too long,
- *         UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with
- *         'opc.tcp://', UA_STATUSCODE_GOOD on success
- */
+/* Split the given endpoint url into hostname, port and path. All arguments must
+ * be non-NULL. EndpointUrls have the form "opc.tcp://hostname:port/path", port
+ * and path may be omitted (together with the prefix colon and slash).
+ *
+ * @param endpointUrl The endpoint URL.
+ * @param outHostname Set to the parsed hostname. The string points into the
+ *        original endpointUrl, so no memory is allocated. If an IPv6 address is
+ *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
+ * @param outPort Set to the port of the url or left unchanged.
+ * @param outPath Set to the path if one is present in the endpointUrl. The
+ *        starting (and trailing) '/' is NOT included in the path. The string
+ *        points into the original endpointUrl, so no memory is allocated.
+ * @return Returns UA_STATUSCODE_BADTCPENDPOINTURLINVALID if parsing failed. */
 UA_StatusCode UA_EXPORT
-UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
-                     UA_UInt16 * port, const char ** path);
+UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
+                    UA_UInt16 *outPort, UA_String *outPath);
 
 #ifdef __cplusplus
 } // extern "C"

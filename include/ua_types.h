@@ -446,6 +446,27 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
 }
 
 /**
+ * .. _numericrange:
+ *
+ * NumericRange
+ * ^^^^^^^^^^^^
+ *
+ * NumericRanges are used to indicate subsets of a (multidimensional) array.
+ * They no official data type in the OPC UA standard and are transmitted only
+ * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
+ * index and the comma separates dimensions. A single value indicates a range
+ * with a single element (min==max). */
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_NumericRangeDimension;
+
+typedef struct  {
+    size_t dimensionsSize;
+    UA_NumericRangeDimension *dimensions;
+} UA_NumericRange;
+
+/**
  * .. _variant:
  *
  * Variant
@@ -482,10 +503,6 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
 /* Forward declaration. See the section on Generic Type Handling */
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType;
-
-/* Forward declaration. See the section on Array Handling */
-struct UA_NumericRange;
-typedef struct UA_NumericRange UA_NumericRange;
 
 #define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
 
@@ -857,27 +874,6 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * @param size The size of the array
  * @param type The datatype of the array members */
 void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
-
-/**
- * .. _numericrange:
- *
- * NumericRange
- * ^^^^^^^^^^^^
- *
- * NumericRanges are used to indicate subsets of a (multidimensional) variant
- * array. NumericRange has no official type structure in the standard. On the
- * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
- * separates min/max index and the comma separates dimensions. A single value
- * indicates a range with a single element (min==max). */
-typedef struct {
-    UA_UInt32 min;
-    UA_UInt32 max;
-} UA_NumericRangeDimension;
-
-struct UA_NumericRange {
-    size_t dimensionsSize;
-    UA_NumericRangeDimension *dimensions;
-};
 
 /**
  * Random Number Generator

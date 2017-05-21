@@ -26,12 +26,12 @@ readDimension(UA_Byte *buf, size_t buflen, UA_NumericRangeDimension *dim) {
     /* invalid range */
     if(dim->min >= dim->max)
         return 0;
-    
+
     return progress + progress2;
 }
 
 UA_StatusCode
-parse_numericrange(const UA_String *str, UA_NumericRange *range) {
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
     size_t idx = 0;
     size_t dimensionsMax = 0;
     UA_NumericRangeDimension *dimensions = NULL;
@@ -273,7 +273,9 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
 #else
     UA_StatusCode retval;
     do {
+        UA_RCU_LOCK();
         UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
+        UA_RCU_UNLOCK();
         if(!copy)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         retval = callback(server, session, copy, data);
@@ -281,7 +283,9 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
             UA_NodeStore_deleteNode(copy);
             return retval;
         }
+        UA_RCU_LOCK();
         retval = UA_NodeStore_replace(server->nodestore, copy);
+        UA_RCU_UNLOCK();
     } while(retval != UA_STATUSCODE_GOOD);
     return UA_STATUSCODE_GOOD;
 #endif

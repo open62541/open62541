@@ -1,6 +1,16 @@
 #!/bin/bash
 set -ev
 
+# Docker build test
+if ! [ -z ${DOCKER+x} ]; then
+    docker build -t open62541 .
+    docker run -d -p 127.0.0.1:80:80 --name open62541 open62541 /bin/sh
+    docker ps | grep -q open62541
+    # disabled since it randomly fails
+    # docker ps | grep -q open62541
+    exit 0
+fi
+
 if [ $ANALYZE = "true" ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if [ "$CC" = "clang" ]; then
@@ -48,7 +58,7 @@ else
     echo -e "\r\n== Documentation and certificate build =="  && echo -en 'travis_fold:start:script.build.doc\\r'
     mkdir -p build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_DOCUMENTATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
+    cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
     make doc
     make doc_pdf
     make selfsigned
@@ -125,11 +135,16 @@ else
     cd .. && rm build -rf
 	echo -en 'travis_fold:end:script.build.example\\r'
 
-    echo -e "\r\n== Compile multithreaded version ==" && echo -en 'travis_fold:start:script.build.multithread\\r'
-    mkdir -p build && cd build
-    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
-    make -j
-    cd .. && rm build -rf
+	echo "Compile as shared lib version" && echo -en 'travis_fold:start:script.build.shared_libs\\r'
+	mkdir -p build && cd build
+	cmake -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_AMALGAMATION=ON -DUA_BUILD_EXAMPLES=ON ..
+	make -j
+	cd .. && rm build -rf
+	echo -en 'travis_fold:end:script.build.shared_libs\\r'echo -e "\r\n==Compile multithreaded version==" && echo -en 'travis_fold:start:script.build.multithread\\r'
+	mkdir -p build && cd build
+	cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
+	make -j
+	cd .. && rm build -rf
 	echo -en 'travis_fold:end:script.build.multithread\\r'
 
     echo -e "\r\n== Compile without discovery version ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'

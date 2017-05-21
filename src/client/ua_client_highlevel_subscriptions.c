@@ -83,8 +83,8 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
 
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not remove subscription %u with statuscode 0x%08x",
-                    sub->subscriptionID, retval);
+                    "Could not remove subscription %u with error code %s",
+                    sub->subscriptionID, UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -117,7 +117,12 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     }
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    
+
+    /* Create the handler */
+    UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem*)UA_malloc(sizeof(UA_Client_MonitoredItem));
+    if(!newMon)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
     /* Send the request */
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
@@ -134,20 +139,22 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     request.itemsToCreate = &item;
     request.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse response = UA_Client_Service_createMonitoredItems(client, request);
-    
-    // slight misuse of retval here to check if the deletion was successfull.
-    UA_StatusCode retval;
-    if(response.resultsSize == 0)
-        retval = response.responseHeader.serviceResult;
-    else
-        retval = response.results[0].statusCode;
+
+    // slight misuse of retval here to check if the addition was successfull.
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(response.resultsSize == 1)
+            retval = response.results[0].statusCode;
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(newMon);
         UA_CreateMonitoredItemsResponse_deleteMembers(&response);
         return retval;
     }
 
-    /* Create the handler */
-    UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
+    /* Set the handler */
     newMon->monitoringMode = UA_MONITORINGMODE_REPORTING;
     UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
     newMon->attributeID = attributeID;
@@ -162,7 +169,8 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     *newMonitoredItemId = newMon->monitoredItemId;
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Created a monitored item with client handle %u", client->monitoredItemHandles);
+                 "Created a monitored item with client handle %u",
+                 client->monitoredItemHandles);
 
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
@@ -178,7 +186,7 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     }
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-    
+
     UA_Client_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->monitoredItemId == monitoredItemId)
@@ -202,8 +210,8 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     if(retval != UA_STATUSCODE_GOOD &&
        retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not remove monitoreditem %u with statuscode 0x%08x",
-                    monitoredItemId, retval);
+                    "Could not remove monitoreditem %u with error code %s",
+                    monitoredItemId, UA_StatusCode_name(retval));
         return retval;
     }
 
@@ -281,7 +289,14 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     }
 
     /* Add to the list of pending acks */
-    UA_Client_NotificationsAckNumber *tmpAck = (UA_Client_NotificationsAckNumber *)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+    UA_Client_NotificationsAckNumber *tmpAck =
+        (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+    if(!tmpAck) {
+        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                       "Not enough memory to store the acknowledgement for a publish "
+                       "message on subscription %u", sub->subscriptionID);
+        return;
+    }
     tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
     tmpAck->subAck.subscriptionId = sub->subscriptionID;
     LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
@@ -307,18 +322,18 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             if(!request.subscriptionAcknowledgements)
                 return UA_STATUSCODE_GOOD;
         }
-        
+
         int i = 0;
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
             request.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
             request.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
             ++i;
         }
-        
+
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         UA_Client_processPublishResponse(client, &request, &response);
         moreNotifications = response.moreNotifications;
-        
+
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
     }

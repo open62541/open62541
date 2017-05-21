@@ -27,9 +27,9 @@ include(AssignSourceGroup)
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
@@ -39,7 +39,7 @@ if(GIT_FOUND)
         string(REPLACE "\n" "" OPEN62541_VER_COMMIT ${GIT_COM_ID} )
     endif()
 endif()
-if("${OPEN62541_VER_COMMIT}" STREQUAL "")
+if(NOT ${OPEN62541_VER_COMMIT} OR ${OPEN62541_VER_COMMIT} STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
@@ -252,6 +252,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+                ${PROJECT_SOURCE_DIR}/src/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
@@ -283,6 +284,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
                 # plugins and dependencies

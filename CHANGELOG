@@ -1,0 +1,17 @@
+The changelog tracks changes to the public API.
+Internal refactorings and bug fixes are not reported here.
+
+2017-05-03 pro <profanter at fortiss.org>
+
+    * Array dimensions are UInt32 also for the highlevel client read service
+	
+2017-04-16 jpfr <julius.pfrommer at web.de>
+
+    * Refactor UA_parseEndpointUrl to work with UA_String
+
+      The output hostname and path now point into the original
+      endpointUrl with an appropriate length.
+
+2017-04-14 jpfr <julius.pfrommer at web.de>
+
+    * Auto-instantiate only child nodes marked as mandatory (fixes #1004)

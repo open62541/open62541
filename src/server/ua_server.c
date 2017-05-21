@@ -79,7 +79,7 @@ UA_Server_deleteExternalNamespaces(UA_Server *server) {
     }
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_addExternalNamespace(UA_Server *server, const UA_String *url,
                                UA_ExternalNodeStore *nodeStore,
                                UA_UInt16 *assignedNamespaceIndex) {
@@ -275,12 +275,10 @@ UA_Server_new(const UA_ServerConfig config) {
     /* Initialize the handling of repeated jobs */
 #ifdef UA_ENABLE_MULTITHREADING
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob,
-                             server);
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_dispatchJob, server);
 #else
     UA_RepeatedJobsList_init(&server->repeatedJobs,
-                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob,
-                             server);
+                             (UA_RepeatedJobsListProcessCallback)UA_Server_processJob, server);
 #endif
 
     /* Initialized the linked list for delayed callbacks */

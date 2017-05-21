@@ -9,7 +9,8 @@
 #ifdef UA_ENABLE_DISCOVERY
 
 static UA_StatusCode
-register_server_with_discovery_server(UA_Server *server, const char* discoveryServerUrl,
+register_server_with_discovery_server(UA_Server *server,
+                                      const char* discoveryServerUrl,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
     /* Use a fallback URL */
@@ -26,7 +27,8 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
     UA_StatusCode retval = UA_Client_connect(client, url);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Connecting to client failed with statuscode %s", UA_StatusCode_name(retval));
+                     "Connecting to client failed with statuscode %s",
+                     UA_StatusCode_name(retval));
         UA_Client_delete(client);
         return retval;
     }
@@ -111,8 +113,10 @@ register_server_with_discovery_server(UA_Server *server, const char* discoverySe
         UA_RegisterServerResponse response_fallback;
         UA_RegisterServerResponse_init(&response_fallback);
 
-        __UA_Client_Service(client, &request_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                            &response_fallback, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+        __UA_Client_Service(client, &request_fallback,
+                            &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                            &response_fallback,
+                            &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
         serviceResult = response_fallback.responseHeader.serviceResult;
         UA_RegisterServerResponse_deleteMembers(&response_fallback);

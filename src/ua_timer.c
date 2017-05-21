@@ -35,7 +35,7 @@ UA_RepeatedJobsList_init(UA_RepeatedJobsList *rjl,
 static void
 enqueueChange(UA_RepeatedJobsList *rjl, UA_RepeatedJob *rj) {
     rj->next.sle_next = NULL;
-    UA_RepeatedJob *prev = UA_atomic_xchg((void* volatile *)&rjl->changes_head, rj);
+    UA_RepeatedJob *prev = (UA_RepeatedJob *)UA_atomic_xchg((void* volatile *)&rjl->changes_head, rj);
     /* Nothing can be dequeued while the producer is blocked here */
     prev->next.sle_next = rj; /* Once this change is visible in the consumer,
                                * the node is dequeued in the following

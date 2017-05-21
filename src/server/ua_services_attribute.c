@@ -284,7 +284,7 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
 static UA_StatusCode
 readArrayDimensionsAttribute(const UA_VariableNode *vn, UA_DataValue *v) {
     UA_Variant_setArray(&v->value, vn->arrayDimensions,
-                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+                        vn->arrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
     v->value.storageType = UA_VARIANT_DATA_NODELETE;
     v->hasValue = true;
     return UA_STATUSCODE_GOOD;
@@ -513,7 +513,7 @@ readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -588,7 +588,7 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(indexRange && indexRange->length > 0) {
-        retval = parse_numericrange(indexRange, &range);
+        retval = UA_NumericRange_parseFromString(&range, indexRange);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         rangeptr = &range;
@@ -709,8 +709,8 @@ writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
 /* Read Service */
 /****************/
 
-static const UA_String binEncoding = {sizeof("DefaultBinary")-1, (UA_Byte*)"DefaultBinary"};
-/* static const UA_String xmlEncoding = {sizeof("DefaultXml")-1, (UA_Byte*)"DefaultXml"}; */
+static const UA_String binEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
+/* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
 
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
