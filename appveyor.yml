@@ -44,8 +44,7 @@ environment:
 
 cache:
   - '%CYG_CACHE%'
-  # Caching miktex is too big currently, so skip it
-  #- 'c:\miktex'
+  - 'c:\miktex'
   #- 'c:\python27'
 
 init:
@@ -63,6 +62,12 @@ install:
   # Install miktex to get pdflatex, if we don't get it from the cache
   - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe appveyor DownloadFile http://mirrors.ctan.org/systems/win32/miktex/setup/miktex-portable.exe
   - if not exist c:\miktex\texmfs\install\miktex\bin\pdflatex.exe 7z x miktex-portable.exe -oc:\miktex >NUL
+  # Remove some big files to reduce size to be cached
+  - if exist c:\miktex\texmfs\install\doc rd /s /q c:\miktex\texmfs\install\doc
+  - if exist c:\miktex\texmfs\install\internal rd /s /q c:\miktex\texmfs\install\internal
+  - if exist c:\miktex\texmfs\install\miktex\bin\biber.exe rd /s /q c:\miktex\texmfs\install\miktex\bin\biber.exe
+  - if exist c:\miktex\texmfs\install\miktex\bin\icudt58.dll rd /s /q c:\miktex\texmfs\install\miktex\bin\icudt58.dll
+  - if exist c:\miktex\texmfs\install\miktex\bin\a5toa4.exe rd /s /q c:\miktex\texmfs\install\miktex\bin\a5toa4.exe
   - pip install --user sphinx sphinx_rtd_theme
 
 before_build:
