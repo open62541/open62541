@@ -42,12 +42,6 @@
 
 #define UA_MAXTIMEOUT 50 // max timeout in millisec until the next main loop iteration
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-# ifndef _WIN32
-#  include <unistd.h> // gethostname
-# endif
-#endif
-
 void
 UA_Server_processJob(UA_Server *server, UA_Job *job) {
     UA_ASSERT_RCU_UNLOCKED();
