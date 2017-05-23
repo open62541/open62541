@@ -1221,11 +1221,9 @@ Service_Write(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
-    UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &value->nodeId,
                            (UA_EditNodeCallback)copyAttributeIntoNode, value);
-    UA_RCU_UNLOCK();
     return retval;
 }
 

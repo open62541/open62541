@@ -49,9 +49,9 @@ typedef struct UA_MonitoredItem {
     // TODO: dataEncoding is hardcoded to UA binary
     UA_DataChangeTrigger trigger;
 
-    /* Sample Job */
-    UA_Guid sampleJobGuid;
-    UA_Boolean sampleJobIsRegistered;
+    /* Sample Callback */
+    UA_UInt64 sampleCallbackId;
+    UA_Boolean sampleCallbackIsRegistered;
 
     /* Sample Queue */
     UA_ByteString lastSampledValue;
@@ -61,8 +61,8 @@ typedef struct UA_MonitoredItem {
 UA_MonitoredItem * UA_MonitoredItem_new(void);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon);
-UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -104,9 +104,9 @@ struct UA_Subscription {
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
 
-    /* Publish Job */
-    UA_Guid publishJobGuid;
-    UA_Boolean publishJobIsRegistered;
+    /* Publish Callback */
+    UA_UInt64 publishCallbackId;
+    UA_Boolean publishCallbackIsRegistered;
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
@@ -118,8 +118,8 @@ struct UA_Subscription {
 
 UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
-UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub);
-UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscription *sub);
+UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
+UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,

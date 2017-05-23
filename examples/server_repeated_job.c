@@ -26,12 +26,8 @@ int main(void) {
     config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
-    /* add a repeated job to the server */
-    UA_Job job;
-    job.type = UA_JOBTYPE_METHODCALL;
-    job.job.methodCall.data = NULL;
-    job.job.methodCall.method = testCallback;
-    UA_Server_addRepeatedJob(server, job, 2000, NULL); /* call every 2 sec */
+    /* Add a repeated callback to the server */
+    UA_Server_addRepeatedCallback(server, testCallback, NULL, 2000, NULL); /* call every 2 sec */
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

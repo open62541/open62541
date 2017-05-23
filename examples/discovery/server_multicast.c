@@ -149,8 +149,8 @@ int main(int argc, char **argv) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
     // periodic server register after 10 Minutes, delay first register for 500ms
-    retval = UA_Server_addPeriodicServerRegisterJob(server, discovery_url,
-                                                    10 * 60 * 1000, 500, NULL);
+    retval = UA_Server_addPeriodicServerRegisterCallback(server, discovery_url,
+                                                         10 * 60 * 1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
