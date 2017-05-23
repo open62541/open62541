@@ -33,8 +33,8 @@ UA_MonitoredItem_new(void) {
 
 void
 MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
-    /* Remove the sampling job */
-    MonitoredItem_unregisterSampleJob(server, monitoredItem);
+    /* Remove the sampling callback */
+    MonitoredItem_unregisterSampleCallback(server, monitoredItem);
 
     /* Clear the queued samples */
     MonitoredItem_queuedValue *val, *val_tmp;
@@ -251,25 +251,21 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
 }
 
 UA_StatusCode
-MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_Job job;
-    job.type = UA_JOBTYPE_METHODCALL;
-    job.job.methodCall.method = (UA_ServerCallback)UA_MoniteredItem_SampleCallback;
-    job.job.methodCall.data = mon;
-    UA_StatusCode retval = UA_Server_addRepeatedJob(server, job,
-                                                    (UA_UInt32)mon->samplingInterval,
-                                                    &mon->sampleJobGuid);
+MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_StatusCode retval =
+        UA_Server_addRepeatedCallback(server, (UA_ServerCallback)UA_MoniteredItem_SampleCallback,
+                                      mon, (UA_UInt32)mon->samplingInterval, &mon->sampleCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
-        mon->sampleJobIsRegistered = true;
+        mon->sampleCallbackIsRegistered = true;
     return retval;
 }
 
 UA_StatusCode
-MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredItem *mon) {
-    if(!mon->sampleJobIsRegistered)
+MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+    if(!mon->sampleCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
-    mon->sampleJobIsRegistered = false;
-    return UA_Server_removeRepeatedJob(server, mon->sampleJobGuid);
+    mon->sampleCallbackIsRegistered = false;
+    return UA_Server_removeRepeatedCallback(server, mon->sampleCallbackId);
 }
 
 /****************/
@@ -293,9 +289,8 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
 }
 
 void
-UA_Subscription_deleteMembers(UA_Subscription *subscription,
-                              UA_Server *server) {
-    Subscription_unregisterPublishJob(server, subscription);
+UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server) {
+    Subscription_unregisterPublishCallback(server, subscription);
 
     /* Delete monitored Items */
     UA_MonitoredItem *mon, *tmp_mon;
@@ -580,34 +575,32 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
 }
 
 UA_StatusCode
-Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub) {
-    if(sub->publishJobIsRegistered)
+Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
+    if(sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
 
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Register subscription publishing callback",
                          sub->subscriptionID);
-    UA_Job job;
-    job.type = UA_JOBTYPE_METHODCALL;
-    job.job.methodCall.method = (UA_ServerCallback)UA_Subscription_publishCallback;
-    job.job.methodCall.data = sub;
     UA_StatusCode retval =
-        UA_Server_addRepeatedJob(server, job, (UA_UInt32)sub->publishingInterval,
-                                 &sub->publishJobGuid);
+        UA_Server_addRepeatedCallback(server,
+                                 (UA_ServerCallback)UA_Subscription_publishCallback,
+                                 sub, (UA_UInt32)sub->publishingInterval,
+                                 &sub->publishCallbackId);
     if(retval == UA_STATUSCODE_GOOD)
-        sub->publishJobIsRegistered = true;
+        sub->publishCallbackIsRegistered = true;
     return retval;
 }
 
 UA_StatusCode
-Subscription_unregisterPublishJob(UA_Server *server, UA_Subscription *sub) {
-    if(!sub->publishJobIsRegistered)
+Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
+    if(!sub->publishCallbackIsRegistered)
         return UA_STATUSCODE_GOOD;
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                          "Subscription %u | Unregister subscription "
                          "publishing callback", sub->subscriptionID);
-    sub->publishJobIsRegistered = false;
-    return UA_Server_removeRepeatedJob(server, sub->publishJobGuid);
+    sub->publishCallbackIsRegistered = false;
+    return UA_Server_removeRepeatedCallback(server, sub->publishCallbackId);
 }
 
 /* When the session has publish requests stored but the last subscription is

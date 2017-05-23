@@ -161,19 +161,14 @@ START_TEST(Server_publishCallback) {
     ck_assert(publishingInterval > 0.0f);
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
-    /* Sleep until the publishing interval times out */
-    UA_sleep((UA_UInt32)publishingInterval + 1);
-
     /* Keepalive is set to max initially */
     UA_Subscription *sub;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount);
 
     /* Sleep until the publishing interval times out */
-    UA_Server_run_iterate(server, false);
     UA_sleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_sleep((UA_UInt32)publishingInterval + 1);
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);

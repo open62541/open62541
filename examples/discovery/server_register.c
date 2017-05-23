@@ -82,10 +82,15 @@ int main(int argc, char **argv) {
 
 
     // periodic server register after 10 Minutes, delay first register for 500ms
-    UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, DISCOVERY_SERVER_ENDPOINT, 10 * 60 * 1000, 500, NULL);
-    //UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server, "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
+    UA_StatusCode retval =
+        UA_Server_addPeriodicServerRegisterCallback(server, DISCOVERY_SERVER_ENDPOINT,
+                                                    10 * 60 * 1000, 500, NULL);
+    // UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server,
+    // "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not create periodic job for server register. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not create periodic job for server register. StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
@@ -94,7 +99,9 @@ int main(int argc, char **argv) {
 
     retval = UA_Server_run(server, &running);
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not start the server. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not start the server. StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
@@ -105,7 +112,9 @@ int main(int argc, char **argv) {
     retval = UA_Server_unregister_discovery(server, DISCOVERY_SERVER_ENDPOINT);
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER, "Could not unregister server from discovery server. StatusCode %s", UA_StatusCode_name(retval));
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "Could not unregister server from discovery server. StatusCode %s",
+                     UA_StatusCode_name(retval));
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);

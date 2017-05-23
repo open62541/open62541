@@ -99,11 +99,18 @@ struct UA_Connection {
     /* Release the buffer of a received message */
     void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);
 
-    /* Close the connection */
+    /* Close the connection. The network layer closes the socket, removes
+     * internal pointers to the connection and calls
+     * UA_Server_removeConnection. */
     void (*close)(UA_Connection *connection);
+
+    /* To be called only from within the server (and not the network layer).
+     * Frees up the connection's memory. */
+    void (*free)(UA_Connection *connection);
 };
 
-void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
+void UA_EXPORT
+UA_Connection_deleteMembers(UA_Connection *connection);
 
 /**
  * EndpointURL Helper
