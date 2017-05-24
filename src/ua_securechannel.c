@@ -1017,25 +1017,29 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
 
     if(channel->endpoint == NULL) {
-        // iterate available security policies and choose the correct one
+        // iterate available endpoints and choose the correct one
         UA_Endpoint *endpoint = NULL;
 
         for(size_t i = 0; i < channel->endpoints->count; ++i) {
-            if(UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
-                                   &channel->endpoints->endpoints[i].securityPolicy->policyUri)) {
+            UA_Endpoint *const endpointCandidate = &channel->endpoints->endpoints[i];
 
-                endpoint = &channel->endpoints->endpoints[i];
-                if(endpoint->securityPolicy->endpointContext.compareCertificateThumbprint(
-                    endpoint->securityPolicy,
-                    endpoint->securityContext,
-                    &clientAsymHeader.receiverCertificateThumbprint) == UA_STATUSCODE_GOOD) {
-                    // We found the correct endpoint (except for security mode)
-                    // The endpoint needs to be changed by the client / server to match
-                    // the security mode. The server does this in the securechannel manager
-                    break;
-                }
-                endpoint = NULL;
+            if(!UA_ByteString_equal(&clientAsymHeader.securityPolicyUri,
+                                    &endpointCandidate->securityPolicy->policyUri)) {
+                continue;
             }
+
+            if (endpointCandidate->securityPolicy->endpointContext.compareCertificateThumbprint(
+                endpointCandidate->securityPolicy,
+                endpointCandidate->securityContext,
+                &clientAsymHeader.receiverCertificateThumbprint) != UA_STATUSCODE_GOOD) {
+                continue;
+            }
+
+            // We found the correct endpoint (except for security mode)
+            // The endpoint needs to be changed by the client / server to match
+            // the security mode. The server does this in the securechannel manager
+            endpoint = endpointCandidate;
+            break;
         }
 
         if(endpoint == NULL) {
