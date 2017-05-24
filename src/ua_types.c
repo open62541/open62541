@@ -25,10 +25,13 @@ const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
 const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
-/* TODO: The standard-defined types are ordered. See if binary search is more
- * efficient. */
+/* TODO: The standard-defined types are ordered. See if binary search is
+ * more efficient. */
 const UA_DataType *
 UA_findDataType(const UA_NodeId *typeId) {
+    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC ||
+       typeId->namespaceIndex != 0)
+        return NULL;
     for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
         if(UA_TYPES[i].typeId.identifier.numeric == typeId->identifier.numeric)
             return &UA_TYPES[i];
