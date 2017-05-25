@@ -515,6 +515,15 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
 
     /* Encode the array length */
     UA_StatusCode retval = Int32_encodeBinary(&signed_length);
+
+    /* The buffer limit was reached during encoding of the length */
+    if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
+        retval = exchangeBuffer();
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = Int32_encodeBinary(&signed_length);
+    }
+
+    /* Quit early? */
     if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
