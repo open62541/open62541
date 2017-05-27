@@ -18,7 +18,6 @@ size_t dataCount;
 
 static UA_StatusCode
 sendChunkMockUp(UA_ChunkInfo *ci, UA_Byte **bufPos, const UA_Byte **bufEnd) {
-    size_t offset = (uintptr_t)(*bufPos - buffers[bufIndex].data);
     bufIndex++;
     *bufPos = buffers[bufIndex].data;
     *bufEnd = &(*bufPos)[buffers[bufIndex].length];

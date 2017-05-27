@@ -244,7 +244,7 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel* channel) {
 /***********************/
 
 static UA_StatusCode
-UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_end) {
+UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **buf_end) {
     UA_SecureChannel* const channel = ci->channel;
     UA_Connection* const connection = channel->connection;
     const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
@@ -269,18 +269,18 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
     if(ci->errorCode != UA_STATUSCODE_GOOD) {
         *buf_pos = buf_body_start;
         UA_String errorMsg = UA_STRING_NULL;
-        UA_encodeBinary(&ci->errorCode,
-                        &UA_TYPES[UA_TYPES_UINT32],
-                        buf_pos,
-                        buf_end,
-                        NULL,
-                        NULL);
-        UA_encodeBinary(&errorMsg,
-                        &UA_TYPES[UA_TYPES_STRING],
-                        buf_pos,
-                        buf_end,
-                        NULL,
-                        NULL);
+        ci->errorCode |= UA_encodeBinary(&ci->errorCode,
+                                         &UA_TYPES[UA_TYPES_UINT32],
+                                         buf_pos,
+                                         buf_end,
+                                         NULL,
+                                         NULL);
+        ci->errorCode |= UA_encodeBinary(&errorMsg,
+                                         &UA_TYPES[UA_TYPES_STRING],
+                                         buf_pos,
+                                         buf_end,
+                                         NULL,
+                                         NULL);
         ci->final = true; /* Mark chunk as finished */
     }
 
@@ -333,7 +333,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
         respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
 
     }
-    UA_encodeBinary(&respHeader,
+    ci->errorCode |= UA_encodeBinary(&respHeader,
                     &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
                     &header_pos,
                     buf_end,
@@ -342,7 +342,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
-    UA_encodeBinary(&symSecHeader.tokenId,
+    ci->errorCode |= UA_encodeBinary(&symSecHeader.tokenId,
                     &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
                     &header_pos,
                     buf_end,
@@ -353,7 +353,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
     seqHeader.requestId = ci->requestId;
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
 
-    UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
+    ci->errorCode |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
     /* Sign message */
@@ -421,7 +421,7 @@ UA_SecureChannel_calculateAsymAlgSecurityHeaderLength(
 
 static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
                                            UA_Byte **const buf_start,
-                                           UA_Byte **const buf_end) {
+                                           const UA_Byte **const buf_end) {
     *buf_start += UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + UA_SEQUENCE_HEADER_LENGTH;
 
     const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
@@ -464,7 +464,7 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
  */
 static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const ci,
                                                              UA_Byte **buf_pos,
-                                                             UA_Byte **buf_end) {
+                                                             const UA_Byte **buf_end) {
     UA_SecureChannel* const channel = ci->channel;
     UA_Connection* const connection = channel->connection;
     const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
@@ -573,17 +573,17 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         return ci->errorCode;
     }
 
-    UA_encodeBinary(&respHeader, &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
+    ci->errorCode |= UA_encodeBinary(&respHeader, &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
-    UA_encodeBinary(asymHeader,
+    ci->errorCode |= UA_encodeBinary(asymHeader,
                     &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
-    UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
+    ci->errorCode |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
     // Sign message
@@ -679,7 +679,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
 
     UA_ExchangeEncodeBuffer_func sendChunk = NULL;
     UA_Byte *buf_start = NULL;
-    UA_Byte *buf_end = &ci.messageBuffer.data[ci.messageBuffer.length];
+    const UA_Byte *buf_end = &ci.messageBuffer.data[ci.messageBuffer.length];
 
     switch(ci.messageType) {
     case UA_MESSAGETYPE_MSG:
@@ -719,10 +719,10 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
     /* Encode the message type */
     UA_NodeId typeId = contentType->typeId; /* always numeric */
     typeId.identifier.numeric = contentType->binaryEncodingId;
-    UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_start, &buf_end, NULL, NULL);
+    retval |= UA_encodeBinary(&typeId, &UA_TYPES[UA_TYPES_NODEID], &buf_start, &buf_end, NULL, NULL);
 
     /* Encode with the chunking callback */
-    retval = UA_encodeBinary(content, contentType, &buf_start, &buf_end, sendChunk, &ci);
+    retval |= UA_encodeBinary(content, contentType, &buf_start, &buf_end, sendChunk, &ci);
 
     /* Encoding failed, release the message */
     if(retval != UA_STATUSCODE_GOOD) {
