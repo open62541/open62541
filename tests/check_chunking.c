@@ -150,12 +150,12 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
         string.data[i] =  tmpString[tmp];
     }
 
-    UA_StatusCode retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_StatusCode retval = UA_encodeBinaryWithOffset(&string,&UA_TYPES[UA_TYPES_STRING],&workingBuffer,&offset,(UA_ExchangeEncodeBuffer)sendChunkMockUp,&ci);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
     ck_assert_int_eq(UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount + offset);
 
-    retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    retval = UA_encodeBinaryWithOffset(&string,&UA_TYPES[UA_TYPES_STRING],&workingBuffer,&offset,(UA_ExchangeEncodeBuffer)sendChunkMockUp,&ci);
     dataCount += offset; //last piece of data - no callback was called
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,9); //10 chunks allocated - callback called 4 times
