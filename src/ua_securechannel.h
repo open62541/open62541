@@ -38,6 +38,7 @@ typedef struct {
     size_t messageSizeSoFar;
     UA_Boolean final;
     UA_StatusCode errorCode;
+    UA_ByteString buffer;
 } UA_ChunkInfo;
 
 struct UA_SecureChannel {

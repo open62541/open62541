@@ -84,14 +84,15 @@ detectValueChangeWithFilter(UA_MonitoredItem *mon, UA_DataValue *value,
         return false;
 
     /* Encode the value */
-    size_t encodingOffset = 0;
+    UA_Byte *bufPos = encoding->data;
+    const UA_Byte *bufEnd = &encoding->data[encoding->length];
     UA_StatusCode retval = UA_encodeBinary(value, &UA_TYPES[UA_TYPES_DATAVALUE],
-                                           NULL, NULL, encoding, &encodingOffset);
+                                           &bufPos, &bufEnd, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return false;
 
     /* The value has changed */
-    encoding->length = encodingOffset;
+    encoding->length = (uintptr_t)bufPos - (uintptr_t)encoding->data;
     return !mon->lastSampledValue.data || !UA_String_equal(encoding, &mon->lastSampledValue);
 }
 

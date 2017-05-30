@@ -260,9 +260,10 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         return;
 
     /* Encode and send the response */
-    size_t tmpPos = 0;
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
+    UA_Byte *bufPos = ack_msg.data;
+    const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
+    UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
     ack_msg.length = ackHeader.messageSize;
     connection->send(connection, &ack_msg);
 }
@@ -332,13 +333,14 @@ processOPN(UA_Server *server, UA_Connection *connection,
     }
 
     /* Encode the message after the secureconversationmessageheader */
-    size_t tmpPos = 12; /* skip the header */
+    UA_Byte *bufPos = &resp_msg.data[12]; /* skip the header */
+    const UA_Byte *bufEnd = &resp_msg.data[resp_msg.length];
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &resp_msg, &tmpPos); // just mirror back
-    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &resp_msg, &tmpPos);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_encodeBinary(&asymHeader, &bufPos, &bufEnd); // just mirror back
+    retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &bufPos, &bufEnd);
     UA_NodeId responseType = UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
-    retval |= UA_NodeId_encodeBinary(&responseType, &resp_msg, &tmpPos);
-    retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
+    retval |= UA_NodeId_encodeBinary(&responseType, &bufPos, &bufEnd);
+    retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &bufPos, &bufEnd);
 
     if(retval != UA_STATUSCODE_GOOD) {
         connection->releaseSendBuffer(connection, &resp_msg);
@@ -351,10 +353,10 @@ processOPN(UA_Server *server, UA_Connection *connection,
     /* Encode the secureconversationmessageheader (cannot fail) and send */
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
-    respHeader.messageHeader.messageSize = (UA_UInt32)tmpPos;
+    respHeader.messageHeader.messageSize = (u32)((uintptr_t)bufPos - (uintptr_t)resp_msg.data);
     respHeader.secureChannelId = p.securityToken.channelId;
-    tmpPos = 0;
-    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
+    bufPos = resp_msg.data;
+    UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &bufPos, &bufEnd);
     resp_msg.length = respHeader.messageHeader.messageSize;
     connection->send(connection, &resp_msg);
 

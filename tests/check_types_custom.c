@@ -90,13 +90,14 @@ START_TEST(parseCustomScalar) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    size_t offset = 0;
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL,
-                             &buf, &offset);
+    UA_Byte *pos = buf.data;
+    const UA_Byte *end = &buf.data[buf.length];
+    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                             &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
-    offset = 0;
+    size_t offset = 0;
     retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_ptr_eq(var2.type, &PointType);
@@ -164,13 +165,14 @@ START_TEST(parseCustomArray) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    size_t offset = 0;
-    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT], NULL, NULL,
-                             &buf, &offset);
+    UA_Byte *pos = buf.data;
+    const UA_Byte *end = &buf.data[buf.length];
+    retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
+                             &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
-    offset = 0;
+    size_t offset = 0;
     retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_ptr_eq(var2.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
