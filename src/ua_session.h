@@ -20,8 +20,11 @@ struct ContinuationPointEntry {
     LIST_ENTRY(ContinuationPointEntry) pointers;
     UA_ByteString        identifier;
     UA_BrowseDescription browseDescription;
-    UA_UInt32            continuationIndex;
     UA_UInt32            maxReferences;
+
+    /* The last point in the node references? */
+    size_t referenceKindIndex;
+    size_t targetIndex;
 };
 
 struct UA_Subscription;

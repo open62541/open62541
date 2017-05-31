@@ -295,14 +295,15 @@ mandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNod
 
     /* Look for the reference making the child mandatory */
     for(size_t i = 0; i < child->referencesSize; ++i) {
-        UA_ReferenceNode *ref = &child->references[i];
-        if(!UA_NodeId_equal(&hasModellingRuleId, &ref->referenceTypeId))
+        UA_NodeReferenceKind *refs = &child->references[i];
+        if(!UA_NodeId_equal(&hasModellingRuleId, &refs->referenceTypeId))
             continue;
-        if(!UA_NodeId_equal(&mandatoryId, &ref->targetId.nodeId))
+        if(refs->isInverse)
             continue;
-        if(ref->isInverse)
-            continue;
-        return true;
+        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+            if(UA_NodeId_equal(&mandatoryId, &refs->targetIds[j].nodeId))
+                return true;
+        }
     }
     return false;
 }
@@ -1162,33 +1163,64 @@ static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item);
 
+static UA_StatusCode
+addOneWayTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target) {
+    UA_ExpandedNodeId *targets = UA_realloc(refs->targetIds,
+                                            sizeof(UA_ExpandedNodeId) * (refs->targetIdsSize+1));
+    if(!targets)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    refs->targetIds = targets;
+
+    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &refs->targetIds[refs->targetIdsSize]);
+    if(retval != UA_STATUSCODE_GOOD && refs->targetIds == 0) {
+        UA_free(refs->targetIds);
+        refs->targetIds = NULL;
+        return retval;
+    }
+
+    refs->targetIdsSize++;
+    return retval;
+}
+
+static UA_StatusCode
+addOneWayNodeReferences(UA_Node *node, const UA_AddReferencesItem *item) {
+    UA_NodeReferenceKind *refs = UA_realloc(node->references,
+                                            sizeof(UA_NodeReferenceKind) * (node->referencesSize+1));
+    if(!refs)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    node->references = refs;
+    UA_NodeReferenceKind *new = &refs[node->referencesSize];
+    memset(new, 0, sizeof(UA_NodeReferenceKind));
+
+    new->isInverse = !item->isForward;
+    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &new->referenceTypeId);
+    retval |= addOneWayTarget(new, &item->targetNodeId);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        node->referencesSize++;
+    } else {
+        UA_NodeId_deleteMembers(&new->referenceTypeId);
+        if(node->referencesSize == 0) {
+            UA_free(node->references);
+            node->references = NULL;
+        }
+    }
+    return retval;
+}
+
 /* Adds a one-way reference to the local nodestore */
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session,
                    UA_Node *node, const UA_AddReferencesItem *item) {
-    /* Increase the array size */
-    size_t i = node->referencesSize;
-    size_t refssize = (i+1) | 3; // so the realloc is not necessary every time
-    UA_ReferenceNode *new_refs =
-        (UA_ReferenceNode *)UA_realloc(node->references,
-                                       sizeof(UA_ReferenceNode) * refssize);
-    if(!new_refs)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Add the new reference */
-    node->references = new_refs;
-    UA_ReferenceNode_init(&new_refs[i]);
-    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId,
-                                          &new_refs[i].referenceTypeId);
-    retval |= UA_ExpandedNodeId_copy(&item->targetNodeId, &new_refs[i].targetId);
-    new_refs[i].isInverse = !item->isForward;
-
-    /* Increase the array size counter or clean up */
-    if(retval == UA_STATUSCODE_GOOD)
-        node->referencesSize = i+1;
-    else
-        UA_ReferenceNode_deleteMembers(&new_refs[i]);
-    return retval;
+    for(size_t i = 0; i < node->referencesSize; ++i) {
+        UA_NodeReferenceKind *refs = &node->references[i];
+        if(refs->isInverse == item->isForward)
+            continue;
+        if(!UA_NodeId_equal(&refs->referenceTypeId, &item->referenceTypeId))
+            continue;
+        return addOneWayTarget(refs, &item->targetNodeId);
+    }
+    return addOneWayNodeReferences(node, item);
 }
 
 static UA_StatusCode
@@ -1359,15 +1391,19 @@ UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
 /****************/
 
 static void
-removeReferences(UA_Server *server, UA_Session *session, const UA_Node *node) {
+removeReferences(UA_Server *server, UA_Session *session,
+                 const UA_Node *node) {
     UA_DeleteReferencesItem item;
     UA_DeleteReferencesItem_init(&item);
     item.targetNodeId.nodeId = node->nodeId;
     for(size_t i = 0; i < node->referencesSize; ++i) {
-        item.isForward = node->references[i].isInverse;
-        item.sourceNodeId = node->references[i].targetId.nodeId;
-        item.referenceTypeId = node->references[i].referenceTypeId;
-        deleteReference(server, session, &item);
+        UA_NodeReferenceKind *refs = &node->references[i];
+        item.isForward = refs->isInverse;
+        item.referenceTypeId = refs->referenceTypeId;
+        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+            item.sourceNodeId = refs->targetIds[j].nodeId;
+            deleteReference(server, session, &item);
+        }
     }
 }
 
@@ -1443,30 +1479,43 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
 static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
-    UA_Boolean edited = false;
     for(size_t i = node->referencesSize; i > 0; --i) {
-        UA_ReferenceNode *ref = &node->references[i-1];
-        if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &ref->targetId.nodeId))
+        UA_NodeReferenceKind *refs = &node->references[i-1];
+        if(item->isForward == refs->isInverse)
             continue;
-        if(!UA_NodeId_equal(&item->referenceTypeId, &ref->referenceTypeId))
+        if(!UA_NodeId_equal(&item->referenceTypeId, &refs->referenceTypeId))
             continue;
-        if(item->isForward == ref->isInverse)
-            continue;
-        UA_ReferenceNode_deleteMembers(ref);
-        /* move the last entry to override the current position */
-        node->references[i-1] = node->references[node->referencesSize-1];
-        --node->referencesSize;
-        edited = true;
-        break;
+
+        for(size_t j = refs->targetIdsSize; j > 0; --j) {
+            if(!UA_NodeId_equal(&item->targetNodeId.nodeId, &refs->targetIds[j-1].nodeId))
+                continue;
+
+            /* Ok, delete the reference */
+            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j-1]);
+            refs->targetIdsSize--;
+
+            /* One matching target remaining */
+            if(refs->targetIdsSize > 0) {
+                refs->targetIds[j-1] = refs->targetIds[refs->targetIdsSize];
+                return UA_STATUSCODE_GOOD;
+            }
+
+            /* Remove refs */
+            UA_free(refs->targetIds);
+            UA_NodeId_deleteMembers(&refs->referenceTypeId);
+            node->referencesSize--;
+            if(node->referencesSize > 0) {
+                node->references[i-1] = node->references[node->referencesSize];
+                return UA_STATUSCODE_GOOD;
+            }
+
+            /* Remove the node references */
+            UA_free(node->references);
+            node->references = NULL;
+            return UA_STATUSCODE_GOOD;
+        }
     }
-    if(!edited)
-        return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
-    /* we removed the last reference */
-    if(node->referencesSize == 0 && node->references) {
-        UA_free(node->references);
-        node->references = NULL;
-    }
-    return UA_STATUSCODE_GOOD;;
+    return UA_STATUSCODE_UNCERTAINREFERENCENOTDELETED;
 }
 
 static UA_StatusCode
