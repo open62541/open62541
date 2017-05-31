@@ -12,15 +12,22 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
                          UA_String withBrowseName) {
     UA_NodeId hasProperty = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
     for(size_t i = 0; i < ofMethod->referencesSize; ++i) {
-        if(ofMethod->references[i].isInverse == false &&
-            UA_NodeId_equal(&hasProperty, &ofMethod->references[i].referenceTypeId)) {
+        UA_NodeReferenceKind *rk = &ofMethod->references[i];
+
+        if(rk->isInverse != false)
+            continue;
+        
+        if(!UA_NodeId_equal(&hasProperty, &rk->referenceTypeId))
+            continue;
+
+        for(size_t j = 0; j < rk->targetIdsSize; ++j) {
             const UA_Node *refTarget =
-                UA_NodeStore_get(server->nodestore, &ofMethod->references[i].targetId.nodeId);
+                UA_NodeStore_get(server->nodestore, &rk->targetIds[j].nodeId);
             if(!refTarget)
                 continue;
             if(refTarget->nodeClass == UA_NODECLASS_VARIABLE &&
-                refTarget->browseName.namespaceIndex == 0 &&
-                UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
+               refTarget->browseName.namespaceIndex == 0 &&
+               UA_String_equal(&withBrowseName, &refTarget->browseName.name)) {
                 return (const UA_VariableNode*) refTarget;
             }
         }
@@ -73,13 +80,13 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     }
 
     /* Get/verify the object node */
-    const UA_ObjectNode *withObject =
+    const UA_ObjectNode *object =
         (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, &request->objectId);
-    if(!withObject) {
+    if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
         return;
     }
-    if(withObject->nodeClass != UA_NODECLASS_OBJECT && withObject->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+    if(object->nodeClass != UA_NODECLASS_OBJECT && object->nodeClass != UA_NODECLASS_OBJECTTYPE) {
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
         return;
     }
@@ -102,13 +109,18 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     UA_Boolean found = false;
     UA_NodeId hasComponentNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASCOMPONENT);
     UA_NodeId hasSubTypeNodeId = UA_NODEID_NUMERIC(0,UA_NS0ID_HASSUBTYPE);
-    for(size_t i = 0; i < methodCalled->referencesSize; ++i) {
-        if(methodCalled->references[i].isInverse &&
-           UA_NodeId_equal(&methodCalled->references[i].targetId.nodeId, &withObject->nodeId)) {
-            found = isNodeInTree(server->nodestore, &methodCalled->references[i].referenceTypeId,
-                                 &hasComponentNodeId, &hasSubTypeNodeId, 1);
-            if(found)
+    for(size_t i = 0; i < object->referencesSize; ++i) {
+        UA_NodeReferenceKind *rk = &object->references[i];
+        if(rk->isInverse)
+            continue;
+        if(!isNodeInTree(server->nodestore, &rk->referenceTypeId,
+                         &hasComponentNodeId, &hasSubTypeNodeId, 1))
+            continue;
+        for(size_t j = 0; j < rk->targetIdsSize; ++j) {
+            if(UA_NodeId_equal(&rk->targetIds[j].nodeId, &request->methodId)) {
+                found = true;
                 break;
+            }
         }
     }
     if(!found) {
@@ -138,8 +150,9 @@ Service_Call_single(UA_Server *server, UA_Session *session,
     const UA_VariableNode *outputArguments =
         getArgumentsVariableNode(server, methodCalled, UA_STRING("OutputArguments"));
     if(outputArguments) {
-        result->outputArguments = (UA_Variant*)UA_Array_new(outputArguments->value.data.value.value.arrayLength,
-                                               &UA_TYPES[UA_TYPES_VARIANT]);
+        result->outputArguments =
+            (UA_Variant*)UA_Array_new(outputArguments->value.data.value.value.arrayLength,
+                                      &UA_TYPES[UA_TYPES_VARIANT]);
         if(!result->outputArguments) {
             result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -151,7 +164,7 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = session;
 #endif
-    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, &withObject->nodeId,
+    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, &object->nodeId,
                                                       &session->sessionId, session->sessionHandle,
                                                       request->inputArgumentsSize, request->inputArguments,
                                                       result->outputArgumentsSize, result->outputArguments);
@@ -171,7 +184,8 @@ void Service_Call(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = (UA_CallMethodResult*)UA_Array_new(request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    response->results = (UA_CallMethodResult*)UA_Array_new(request->methodsToCallSize,
+                                                           &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -208,4 +222,3 @@ void Service_Call(UA_Server *server, UA_Session *session,
 }
 
 #endif /* UA_ENABLE_METHODCALLS */
-
