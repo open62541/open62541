@@ -83,7 +83,7 @@ UA_THREAD_LOCAL UA_Byte * end;
  * DiagnosticInfo_encodeBinary */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
-UA_THREAD_LOCAL UA_ExchangeEncodeBuffer exchangeBufferCallback;
+UA_THREAD_LOCAL UA_ExchangeEncodeBuffer_func exchangeBufferCallback;
 UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
 /* Send the current chunk and replace the buffer */
@@ -95,7 +95,7 @@ exchangeBuffer(void) {
     /* Store context variables. This is required so that a call to UA_encode
      * can be made from within the exchangeBufferCallback. For example to encode
      * the chunk header */
-    UA_ExchangeEncodeBuffer store_exchangeBufferCallback = exchangeBufferCallback;
+    UA_ExchangeEncodeBuffer_func store_exchangeBufferCallback = exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
     UA_Byte *store_pos = pos;
     UA_Byte *store_end = end;
@@ -1454,7 +1454,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
 UA_StatusCode
 UA_encodeBinary(const void *data, const UA_DataType *type,
                 UA_Byte **buf_pos, UA_Byte **buf_end,
-                UA_ExchangeEncodeBuffer exchangeCallback,
+                UA_ExchangeEncodeBuffer_func exchangeCallback,
                 void *exchangeHandle) {
     /* Set (thread-local) global variables to minimize argument chaining */
     pos = *buf_pos;
@@ -1475,7 +1475,7 @@ UA_encodeBinary(const void *data, const UA_DataType *type,
 UA_StatusCode
 UA_encodeBinaryWithOffset(const void *data, const UA_DataType *type,
                           UA_ByteString *dst, size_t *offset,
-                          UA_ExchangeEncodeBuffer exchangeCallback,
+                          UA_ExchangeEncodeBuffer_func exchangeCallback,
                           void *exchangeHandle) {
     UA_Byte *buf_pos= &dst->data[*offset];
     UA_Byte *buf_end = &dst->data[dst->length];

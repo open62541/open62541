@@ -686,7 +686,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_ExchangeEncodeBuffer sendChunk = NULL;
+    UA_ExchangeEncodeBuffer_func sendChunk = NULL;
     UA_Byte *buf_start = NULL;
     UA_Byte *buf_end = &ci.messageBuffer.data[ci.messageBuffer.length];
 
@@ -705,7 +705,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
             buf_end -= 2;
 
         /* Set the callback */
-        sendChunk = (UA_ExchangeEncodeBuffer)UA_SecureChannel_sendChunk;
+        sendChunk = (UA_ExchangeEncodeBuffer_func)UA_SecureChannel_sendChunk;
         break;
 
     case UA_MESSAGETYPE_OPN:
@@ -713,7 +713,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
 
         UA_SecureChannel_hideBytesAsym(channel, &buf_start, &buf_end);
 
-        sendChunk = (UA_ExchangeEncodeBuffer)UA_SecureChannel_sendOPNChunkAsymmetric;
+        sendChunk = (UA_ExchangeEncodeBuffer_func)UA_SecureChannel_sendOPNChunkAsymmetric;
         break;
 
     default:

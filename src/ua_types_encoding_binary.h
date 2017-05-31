@@ -7,7 +7,7 @@
 
 #include "ua_types.h"
 
-typedef UA_StatusCode (*UA_ExchangeEncodeBuffer)(void *handle, UA_Byte **buf_pos, UA_Byte **buf_end);
+typedef UA_StatusCode (*UA_ExchangeEncodeBuffer_func)(void *handle, UA_Byte **buf_pos, UA_Byte **buf_end);
 
 /* Encode the data scalar (or structure) described by type in the binary
  * encoding.
@@ -26,13 +26,13 @@ typedef UA_StatusCode (*UA_ExchangeEncodeBuffer)(void *handle, UA_Byte **buf_pos
 UA_StatusCode
 UA_encodeBinary(const void *data, const UA_DataType *type,
                 UA_Byte **buf_pos, UA_Byte **buf_end,
-                UA_ExchangeEncodeBuffer exchangeCallback,
+                UA_ExchangeEncodeBuffer_func exchangeCallback,
                 void *exchangeHandle);
 
 UA_StatusCode
 UA_encodeBinaryWithOffset(const void *data, const UA_DataType *type,
                           UA_ByteString *dst, size_t *offset,
-                          UA_ExchangeEncodeBuffer exchangeCallback,
+                          UA_ExchangeEncodeBuffer_func exchangeCallback,
                           void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_StatusCode
