@@ -171,7 +171,7 @@ UA_EXPORT extern const UA_String UA_STRING_NULL;
  * of the char-array. */
 static UA_INLINE UA_String
 UA_STRING(char *chars) {
-    UA_String str; str.length = strlen(chars);
+    UA_String str; memset(&str, 0, sizeof(str)); str.length = strlen(chars);
     str.data = (UA_Byte*)chars; return str;
 }
 
@@ -255,7 +255,7 @@ UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
 
 static UA_INLINE UA_ByteString
 UA_BYTESTRING(char *chars) {
-    UA_ByteString str; str.length = strlen(chars);
+    UA_ByteString str; memset(&str, 0, sizeof(str)); str.length = strlen(chars);
     str.data = (UA_Byte*)chars; return str;
 }
 
@@ -309,42 +309,42 @@ UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
 /** The following functions are shorthand for creating NodeIds. */
 static UA_INLINE UA_NodeId
 UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_NUMERIC;
     id.identifier.numeric = identifier; return id;
 }
 
 static UA_INLINE UA_NodeId
 UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
     id.identifier.string = UA_STRING(chars); return id;
 }
 
 static UA_INLINE UA_NodeId
 UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
     id.identifier.string = UA_STRING_ALLOC(chars); return id;
 }
 
 static UA_INLINE UA_NodeId
 UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_GUID;
     id.identifier.guid = guid; return id;
 }
 
 static UA_INLINE UA_NodeId
 UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
     id.identifier.byteString = UA_BYTESTRING(chars); return id;
 }
 
 static UA_INLINE UA_NodeId
 UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_NodeId id; id.namespaceIndex = nsIndex;
+    UA_NodeId id; memset(&id, 0, sizeof(id)); id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
     id.identifier.byteString = UA_BYTESTRING_ALLOC(chars); return id;
 }
@@ -362,37 +362,37 @@ typedef struct {
 /** The following functions are shorthand for creating ExpandedNodeIds. */
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_STRING(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_GUID(nsIndex, guid);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+    UA_ExpandedNodeId id; memset(&id, 0, sizeof(id)); id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 }
 
@@ -414,13 +414,13 @@ UA_QualifiedName_isNull(const UA_QualifiedName *q) {
 
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
-    UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
+    UA_QualifiedName qn; memset(&qn, 0, sizeof(qn)); qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING(chars); return qn;
 }
 
 static UA_INLINE UA_QualifiedName
 UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
-    UA_QualifiedName qn; qn.namespaceIndex = nsIndex;
+    UA_QualifiedName qn; memset(&qn, 0, sizeof(qn)); qn.namespaceIndex = nsIndex;
     qn.name = UA_STRING_ALLOC(chars); return qn;
 }
 
@@ -435,13 +435,13 @@ typedef struct {
 
 static UA_INLINE UA_LocalizedText
 UA_LOCALIZEDTEXT(char *locale, char *text) {
-    UA_LocalizedText lt; lt.locale = UA_STRING(locale);
+    UA_LocalizedText lt; memset(&lt, 0, sizeof(lt)); lt.locale = UA_STRING(locale);
     lt.text = UA_STRING(text); return lt;
 }
 
 static UA_INLINE UA_LocalizedText
 UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
-    UA_LocalizedText lt; lt.locale = UA_STRING_ALLOC(locale);
+    UA_LocalizedText lt; memset(&lt, 0, sizeof(lt)); lt.locale = UA_STRING_ALLOC(locale);
     lt.text = UA_STRING_ALLOC(text); return lt;
 }
 
