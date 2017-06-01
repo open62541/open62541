@@ -30,37 +30,29 @@ typedef struct {
 static UA_DataTypeMember members[3] = {
     /* x */
     {
-#ifdef UA_ENABLE_TYPENAMES
-        "x",            /* .memberName */
-#endif
-        UA_TYPES_FLOAT, /* .memberTypeIndex, points into UA_TYPES since
-                           .namespaceZero is true */
-        0,              /* .padding */
-        true,           /* .namespaceZero, see .memberTypeIndex */
-        false           /* .isArray */
+        UA_TYPENAME("x") /* .memberName */
+        UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since
+                            .namespaceZero is true */
+        0,               /* .padding */
+        true,            /* .namespaceZero, see .memberTypeIndex */
+        false            /* .isArray */
     },
 
     /* y */
     {
-#ifdef UA_ENABLE_TYPENAMES
-        "y",
-#endif
+        UA_TYPENAME("y")
         UA_TYPES_FLOAT, padding_y, true, false
     },
 
     /* z */
     {
-#ifdef UA_ENABLE_TYPENAMES
-        "y",
-#endif
+        UA_TYPENAME("y")
         UA_TYPES_FLOAT, padding_z, true, false
     }
 };
 
 static const UA_DataType PointType = {
-#ifdef UA_ENABLE_TYPENAMES
-    "Point",                         /* .typeName */
-#endif
+    UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     sizeof(Point),                   /* .memSize */
     0,                               /* .typeIndex, in the array of custom types */
