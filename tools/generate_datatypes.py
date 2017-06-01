@@ -88,7 +88,7 @@ class Type(object):
             binaryEncodingId = description.binaryEncodingId
         else:
             typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
-        return "{\n#ifdef UA_ENABLE_TYPENAMES\n    \"%s\", /* .typeName */\n#endif\n" % self.name + \
+        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % self.name + \
             "    " + typeid + ", /* .typeId */\n" + \
             "    sizeof(UA_" + self.name + "), /* .memSize */\n" + \
             "    " + self.typeIndex + ", /* .typeIndex */\n" + \
@@ -97,7 +97,7 @@ class Type(object):
             "    " + self.pointerfree + ", /* .pointerFree */\n" + \
             "    " + self.overlayable + ", /* .overlayable */ \n" + \
             "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
-            "    %s_members" % self.name + " /* .members */ }"
+            "    %s_members" % self.name + " /* .members */\n}"
 
     def members_c(self):
         if len(self.members)==0:
@@ -105,7 +105,7 @@ class Type(object):
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
         for index, member in enumerate(self.members):
-            m = "\n{\n#ifdef UA_ENABLE_TYPENAMES\n    \"%s\", /* .memberName */\n#endif\n" % member.name
+            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
             m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
             m += "    "
             if not before:
@@ -494,7 +494,8 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + outname + '''_generated.h"''')
+#include "''' + outname + '''_generated.h"
+#include "ua_util.h"''')
 
 for t in iter_types(types):
     printc("")
