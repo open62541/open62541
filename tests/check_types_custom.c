@@ -127,15 +127,15 @@ START_TEST(parseCustomScalarExtensionObject) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&buf, buflen);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    size_t offset = 0;
-    retval = UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL, NULL,
-                             &buf, &offset);
+    UA_Byte *bufPos = buf.data;
+    const UA_Byte *bufEnd = &buf.data[buf.length];
+    retval = UA_encodeBinary(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], &bufPos, &bufEnd, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ExtensionObject eo2;
-    size_t offset2 = 0;
-    retval = UA_decodeBinary(&buf, &offset2, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], 1, &PointType);
-    ck_assert_int_eq(offset2, offset);
+    size_t offset = 0;
+    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], 1, &PointType);
+    ck_assert_int_eq(offset, (uintptr_t)(bufPos - buf.data));
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_int_eq(eo2.encoding, UA_EXTENSIONOBJECT_DECODED);
