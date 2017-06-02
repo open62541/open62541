@@ -18,10 +18,12 @@ size_t dataCount;
 
 static UA_StatusCode
 sendChunkMockUp(UA_ChunkInfo *ci, UA_Byte **bufPos, const UA_Byte **bufEnd) {
+    size_t offset = (uintptr_t)(*bufPos - buffers[bufIndex].data);
     bufIndex++;
     *bufPos = buffers[bufIndex].data;
     *bufEnd = &(*bufPos)[buffers[bufIndex].length];
     counter++;
+    dataCount += offset;
     return UA_STATUSCODE_GOOD;
 }
 START_TEST(encodeArrayIntoFiveChunksShallWork) {
@@ -55,7 +57,6 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
 
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
-
     ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);
@@ -104,7 +105,6 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
 
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
-
     ck_assert_int_eq(UA_calcSizeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT]), dataCount);
 
     UA_Variant_deleteMembers(&v);
@@ -145,7 +145,6 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     const UA_Byte *end = &workingBuffer.data[workingBuffer.length];
     UA_StatusCode retval = UA_encodeBinary(&string, &UA_TYPES[UA_TYPES_STRING], &pos, &end,
                                            (UA_ExchangeEncodeBuffer_func)sendChunkMockUp, &ci);
-
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
     size_t offset = (uintptr_t)(pos - buffers[bufIndex].data);
@@ -154,7 +153,6 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING], &pos, &end,
                              (UA_ExchangeEncodeBuffer_func)sendChunkMockUp, &ci);
     dataCount += (uintptr_t)(pos - buffers[bufIndex].data);
-
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,9); //10 chunks allocated - callback called 4 times
     ck_assert_int_eq(2 * UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount);
@@ -190,3 +188,4 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
