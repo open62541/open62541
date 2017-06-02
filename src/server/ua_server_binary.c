@@ -262,9 +262,10 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         return;
 
     /* Encode and send the response */
-    size_t tmpPos = 0;
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
+    UA_Byte *bufPos = ack_msg.data;
+    const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
+    UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
     ack_msg.length = ackHeader.messageSize;
     connection->send(connection, &ack_msg);
 }

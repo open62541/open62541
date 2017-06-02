@@ -16,15 +16,6 @@
 const UA_ByteString
 UA_SECURITY_POLICY_NONE_URI = { 47, (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None" };
 
-#define UA_SECURE_MESSAGE_HEADER_LENGTH 24
-#define UA_ASYMMETRIC_ALG_SECURITY_HEADER_FIXED_LENGTH 12
-#define UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH 4
-#define UA_MESSAGE_HEADER_LENGTH 8
-#define UA_SEQUENCE_HEADER_LENGTH 8
-#define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
-#define UA_SECUREMH_AND_SYMALGH_LENGTH \
-    (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + \
-    UA_SYMMETRIC_ALG_SECURITY_HEADER_LENGTH)
 #define UA_BITMASK_MESSAGETYPE 0x00ffffff
 #define UA_BITMASK_CHUNKTYPE 0xff000000
 
@@ -340,6 +331,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
     }
     else {
         respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
+
     }
     UA_encodeBinary(&respHeader,
                     &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
@@ -360,6 +352,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
+
     UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
                     &header_pos, buf_end, NULL, NULL);
 
@@ -402,10 +395,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, UA_Byte **buf_en
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
-        /* Forward the data pointer so that the payload is encoded after the message header.
-         * TODO: This works but is a bit too clever. Instead, we could return an offset to the
-         * binary encoding exchangeBuffer function. */
-        *buf_pos = ci->messageBuffer.data + UA_SECURE_MESSAGE_HEADER_LENGTH;
+        // Forward the data pointer so that the payload is encoded after the message header.
+        *buf_pos = &ci->messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH];
         *buf_end = &ci->messageBuffer.data[ci->messageBuffer.length];
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||

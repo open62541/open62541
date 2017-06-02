@@ -56,10 +56,9 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 UA_THREAD_LOCAL size_t customTypesArraySize;
 UA_THREAD_LOCAL const UA_DataType *customTypesArray;
 
-/* We give pointers to the current position and the last position in the buffer
- * instead of a string with an offset. */
-UA_THREAD_LOCAL UA_Byte * pos;
-UA_THREAD_LOCAL UA_Byte * end;
+/* Pointers to the current position and the last position in the buffer */
+UA_THREAD_LOCAL UA_Byte *pos;
+UA_THREAD_LOCAL const UA_Byte *end;
 
 /* In UA_encodeBinaryInternal, we store a pointer to the last "good" position in
  * the buffer. When encoding reaches the end of the buffer, send out a chunk
@@ -92,22 +91,15 @@ exchangeBuffer(void) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Store context variables. This is required so that a call to UA_encode
-     * can be made from within the exchangeBufferCallback. For example to encode
-     * the chunk header */
+    /* Store context variables since exchangeBuffer might call UA_encode itself */
     UA_ExchangeEncodeBuffer_func store_exchangeBufferCallback = exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
-    UA_Byte *store_pos = pos;
-    UA_Byte *store_end = end;
 
-    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle,
-                                                  &store_pos, &store_end);
+    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, &pos, &end);
 
-    /* Restore context variables. */
+    /* Restore context variables */
     exchangeBufferCallback = store_exchangeBufferCallback;
     exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
-    pos = store_pos;
-    end = store_end;
     return retval;
 }
 
@@ -1452,36 +1444,20 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
 }
 
 UA_StatusCode
-UA_encodeBinary(const void *data, const UA_DataType *type,
-                UA_Byte **buf_pos, UA_Byte **buf_end,
-                UA_ExchangeEncodeBuffer_func exchangeCallback,
-                void *exchangeHandle) {
-    /* Set (thread-local) global variables to minimize argument chaining */
-    pos = *buf_pos;
-    end = *buf_end;
-
+UA_encodeBinary(const void *src, const UA_DataType *type,
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_ExchangeEncodeBuffer_func exchangeCallback, void *exchangeHandle) {
+    /* Set the (thread-local) pointers to save function arguments */
+    pos = *bufPos;
+    end = *bufEnd;
     exchangeBufferCallback = exchangeCallback;
     exchangeBufferCallbackHandle = exchangeHandle;
+    UA_StatusCode retval = UA_encodeBinaryInternal(src, type);
 
-    /* Encode */
-    UA_StatusCode retval = UA_encodeBinaryInternal(data, type);
-
-    /* Set current pos / end if the buffer has been exchanged */
-    *buf_pos= pos;
-    *buf_end = end;
-    return retval;
-}
-
-UA_StatusCode
-UA_encodeBinaryWithOffset(const void *data, const UA_DataType *type,
-                          UA_ByteString *dst, size_t *offset,
-                          UA_ExchangeEncodeBuffer_func exchangeCallback,
-                          void *exchangeHandle) {
-    UA_Byte *buf_pos= &dst->data[*offset];
-    UA_Byte *buf_end = &dst->data[dst->length];
-    UA_StatusCode retval = UA_encodeBinary(data, type, &buf_pos, &buf_end,
-                                           exchangeCallback, exchangeHandle);
-    *offset += (uintptr_t)buf_pos - (uintptr_t)&dst->data[*offset];
+    /* Set the current buffer position. Beware that the buffer might have been
+    * exchanged internally. */
+    *bufPos = pos;
+    *bufEnd = end;
     return retval;
 }
 

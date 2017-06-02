@@ -7,7 +7,7 @@
 
 #include "ua_types.h"
 
-typedef UA_StatusCode (*UA_ExchangeEncodeBuffer_func)(void *handle, UA_Byte **buf_pos, UA_Byte **buf_end);
+typedef UA_StatusCode (*UA_ExchangeEncodeBuffer_func)(void *handle, UA_Byte **bufPos, const UA_Byte **bufEnd);
 
 /* Encode the data scalar (or structure) described by type in the binary
  * encoding.
@@ -24,16 +24,9 @@ typedef UA_StatusCode (*UA_ExchangeEncodeBuffer_func)(void *handle, UA_Byte **bu
  * @param exchangeHandle Custom data passed intp the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode
-UA_encodeBinary(const void *data, const UA_DataType *type,
-                UA_Byte **buf_pos, UA_Byte **buf_end,
-                UA_ExchangeEncodeBuffer_func exchangeCallback,
-                void *exchangeHandle);
-
-UA_StatusCode
-UA_encodeBinaryWithOffset(const void *data, const UA_DataType *type,
-                          UA_ByteString *dst, size_t *offset,
-                          UA_ExchangeEncodeBuffer_func exchangeCallback,
-                          void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+UA_encodeBinary(const void *src, const UA_DataType *type,
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_ExchangeEncodeBuffer_func exchangeCallback, void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
