@@ -47,6 +47,60 @@ static void teardown_server(void) {
     nl_translate_browse.deleteMembers(&nl_translate_browse);
 }
 
+static size_t
+browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = nodeId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseResult br = UA_Server_browse(server, maxResults, &bd);
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(br.referencesSize > 0);
+
+    size_t total = br.referencesSize;
+    UA_ByteString cp = br.continuationPoint;
+    br.continuationPoint = UA_BYTESTRING_NULL;
+    UA_BrowseResult_deleteMembers(&br);
+
+    while(cp.length > 0) {
+        br = UA_Server_browseNext(server, false, &cp);
+        ck_assert(br.referencesSize > 0);
+        UA_ByteString_deleteMembers(&cp);
+        cp = br.continuationPoint;
+        br.continuationPoint = UA_BYTESTRING_NULL;
+        total += br.referencesSize;
+        UA_BrowseResult_deleteMembers(&br);
+    }
+
+    return total;
+}
+
+START_TEST(Service_Browse_WithMaxResults) {
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+
+    ck_assert_int_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(br.referencesSize > 0);
+
+    size_t total = br.referencesSize;
+    UA_BrowseResult_deleteMembers(&br);
+
+    for(UA_UInt32 i = 1; i <= total; i++) {
+        size_t sum_total =
+            browseWithMaxResults(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), i);
+        ck_assert_int_eq(total, sum_total);
+    }
+    
+    UA_Server_delete(server);
+}
+END_TEST
 
 START_TEST(Service_Browse_WithBrowseName) {
     UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
@@ -121,6 +175,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
     Suite *s = suite_create("Service_TranslateBrowsePathsToNodeIds");
     TCase *tc_browse = tcase_create("Browse Service");
     tcase_add_test(tc_browse, Service_Browse_WithBrowseName);
+    tcase_add_test(tc_browse, Service_Browse_WithMaxResults);
     suite_add_tcase(s, tc_browse);
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
