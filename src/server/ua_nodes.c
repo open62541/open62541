@@ -159,12 +159,14 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     /* Copy the references */
     dst->references = NULL;
     if(src->referencesSize > 0) {
-        dst->references = UA_calloc(src->referencesSize, sizeof(UA_NodeReferenceKind));
-        dst->referencesSize = src->referencesSize;
+        dst->references =
+            (UA_NodeReferenceKind*)UA_calloc(src->referencesSize,
+                                             sizeof(UA_NodeReferenceKind));
         if(!dst->references) {
             UA_Node_deleteMembersAnyNodeClass(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
+        dst->referencesSize = src->referencesSize;
 
         for(size_t i = 0; i < src->referencesSize; ++i) {
             UA_NodeReferenceKind *srefs = &src->references[i];

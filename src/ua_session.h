@@ -16,7 +16,7 @@ extern "C" {
 
 #define UA_MAXCONTINUATIONPOINTS 5
 
-struct ContinuationPointEntry {
+typedef struct ContinuationPointEntry {
     LIST_ENTRY(ContinuationPointEntry) pointers;
     UA_ByteString        identifier;
     UA_BrowseDescription browseDescription;
@@ -25,7 +25,7 @@ struct ContinuationPointEntry {
     /* The last point in the node references? */
     size_t referenceKindIndex;
     size_t targetIndex;
-};
+} ContinuationPointEntry;
 
 struct UA_Subscription;
 typedef struct UA_Subscription UA_Subscription;
