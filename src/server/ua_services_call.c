@@ -59,48 +59,39 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
     return retval;
 }
 
-void
-Service_Call_single(UA_Server *server, UA_Session *session,
-                    const UA_CallMethodRequest *request,
-                    UA_CallMethodResult *result) {
+static UA_StatusCode
+callMethod(UA_Server *server, UA_Session *session,
+           const UA_CallMethodRequest *request,
+           UA_CallMethodResult *result) {
     /* Get/verify the method node */
     const UA_MethodNode *methodCalled =
         (const UA_MethodNode*)UA_NodeStore_get(server->nodestore, &request->methodId);
-    if(!methodCalled) {
-        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
-    }
-    if(methodCalled->nodeClass != UA_NODECLASS_METHOD) {
-        result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
-        return;
-    }
-    if(!methodCalled->attachedMethod) {
-        result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
+    if(!methodCalled)
+        return UA_STATUSCODE_BADMETHODINVALID;
+    if(methodCalled->nodeClass != UA_NODECLASS_METHOD)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    if(!methodCalled->attachedMethod)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Get/verify the object node */
     const UA_ObjectNode *object =
         (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, &request->objectId);
-    if(!object) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
-        return;
-    }
-    if(object->nodeClass != UA_NODECLASS_OBJECT && object->nodeClass != UA_NODECLASS_OBJECTTYPE) {
-        result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
-        return;
-    }
+    if(!object)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    if(object->nodeClass != UA_NODECLASS_OBJECT &&
+       object->nodeClass != UA_NODECLASS_OBJECTTYPE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
 
     /* Verify access rights */
     UA_Boolean executable = methodCalled->executable;
     if(session != &adminSession)
         executable = executable &&
-            server->config.accessControl.getUserExecutableOnObject(&session->sessionId, session->sessionHandle,
-                                                                   &request->objectId, &request->methodId);
-    if(!executable) {
-        result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
-        return;
-    }
+            server->config.accessControl.getUserExecutableOnObject(&session->sessionId,
+                                                                   session->sessionHandle,
+                                                                   &request->objectId,
+                                                                   &request->methodId);
+    if(!executable)
+        return UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
 
     /* Verify method/object relations. Object must have a hasComponent or a
      * subtype of hasComponent reference to the method node. Therefore, check
@@ -123,26 +114,22 @@ Service_Call_single(UA_Server *server, UA_Session *session,
             }
         }
     }
-    if(!found) {
-        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
-    }
+    if(!found)
+        return UA_STATUSCODE_BADMETHODINVALID;
 
     /* Verify Input Argument count, types and sizes */
     const UA_VariableNode *inputArguments =
         getArgumentsVariableNode(server, methodCalled, UA_STRING("InputArguments"));
 
     if(!inputArguments) {
-        if(request->inputArgumentsSize > 0) {
-            result->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
-            return;
-        }
+        if(request->inputArgumentsSize > 0)
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
     } else {
-        result->statusCode = argumentsConformsToDefinition(server, inputArguments,
-                                                           request->inputArgumentsSize,
-                                                           request->inputArguments);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            return;
+        UA_StatusCode retval = argumentsConformsToDefinition(server, inputArguments,
+                                                             request->inputArgumentsSize,
+                                                             request->inputArguments);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
     /* Allocate the output arguments */
@@ -153,10 +140,8 @@ Service_Call_single(UA_Server *server, UA_Session *session,
         result->outputArguments =
             (UA_Variant*)UA_Array_new(outputArguments->value.data.value.value.arrayLength,
                                       &UA_TYPES[UA_TYPES_VARIANT]);
-        if(!result->outputArguments) {
-            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
-        }
+        if(!result->outputArguments)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         result->outputArgumentsSize = outputArguments->value.data.value.value.arrayLength;
     }
 
@@ -164,21 +149,24 @@ Service_Call_single(UA_Server *server, UA_Session *session,
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = session;
 #endif
-    result->statusCode = methodCalled->attachedMethod(methodCalled->methodHandle, &object->nodeId,
-                                                      &session->sessionId, session->sessionHandle,
-                                                      request->inputArgumentsSize, request->inputArguments,
-                                                      result->outputArgumentsSize, result->outputArguments);
+    UA_StatusCode retval =
+        methodCalled->attachedMethod(methodCalled->methodHandle, &object->nodeId,
+                                     &session->sessionId, session->sessionHandle,
+                                     request->inputArgumentsSize, request->inputArguments,
+                                     result->outputArgumentsSize, result->outputArguments);
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = NULL;
 #endif
 
     /* TODO: Verify Output matches the argument definition */
+    return retval;
 }
 
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CallRequest");
+
     if(request->methodsToCallSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -192,7 +180,11 @@ void Service_Call(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->methodsToCallSize;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
+#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
+    for(size_t i = 0; i < request->methodsToCallSize; ++i)
+        response->results[i].statusCode =
+            callMethod(server, session, &request->methodsToCall[i], &response->results[i]);
+#else
     UA_Boolean isExternal[request->methodsToCallSize];
     UA_UInt32 indices[request->methodsToCallSize];
     memset(isExternal, false, sizeof(UA_Boolean) * request->methodsToCallSize);
@@ -211,14 +203,12 @@ void Service_Call(UA_Server *server, UA_Session *session,
         ens->call(ens->ensHandle, &request->requestHeader, request->methodsToCall,
                        indices, (UA_UInt32)indexSize, response->results);
     }
-#endif
     
     for(size_t i = 0; i < request->methodsToCallSize;++i){
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
         if(!isExternal[i])
-#endif    
             Service_Call_single(server, session, &request->methodsToCall[i], &response->results[i]);
     }
+#endif
 }
 
 #endif /* UA_ENABLE_METHODCALLS */
