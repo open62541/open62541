@@ -1165,8 +1165,9 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 
 static UA_StatusCode
 addOneWayTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target) {
-    UA_ExpandedNodeId *targets = UA_realloc(refs->targetIds,
-                                            sizeof(UA_ExpandedNodeId) * (refs->targetIdsSize+1));
+    UA_ExpandedNodeId *targets =
+        (UA_ExpandedNodeId*) UA_realloc(refs->targetIds,
+                                        sizeof(UA_ExpandedNodeId) * (refs->targetIdsSize+1));
     if(!targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     refs->targetIds = targets;
@@ -1184,22 +1185,23 @@ addOneWayTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target) {
 
 static UA_StatusCode
 addOneWayNodeReferences(UA_Node *node, const UA_AddReferencesItem *item) {
-    UA_NodeReferenceKind *refs = UA_realloc(node->references,
-                                            sizeof(UA_NodeReferenceKind) * (node->referencesSize+1));
+    UA_NodeReferenceKind *refs =
+        (UA_NodeReferenceKind*)UA_realloc(node->references,
+                                          sizeof(UA_NodeReferenceKind) * (node->referencesSize+1));
     if(!refs)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     node->references = refs;
-    UA_NodeReferenceKind *new = &refs[node->referencesSize];
-    memset(new, 0, sizeof(UA_NodeReferenceKind));
+    UA_NodeReferenceKind *newRef = &refs[node->referencesSize];
+    memset(newRef, 0, sizeof(UA_NodeReferenceKind));
 
-    new->isInverse = !item->isForward;
-    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &new->referenceTypeId);
-    retval |= addOneWayTarget(new, &item->targetNodeId);
+    newRef->isInverse = !item->isForward;
+    UA_StatusCode retval = UA_NodeId_copy(&item->referenceTypeId, &newRef->referenceTypeId);
+    retval |= addOneWayTarget(newRef, &item->targetNodeId);
 
     if(retval == UA_STATUSCODE_GOOD) {
         node->referencesSize++;
     } else {
-        UA_NodeId_deleteMembers(&new->referenceTypeId);
+        UA_NodeId_deleteMembers(&newRef->referenceTypeId);
         if(node->referencesSize == 0) {
             UA_free(node->references);
             node->references = NULL;
