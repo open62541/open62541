@@ -316,10 +316,6 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v);
 
-void Service_Call_single(UA_Server *server, UA_Session *session,
-                         const UA_CallMethodRequest *request,
-                         UA_CallMethodResult *result);
-
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
