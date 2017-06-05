@@ -158,12 +158,6 @@ static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_NodeId *typeDef) {
-    /* Omit some type checks for ns0 generation */
-    const UA_NodeId baseDataVariableType =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
-    if(UA_NodeId_equal(&node->nodeId, &baseDataVariableType))
-        return UA_STATUSCODE_GOOD;
-
     /* Get the variable type */
     const UA_VariableTypeNode *vt =
         (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
