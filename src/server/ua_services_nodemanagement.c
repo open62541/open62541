@@ -10,16 +10,32 @@
 /************************/
 
 static UA_StatusCode
-addReference(UA_Server *server, UA_Session *session,
-             const UA_AddReferencesItem *item);
+copyChildNodes(UA_Server *server, UA_Session *session, 
+               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, 
+               UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
-deleteReference(UA_Server *server, UA_Session *session,
-                const UA_DeleteReferencesItem *item);
+Service_AddNode_finish(UA_Server *server, UA_Session *session,
+                       const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
+                       const UA_NodeId *referenceTypeId,
+                       const UA_NodeId *typeDefinition,
+                       UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
 deleteNode(UA_Server *server, UA_Session *session,
            const UA_NodeId *nodeId, UA_Boolean deleteReferences);
+
+static UA_StatusCode
+addReference(UA_Server *server, UA_Session *session,
+             const UA_AddReferencesItem *item);
+
+static UA_StatusCode
+deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
+                      const UA_DeleteReferencesItem *item);
+
+static UA_StatusCode
+deleteReference(UA_Server *server, UA_Session *session,
+                const UA_DeleteReferencesItem *item);
 
 /**********************/
 /* Consistency Checks */
@@ -382,18 +398,6 @@ isMandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childN
     }
     return false;
 }
-
-static UA_StatusCode
-copyChildNodes(UA_Server *server, UA_Session *session, 
-               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, 
-               UA_InstantiationCallback *instantiationCallback);
-
-static UA_StatusCode
-Service_AddNode_finish(UA_Server *server, UA_Session *session,
-                       const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                       const UA_NodeId *referenceTypeId,
-                       const UA_NodeId *typeDefinition,
-                       UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
 copyChildNode(UA_Server *server, UA_Session *session,
@@ -1233,10 +1237,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
 /******************/
 /* Add References */
 /******************/
-
-static UA_StatusCode
-deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
-                      const UA_DeleteReferencesItem *item);
 
 static UA_StatusCode
 addOneWayTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target) {
