@@ -239,14 +239,6 @@ getVariableNodeType(UA_Server *server, const UA_VariableNode *node);
 const UA_ObjectTypeNode *
 getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
 
-/* Returns an array with all subtype nodeids (including the root). Subtypes need
- * to have the same nodeClass as root and are (recursively) related with a
- * hasSubType reference. Since multi-inheritance is possible, we test for
- * duplicates and return evey nodeid at most once. */
-UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
-
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
