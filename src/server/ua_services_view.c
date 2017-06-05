@@ -113,6 +113,9 @@ browseReferences(UA_Server *server, const UA_BrowseDescription *descr,
         return true;;
     }
 
+    /* Follow all references? */
+    UA_Boolean browseAll = UA_NodeId_isNull(&descr->referenceTypeId);
+
     /* How many references can we return at most? */
     size_t maxrefs = cp->maxReferences;
     if(maxrefs == 0)
@@ -143,7 +146,7 @@ browseReferences(UA_Server *server, const UA_BrowseDescription *descr,
             continue;
 
         /* Is the reference part of the hierarchy of references we look for? */
-        if(!UA_NodeId_isNull(&descr->referenceTypeId)) {
+        if(!browseAll) {
             if(!descr->includeSubtypes) {
                 if(!UA_NodeId_equal(&descr->referenceTypeId, &rk->referenceTypeId))
                     continue;
@@ -254,6 +257,15 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
        descr->browseDirection != UA_BROWSEDIRECTION_INVERSE) {
         result->statusCode = UA_STATUSCODE_BADBROWSEDIRECTIONINVALID;
         return;
+    }
+
+    /* Is the reference type valid? */
+    if(!UA_NodeId_isNull(&descr->referenceTypeId)) {
+        const UA_Node *reftype = UA_NodeStore_get(server->nodestore, &descr->referenceTypeId);
+        if(!reftype || reftype->nodeClass != UA_NODECLASS_REFERENCETYPE) {
+            result->statusCode = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+            return;
+        }
     }
 
     /* Browse the references */
