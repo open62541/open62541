@@ -237,6 +237,87 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 /* Instantiate Node */
 /********************/
 
+/* Returns an array with all subtype nodeids (including the root). Supertypes
+ * need to have the same nodeClass as root and are (recursively) related with a
+ * hasSubType reference. Since multi-inheritance is possible, we test for
+ * duplicates and return evey nodeid at most once. */
+static UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
+    size_t results_size = 20; // probably too big, but saves mallocs
+    UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
+    if(!results)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode retval = UA_NodeId_copy(&rootRef->nodeId, &results[0]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_free(results);
+        return retval;
+    }
+
+    const UA_Node *node = rootRef;
+    size_t idx = 0; /* Current index (contains NodeId of node) */
+    size_t last = 0; /* Index of the last element in the array */
+    const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    while(true) {
+        for(size_t i = 0; i < node->referencesSize; ++i) {
+            UA_NodeReferenceKind *refs = &node->references[i];
+            /* Are the references relevant? */
+            if(!refs->isInverse)
+                continue;
+            if(!UA_NodeId_equal(&hasSubtypeNodeId, &refs->referenceTypeId))
+                continue;
+
+            for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+                UA_NodeId *targetId = &refs->targetIds[j].nodeId;
+
+                /* Is the target already considered? (multi-inheritance) */
+                UA_Boolean duplicate = false;
+                for(size_t k = 0; k <= last; ++k) {
+                    if(UA_NodeId_equal(targetId, &results[k])) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if(duplicate)
+                    continue;
+
+                /* Increase array length if necessary */
+                if(last + 1 >= results_size) {
+                    UA_NodeId *new_results =
+                        (UA_NodeId*)UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
+                    if(!new_results) {
+                        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
+                        return UA_STATUSCODE_BADOUTOFMEMORY;
+                    }
+                    results = new_results;
+                    results_size *= 2;
+                }
+
+                /* Copy new nodeid to the end of the list */
+                retval = UA_NodeId_copy(targetId, &results[++last]);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
+                    return retval;
+                }
+            }
+        }
+
+        /* Get the next node */
+    next:
+        ++idx;
+        if(idx > last || retval != UA_STATUSCODE_GOOD)
+            break;
+        node = UA_NodeStore_get(ns, &results[idx]);
+        if(!node || node->nodeClass != rootRef->nodeClass)
+            goto next;
+    }
+
+    *typeHierarchy = results;
+    *typeHierarchySize = last + 1;
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 setObjectInstanceHandle(UA_Server *server, UA_Session *session, UA_ObjectNode* node,
                         void * (*constructor)(const UA_NodeId instance)) {
@@ -284,7 +365,7 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
 }
 
 static UA_Boolean
-mandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
+isMandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
     const UA_NodeId mandatoryId = UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY);
     const UA_NodeId hasModellingRuleId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
 
@@ -343,7 +424,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
     }
 
     /* Is the child mandatory? If not, skip */
-    if(!mandatoryChild(server, session, &rd->nodeId.nodeId))
+    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId))
         return UA_STATUSCODE_GOOD;
 
     /* No existing child with that browsename. Create it. */
@@ -458,7 +539,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
     UA_StatusCode retval = getTypeHierarchy(server->nodestore, typenode,
-                                            true, &hierarchy, &hierarchySize);
+                                            &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     
