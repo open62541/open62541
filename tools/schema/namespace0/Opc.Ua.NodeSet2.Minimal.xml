@@ -49,7 +49,7 @@
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=34</Reference>
     </References>
-    <InverseName>HasSupertype</InverseName>
+    <InverseName>SubtypeOf</InverseName>
   </UAReferenceType>
   <UAReferenceType NodeId="i=33" BrowseName="HierarchicalReferences" IsAbstract="true">
     <DisplayName>HierarchicalReferences</DisplayName>
@@ -380,7 +380,7 @@
     <DisplayName>UInteger</DisplayName>
     <Description>Describes a value that can have any unsigned integer DataType.</Description>
     <References>
-      <Reference ReferenceType="HasSubtype" IsForward="false">i=27</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
     </References>
   </UADataType>
   <UADataType NodeId="i=3" BrowseName="Byte">
