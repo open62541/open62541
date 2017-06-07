@@ -8,6 +8,12 @@
 #include "ua_util.h"
 #include "check.h"
 
+#ifdef __clang__
+//required for ck_assert_ptr_eq and const casting
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#endif
+
 /* The standard-defined datatypes are stored in the global array UA_TYPES. User
  * can create their own UA_CUSTOM_TYPES array (the name doesn't matter) and
  * provide it to the server / client. The type will be automatically decoded if
@@ -203,3 +209,7 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif

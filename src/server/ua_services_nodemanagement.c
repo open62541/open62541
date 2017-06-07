@@ -1573,7 +1573,8 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 
             /* One matching target remaining */
             if(refs->targetIdsSize > 0) {
-                refs->targetIds[j-1] = refs->targetIds[refs->targetIdsSize];
+                if  (j-1 != refs->targetIdsSize) // avoid valgrind error: Source and destination overlap in memcpy
+                    refs->targetIds[j-1] = refs->targetIds[refs->targetIdsSize];
                 return UA_STATUSCODE_GOOD;
             }
 
@@ -1582,7 +1583,8 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
             UA_NodeId_deleteMembers(&refs->referenceTypeId);
             node->referencesSize--;
             if(node->referencesSize > 0) {
-                node->references[i-1] = node->references[node->referencesSize];
+                if (i-1 != node->referencesSize) // avoid valgrind error: Source and destination overlap in memcpy
+                    node->references[i-1] = node->references[node->referencesSize];
                 return UA_STATUSCODE_GOOD;
             }
 
