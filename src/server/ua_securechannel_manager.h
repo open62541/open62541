@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #ifndef UA_CHANNEL_MANAGER_H_
 #define UA_CHANNEL_MANAGER_H_
 
@@ -22,9 +26,15 @@ typedef struct UA_SecureChannelManager {
 UA_StatusCode
 UA_SecureChannelManager_init(UA_SecureChannelManager *cm, UA_Server *server);
 
-void UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm);
+/* Remove a all securechannels */
+void
+UA_SecureChannelManager_deleteMembers(UA_SecureChannelManager *cm);
 
-void UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime nowMonotonic);
+/* Remove timed out securechannels with a delayed callback. So all currently
+ * scheduled jobs with a pointer to a securechannel can finish first. */
+void
+UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
+                                        UA_DateTime nowMonotonic);
 
 UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,

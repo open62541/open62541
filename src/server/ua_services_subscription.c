@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_subscription.h"
@@ -102,7 +106,6 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
-    return;
 }
 
 void
@@ -124,7 +127,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
     }
 
     response->resultsSize = size;
-    for(size_t i = 0; i < size; i++) {
+    for(size_t i = 0; i < size; ++i) {
         UA_Subscription *sub =
             UA_Session_getSubscriptionByID(session, request->subscriptionIds[i]);
         if(!sub) {
@@ -189,6 +192,7 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
+/* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
 
 static void
 Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session,
@@ -246,7 +250,7 @@ Service_CreateMonitoredItems_single(UA_Server *server, UA_Session *session,
     newMon->timestampsToReturn = timestampsToReturn;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
-    LIST_INSERT_HEAD(&sub->MonitoredItems, newMon, listEntry);
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -293,7 +297,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->itemsToCreateSize;
 
-    for(size_t i = 0; i < request->itemsToCreateSize; i++)
+    for(size_t i = 0; i < request->itemsToCreateSize; ++i)
         Service_CreateMonitoredItems_single(server, session, sub, request->timestampsToReturn,
                                             &request->itemsToCreate[i], &response->results[i]);
 }
@@ -348,7 +352,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->itemsToModifySize;
 
-    for(size_t i = 0; i < request->itemsToModifySize; i++)
+    for(size_t i = 0; i < request->itemsToModifySize; ++i)
         Service_ModifyMonitoredItems_single(server, session, sub, &request->itemsToModify[i],
                                             &response->results[i]);
 
@@ -376,7 +380,7 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(size_t i = 0; i < response->resultsSize; i++) {
+    for(size_t i = 0; i < response->resultsSize; ++i) {
         UA_MonitoredItem *mon =
             UA_Subscription_getMonitoredItem(sub, request->monitoredItemIds[i]);
         if(!mon) {
@@ -428,7 +432,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     /* Delete Acknowledged Subscription Messages */
-    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; ++i) {
         UA_SubscriptionAcknowledgement *ack = &request->subscriptionAcknowledgements[i];
         UA_Subscription *sub = UA_Session_getSubscriptionByID(session, ack->subscriptionId);
         if(!sub) {
@@ -439,17 +443,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             continue;
         }
         /* Remove the acked transmission from the retransmission queue */
-        response->results[i] = UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN;
-        UA_NotificationMessageEntry *pre, *pre_tmp;
-        LIST_FOREACH_SAFE(pre, &sub->retransmissionQueue, listEntry, pre_tmp) {
-            if(pre->message.sequenceNumber == ack->sequenceNumber) {
-                LIST_REMOVE(pre, listEntry);
-                response->results[i] = UA_STATUSCODE_GOOD;
-                UA_NotificationMessage_deleteMembers(&pre->message);
-                UA_free(pre);
-                break;
-            }
-        }
+        response->results[i] = UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
     /* Queue the publish response */
@@ -500,7 +494,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->subscriptionIdsSize;
 
-    for(size_t i = 0; i < request->subscriptionIdsSize; i++) {
+    for(size_t i = 0; i < request->subscriptionIdsSize; ++i) {
         response->results[i] = UA_Session_deleteSubscription(server, session, request->subscriptionIds[i]);
         if(response->results[i] == UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
@@ -551,7 +545,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->monitoredItemIdsSize;
 
-    for(size_t i = 0; i < request->monitoredItemIdsSize; i++)
+    for(size_t i = 0; i < request->monitoredItemIdsSize; ++i)
         response->results[i] = UA_Subscription_deleteMonitoredItem(server, sub, request->monitoredItemIds[i]);
 }
 
@@ -570,7 +564,7 @@ void Service_Republish(UA_Server *server, UA_Session *session, const UA_Republis
 
     /* Find the notification in the retransmission queue  */
     UA_NotificationMessageEntry *entry;
-    LIST_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
+    TAILQ_FOREACH(entry, &sub->retransmissionQueue, listEntry) {
         if(entry->message.sequenceNumber == request->retransmitSequenceNumber)
             break;
     }

@@ -30,7 +30,7 @@ int __secs_to_tm(long long t, struct tm *tm)
     remsecs = (int)(secs % 86400);
     if (remsecs < 0) {
         remsecs += 86400;
-        days--;
+        --days;
     }
 
     wday = (int)((3+days)%7);
@@ -40,19 +40,19 @@ int __secs_to_tm(long long t, struct tm *tm)
     remdays = (int)(days % DAYS_PER_400Y);
     if (remdays < 0) {
         remdays += DAYS_PER_400Y;
-        qc_cycles--;
+        --qc_cycles;
     }
 
     c_cycles = remdays / DAYS_PER_100Y;
-    if (c_cycles == 4) c_cycles--;
+    if (c_cycles == 4) --c_cycles;
     remdays -= c_cycles * DAYS_PER_100Y;
 
     q_cycles = remdays / DAYS_PER_4Y;
-    if (q_cycles == 25) q_cycles--;
+    if (q_cycles == 25) --q_cycles;
     remdays -= q_cycles * DAYS_PER_4Y;
 
     remyears = remdays / 365;
-    if (remyears == 4) remyears--;
+    if (remyears == 4) --remyears;
     remdays -= remyears * 365;
 
     leap = !remyears && (q_cycles || !c_cycles);
@@ -61,7 +61,7 @@ int __secs_to_tm(long long t, struct tm *tm)
 
     years = remyears + 4*q_cycles + 100*c_cycles + 400LL*qc_cycles;
 
-    for (months=0; days_in_month[months] <= remdays; months++)
+    for (months=0; days_in_month[months] <= remdays; ++months)
         remdays -= days_in_month[months];
 
     if (years+100 > INT_MAX || years+100 < INT_MIN)
@@ -71,7 +71,7 @@ int __secs_to_tm(long long t, struct tm *tm)
     tm->tm_mon = months + 2;
     if (tm->tm_mon >= 12) {
         tm->tm_mon -=12;
-        tm->tm_year++;
+        ++tm->tm_year;
     }
     tm->tm_mday = remdays + 1;
     tm->tm_wday = wday;

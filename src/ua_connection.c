@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_util.h"
 #include "ua_connection_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -10,15 +14,15 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
 }
 
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                              UA_Boolean * UA_RESTRICT realloced) {
+UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString *message,
+                               UA_Boolean *realloced) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* We have a stored an incomplete chunk. Concat the received message to the end.
      * After this block, connection->incompleteMessage is always empty. */
     if(connection->incompleteMessage.length > 0) {
         size_t length = connection->incompleteMessage.length + message->length;
-        UA_Byte *data = UA_realloc(connection->incompleteMessage.data, length);
+        UA_Byte *data = (UA_Byte*)UA_realloc(connection->incompleteMessage.data, length);
         if(!data) {
             retval = UA_STATUSCODE_BADOUTOFMEMORY;
             goto cleanup;
@@ -40,6 +44,7 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
             ((UA_UInt32)message->data[complete_until+1] << 8) +
             ((UA_UInt32)message->data[complete_until+2] << 16);
         if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
+           msgtype != ('E' + ('R' << 8) + ('R' << 16)) &&
            msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
            msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
            msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
@@ -113,6 +118,34 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
     return retval;
 }
 
+UA_StatusCode
+UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *chunks,
+                                    UA_Boolean *realloced, UA_UInt32 timeout) {
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + (timeout * UA_MSEC_TO_DATETIME);
+    *realloced = false;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(true) {
+        /* Listen for messages to arrive */
+        retval = connection->recv(connection, chunks, timeout);
+
+        /* Get complete chunks and return */
+        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+        if(retval != UA_STATUSCODE_GOOD || chunks->length > 0)
+            break;
+
+        /* We received a message. But the chunk is incomplete. Compute the
+         * remaining timeout. */
+        now = UA_DateTime_nowMonotonic();
+        if(now > maxDate)
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
+    }
+    return retval;
+}
+
+
 void UA_Connection_detachSecureChannel(UA_Connection *connection) {
     UA_SecureChannel *channel = connection->channel;
     if(channel)
@@ -153,7 +186,7 @@ UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
     // opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path
     // if ip6, then end not found, otherwise we are fine
     UA_Boolean ip6_end_found = endpointUrl[portpos] != '[';
-    for(; portpos < urlLength; portpos++) {
+    for(; portpos < urlLength; ++portpos) {
         if (!ip6_end_found) {
             if (endpointUrl[portpos] == ']')
                 ip6_end_found = UA_TRUE;
@@ -180,7 +213,7 @@ UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
 
     if(path) {
         size_t pathpos = portpos < urlLength ? portpos : 10;
-        for(; pathpos < urlLength; pathpos++) {
+        for(; pathpos < urlLength; ++pathpos) {
             if(endpointUrl[pathpos] == '/')
                 break;
         }
@@ -224,7 +257,7 @@ UA_EndpointUrl_split(const char *endpointUrl, char *hostname,
         portStr[portLen]='\0';
 
         if(port) {
-            for (size_t i=0; i<6; i++) {
+            for (size_t i=0; i<6; ++i) {
                 if (portStr[i] == 0)
                     break;
                 if (portStr[i] < '0' || portStr[i] > '9')
@@ -257,7 +290,7 @@ size_t UA_readNumber(UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
         if('0' > c || '9' < c)
             break;
         n = (n*10) + (UA_UInt32)(c-'0');
-        progress++;
+        ++progress;
     }
     *number = n;
     return progress;

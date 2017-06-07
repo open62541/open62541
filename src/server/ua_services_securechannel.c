@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
@@ -10,26 +14,28 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_open(&server->secureChannelManager, connection, request, response);
 
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | SecureChannel %i | OpenSecureChannel: Opened SecureChannel",
                          connection->sockfd, response->securityToken.channelId);
-        else
+        } else {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | OpenSecureChannel: Opening a SecureChannel failed",
                          connection->sockfd);
+        }
     } else {
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_renew(&server->secureChannelManager, connection, request, response);
 
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | SecureChannel %i | OpenSecureChannel: SecureChannel renewed",
                          connection->sockfd, response->securityToken.channelId);
-        else
+        } else {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                          "Connection %i | OpenSecureChannel: Renewing SecureChannel failed",
                          connection->sockfd);
+        }
     }
 }
 

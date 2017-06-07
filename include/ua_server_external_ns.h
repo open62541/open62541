@@ -1,17 +1,6 @@
- /*
- * Copyright (C) 2014 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #ifndef UA_SERVER_EXTERNAL_NS_H_
 #define UA_SERVER_EXTERNAL_NS_H_
@@ -30,8 +19,6 @@ extern "C" {
  * If no external nodestore is defined for a nodeid, it is always looked up in
  * the "local" nodestore of open62541. Namespace Zero is always in the local
  * nodestore.
- *
- * @{
  */
 
 typedef UA_Int32 (*UA_ExternalNodeStore_addNodes)
@@ -43,10 +30,13 @@ typedef UA_Int32 (*UA_ExternalNodeStore_addReferences)
  UA_UInt32 *indices,UA_UInt32 indicesSize, UA_StatusCode *addReferencesResults,
  UA_DiagnosticInfo *diagnosticInfos);
  
- typedef UA_Int32 (*UA_ExternalNodeStore_addOneWayReference)
+typedef UA_StatusCode (*UA_ExternalNodeStore_addOneWayReference)
 (void *ensHandle, const UA_AddReferencesItem *item);
 
-typedef UA_Int32 (*UA_ExternalNodeStore_deleteNodes)
+typedef UA_StatusCode (*UA_ExternalNodeStore_getOneWayReferences)
+(void *ensHandle, UA_NodeId *nodeId, UA_UInt32 *referencesSize, UA_ReferenceNode **references);
+
+typedef UA_StatusCode (*UA_ExternalNodeStore_deleteNodes)
 (void *ensHandle, const UA_RequestHeader *requestHeader, UA_DeleteNodesItem *nodesToDelete, UA_UInt32 *indices,
  UA_UInt32 indicesSize, UA_StatusCode *deleteNodesResults, UA_DiagnosticInfo *diagnosticInfos);
 
@@ -91,6 +81,7 @@ typedef struct UA_ExternalNodeStore {
     UA_ExternalNodeStore_deleteReferences deleteReferences;
     UA_ExternalNodeStore_call call;
     UA_ExternalNodeStore_addOneWayReference addOneWayReference;
+    UA_ExternalNodeStore_getOneWayReferences getOneWayReferences;
     UA_ExternalNodeStore_delete destroy;
 } UA_ExternalNodeStore;
 

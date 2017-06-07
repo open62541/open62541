@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_util.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
@@ -368,7 +372,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Client requested a subscription, " \
                                 "but those are not enabled in the build");
         } else {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Unknown request %i",
+            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                                "Unknown request with type identifier %i",
                                 requestTypeId.identifier.numeric);
         }
         sendError(channel, msg, requestPos, &UA_TYPES[UA_TYPES_SERVICEFAULT],
@@ -387,7 +392,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
     retval = UA_decodeBinary(msg, offset, request, requestType);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Could not decode the request");
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Could not decode the request");
         sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
@@ -487,12 +493,26 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     retval = UA_SecureChannel_sendBinaryMessage(channel, requestId, response, responseType);
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_INFO_CHANNEL(server->config.logger, channel, "Could not send the message over "
-                             "the SecureChannel with error code 0x%08x", retval);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Could not send the message over the SecureChannel "
+                            "with StatusCode %s", UA_StatusCode_name(retval));
 
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
+}
+
+/* ERR -> Error from the remote connection */
+static void processERR(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
+    UA_TcpErrorMessage errorMessage;
+    if (UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
+        connection->close(connection);
+        return;
+    }
+
+    UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Client replied with an error message: %s %.*s",
+                 UA_StatusCode_name(errorMessage.error), errorMessage.reason.length, errorMessage.reason.data);
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. Only OPN
@@ -502,7 +522,16 @@ static void
 UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                                       UA_MessageType messagetype, UA_UInt32 requestId,
                                       const UA_ByteString *message) {
+    UA_assert(channel);
+    UA_assert(channel->connection);
     switch(messagetype) {
+    case UA_MESSAGETYPE_ERR: {
+        const UA_TcpErrorMessage *msg = (const UA_TcpErrorMessage *) message;
+        UA_LOG_ERROR_CHANNEL(server->config.logger, channel,
+                             "Client replied with an error message: %s %.*s",
+                             UA_StatusCode_name(msg->error), msg->reason.length, msg->reason.data);
+        break;
+    }
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
                              "Cannot process a HEL on an open channel");
@@ -539,8 +568,8 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             UA_SecureChannel_processChunks(channel, message,
                  (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
         if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                                 "Procesing chunkgs resulted in error code 0x%08x", retval);
+            UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
+                                 "resulted in error code %s", UA_StatusCode_name(retval));
     } else {
         /* Process messages without a channel and no chunking */
         size_t offset = 0;
@@ -553,6 +582,11 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 
         /* Dispatch according to the message type */
         switch(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) {
+        case UA_MESSAGETYPE_ERR:
+            UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                         "Connection %i | Process ERR message", connection->sockfd);
+            processERR(server, connection, message, &offset);
+            break;
         case UA_MESSAGETYPE_HEL:
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Process HEL message", connection->sockfd);

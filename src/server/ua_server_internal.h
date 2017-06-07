@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
@@ -12,7 +16,11 @@
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
-/* liburcu includes */
+/* The general idea of RCU is to delay freeing nodes (or any callback invoked
+ * with call_rcu) until all threads have left their critical section. Thus we
+ * can delete nodes safely in concurrent operations. The macros UA_RCU_LOCK and
+ * UA_RCU_UNLOCK are used to test during debugging that we do not nest read-side
+ * critical sections (although this is generally allowed). */
 #ifdef UA_ENABLE_MULTITHREADING
 # define _LGPL_SOURCE
 # include <urcu.h>
@@ -24,16 +32,16 @@
 #  define UA_ASSERT_RCU_UNLOCKED()
 # else
    extern UA_THREAD_LOCAL bool rcu_locked;
-#   define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
-#   define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
-#   define UA_RCU_LOCK() do {                     \
+#  define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
+#  define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
+#  define UA_RCU_LOCK() do {                      \
         UA_ASSERT_RCU_UNLOCKED();                 \
         rcu_locked = true;                        \
         rcu_read_lock(); } while(0)
-#   define UA_RCU_UNLOCK() do {                   \
+#  define UA_RCU_UNLOCK() do {                    \
         UA_ASSERT_RCU_LOCKED();                   \
         rcu_locked = false;                       \
-        rcu_read_lock(); } while(0)
+        rcu_read_unlock(); } while(0)
 # endif
 #else
 # define UA_RCU_LOCK()
@@ -43,8 +51,8 @@
 #endif
 
 #ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/** Mapping of namespace-id and url to an external nodestore. For namespaces
-    that have no mapping defined, the internal nodestore is used by default. */
+/* Mapping of namespace-id and url to an external nodestore. For namespaces that
+ * have no mapping defined, the internal nodestore is used by default. */
 typedef struct UA_ExternalNamespace {
     UA_UInt16 index;
     UA_String url;
@@ -102,6 +110,7 @@ struct UA_Server {
                                           by worker threads */
     struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
+    pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
@@ -117,14 +126,18 @@ struct UA_Server {
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
-
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
    the nodestore. */
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg);
+/********************/
+/* Event Processing */
+/********************/
+
+void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                                    const UA_ByteString *message);
 
 UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
@@ -148,6 +161,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
 UA_StatusCode
 parse_numericrange(const UA_String *str, UA_NumericRange *range);
 
+UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
+
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
@@ -165,8 +180,9 @@ UA_StatusCode
 getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
+/* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *rootNode,
+isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -178,13 +194,13 @@ getNodeType(UA_Server *server, const UA_Node *node);
 /***************************************/
 
 UA_StatusCode
-readValueAttribute(const UA_VariableNode *vn, UA_DataValue *v);
+readValueAttribute(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v);
 
 UA_StatusCode
-typeCheckValue(UA_Server *server, const UA_NodeId *variableDataTypeId,
-               UA_Int32 variableValueRank, size_t variableArrayDimensionsSize,
-               const UA_UInt32 *variableArrayDimensions, const UA_Variant *value,
-               const UA_NumericRange *range, UA_Variant *equivalent);
+typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+               UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
+               const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
+               const UA_NumericRange *range, UA_Variant *editableValue);
 
 UA_StatusCode
 writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
@@ -197,7 +213,7 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
 UA_StatusCode
-writeValueRankAttribute(UA_VariableNode *node, UA_Int32 valueRank,
+writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
                         UA_Int32 constraintValueRank);
 
 UA_StatusCode
@@ -211,27 +227,10 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
 /* Some services take an array of "independent" requests. The single-services
    are stored here to keep ua_services.h clean for documentation purposes. */
 
-UA_StatusCode
-Service_AddReferences_single(UA_Server *server, UA_Session *session,
-                             const UA_AddReferencesItem *item);
-
-UA_StatusCode
-Service_DeleteNodes_single(UA_Server *server, UA_Session *session,
-                           const UA_NodeId *nodeId, UA_Boolean deleteReferences);
-
-UA_StatusCode
-Service_DeleteReferences_single(UA_Server *server, UA_Session *session,
-                                const UA_DeleteReferencesItem *item);
-
 void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
-
-void
-Service_TranslateBrowsePathsToNodeIds_single(UA_Server *server, UA_Session *session,
-                                             const UA_BrowsePath *path,
-                                             UA_BrowsePathResult *result);
 
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,

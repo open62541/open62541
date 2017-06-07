@@ -1,17 +1,6 @@
-/*
- * Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #ifndef UA_LOG_H_
 #define UA_LOG_H_
@@ -20,6 +9,7 @@
 extern "C" {
 #endif
 
+#include <stdarg.h>
 #include "ua_config.h"
 
 /**
@@ -60,54 +50,78 @@ typedef enum {
  * Do not use the logger directly but make use of the following macros that take
  * the minimum log-level defined in ua_config.h into account. */
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
-                          const char *msg, ...);
+                          const char *msg, va_list args);
 
+static UA_INLINE void
+UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
-#define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_TRACE, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_TRACE(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_TRACE, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static UA_INLINE void
+UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 200
-#define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_DEBUG, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_DEBUG(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_DEBUG, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static UA_INLINE void
+UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
-#define UA_LOG_INFO(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_INFO, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_INFO(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_INFO, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static UA_INLINE void
+UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
-#define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_WARNING, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_WARNING(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_WARNING, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static UA_INLINE void
+UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
-#define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_ERROR, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_ERROR(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_ERROR, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
+static UA_INLINE void
+UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
-#define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do { \
-        if(LOGGER) LOGGER(UA_LOGLEVEL_FATAL, CATEGORY, __VA_ARGS__); } while(0)
-#else
-#define UA_LOG_FATAL(LOGGER, CATEGORY, ...) do {} while(0)
+    if(logger) {
+        va_list args; va_start(args, msg);
+        logger(UA_LOGLEVEL_FATAL, category, msg, args);
+        va_end(args);
+    }
 #endif
+}
 
 /**
  * Convenience macros for complex types
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-#define UA_PRINTF_GUID_FORMAT "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}"
+#define UA_PRINTF_GUID_FORMAT "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x"
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]

@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_nodestore.h"
 #include "ua_server_internal.h"
 #include "ua_util.h"
@@ -20,11 +24,9 @@ struct UA_NodeStore {
     UA_UInt32 sizePrimeIndex;
 };
 
-#include "ua_nodestore_hash.inc"
-
 /* The size of the hash-map is always a prime number. They are chosen to be
  * close to the next power of 2. So the size ca. doubles with each prime. */
-static hash_t const primes[] = {
+static UA_UInt32 const primes[] = {
     7,         13,         31,         61,         127,         251,
     509,       1021,       2039,       4093,       8191,        16381,
     32749,     65521,      131071,     262139,     524287,      1048573,
@@ -32,10 +34,13 @@ static hash_t const primes[] = {
     134217689, 268435399,  536870909,  1073741789, 2147483647,  4294967291
 };
 
+static UA_UInt32 mod(UA_UInt32 h, UA_UInt32 size) { return h % size; }
+static UA_UInt32 mod2(UA_UInt32 h, UA_UInt32 size) { return 1 + (h % (size - 2)); }
+
 static UA_UInt16
-higher_prime_index(hash_t n) {
+higher_prime_index(UA_UInt32 n) {
     UA_UInt16 low  = 0;
-    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(hash_t));
+    UA_UInt16 high = (UA_UInt16)(sizeof(primes) / sizeof(UA_UInt32));
     while(low != high) {
         UA_UInt16 mid = (UA_UInt16)(low + ((high - low) / 2));
         if(n > primes[mid])
@@ -93,10 +98,10 @@ deleteEntry(UA_NodeStoreEntry *entry) {
 /* returns slot of a valid node or null */
 static UA_NodeStoreEntry **
 findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -117,10 +122,10 @@ findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
 /* returns an empty slot or null if the nodeid exists */
 static UA_NodeStoreEntry **
 findSlot(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     UA_UInt32 size = ns->size;
-    hash_t idx = mod(h, size);
-    hash_t hash2 = mod2(h, size);
+    UA_UInt32 idx = mod(h, size);
+    UA_UInt32 hash2 = mod2(h, size);
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
@@ -160,12 +165,13 @@ expand(UA_NodeStore *ns) {
     ns->sizePrimeIndex = nindex;
 
     /* recompute the position of every entry and insert the pointer */
-    for(size_t i = 0, j = 0; i < osize && j < count; i++) {
+    for(size_t i = 0, j = 0; i < osize && j < count; ++i) {
         if(oentries[i] <= UA_NODESTORE_TOMBSTONE)
             continue;
         UA_NodeStoreEntry **e = findSlot(ns, &oentries[i]->node.nodeId);
+        UA_assert(e);
         *e = oentries[i];
-        j++;
+        ++j;
     }
 
     UA_free(oentries);
@@ -196,7 +202,7 @@ void
 UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_UInt32 size = ns->size;
     UA_NodeStoreEntry **entries = ns->entries;
-    for(UA_UInt32 i = 0; i < size; i++) {
+    for(UA_UInt32 i = 0; i < size; ++i) {
         if(entries[i] > UA_NODESTORE_TOMBSTONE)
             deleteEntry(entries[i]);
     }
@@ -205,8 +211,8 @@ UA_NodeStore_delete(UA_NodeStore *ns) {
 }
 
 UA_Node *
-UA_NodeStore_newNode(UA_NodeClass class) {
-    UA_NodeStoreEntry *entry = instantiateEntry(class);
+UA_NodeStore_newNode(UA_NodeClass nodeClass) {
+    UA_NodeStoreEntry *entry = instantiateEntry(nodeClass);
     if(!entry)
         return NULL;
     return &entry->node;
@@ -236,7 +242,7 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
             node->nodeId.namespaceIndex = 1;
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
-        hash_t increase = mod2(identifier, size);
+        UA_UInt32 increase = mod2(identifier, size);
         while(true) {
             node->nodeId.identifier.numeric = identifier;
             entry = findSlot(ns, &node->nodeId);
@@ -249,13 +255,14 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     } else {
         entry = findSlot(ns, &node->nodeId);
         if(!entry) {
-            deleteEntry(container_of(node, UA_NodeStoreEntry, node));
+            UA_NodeStore_deleteNode(node);
             return UA_STATUSCODE_BADNODEIDEXISTS;
         }
     }
 
     *entry = container_of(node, UA_NodeStoreEntry, node);
-    ns->count++;
+    ++ns->count;
+    UA_assert(&(*entry)->node == node);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -307,7 +314,7 @@ UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     deleteEntry(*slot);
     *slot = UA_NODESTORE_TOMBSTONE;
-    ns->count--;
+    --ns->count;
     /* Downsize the hashmap if it is very empty */
     if(ns->count * 8 < ns->size && ns->size > 32)
         expand(ns); // this can fail. we just continue with the bigger hashmap.
@@ -316,7 +323,7 @@ UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
 void
 UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {
-    for(UA_UInt32 i = 0; i < ns->size; i++) {
+    for(UA_UInt32 i = 0; i < ns->size; ++i) {
         if(ns->entries[i] > UA_NODESTORE_TOMBSTONE)
             visitor((UA_Node*)&ns->entries[i]->node);
     }

@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -410,6 +414,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
     ck_assert_int_eq(dst.arrayLength, 0);
     ck_assert_int_ne((uintptr_t)dst.data, 0);
+    assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
     UA_Variant_deleteMembers(&dst);

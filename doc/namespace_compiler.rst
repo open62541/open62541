@@ -1,75 +1,11 @@
-Generating an OPC UA Information Model from XML Descriptions
-------------------------------------------------------------
+XML Nodeset Compiler
+--------------------
 
-This tutorial will show you how to create a server from an information model defined in the OPC UA Nodeset XML schema.
-
-Compile XML Namespaces
-^^^^^^^^^^^^^^^^^^^^^^
-
-When writing an application, it is more comfortable to create information models using some comfortable GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
+When writing an application, it is more comfortable to create information models using some GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a python based namespace compiler that can transform these information model definitions into a working server.
 
 Note that the namespace compiler you can find in the *tools* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
 
-We take the following information model snippet as the starting point of the following tutorial.
-
-.. graphviz::
-
-    digraph tree {
-
-    fixedsize=true;
-    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
-
-    node_root [label="<<ObjectType>>\nFieldDevice"]
-
-    { rank=same
-      point_1 [shape=point]
-      node_1 [label="<<Variable>>\nManufacturerName"] }
-    node_root -> point_1 [arrowhead=none]
-    point_1 -> node_1 [label="hasComponent"]
-
-    { rank=same
-      point_2 [shape=point]
-      node_2 [label="<<Variable>>\nModelName"] }
-    point_1 -> point_2 [arrowhead=none]
-    point_2 -> node_2 [label="hasComponent"]
-
-    {  rank=same
-       point_3 [shape=point]
-       node_3 [label="<<ObjectType>>\nPump"] }
-    point_2 -> point_3 [arrowhead=none]
-    point_3 -> node_3 [label="hasSubtype"]
-
-    {  rank=same
-       point_4 [shape=point]
-       node_4 [label="<<Variable>>\nMotorRPM"] }
-    node_3 -> point_4 [arrowhead=none]
-    point_4 -> node_4 [label="hasComponent"]
-
-    {  rank=same
-       point_5 [shape=point]
-       node_5 [label="<<Variable>>\nisOn"] }
-    point_4 -> point_5 [arrowhead=none]
-    point_5 -> node_5 [label="hasComponent"]
-
-    {  rank=same
-       point_6 [shape=point]
-       node_6 [label="<<Method>>\nstartPump"]
-       node_8 [label="<<Variable>>\nOutputArguments"] }
-    point_5 -> point_6 [arrowhead=none]
-    point_6 -> node_6 [label="hasComponent"]
-    node_6 -> node_8 [label="hasProperty"]
-
-    {  rank=same
-       point_7 [shape=point]
-       node_7 [label="<<Method>>\nstopPump"]
-       node_9 [label="<<Variable>>\nOutputArguments"] }
-    point_6 -> point_7 [arrowhead=none]
-    point_7 -> node_7 [label="hasComponent"]
-    node_7 -> node_9 [label="hasProperty"]
-
-    }
-
-This information model is represented in XML as follows:
+We take the following information model snippet as the starting point of the following tutorial:
 
 .. code-block:: xml
 
@@ -304,53 +240,9 @@ After adding your XML file to CMakeLists.txt, rerun cmake in your build director
   $ cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_METHODCALLS=On \
           -BUILD_EXAMPLECLIENT=On -BUILD_EXAMPLESERVER=On \
           -DUA_ENABLE_GENERATE_NAMESPACE0=On ../
-  -- Git version: v0.1.0-RC4-403-g198597c-dirty
-  -- Configuring done
-  -- Generating done
-  -- Build files have been written to: /home/ichrispa/work/svn/working_copies/open62541/build
-
   $ make
-  [  3%] Generating src_generated/ua_nodeids.h
-  [  6%] Generating src_generated/ua_types_generated.c, src_generated/ua_types_generated.h
-  [ 10%] Generating src_generated/ua_transport_generated.c, src_generated/ua_transport_generated.h
-  [ 13%] Generating src_generated/ua_namespaceinit_generated.c, src_generated/ua_namespaceinit_generated.h
 
-At this point, the make process will most likely hang for 30-60s until the namespace is parsed, checked, linked and finally generated (be patient). It should continue as follows::
-  
-  Scanning dependencies of target open62541-object
-  [ 17%] Building C object CMakeFiles/open62541-object.dir/src/ua_types.c.o
-  [ 20%] Building C object CMakeFiles/open62541-object.dir/src/ua_types_encoding_binary.c.o                                                                                                 
-  [ 24%] Building C object CMakeFiles/open62541-object.dir/src_generated/ua_types_generated.c.o                                                                                             
-  [ 27%] Building C object CMakeFiles/open62541-object.dir/src_generated/ua_transport_generated.c.o                                                                                         
-  [ 31%] Building C object CMakeFiles/open62541-object.dir/src/ua_connection.c.o                                                                                                            
-  [ 34%] Building C object CMakeFiles/open62541-object.dir/src/ua_securechannel.c.o                                                                                                         
-  [ 37%] Building C object CMakeFiles/open62541-object.dir/src/ua_session.c.o                                                                                                               
-  [ 41%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_server.c.o                                                                                                         
-  [ 44%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_server_addressspace.c.o                                                                                            
-  [ 48%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_server_binary.c.o                                                                                                  
-  [ 51%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_nodes.c.o                                                                                                          
-  [ 55%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_server_worker.c.o                                                                                                  
-  [ 58%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_securechannel_manager.c.o                                                                                          
-  [ 62%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_session_manager.c.o                                                                                                
-  [ 65%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_discovery.c.o                                                                                             
-  [ 68%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_securechannel.c.o                                                                                         
-  [ 72%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_session.c.o                                                                                               
-  [ 75%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_attribute.c.o                                                                                             
-  [ 79%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_nodemanagement.c.o                                                                                        
-  [ 82%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_view.c.o                                                                                                  
-  [ 86%] Building C object CMakeFiles/open62541-object.dir/src/client/ua_client.c.o                                                                                                         
-  [ 89%] Building C object CMakeFiles/open62541-object.dir/examples/networklayer_tcp.c.o                                                                                                    
-  [ 93%] Building C object CMakeFiles/open62541-object.dir/examples/logger_stdout.c.o                                                                                                       
-  [ 96%] Building C object CMakeFiles/open62541-object.dir/src_generated/ua_namespaceinit_generated.c.o 
-
-And at this point, you are going to see the compiler hanging again. If you specified ``-DCMAKE_BUILD_TYPE=Debug``, you are looking at about 5-10 seconds of waiting. If you forgot, you can now drink a cup of coffee, go to the movies or take a loved one out for dinner (or abort the build with CTRL+C). Shortly after::
-
-  [ 83%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_services_call.c.o
-  [ 86%] Building C object CMakeFiles/open62541-object.dir/src/server/ua_nodestore.c.o
-  [100%] Built target open62541-object
-  Scanning dependencies of target open62541
-  Linking C shared library libopen62541.so
-  [100%] Built target open62541
+At this point, the make process will most likely hang for 30-60s until the namespace is parsed, checked, linked and finally generated (be patient). If you specified ``-DCMAKE_BUILD_TYPE=Debug``, you are looking at about 5-10 seconds of waiting. A release build can take a lot longer.
 
 If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a short look at the generated defines, you will notice the following definitions have been created:
 
@@ -362,17 +254,17 @@ If you open the header ``src_generated/ua_namespaceinit_generated.h`` and take a
   #define UA_NS1ID_STARTPUMP
   #define UA_NS1ID_STOPPUMP
 
-These definitions are generated for all types, but not variables, objects or views (as their names may be ambiguous and may not a be unique identifier). You can use these definitions in your code as you already used the ``UA_NS0ID_`` equivalents.
+These definitions are generated for all types, but not variables, objects or views (as their names may be ambiguous and may not a be unique identifier). You can use these definitions in your code for numeric nodeids in namespace 1.
   
-Now switch back to your own source directory and update your libopen62541 library (in case you have not linked it into the build folder). Compile our example server as follows::
+Now switch back to your own source directory and update your libopen62541 library (in case you have not linked it into the build folder). Compile our example server as follows:
+
+.. code-block:: bash
   
-  ichrispa@Cassandra:open62541/build-tutorials> gcc -g -std=c99 -Wl,-rpath,`pwd` -I ./include -L . -DUA_ENABLE_METHODCALLS -o server ./server.c -lopen62541
+   $ gcc -g -std=c99 -Wl,-rpath,`pwd` -I ./include -L . -DUA_ENABLE_METHODCALLS -o server ./server.c -lopen62541
 
 Note that we need to also define the method-calls here, as the header files may choose to ommit functions such as UA_Server_addMethodNode() if they believe you do not use them. If you run the server, you should now see a new dataType in the browse path ``/Types/ObjectTypes/BaseObjectType/FieldDevice`` when viewing the nodes in UAExpert.
 
-If you take a look at any of the variables, like ``ManufacturerName``, you will notice it is shown as a Boolean; this is not an error. The node does not include a variant and as you learned in our previous tutorial, it is that variant that would hold the dataType ID.
-  
-A minor list of some of the miriad things that can go wrong:
+A minor list of some of the things that can go wrong:
   * Your file was not found. The namespace compiler will complain, print a help message, and exit.
   * A structure/DataType you created with a value was not encoded. The namespace compiler can currently not handle nested extensionObjects.
   * Nodes are not or wrongly encoded or you get nodeId errors.  The namespace compiler can currently not encode bytestring or guid node id's and external server uris are not supported either.
@@ -382,7 +274,7 @@ A minor list of some of the miriad things that can go wrong:
 Creating object instances
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Defining an object type is only usefull if it ends up making our lives easier in some way (though it is always the proper thing to do). One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node. 
+One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node. 
 
 While variables are copied from the objetType definition (allowing the user for example to attach new dataSources to them), methods are always only linked. This paradigm is identical to languages like C++: The method called is always the same piece of code, but the first argument is a pointer to an object. Likewise, in OPC UA, only one methodCallback can be attached to a specific methodNode. If that methodNode is called, the parent objectId will be passed to the method - it is the methods job to derefence which object instance it belongs to in that moment.
 
@@ -463,57 +355,6 @@ As you can see instantiating an object is not much different from creating an ob
     Created new node ns=1;i=1513 according to template ns=1;i=6004 (handle was 42)
 
 If you start the server and inspect the nodes with UA Expert, you will find two pumps in the objects folder, which look like this:
-
-.. graphviz::
-
-    digraph tree {
-
-    fixedsize=true;
-    node [width=2, height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
-
-    node_root [label="<<Object>>\nPump"]
-
-    { rank=same
-      point_1 [shape=point]
-      node_1 [label="<<Variable>>\nManufacturerName"] }
-    node_root -> point_1 [arrowhead=none]
-    point_1 -> node_1 [label="hasComponent"]
-
-    { rank=same
-      point_2 [shape=point]
-      node_2 [label="<<Variable>>\nModelName"] }
-    point_1 -> point_2 [arrowhead=none]
-    point_2 -> node_2 [label="hasComponent"]
-
-    {  rank=same
-       point_4 [shape=point]
-       node_4 [label="<<Variable>>\nMotorRPM"] }
-    point_2 -> point_4 [arrowhead=none]
-    point_4 -> node_4 [label="hasComponent"]
-
-    {  rank=same
-       point_5 [shape=point]
-       node_5 [label="<<Variable>>\nisOn"] }
-    point_4 -> point_5 [arrowhead=none]
-    point_5 -> node_5 [label="hasComponent"]
-
-    {  rank=same
-       point_6 [shape=point]
-       node_6 [label="<<Method>>\nstartPump"]
-       node_8 [label="<<Variable>>\nOutputArguments"] }
-    point_5 -> point_6 [arrowhead=none]
-    point_6 -> node_6 [label="hasComponent"]
-    node_6 -> node_8 [label="hasProperty"]
-
-    {  rank=same
-       point_7 [shape=point]
-       node_7 [label="<<Method>>\nstopPump"]
-       node_9 [label="<<Variable>>\nOutputArguments"] }
-    point_6 -> point_7 [arrowhead=none]
-    point_7 -> node_7 [label="hasComponent"]
-    node_7 -> node_9 [label="hasProperty"]
-
-    }
 
 As you can see the pump has inherited it's parents attributes (ManufacturerName and ModelName). You may also notice that the callback was not called for the methods, even though they are obviously where they are supposed to be. Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been ommitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
 

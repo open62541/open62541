@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 from __future__ import print_function
 import re
 import argparse
@@ -17,7 +21,7 @@ if outname[-2:] == ".c":
 pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
-include_re = re.compile("^#include (\".*\").*$")
+include_re = re.compile("^#[\s]*include (\".*\").*$")
 guard_re = re.compile("^#(?:(?:ifndef|define) [A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_)")
 
 print ("Starting amalgamating file "+ args.outfile)
@@ -32,15 +36,12 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  * Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
  *
  * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
+ * redistribute it and/or modify it under the terms of the Mozilla Public
+ * License v2.0 as stated in the LICENSE file provided with open62541.
  *
  * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
  * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
+ * A PARTICULAR PURPOSE.
  */\n\n""" % args.version)
 
 if is_c:
@@ -67,6 +68,9 @@ for fname in args.inputs:
             guard_res = guard_re.match(line)
             if not inc_res and not guard_res:
                 file.write(line)
+        # Ensure file is written to disk.
+        file.flush()
+        os.fsync(file.fileno())
         print ("done."),
 
 if not is_c:
@@ -75,7 +79,12 @@ if not is_c:
 } // extern "C"
 #endif
 
-#endif /* %s */''' % (outname.upper() + u"_H_"))
+#endif /* %s */\n''' % (outname.upper() + u"_H_"))
+
+# Ensure file is written to disk.
+# See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close
+file.flush()
+os.fsync(file.fileno())
 file.close()
 
 print ("The size of "+args.outfile+" is "+ str(os.path.getsize(args.outfile))+" Bytes.")

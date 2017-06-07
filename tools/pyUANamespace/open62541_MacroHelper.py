@@ -1,6 +1,10 @@
 #!/usr/bin/env/python
 # -*- coding: utf-8 -*-
 
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ###
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ### Version: rev 13
@@ -9,7 +13,7 @@
 ### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
+### file for more information on the MPL v2 terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
@@ -161,7 +165,7 @@ class open62541_MacroHelper():
             code.append("")
             code.append("inputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(inArgVal)) + ");")
             code.append("int inputArgumentCnt;")
-            code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; inputArgumentCnt++) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
+            code.append("for (inputArgumentCnt=0; inputArgumentCnt<" + str(len(inArgVal)) + "; ++inputArgumentCnt) UA_Argument_init(&inputArguments[inputArgumentCnt]); ")
             argumentCnt = 0
             for inArg in inArgVal:
                 if inArg.getValueFieldByAlias("Description") != None:
@@ -179,7 +183,7 @@ class open62541_MacroHelper():
             code.append("")
             code.append("outputArguments = (UA_Argument *) malloc(sizeof(UA_Argument) * " + str(len(outArgVal)) + ");")
             code.append("int outputArgumentCnt;")
-            code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; outputArgumentCnt++) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
+            code.append("for (outputArgumentCnt=0; outputArgumentCnt<" + str(len(outArgVal)) + "; ++outputArgumentCnt) UA_Argument_init(&outputArguments[outputArgumentCnt]); ")
             argumentCnt = 0
             for outArg in outArgVal:
                 if outArg.getValueFieldByAlias("Description") != None:
