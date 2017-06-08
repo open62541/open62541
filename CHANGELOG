@@ -1,6 +1,20 @@
 The changelog tracks changes to the public API.
 Internal refactorings and bug fixes are not reported here.
 
+2017-07-03 jpfr
+
+    * Implement asynchronous service calls from the client
+
+      All OPC UA services are asynchronous in nature. So several service
+      calls can be made without waiting for a response first. Responess
+      may come in a different ordering. The client takes a method pointer
+      and a data pointer to perform an asynchronous callback on the request
+      response.
+
+      Synchronous service calls are still supported in the client. Asynchronous
+      responses are processed in the background until the synchronous response
+      (the client is waiting for) returns the control flow back to the user.
+
 2017-06-26 janitza-thbe
 
     * Enable IPv6 in the networklayer plugin
