@@ -153,31 +153,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
-    if(timeout > 0) {
-        /* currently, only the client uses timeouts */
-#ifndef _WIN32
-        UA_UInt32 timeout_usec = timeout * 1000;
-# ifdef __APPLE__
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
-# else
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
-# endif
-        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-                             (const char *)&tmptv, sizeof(struct timeval));
-#else
-        DWORD timeout_dw = timeout;
-        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-                             (const char*)&timeout_dw, sizeof(DWORD));
-#endif
-        if(0 != ret) {
-            UA_ByteString_deleteMembers(response);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
-    }
-
-#ifdef __CYGWIN__
-    /* Workaround for https://cygwin.com/ml/cygwin/2013-07/msg00107.html */
-    ssize_t ret;
+    /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
         FD_ZERO(&fdset);
@@ -185,29 +161,24 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         UA_UInt32 timeout_usec = timeout * 1000;
         struct timeval tmptv = {(long int)(timeout_usec / 1000000),
                                 (long int)(timeout_usec % 1000000)};
-        int retval = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
-        if(retval && UA_fd_isset(connection->sockfd, &fdset)) {
-            ret = recv(connection->sockfd, (char*)response->data,
-                       connection->localConf.recvBufferSize, 0);
-        } else {
-            ret = 0;
-        }
-    } else {
-        ret = recv(connection->sockfd, (char*)response->data,
-                   connection->localConf.recvBufferSize, 0);
+        int resultsize = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
+
+        /* No result */
+        if(resultsize == 0)
+            return UA_STATUSCODE_GOOD;
     }
-#else
+
+    /* Get the received packet(s) */
     ssize_t ret = recv(connection->sockfd, (char*)response->data,
                        connection->localConf.recvBufferSize, 0);
-#endif
 
-    /* The socket is shutdown */
+    /* The remote side closed the connection */
     if(ret == 0) {
         UA_ByteString_deleteMembers(response);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* error case */
+    /* Error case */
     if(ret < 0) {
         UA_ByteString_deleteMembers(response);
         if(errno__ == INTERRUPTED || (timeout > 0) ?
@@ -217,12 +188,13 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* default case */
+    /* Set the length of the received buffer */
     response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode socket_set_nonblocking(SOCKET sockfd) {
+static UA_StatusCode
+socket_set_nonblocking(SOCKET sockfd) {
 #ifdef _WIN32
     u_long iMode = 1;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
@@ -516,8 +488,8 @@ ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     layer->serverSocketsSize = 0;
 
     /* Close open connections */
-    ConnectionEntry *e, *e_tmp;
-    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp)
+    ConnectionEntry *e;
+    LIST_FOREACH(e, &layer->connections, pointers)
         connection_close(&e->connection);
 
     /* Run recv on client sockets. This picks up the closed sockets and frees
@@ -534,7 +506,19 @@ static void
 ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
     UA_String_deleteMembers(&nl->discoveryUrl);
-    UA_free(layer);
+
+    /* Hard-close and remove remaining connections. The server is no longer
+     * running. So this is safe. */
+    ConnectionEntry *e, *e_tmp;
+    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        LIST_REMOVE(e, pointers);
+        connection_close(&e->connection);
+        CLOSESOCKET(e->connection.sockfd);
+        free(e);
+    }
+
+    /* Free the layer */
+    free(layer);
 }
 
 UA_ServerNetworkLayer

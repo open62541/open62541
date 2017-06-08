@@ -181,6 +181,11 @@ target_link_libraries(check_client ${LIBS})
 add_test(check_client ${TESTS_BINARY_DIR}/check_client)
 
 # TODO: Re-enable valgrind test
+add_executable(check_client_async check_client_async.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_async ${LIBS})
+add_test(check_client_async ${TESTS_BINARY_DIR}/check_client_async)
+
+# TODO: Re-enable valgrind test
 add_executable(check_client_subscriptions check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
 add_test(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
