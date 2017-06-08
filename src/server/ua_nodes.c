@@ -5,12 +5,7 @@
 #include "ua_server_internal.h"
 #include "ua_nodes.h"
 
-void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
-    /* Delete standard content */
-    UA_NodeId_deleteMembers(&node->nodeId);
-    UA_QualifiedName_deleteMembers(&node->browseName);
-    UA_LocalizedText_deleteMembers(&node->displayName);
-    UA_LocalizedText_deleteMembers(&node->description);
+void UA_Node_deleteReferences(UA_Node *node) {
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
         for(size_t j = 0; j < refs->targetIdsSize; ++j)
@@ -18,9 +13,21 @@ void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
         UA_free(refs->targetIds);
         UA_NodeId_deleteMembers(&refs->referenceTypeId);
     }
-    UA_free(node->references);
+    if(node->references)
+        UA_free(node->references);
     node->references = NULL;
     node->referencesSize = 0;
+}
+
+void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
+    /* Delete standard content */
+    UA_NodeId_deleteMembers(&node->nodeId);
+    UA_QualifiedName_deleteMembers(&node->browseName);
+    UA_LocalizedText_deleteMembers(&node->displayName);
+    UA_LocalizedText_deleteMembers(&node->description);
+
+    /* Delete references */
+    UA_Node_deleteReferences(node);
 
     /* Delete unique content of the nodeclass */
     switch(node->nodeClass) {

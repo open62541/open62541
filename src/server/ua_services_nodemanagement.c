@@ -455,9 +455,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
         /* TODO: Be more clever in removing references that are re-added during
          * addnode_finish. That way, we can call addnode_finish also on children that were
          * manually added by the user during addnode_begin and addnode_finish. */
-        UA_Array_delete(node->references, node->referencesSize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
-        node->references = NULL;
-        node->referencesSize = 0;
+        UA_Node_deleteReferences(node);
                 
         /* Add the node to the nodestore */
         retval = UA_NodeStore_insert(server->nodestore, node);
