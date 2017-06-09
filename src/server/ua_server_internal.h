@@ -7,7 +7,6 @@
 
 #include "ua_util.h"
 #include "ua_server.h"
-#include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
