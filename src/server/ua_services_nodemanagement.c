@@ -826,39 +826,9 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
         return;
     }
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-#ifdef _MSC_VER
-    UA_Boolean *isExternal = UA_alloca(size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32)*size);
-#else
-    UA_Boolean isExternal[size];
-    UA_UInt32 indices[size];
-#endif
-    memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j <server->externalNamespacesSize; ++j) {
-        size_t indexSize = 0;
-        for(size_t i = 0;i < size;++i) {
-            if(request->nodesToAdd[i].requestedNewNodeId.nodeId.namespaceIndex !=
-               server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indexSize] = (UA_UInt32)i;
-            ++indexSize;
-        }
-        if(indexSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->addNodes(ens->ensHandle, &request->requestHeader,
-                      request->nodesToAdd, indices, (UA_UInt32)indexSize,
-                      response->results, response->diagnosticInfos);
-    }
-#endif
 
     response->resultsSize = size;
     for(size_t i = 0; i < size; ++i) {
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-        if(!isExternal[i])
-#endif
             Service_AddNodes_single(server, session, &request->nodesToAdd[i],
                                     &response->results[i], NULL);
     }
@@ -1100,27 +1070,10 @@ addReference(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
     /* Add the first direction */
-#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
     UA_StatusCode retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                               (UA_EditNodeCallback)addOneWayReference,
                                               item);
-#else
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Boolean handledExternally = UA_FALSE;
-    for(size_t j = 0; j <server->externalNamespacesSize; ++j) {
-        if(item->sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
-            continue;
-        } else {
-            UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-            retval = (UA_StatusCode)ens->addOneWayReference(ens->ensHandle, item);
-            handledExternally = UA_TRUE;
-            break;
-        }
-    }
-    if(!handledExternally)
-        retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                    (UA_EditNodeCallback)addOneWayReference, item);
-#endif
+
 
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -1133,25 +1086,9 @@ addReference(UA_Server *server, UA_Session *session,
     secondItem.isForward = !item->isForward;
     secondItem.targetNodeId.nodeId = item->sourceNodeId;
     /* keep default secondItem.targetNodeClass = UA_NODECLASS_UNSPECIFIED */
-#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
+
     retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
                                 (UA_EditNodeCallback)addOneWayReference, &secondItem);
-#else
-    handledExternally = UA_FALSE;
-    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
-        if(secondItem.sourceNodeId.namespaceIndex != server->externalNamespaces[j].index) {
-            continue;
-        } else {
-            UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-            retval = (UA_StatusCode)ens->addOneWayReference(ens->ensHandle, &secondItem);
-            handledExternally = UA_TRUE;
-            break;
-        }
-    }
-    if(!handledExternally)
-        retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                    (UA_EditNodeCallback)addOneWayReference, &secondItem);
-#endif
 
     /* remove reference if the second direction failed */
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1185,43 +1122,9 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->referencesToAddSize;
 
-#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
     for(size_t i = 0; i < response->resultsSize; ++i)
         response->results[i] =
             addReference(server, session, &request->referencesToAdd[i]);
-#else
-    size_t size = request->referencesToAddSize;
-# ifdef NO_ALLOCA
-    UA_Boolean isExternal[size];
-    UA_UInt32 indices[size];
-# else
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-# endif /*NO_ALLOCA */
-    memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
-        size_t indicesSize = 0;
-        for(size_t i = 0;i < size;++i) {
-            if(request->referencesToAdd[i].sourceNodeId.namespaceIndex
-               != server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indicesSize] = (UA_UInt32)i;
-            ++indicesSize;
-        }
-        if (indicesSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->addReferences(ens->ensHandle, &request->requestHeader, request->referencesToAdd,
-                           indices, (UA_UInt32)indicesSize, response->results, response->diagnosticInfos);
-    }
-
-    for(size_t i = 0; i < response->resultsSize; ++i) {
-        if(!isExternal[i])
-            response->results[i] =
-                addReference(server, session, &request->referencesToAdd[i]);
-    }
-#endif
 }
 
 UA_StatusCode
