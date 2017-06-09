@@ -14,8 +14,7 @@
 #define UA_CONNECTION_H_
 #define UA_TYPES_GENERATED_H_
 #define UA_LOG_H_
-#define UA_SECURITYCONTEXT_H_
-#define UA_SECURITYPOLICY_H_
+#define UA_PLUGIN_SECURITYPOLICY_H_
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
