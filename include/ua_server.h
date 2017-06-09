@@ -17,7 +17,7 @@ extern "C" {
 #include "ua_log.h"
 #include "ua_job.h"
 #include "ua_connection.h"
-#include "ua_securitypolicy.h"
+#include "ua_plugin_securitypolicy.h"
 
 /**
  * .. _server:

@@ -13,8 +13,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
-#include "ua_securitycontext.h"
-#include "ua_securitypolicy.h"
+#include "ua_plugin_securitypolicy.h"
 
 struct UA_Session;
 typedef struct UA_Session UA_Session;

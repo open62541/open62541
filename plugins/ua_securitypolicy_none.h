@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#include "ua_securitypolicy.h"
+#include "ua_plugin_securitypolicy.h"
 
 extern UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None;
 

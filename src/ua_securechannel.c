@@ -10,8 +10,7 @@
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
 #include "ua_transport_generated_handling.h"
-#include "ua_securitycontext.h"
-#include "ua_securitypolicy.h"
+#include "ua_plugin_securitypolicy.h"
 
 const UA_ByteString
 UA_SECURITY_POLICY_NONE_URI = { 47, (UA_Byte*)"http://opcfoundation.org/UA/SecurityPolicy#None" };
