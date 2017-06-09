@@ -26,7 +26,7 @@ UA_Session adminSession = {
     UA_INT64_MAX, /* .validTill */
     {0, NULL},
     NULL, /* .channel */
-    0, /* .availableContinuationPoints */
+    UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     0, /* .lastSubscriptionID */

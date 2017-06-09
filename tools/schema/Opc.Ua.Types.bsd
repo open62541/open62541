@@ -6,7 +6,6 @@
   DefaultByteOrder="LittleEndian"
   TargetNamespace="http://opcfoundation.org/UA/"
 >
-  <!-- This File was generated on 2015-08-18 and supports the specifications supported by version 1.1.335.1 of the OPC UA deliverables. -->
 
   <opc:Import Namespace="http://opcfoundation.org/BinarySchema/" />
 
@@ -603,7 +602,6 @@
     <opc:EnumeratedValue Name="UserName" Value="1" />
     <opc:EnumeratedValue Name="Certificate" Value="2" />
     <opc:EnumeratedValue Name="IssuedToken" Value="3" />
-    <opc:EnumeratedValue Name="Kerberos" Value="4" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="UserTokenPolicy" BaseType="ua:ExtensionObject">
@@ -805,11 +803,6 @@
     <opc:Documentation>A token representing a user identified by an X509 certificate.</opc:Documentation>
     <opc:Field Name="PolicyId" TypeName="opc:String" SourceType="tns:UserIdentityToken" />
     <opc:Field Name="CertificateData" TypeName="opc:ByteString" />
-  </opc:StructuredType>
-
-  <opc:StructuredType Name="KerberosIdentityToken" BaseType="tns:UserIdentityToken">
-    <opc:Field Name="PolicyId" TypeName="opc:String" SourceType="tns:UserIdentityToken" />
-    <opc:Field Name="TicketData" TypeName="opc:ByteString" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="IssuedIdentityToken" BaseType="tns:UserIdentityToken">
@@ -1144,6 +1137,7 @@
     <opc:EnumeratedValue Name="Forward" Value="0" />
     <opc:EnumeratedValue Name="Inverse" Value="1" />
     <opc:EnumeratedValue Name="Both" Value="2" />
+    <opc:EnumeratedValue Name="Invalid" Value="3" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="ViewDescription" BaseType="ua:ExtensionObject">
@@ -1338,37 +1332,6 @@
     <opc:Field Name="SecurityTokenLifetime" TypeName="opc:Int32" />
   </opc:StructuredType>
 
-  <opc:EnumeratedType Name="ComplianceLevel" LengthInBits="32">
-    <opc:EnumeratedValue Name="Untested" Value="0" />
-    <opc:EnumeratedValue Name="Partial" Value="1" />
-    <opc:EnumeratedValue Name="SelfTested" Value="2" />
-    <opc:EnumeratedValue Name="Certified" Value="3" />
-  </opc:EnumeratedType>
-
-  <opc:StructuredType Name="SupportedProfile" BaseType="ua:ExtensionObject">
-    <opc:Field Name="OrganizationUri" TypeName="opc:String" />
-    <opc:Field Name="ProfileId" TypeName="opc:String" />
-    <opc:Field Name="ComplianceTool" TypeName="opc:String" />
-    <opc:Field Name="ComplianceDate" TypeName="opc:DateTime" />
-    <opc:Field Name="ComplianceLevel" TypeName="tns:ComplianceLevel" />
-    <opc:Field Name="NoOfUnsupportedUnitIds" TypeName="opc:Int32" />
-    <opc:Field Name="UnsupportedUnitIds" TypeName="opc:String" LengthField="NoOfUnsupportedUnitIds" />
-  </opc:StructuredType>
-
-  <opc:StructuredType Name="SoftwareCertificate" BaseType="ua:ExtensionObject">
-    <opc:Field Name="ProductName" TypeName="opc:String" />
-    <opc:Field Name="ProductUri" TypeName="opc:String" />
-    <opc:Field Name="VendorName" TypeName="opc:String" />
-    <opc:Field Name="VendorProductCertificate" TypeName="opc:ByteString" />
-    <opc:Field Name="SoftwareVersion" TypeName="opc:String" />
-    <opc:Field Name="BuildNumber" TypeName="opc:String" />
-    <opc:Field Name="BuildDate" TypeName="opc:DateTime" />
-    <opc:Field Name="IssuedBy" TypeName="opc:String" />
-    <opc:Field Name="IssueDate" TypeName="opc:DateTime" />
-    <opc:Field Name="NoOfSupportedProfiles" TypeName="opc:Int32" />
-    <opc:Field Name="SupportedProfiles" TypeName="tns:SupportedProfile" LengthField="NoOfSupportedProfiles" />
-  </opc:StructuredType>
-
   <opc:StructuredType Name="QueryDataDescription" BaseType="ua:ExtensionObject">
     <opc:Field Name="RelativePath" TypeName="tns:RelativePath" />
     <opc:Field Name="AttributeId" TypeName="opc:UInt32" />
@@ -1519,6 +1482,7 @@
     <opc:EnumeratedValue Name="Server" Value="1" />
     <opc:EnumeratedValue Name="Both" Value="2" />
     <opc:EnumeratedValue Name="Neither" Value="3" />
+    <opc:EnumeratedValue Name="Invalid" Value="4" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="ReadValueId" BaseType="ua:ExtensionObject">
@@ -2109,13 +2073,6 @@
     <opc:Field Name="NoOfDiagnosticInfos" TypeName="opc:Int32" />
     <opc:Field Name="DiagnosticInfos" TypeName="ua:DiagnosticInfo" LengthField="NoOfDiagnosticInfos" />
   </opc:StructuredType>
-
-  <opc:EnumeratedType Name="EnumeratedTestType" LengthInBits="32">
-    <opc:Documentation>A simple enumerated type used for testing.</opc:Documentation>
-    <opc:EnumeratedValue Name="Red" Value="1" />
-    <opc:EnumeratedValue Name="Yellow" Value="4" />
-    <opc:EnumeratedValue Name="Green" Value="5" />
-  </opc:EnumeratedType>
 
   <opc:StructuredType Name="BuildInfo" BaseType="ua:ExtensionObject">
     <opc:Field Name="ProductUri" TypeName="opc:String" />
