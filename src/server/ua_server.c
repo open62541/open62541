@@ -214,9 +214,7 @@ static void UA_Server_cleanup(UA_Server *server, void *_) {
 #endif
 }
 
-// TODO: Maybe make endpoints more configurable? Currently all policies are added to each network layer
-// TODO: to form an endpoint. Also message security mode is always none or signandencrypt
-/* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
+/* Create endpoints w/o endpointurl from the config. It is added from the networklayers at startup */
 static void
 addEndpointDefinitions(UA_Server* server) {
     server->endpoints.endpoints = (UA_Endpoint*) UA_malloc(sizeof(UA_Endpoint) * server->config.endpointsSize);
