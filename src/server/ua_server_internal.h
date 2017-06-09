@@ -59,15 +59,6 @@ extern "C" {
 # define UA_ASSERT_RCU_UNLOCKED()
 #endif
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/* Mapping of namespace-id and url to an external nodestore. For namespaces that
- * have no mapping defined, the internal nodestore is used by default. */
-typedef struct UA_ExternalNamespace {
-    UA_UInt16 index;
-    UA_String url;
-    UA_ExternalNodeStore externalNodeStore;
-} UA_ExternalNamespace;
-#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
 typedef struct {
@@ -171,10 +162,6 @@ struct UA_Server {
     size_t namespacesSize;
     UA_String *namespaces;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    size_t externalNamespacesSize;
-    UA_ExternalNamespace *externalNamespaces;
-#endif
 
     /* Jobs with a repetition interval */
     UA_RepeatedJobsList repeatedJobs;
