@@ -88,7 +88,8 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
 }
 
 START_TEST(Service_Browse_WithMaxResults) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -110,6 +111,7 @@ START_TEST(Service_Browse_WithMaxResults) {
     }
     
     UA_Server_delete(server);
+    teardown_config();
 }
 END_TEST
 
