@@ -269,7 +269,8 @@ START_TEST(DeleteObjectAndReferences) {
 
 /* Example taken from tutorial_server_object.c */
 START_TEST(InstantiateObjectType) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    setup_config();
+    UA_Server *server = UA_Server_new(*config);
 
     /* Define the object type */
     UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
@@ -363,6 +364,7 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Server_delete(server);
+    teardown_config();
 } END_TEST
 
 int main(void) {
