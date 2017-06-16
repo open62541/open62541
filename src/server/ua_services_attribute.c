@@ -904,32 +904,7 @@ void Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    UA_Boolean isExternal[size];
-    UA_UInt32 indices[size];
-    memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0;j<server->externalNamespacesSize;++j) {
-        size_t indexSize = 0;
-        for(size_t i = 0;i < size;++i) {
-            if(request->nodesToRead[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indexSize] = (UA_UInt32)i;
-            ++indexSize;
-        }
-        if(indexSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->readNodes(ens->ensHandle, &request->requestHeader, request->nodesToRead,
-                       indices, (UA_UInt32)indexSize, response->results, false,
-                       response->diagnosticInfos);
-    }
-#endif
-
     for(size_t i = 0;i < size;++i) {
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-        if(!isExternal[i])
-#endif
             Service_Read_single(server, session, request->timestampsToReturn,
                                 &request->nodesToRead[i], &response->results[i]);
     }
@@ -1218,47 +1193,18 @@ Service_Write(UA_Server *server, UA_Session *session,
         return;
     }
 
-    response->results = (UA_StatusCode *)UA_Array_new(request->nodesToWriteSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+    response->results = (UA_StatusCode *)UA_Array_new(request->nodesToWriteSize,
+                                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
     if(!response->results) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
     response->resultsSize = request->nodesToWriteSize;
 
-#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
-    for(size_t i = 0;i < request->nodesToWriteSize;++i) {
+    for(size_t i = 0; i < request->nodesToWriteSize; ++i)
         response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
                                                   (UA_EditNodeCallback)copyAttributeIntoNode,
                                                   &request->nodesToWrite[i]);
-    }
-#else
-    UA_Boolean isExternal[request->nodesToWriteSize];
-    UA_UInt32 indices[request->nodesToWriteSize];
-    memset(isExternal, false, sizeof(UA_Boolean)*request->nodesToWriteSize);
-    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
-        UA_UInt32 indexSize = 0;
-        for(size_t i = 0; i < request->nodesToWriteSize; ++i) {
-            if(request->nodesToWrite[i].nodeId.namespaceIndex !=
-               server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indexSize] = (UA_UInt32)i;
-            ++indexSize;
-        }
-        if(indexSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->writeNodes(ens->ensHandle, &request->requestHeader, request->nodesToWrite,
-                        indices, indexSize, response->results, response->diagnosticInfos);
-    }
-    for(size_t i = 0;i < request->nodesToWriteSize;++i) {
-        if(isExternal[i])
-            continue;
-        response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
-                                                  (UA_EditNodeCallback)copyAttributeIntoNode,
-                                                  &request->nodesToWrite[i]);
-    }
-#endif
 }
 
 UA_StatusCode

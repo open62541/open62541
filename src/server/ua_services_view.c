@@ -32,60 +32,6 @@ fillReferenceDescription(UA_Server *server, const UA_Node *curr,
     return retval;
 }
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-static const UA_Node *
-returnRelevantNodeExternal(UA_ExternalNodeStore *ens, const UA_BrowseDescription *descr,
-                           const UA_ReferenceNode *reference) {
-    /* prepare a read request in the external nodestore */
-    UA_ReadValueId *readValueIds = UA_Array_new(5,&UA_TYPES[UA_TYPES_READVALUEID]);
-    UA_UInt32 *indices = UA_Array_new(5,&UA_TYPES[UA_TYPES_UINT32]);
-    UA_UInt32 indicesSize = 5;
-    UA_DataValue *readNodesResults = UA_Array_new(5,&UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_DiagnosticInfo *diagnosticInfos = UA_Array_new(5,&UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
-    for(UA_UInt32 i = 0; i < 5; ++i) {
-        readValueIds[i].nodeId = reference->targetId.nodeId;
-        indices[i] = i;
-    }
-    readValueIds[0].attributeId = UA_ATTRIBUTEID_NODECLASS;
-    readValueIds[1].attributeId = UA_ATTRIBUTEID_BROWSENAME;
-    readValueIds[2].attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
-    readValueIds[3].attributeId = UA_ATTRIBUTEID_DESCRIPTION;
-    readValueIds[4].attributeId = UA_ATTRIBUTEID_WRITEMASK;
-
-    ens->readNodes(ens->ensHandle, NULL, readValueIds, indices,
-                   indicesSize, readNodesResults, false, diagnosticInfos);
-
-    /* create and fill a dummy nodeStructure */
-    UA_Node *node = (UA_Node*) UA_NodeStore_newObjectNode();
-    UA_NodeId_copy(&(reference->targetId.nodeId), &(node->nodeId));
-    if(readNodesResults[0].status == UA_STATUSCODE_GOOD)
-        UA_NodeClass_copy((UA_NodeClass*)readNodesResults[0].value.data, &(node->nodeClass));
-    if(readNodesResults[1].status == UA_STATUSCODE_GOOD)
-        UA_QualifiedName_copy((UA_QualifiedName*)readNodesResults[1].value.data, &(node->browseName));
-    if(readNodesResults[2].status == UA_STATUSCODE_GOOD)
-        UA_LocalizedText_copy((UA_LocalizedText*)readNodesResults[2].value.data, &(node->displayName));
-    if(readNodesResults[3].status == UA_STATUSCODE_GOOD)
-        UA_LocalizedText_copy((UA_LocalizedText*)readNodesResults[3].value.data, &(node->description));
-    if(readNodesResults[4].status == UA_STATUSCODE_GOOD)
-        UA_UInt32_copy((UA_UInt32*)readNodesResults[4].value.data, &(node->writeMask));
-
-    UA_ReferenceNode **references = &node->references;
-    UA_UInt32 *referencesSize = (UA_UInt32*)&node->referencesSize;
-
-    ens->getOneWayReferences (ens->ensHandle, &node->nodeId, referencesSize, references);
-
-    UA_Array_delete(readValueIds,5, &UA_TYPES[UA_TYPES_READVALUEID]);
-    UA_Array_delete(indices,5, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Array_delete(readNodesResults,5, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_Array_delete(diagnosticInfos,5, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
-    if(node && descr->nodeClassMask != 0 && (node->nodeClass & descr->nodeClassMask) == 0) {
-        UA_NodeStore_deleteNode(node);
-        return NULL;
-    }
-    return node;
-}
-#endif
-
 static void
 removeCp(ContinuationPointEntry *cp, UA_Session* session) {
     LIST_REMOVE(cp, pointers);
@@ -342,44 +288,10 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = size;
 
-#ifndef UA_ENABLE_EXTERNAL_NAMESPACES
     for(size_t i = 0; i < size; ++i)
         Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
                               request->requestedMaxReferencesPerNode,
                               &response->results[i]);
-#else
-#ifdef NO_ALLOCA
-    UA_Boolean isExternal[size];
-    UA_UInt32 indices[size];
-#else
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /*NO_ALLOCA */
-    memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
-        size_t indexSize = 0;
-        for(size_t i = 0; i < size; ++i) {
-            if(request->nodesToBrowse[i].nodeId.namespaceIndex != server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indexSize] = (UA_UInt32)i;
-            ++indexSize;
-        }
-        if(indexSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->browseNodes(ens->ensHandle, &request->requestHeader, request->nodesToBrowse, indices,
-                         (UA_UInt32)indexSize, request->requestedMaxReferencesPerNode,
-                         response->results, response->diagnosticInfos);
-    }
-
-    for(size_t i = 0; i < size; ++i) {
-        if(!isExternal[i])
-            Service_Browse_single(server, session, NULL, &request->nodesToBrowse[i],
-                                  request->requestedMaxReferencesPerNode,
-                                  &response->results[i]);
-    }
-#endif
 }
 
 UA_BrowseResult
@@ -765,43 +677,11 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
         return;
     }
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-#ifdef NO_ALLOCA
-    UA_Boolean isExternal[size];
-    UA_UInt32 indices[size];
-#else
-    UA_Boolean *isExternal = UA_alloca(sizeof(UA_Boolean) * size);
-    UA_UInt32 *indices = UA_alloca(sizeof(UA_UInt32) * size);
-#endif /* NO_ALLOCA */
-    memset(isExternal, false, sizeof(UA_Boolean) * size);
-    for(size_t j = 0; j < server->externalNamespacesSize; ++j) {
-        size_t indexSize = 0;
-        for(size_t i = 0;i < size;++i) {
-            if(request->browsePaths[i].startingNode.namespaceIndex != server->externalNamespaces[j].index)
-                continue;
-            isExternal[i] = true;
-            indices[indexSize] = (UA_UInt32)i;
-            ++indexSize;
-        }
-        if(indexSize == 0)
-            continue;
-        UA_ExternalNodeStore *ens = &server->externalNamespaces[j].externalNodeStore;
-        ens->translateBrowsePathsToNodeIds(ens->ensHandle, &request->requestHeader, request->browsePaths,
-                                           indices, (UA_UInt32)indexSize, response->results,
-                                           response->diagnosticInfos);
-    }
-    response->resultsSize = size;
-    for(size_t i = 0; i < size; ++i) {
-        if(!isExternal[i])
-            translateBrowsePathToNodeIds(server, session, &request->browsePaths[i],
-                                         &response->results[i]);
-    }
-#else
     response->resultsSize = size;
     for(size_t i = 0; i < size; ++i)
         translateBrowsePathToNodeIds(server, session, &request->browsePaths[i],
                                      &response->results[i]);
-#endif
+
 }
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
