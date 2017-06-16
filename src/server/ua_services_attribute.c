@@ -795,11 +795,17 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
         forceVariantSetScalar(&v->value, &((const UA_ViewNode*)node)->eventNotifier,
                               &UA_TYPES[UA_TYPES_BYTE]);
         break;
-    case UA_ATTRIBUTEID_VALUE:
+    case UA_ATTRIBUTEID_VALUE: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
+        UA_Byte userAccessLevel = getUserAccessLevel(server, session, (const UA_VariableNode*)node);
+        if(!(userAccessLevel & (UA_ACCESSLEVELMASK_READ))) {
+            retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+            break;
+        }
         retval = readValueAttributeComplete(server, (const UA_VariableNode*)node,
                                             timestamps, &id->indexRange, v);
         break;
+    }
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         forceVariantSetScalar(&v->value, &((const UA_VariableTypeNode*)node)->dataType,

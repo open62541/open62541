@@ -1,10 +1,18 @@
 The changelog tracks changes to the public API.
 Internal refactorings and bug fixes are not reported here.
 
+2017-06-16 jpfr <julius.pfrommer at web.de>
+
+    * Require the AccessLevel bit UA_ACCESSLEVELMASK_READ for reading
+
+      Set the bit by default when adding nodes for a smooth transition to
+      the new API. This will change at a later point with an additional
+      node settings argument for the AddNodes methods.
+
 2017-05-03 pro <profanter at fortiss.org>
 
     * Array dimensions are UInt32 also for the highlevel client read service
-	
+
 2017-04-16 jpfr <julius.pfrommer at web.de>
 
     * Refactor UA_parseEndpointUrl to work with UA_String
