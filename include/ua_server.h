@@ -75,10 +75,13 @@ struct UA_ServerNetworkLayer {
  * The access control callback is used to authenticate sessions and grant access
  * rights accordingly. */
 typedef struct {
+    /* These booleans are used to create endpoints for the possible
+     * authentication methods */
     UA_Boolean enableAnonymousLogin;
     UA_Boolean enableUsernamePasswordLogin;
-    
-    /* Authenticate a session */
+
+    /* Authenticate a session. The session handle is attached to the session and
+     * passed into the node-based access control callbacks. */
     UA_StatusCode (*activateSession)(const UA_NodeId *sessionId,
                                      const UA_ExtensionObject *userIdentityToken,
                                      void **sessionHandle);
@@ -205,7 +208,8 @@ typedef struct {
 } UA_ServerConfig;
 
 /* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+UA_UInt16 UA_EXPORT
+UA_Server_addNamespace(UA_Server *server, const char* name);
 
 /**
  * .. _server-lifecycle:

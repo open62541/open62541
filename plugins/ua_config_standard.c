@@ -34,19 +34,6 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
-/* Access Control. The following definitions are defined as "extern" in
-   ua_accesscontrol_default.h */
-#define ENABLEANONYMOUSLOGIN true
-#define ENABLEUSERNAMEPASSWORDLOGIN true
-const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
-const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
-const size_t usernamePasswordsSize = 2;
-
-UA_UsernamePasswordLogin UsernamePasswordLogin[2] = {
-    { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
-    { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
-const UA_UsernamePasswordLogin *usernamePasswords = UsernamePasswordLogin;
-
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     1, /* .nThreads */
     UA_Log_Stdout, /* .logger */
@@ -82,7 +69,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     NULL, /* .networkLayers */
 
     /* Access Control */
-    {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,
+    {true, true,
      activateSession_default, closeSession_default,
      getUserRightsMask_default, getUserAccessLevel_default,
      getUserExecutable_default, getUserExecutableOnObject_default,
