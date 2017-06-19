@@ -837,9 +837,9 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
         return retval;
     }
     
-    /* Type check node */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
+        /* Type check node */
         retval = typeCheckVariableNode(server, session, (const UA_VariableNode*)node, typeDefinition);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -847,6 +847,17 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
                                 UA_StatusCode_name(retval));
             deleteNode(server, &adminSession, nodeId, true);
             return retval;
+        }
+
+        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+            /* Set AccessLevel to readable */
+            const UA_VariableNode *vn = (const UA_VariableNode*)node;
+            if(!(vn->accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                UA_LOG_INFO_SESSION(server->config.logger, session,
+                                    "AddNodes: Set the AccessLevel to readable by default");
+                UA_Byte readable = vn->accessLevel | (UA_ACCESSLEVELMASK_READ);
+                UA_Server_writeAccessLevel(server, vn->nodeId, readable);
+            }
         }
     }
 

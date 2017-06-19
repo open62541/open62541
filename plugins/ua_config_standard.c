@@ -41,23 +41,7 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard =
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
-/* Access Control. The following definitions are defined as "extern" in
-   ua_accesscontrol_default.h */
-#define ENABLEANONYMOUSLOGIN true
-#define ENABLEUSERNAMEPASSWORDLOGIN true
-const UA_Boolean enableAnonymousLogin = ENABLEANONYMOUSLOGIN;
-const UA_Boolean enableUsernamePasswordLogin = ENABLEUSERNAMEPASSWORDLOGIN;
-const size_t usernamePasswordsSize = 2;
-
-UA_UsernamePasswordLogin UsernamePasswordLogin[2] =
-{
-    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
-    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}
-};
-const UA_UsernamePasswordLogin* usernamePasswords = UsernamePasswordLogin;
-
-const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
-{
+const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     1, /* .nThreads */
     UA_Log_Stdout, /* .logger */
 
@@ -108,54 +92,54 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard =
     NULL,
 
     /* Access Control */
-    {ENABLEANONYMOUSLOGIN, ENABLEUSERNAMEPASSWORDLOGIN,
-        activateSession_default, closeSession_default,
-        getUserRightsMask_default, getUserAccessLevel_default,
-        getUserExecutable_default, getUserExecutableOnObject_default,
-        allowAddNode_default, allowAddReference_default,
-        allowDeleteNode_default, allowDeleteReference_default},
+    {true, true,
+     activateSession_default, closeSession_default,
+     getUserRightsMask_default, getUserAccessLevel_default,
+     getUserExecutable_default, getUserExecutableOnObject_default,
+     allowAddNode_default, allowAddReference_default,
+     allowDeleteNode_default, allowDeleteReference_default},
 
-        /* Limits for SecureChannels */
-        40, /* .maxSecureChannels */
-        10 * 60 * 1000, /* .maxSecurityTokenLifetime, 10 minutes */
+    /* Limits for SecureChannels */
+    40, /* .maxSecureChannels */
+    10 * 60 * 1000, /* .maxSecurityTokenLifetime, 10 minutes */
 
-        /* Limits for Sessions */
-        100, /* .maxSessions */
-        60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
+    /* Limits for Sessions */
+    100, /* .maxSessions */
+    60.0 * 60.0 * 1000.0, /* .maxSessionTimeout, 1h */
 
-        /* Limits for Subscriptions */
-        {
-            100.0,
-            3600.0 * 1000.0
-        }, /* .publishingIntervalLimits */
+    /* Limits for Subscriptions */
+    {
+        100.0,
+        3600.0 * 1000.0
+    }, /* .publishingIntervalLimits */
 
-        {
-            3,
-            15000
-        }, /* .lifeTimeCountLimits */
+    {
+        3,
+        15000
+    }, /* .lifeTimeCountLimits */
 
-        {
-            1,
-            100
-        }, /* .keepAliveCountLimits */
+    {
+        1,
+        100
+    }, /* .keepAliveCountLimits */
 
-        1000, /* .maxNotificationsPerPublish */
-        0, /* .maxRetransmissionQueueSize, unlimited */
+    1000, /* .maxNotificationsPerPublish */
+    0, /* .maxRetransmissionQueueSize, unlimited */
 
-        /* Limits for MonitoredItems */
-        {
-            50.0,
-            24.0 * 3600.0 * 1000.0
-        }, /* .samplingIntervalLimits */
+    /* Limits for MonitoredItems */
+    {
+        50.0,
+        24.0 * 3600.0 * 1000.0
+    }, /* .samplingIntervalLimits */
 
-        {
-            1,
-            100
-        } /* .queueSizeLimits */
+    {
+        1,
+        100
+    } /* .queueSizeLimits */
 
-    #ifdef UA_ENABLE_DISCOVERY
-        , 60 * 60 /* .discoveryCleanupTimeout */
-    #endif
+#ifdef UA_ENABLE_DISCOVERY
+    , 60 * 60 /* .discoveryCleanupTimeout */
+#endif
 };
 
 /***************************/
@@ -270,7 +254,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
     for(size_t i = 0; i < conf->endpointsSize; ++i) {
         UA_SecurityPolicy *const policy = conf->endpoints[i].securityPolicy;
         policy->logger = conf->logger;
-        
+
         policy->endpointContext.init(policy, NULL, &conf->endpoints[i].securityContext);
     }
 

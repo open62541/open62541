@@ -517,7 +517,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
     teardown_config();
