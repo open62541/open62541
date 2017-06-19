@@ -265,7 +265,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void) {
     return UA_ServerConfig_standard_parametrized_new(4840, NULL);
 }
 
-UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
+UA_EXPORT void UA_ServerConfig_standard_delete(UA_ServerConfig *config) {
 
     if(config == NULL)
         return;

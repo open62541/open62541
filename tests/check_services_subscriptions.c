@@ -23,7 +23,7 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
 }
 
 UA_UInt32 subscriptionId;

@@ -72,7 +72,7 @@ static void teardown(void) {
     UA_Boolean_delete(running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    UA_ServerConfig_standard_deleteMembers(config_dyn);
+    UA_ServerConfig_standard_delete(config_dyn);
 }
 
 START_TEST(Client_connect) {

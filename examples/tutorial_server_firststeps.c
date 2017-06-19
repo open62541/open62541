@@ -43,7 +43,7 @@ int main(void) {
     UA_Server_run(server, &running);
 
     UA_Server_delete(server);
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
     return 0;
 }
 

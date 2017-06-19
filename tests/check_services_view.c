@@ -29,7 +29,7 @@ static void setup_config(void) {
 }
 
 static void teardown_config(void) {
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
 }
 
 static void setup_server(void) {

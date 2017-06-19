@@ -48,7 +48,7 @@ START_TEST(processMessage) {
     }
     UA_Server_delete(server);
     UA_Connection_deleteMembers(&c);
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
 }
 END_TEST
 

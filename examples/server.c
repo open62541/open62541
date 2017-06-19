@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
 
     if (server == NULL)
     {
-        UA_ServerConfig_standard_deleteMembers(config);
+        UA_ServerConfig_standard_delete(config);
         return -1;
     }
 

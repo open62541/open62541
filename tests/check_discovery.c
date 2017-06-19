@@ -85,7 +85,7 @@ static void teardown_lds(void) {
     UA_Array_delete(server_lds->config.serverCapabilities, server_lds->config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server_lds);
     nl_lds.deleteMembers(&nl_lds);
-    UA_ServerConfig_standard_deleteMembers(config_lds_dyn);
+    UA_ServerConfig_standard_delete(config_lds_dyn);
 }
 
 
@@ -131,7 +131,7 @@ static void teardown_register(void) {
     UA_String_deleteMembers(&server_register->config.mdnsServerName);
     UA_Server_delete(server_register);
     nl_register.deleteMembers(&nl_register);
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
 }
 
 

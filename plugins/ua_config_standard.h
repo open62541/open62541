@@ -30,7 +30,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
 
 UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_new(void);
 
-UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config);
+UA_EXPORT void UA_ServerConfig_standard_delete(UA_ServerConfig *config);
 
 #ifdef __cplusplus
 }

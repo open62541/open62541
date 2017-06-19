@@ -87,6 +87,6 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
     UA_Server_delete(server);
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
     return (int)retval;
 }
