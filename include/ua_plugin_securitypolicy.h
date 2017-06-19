@@ -40,12 +40,12 @@ typedef struct
      * Verifies the signature of the message using the provided keys in the context.
      *
      * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param context the context that contains the key to verify the supplied message with.
+     * \param channelContext the channelContext that contains the key to verify the supplied message with.
      * \param message the message to which the signature is supposed to belong.
      * \param signature the signature of the message, that should be verified.
      */
     UA_StatusCode (*const verify)(const UA_SecurityPolicy *securityPolicy,
-                                  const void *context,
+                                  const void *channelContext,
                                   const UA_ByteString *message,
                                   const UA_ByteString *signature);
 
@@ -54,19 +54,39 @@ typedef struct
      * algorithm and the provided keys in the context.
      *
      * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param context the context that contains the key to sign the supplied message with.
+     * \param channelContext the channelContext that contains the key to sign the supplied message with.
      * \param message the message to sign.
      * \param signature an output buffer to which the signature is written. The buffer needs
      *                  to be allocated by the caller. The necessary size can be acquired with
      *                  the signatureSize attribute of this module.
      */
     UA_StatusCode (*const sign)(const UA_SecurityPolicy *securityPolicy,
-                                const void *context,
+                                const void *channelContext,
                                 const UA_ByteString *message,
                                 UA_ByteString *signature);
 
+    /**
+     * \brief Gets the signature size that depends on the local private key.
+     *
+     * \param securityPolicy the securityPolicy the function is invoked on.
+     * \param endpointContext the endpointContext that contains the certificate/key.
+     * \return the size of the local signature. Returns 0 if no local certificate was set.
+     */
+    size_t (*const getLocalSignatureSize)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
+
+    /**
+     * \brief Gets the signature size that depends on the remote public key.
+     *
+     * \param securityPolicy the securityPolicy the function is invoked on.
+     * \param channelContext the context to retrieve data from.
+     * \return the size of the remote asymmetric signature. Returns 0 if no remote certificate
+     *                     was set previousely.
+     */
+    size_t (*const getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
+                                           const void *channelContext);
+
         /* The signature size in bytes */
-    const UA_UInt32 signatureSize;
     const UA_String signatureAlgorithmUri;
 } UA_SecurityPolicySigningModule;
 
@@ -204,27 +224,14 @@ struct UA_Endpoint_SecurityContext {
                                                         void *endpointContext);
 
     /**
-    * \brief Gets the signature size that depends on the local private key.
-    *
-    * \param securityPolicy the securityPolicy the function is invoked on.
-    * \param endpointContext the endpointContext that contains the certificate/key.
-    * \return the size of the local signature. Returns 0 if no local certificate was set.
-    */
-    // TODO: move to signing module?
-    size_t (*const getLocalAsymSignatureSize)(const UA_SecurityPolicy *securityPolicy, // TODO: move securityPolicy pointer to context
-                                              const void *endpointContext);
-
-    /**
      * \brief Compares the supplied certificate with the certificate in the endpoit context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
      * \param endpointContext the endpoint context data that contains the certificate to compare to.
      * \param certificateThumbprint the certificate thumbprint to compare to the one stored in the context.
      * \return if the thumbprints match UA_STATUSCODE_GOOD is returned. If they don't match
      *         or an error occured an error code is returned.
      */
-    UA_StatusCode (*const compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
-                                                        const void *endpointContext,
+    UA_StatusCode (*const compareCertificateThumbprint)(const void *endpointContext,
                                                         const UA_ByteString *certificateThumbprint);
 };
 
@@ -319,15 +326,6 @@ struct UA_Channel_SecurityContext {
      */
     UA_StatusCode (*const compareCertificate)(const void *channelContext,
                                               const UA_ByteString *certificate);
-
-    /**
-     * \brief Gets the signature size that depends on the remote public key.
-     *
-     * \param channelContext the context to retrieve data from.
-     * \return the size of the remote asymmetric signature. Returns 0 if no remote certificate
-     *                     was set previousely.
-     */
-    size_t (*const getRemoteAsymSignatureSize)(const void *channelContext);
 
     /**
      * \brief Gets the plaintext block size that depends on the remote public key.

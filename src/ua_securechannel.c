@@ -244,15 +244,18 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel* channel) {
  * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
  * \return the total padding size consisting of high and low bytes.
  */
-UA_UInt16 calculatePaddingSym(const UA_SecurityPolicy *securityPolicy,
-                              size_t bytesToWrite,
-                              UA_Byte *paddingSize,
-                              UA_Byte *extraPaddingSize) {
+static UA_UInt16
+calculatePaddingSym(const UA_SecurityPolicy *securityPolicy,
+                    const void *channelContext,
+                    size_t bytesToWrite,
+                    UA_Byte *paddingSize,
+                    UA_Byte *extraPaddingSize) {
     if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
         return 0;
 
     UA_UInt16 padding = (UA_UInt16)(securityPolicy->symmetricModule.encryptingBlockSize -
-        ((bytesToWrite + securityPolicy->symmetricModule.signingModule.signatureSize + 1) %
+        ((bytesToWrite + securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                             channelContext) + 1) %
          securityPolicy->symmetricModule.encryptingBlockSize));
 
     *paddingSize = (UA_Byte)padding;
@@ -309,6 +312,7 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
         UA_UInt16 totalPaddingSize = calculatePaddingSym(securityPolicy,
+                                                         channel->securityContext,
                                                          bytesToWrite,
                                                          &paddingSize,
                                                          &extraPaddingSize);
@@ -332,7 +336,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length +=
-        securityPolicy->symmetricModule.signingModule.signatureSize;
+        securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                            channel->securityContext);
 
     /* Encode the chunk headers at the beginning of the buffer */
     UA_Byte *header_pos = ci->messageBuffer.data;
@@ -380,7 +385,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
         dataToSign.length = pre_sig_length;
 
         UA_ByteString signature;
-        signature.length = securityPolicy->symmetricModule.signingModule.signatureSize;
+        signature.length = securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                               channel->securityContext);
         signature.data = *buf_pos;
 
         securityPolicy->symmetricModule.signingModule.sign(securityPolicy,
@@ -418,7 +424,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
            channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-            *buf_end -= securityPolicy->symmetricModule.signingModule.signatureSize;
+            *buf_end -= securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                            channel->securityContext);
 
         /* Hide bytes for paddingByte and potential extra padding byte */
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -457,9 +464,8 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         *buf_end -=
-            securityPolicy->endpointContext
-            .getLocalAsymSignatureSize(securityPolicy,
-                                       channel->endpoint->securityContext);
+            securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                 channel->securityContext);
         *buf_end -= 2; // padding byte and extraPadding byte
 
         // see documentation of getRemoteAsymEncryptionBufferLengthOverhead for why this is needed.
@@ -482,21 +488,21 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
  * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
  * \return the total padding size consiting of high and low byte.
  */
-static UA_UInt16 calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
-                                      const void *channelContext,
-                                      const void *endpointContext,
-                                      size_t bytesToWrite,
-                                      UA_Byte *paddingSize,
-                                      UA_Byte *extraPaddingSize) {
-    if(securityPolicy == NULL || channelContext == NULL || endpointContext == NULL ||
+static UA_UInt16
+calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
+                     const void *channelContext,
+                     size_t bytesToWrite,
+                     UA_Byte *paddingSize,
+                     UA_Byte *extraPaddingSize) {
+    if(securityPolicy == NULL || channelContext == NULL ||
        paddingSize == NULL || extraPaddingSize == NULL)
         return 0;
 
     UA_UInt16 plainTextBlockSize =
         (UA_UInt16)securityPolicy->channelContext.getRemoteAsymPlainTextBlockSize(channelContext);
     size_t signatureSize =
-        securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
-                                                                  endpointContext);
+        securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                             channelContext);
     UA_UInt16 padding =
         plainTextBlockSize - ((bytesToWrite + signatureSize + 1) % plainTextBlockSize);
 
@@ -517,14 +523,15 @@ static UA_UInt16 calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
 static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const ci,
                                                              UA_Byte **buf_pos,
                                                              const UA_Byte **buf_end) {
-    UA_SecureChannel* const channel = ci->channel;
-    UA_Connection* const connection = channel->connection;
-    const UA_SecurityPolicy* const securityPolicy = channel->endpoint->securityPolicy;
+    UA_SecureChannel *const channel = ci->channel;
+    UA_Connection *const connection = channel->connection;
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
+    UA_Channel_SecurityContext *channelContext = channel->securityContext;
 
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_AsymmetricAlgorithmSecurityHeader* asymHeader = NULL;
+    const UA_AsymmetricAlgorithmSecurityHeader *asymHeader = NULL;
     if(UA_ByteString_equal(&UA_SECURITY_POLICY_NONE_URI, &securityPolicy->policyUri)) {
         asymHeader = &channel->remoteAsymAlgSettings;
     }
@@ -572,7 +579,6 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         UA_Byte extraPaddingSize = 0;
         UA_UInt16 totalPaddingSize = calculatePaddingAsym(securityPolicy,
                                                           channel->securityContext,
-                                                          channel->endpoint->securityContext,
                                                           bytesToWrite,
                                                           &paddingSize,
                                                           &extraPaddingSize);
@@ -597,8 +603,8 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length +=
-        (UA_UInt32)securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
-                                                                             channel->endpoint->securityContext);
+        (UA_UInt32)securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                        channelContext);
 
     // Encode the chunk headers at the beginning of the buffer
     UA_Byte *header_pos = ci->messageBuffer.data;
@@ -645,12 +651,13 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         };
 
         UA_ByteString signature = {
-            securityPolicy->asymmetricModule.signingModule.signatureSize,
+            securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                 channelContext),
             ci->messageBuffer.data + pre_sig_length
         };
 
         securityPolicy->asymmetricModule.signingModule.sign(securityPolicy,
-                                                            channel->endpoint->securityContext,
+                                                            channel->securityContext,
                                                             &dataToSign,
                                                             &signature);
     }
@@ -700,6 +707,7 @@ UA_StatusCode
 UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestId,
                                    const void* content, const UA_DataType* contentType) {
     UA_Connection* connection = channel->connection;
+    const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -739,7 +747,8 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
         /* Hide bytes for signature */
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
            channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-            buf_end -= channel->endpoint->securityPolicy->symmetricModule.signingModule.signatureSize;
+            buf_end -= securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                           channel->securityContext);
 
         /* Hide bytes for padding */
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
@@ -978,11 +987,13 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
-            chunkSize - securityPolicy->symmetricModule.signingModule.signatureSize,
+            chunkSize - securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                            channel->securityContext),
             chunk->data
         };
         const UA_ByteString signature = {
-            securityPolicy->symmetricModule.signingModule.signatureSize,
+            securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                channel->securityContext),
             chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
@@ -1070,7 +1081,6 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
             }
 
             if(endpointCandidate->securityPolicy->endpointContext.compareCertificateThumbprint(
-                endpointCandidate->securityPolicy,
                 endpointCandidate->securityContext,
                 &clientAsymHeader.receiverCertificateThumbprint) != UA_STATUSCODE_GOOD) {
                 continue;
@@ -1152,13 +1162,15 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
             chunkSize -
-            securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext),
+            securityPolicy->asymmetricModule.signingModule.getRemoteSignatureSize(securityPolicy,
+                                                                                  channel->securityContext),
 
             chunk->data
         };
 
         const UA_ByteString signature = {
-            securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext),
+            securityPolicy->asymmetricModule.signingModule.getRemoteSignatureSize(securityPolicy,
+                                                                                  channel->securityContext),
             chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
@@ -1189,7 +1201,8 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
     // calculate body size
     size_t signatureSize =
-        securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext);
+        securityPolicy->asymmetricModule.signingModule.getRemoteSignatureSize(securityPolicy,
+                                                                              channel->securityContext);
 
     UA_UInt16 paddingSize = 0;
     if(!UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {

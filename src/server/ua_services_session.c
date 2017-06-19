@@ -89,8 +89,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
 
         size_t signatureSize =
-            securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
-                                                                      channel->endpoint->securityContext);
+            securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                 channel->endpoint->securityContext);
 
         UA_SignatureData signatureData;
         UA_SignatureData_init(&signatureData);
@@ -169,7 +169,7 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
 
         const UA_ByteString *const localCertificate =
             securityPolicy->endpointContext.getServerCertificate(securityPolicy,
-                                                                channel->endpoint->securityContext);
+                                                                 channel->endpoint->securityContext);
 
         UA_ByteString dataToVerify;
         retval |= UA_ByteString_allocBuffer(&dataToVerify, localCertificate->length + session->serverNonce.length);

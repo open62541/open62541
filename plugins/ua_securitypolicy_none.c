@@ -16,7 +16,7 @@
 
 static UA_StatusCode
 asym_verify_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                    const void *const context,
+                    const void *const channelContext,
                     const UA_ByteString *const message,
                     const UA_ByteString *const signature) {
     return UA_STATUSCODE_GOOD;
@@ -24,10 +24,22 @@ asym_verify_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 asym_sign_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                  const void *const context,
+                  const void *const channelContext,
                   const UA_ByteString *const message,
                   UA_ByteString *const signature) {
     return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+asym_getLocalSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                   const void *const channelContext) {
+    return 0;
+}
+
+static size_t
+asym_getRemoteSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                    const void *const channelContext) {
+    return 0;
 }
 
 static UA_StatusCode
@@ -65,7 +77,7 @@ asym_makeThumbprint_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 sym_verify_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                   const void *const context,
+                   const void *const channelContext,
                    const UA_ByteString *const message,
                    const UA_ByteString *const signature) {
     return UA_STATUSCODE_GOOD;
@@ -73,10 +85,22 @@ sym_verify_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 sym_sign_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                 const void *const context,
+                 const void *const channelContext,
                  const UA_ByteString *const message,
                  UA_ByteString *const signature) {
     return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+sym_getLocalSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                  const void *const channelContext) {
+    return 0;
+}
+
+static size_t
+sym_getRemoteSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                   const void *const channelContext) {
+    return 0;
 }
 
 static UA_StatusCode
@@ -244,17 +268,10 @@ endpointContext_setCertificateRevocationList_sp_none(const UA_SecurityPolicy *co
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-endpointContext_getLocalAsymSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                  const void *const endpointContext) {
-    return 0;
-}
-
 static UA_StatusCode
-endpointContext_compareCertificateThumbprint_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                     const void *const endpointContext,
+endpointContext_compareCertificateThumbprint_sp_none(const void *const endpointContext,
                                                      const UA_ByteString *const certificateThumbprint) {
-    if(securityPolicy == NULL || endpointContext == NULL || certificateThumbprint == NULL) {
+    if(endpointContext == NULL || certificateThumbprint == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -428,11 +445,6 @@ channelContext_compareCertificate_sp_none(const void *const channelContext,
 }
 
 static size_t
-channelContext_getRemoteAsymSignatureSize_sp_none(const void *const channelContext) {
-    return 0;
-}
-
-static size_t
 channelContext_getRemoteAsymPlainTextBlockSize_sp_none(const void *const channelContext) {
     return 0;
 }
@@ -465,7 +477,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         {
             asym_verify_sp_none, // .verify
             asym_sign_sp_none, // .sign
-            0, // .signatureSize // size_t signatureSize; in bytes
+            asym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
+            asym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
             UA_STRING_STATIC_NULL // .signatureAlgorithmUri
         }
     },
@@ -481,7 +494,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         { // .signingModule
             sym_verify_sp_none, // .verify
             sym_sign_sp_none, // .sign
-            0, // .signatureSize // size_t signatureSize; in bytes
+            sym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
+            sym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
             UA_STRING_STATIC_NULL // .signatureAlgorithmUri
         },
 
@@ -498,7 +512,6 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         endpointContext_getServerCertificate_sp_none,
         endpointContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
         endpointContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
-        endpointContext_getLocalAsymSignatureSize_sp_none, // .getLocalAsymSignatureSize
         endpointContext_compareCertificateThumbprint_sp_none
     },
 
@@ -516,7 +529,6 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
         channelContext_compareCertificate_sp_none, // .parseRemoteCertificate
 
-        channelContext_getRemoteAsymSignatureSize_sp_none, // .getRemoteAsymSignatureSize
         channelContext_getRemoteAsymPlainTextBlockSize_sp_none, // .getRemoteAsymPlainTextBlockSize
         channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_none // .getRemoteAsymEncryptionBufferLengthOverhead
     },

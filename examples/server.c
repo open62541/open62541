@@ -402,6 +402,6 @@ int main(int argc, char** argv) {
 
     UA_Server_delete(server);
 
-    UA_ServerConfig_standard_deleteMembers(config);
+    UA_ServerConfig_standard_delete(config);
     return (int)retval;
 }
