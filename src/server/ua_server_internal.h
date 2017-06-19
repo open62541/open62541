@@ -262,19 +262,9 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 UA_StatusCode
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType);
-
-UA_StatusCode
-compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
-
 UA_StatusCode
 writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
                         UA_Int32 valueRank, UA_Int32 constraintValueRank);
-
-UA_StatusCode
-compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 UA_StatusCode
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
