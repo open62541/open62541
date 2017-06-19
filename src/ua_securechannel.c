@@ -242,6 +242,32 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel* channel) {
 /* Send Binary Message */
 /***********************/
 
+/**
+ * \brief Calculates the padding size for a message with the specified amount of bytes.
+ *
+ * \param securityPolicy the securityPolicy the function is invoked on.
+ * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
+ * \param paddingSize out parameter. Will contain the paddingSize byte.
+ * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
+ * \return the total padding size consisting of high and low bytes.
+ */
+UA_UInt16 calculatePaddingSym(const UA_SecurityPolicy *securityPolicy,
+                              size_t bytesToWrite,
+                              UA_Byte *paddingSize,
+                              UA_Byte *extraPaddingSize) {
+    if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
+        return 0;
+
+    UA_UInt16 padding = (UA_UInt16)(securityPolicy->symmetricModule.encryptingBlockSize -
+        ((bytesToWrite + securityPolicy->symmetricModule.signingModule.signatureSize + 1) %
+         securityPolicy->symmetricModule.encryptingBlockSize));
+
+    *paddingSize = (UA_Byte)padding;
+    *extraPaddingSize = (UA_Byte)(padding >> 8);
+
+    return padding;
+}
+
 static UA_StatusCode
 UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **buf_end) {
     UA_SecureChannel* const channel = ci->channel;
@@ -289,11 +315,10 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
         size_t bytesToWrite = bodyLength + UA_SEQUENCE_HEADER_LENGTH;
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
-        UA_UInt16 totalPaddingSize =
-            securityPolicy->symmetricModule.calculatePadding(securityPolicy,
-                                                             bytesToWrite,
-                                                             &paddingSize,
-                                                             &extraPaddingSize);
+        UA_UInt16 totalPaddingSize = calculatePaddingSym(securityPolicy,
+                                                         bytesToWrite,
+                                                         &paddingSize,
+                                                         &extraPaddingSize);
 
         // This is <= because the paddingSize byte also has to be written.
         for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
@@ -333,27 +358,27 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
 
     }
     ci->errorCode |= UA_encodeBinary(&respHeader,
-                    &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
-                    &header_pos,
-                    buf_end,
-                    NULL,
-                    NULL);
+                                     &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
+                                     &header_pos,
+                                     buf_end,
+                                     NULL,
+                                     NULL);
 
     UA_SymmetricAlgorithmSecurityHeader symSecHeader;
     symSecHeader.tokenId = channel->securityToken.tokenId;
     ci->errorCode |= UA_encodeBinary(&symSecHeader.tokenId,
-                    &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
-                    &header_pos,
-                    buf_end,
-                    NULL,
-                    NULL);
+                                     &UA_TRANSPORT[UA_TRANSPORT_SYMMETRICALGORITHMSECURITYHEADER],
+                                     &header_pos,
+                                     buf_end,
+                                     NULL,
+                                     NULL);
 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
 
     ci->errorCode |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                    &header_pos, buf_end, NULL, NULL);
+                                     &header_pos, buf_end, NULL, NULL);
 
     /* Sign message */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
@@ -454,6 +479,43 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
 }
 
 /**
+ * \brief Calculates the padding size for an asymmetric message with the specified amount of bytes.
+ *
+ * \param securityPolicy the securityPolicy the function is invoked on.
+ * \param channelContext the channel context that is used to obtain the plaintext block size.
+ *                       Has to have a remote certificate set.
+ * \aram endpointContext the endpoint context that is used to get the local asym signature size.
+ * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
+ * \param paddingSize out parameter. Will contain the paddingSize byte.
+ * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
+ * \return the total padding size consiting of high and low byte.
+ */
+static UA_UInt16 calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
+                                      const void *channelContext,
+                                      const void *endpointContext,
+                                      size_t bytesToWrite,
+                                      UA_Byte *paddingSize,
+                                      UA_Byte *extraPaddingSize) {
+    if(securityPolicy == NULL || channelContext == NULL || endpointContext == NULL ||
+       paddingSize == NULL || extraPaddingSize == NULL)
+        return 0;
+
+    UA_UInt16 plainTextBlockSize =
+        (UA_UInt16)securityPolicy->channelContext.getRemoteAsymPlainTextBlockSize(securityPolicy,
+                                                                                  channelContext);
+    size_t signatureSize =
+        securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
+                                                                  endpointContext);
+    UA_UInt16 padding =
+        plainTextBlockSize - ((bytesToWrite + signatureSize + 1) % plainTextBlockSize);
+
+    *paddingSize = (UA_Byte)padding;
+    *extraPaddingSize = (UA_Byte)(padding >> 8);
+
+    return padding;
+}
+
+/**
  * \brief Sends an OPN chunk using asymmetric encryption.
  *
  * \param ci the chunk information that is used to send the chunk.
@@ -517,13 +579,12 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         UA_Byte paddingSize = 0;
         UA_Byte extraPaddingSize = 0;
-        UA_UInt16 totalPaddingSize =
-            securityPolicy->asymmetricModule.calculatePadding(securityPolicy,
-                                                              channel->securityContext,
-                                                              channel->endpoint->securityContext,
-                                                              bytesToWrite,
-                                                              &paddingSize,
-                                                              &extraPaddingSize);
+        UA_UInt16 totalPaddingSize = calculatePaddingAsym(securityPolicy,
+                                                          channel->securityContext,
+                                                          channel->endpoint->securityContext,
+                                                          bytesToWrite,
+                                                          &paddingSize,
+                                                          &extraPaddingSize);
 
         // This is <= because the paddingSize byte also has to be written.
         for(UA_UInt16 i = 0; i <= totalPaddingSize; ++i) {
@@ -573,17 +634,17 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     }
 
     ci->errorCode |= UA_encodeBinary(&respHeader, &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
-                    &header_pos, buf_end, NULL, NULL);
+                                     &header_pos, buf_end, NULL, NULL);
 
     ci->errorCode |= UA_encodeBinary(asymHeader,
-                    &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
-                    &header_pos, buf_end, NULL, NULL);
+                                     &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
+                                     &header_pos, buf_end, NULL, NULL);
 
     UA_SequenceHeader seqHeader;
     seqHeader.requestId = ci->requestId;
     seqHeader.sequenceNumber = UA_atomic_add(&channel->sendSequenceNumber, 1);
     ci->errorCode |= UA_encodeBinary(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                    &header_pos, buf_end, NULL, NULL);
+                                     &header_pos, buf_end, NULL, NULL);
 
     // Sign message
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
@@ -1018,7 +1079,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
                 continue;
             }
 
-            if (endpointCandidate->securityPolicy->endpointContext.compareCertificateThumbprint(
+            if(endpointCandidate->securityPolicy->endpointContext.compareCertificateThumbprint(
                 endpointCandidate->securityPolicy,
                 endpointCandidate->securityContext,
                 &clientAsymHeader.receiverCertificateThumbprint) != UA_STATUSCODE_GOOD) {

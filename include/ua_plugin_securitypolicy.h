@@ -106,25 +106,6 @@ typedef struct
                                           const UA_ByteString *certificate,
                                           UA_ByteString *thumbprint);
 
-    /**
-     * \brief Calculates the padding size for a message with the specified amount of bytes.
-     *
-     * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param channelContext the channel context that is used to obtain the plaintext block size.
-     *                       Has to have a remote certificate set.
-     * \aram endpointContext the endpoint context that is used to get the local asym signature size.
-     * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
-     * \param paddingSize out parameter. Will contain the paddingSize byte.
-     * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
-     * \return the total padding size consiting of high and low byte.
-     */
-    UA_UInt16 (*const calculatePadding)(const UA_SecurityPolicy *securityPolicy,
-                                        const void *channelContext,
-                                        const void *endpointContext,
-                                        size_t bytesToWrite,
-                                        UA_Byte *paddingSize,
-                                        UA_Byte *extraPaddingSize);
-
     const size_t minAsymmetricKeyLength;
     const size_t maxAsymmetricKeyLength;
     const size_t thumbprintLength;
@@ -187,20 +168,6 @@ typedef struct
     UA_StatusCode (*const generateNonce)(const UA_SecurityPolicy *securityPolicy,
                                          const void *endpointContext,
                                          UA_ByteString *out);
-
-    /**
-     * \brief Calculates the padding size for a message with the specified amount of bytes.
-     *
-     * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
-     * \param paddingSize out parameter. Will contain the paddingSize byte.
-     * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
-     * \return the total padding size consisting of high and low bytes.
-     */
-    UA_UInt16 (*const calculatePadding)(const UA_SecurityPolicy *securityPolicy,
-                                        size_t bytesToWrite,
-                                        UA_Byte *paddingSize,
-                                        UA_Byte *extraPaddingSize);
 
     const UA_SecurityPolicySigningModule signingModule;
 

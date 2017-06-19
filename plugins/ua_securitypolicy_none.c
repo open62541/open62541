@@ -55,21 +55,6 @@ asym_makeThumbprint_sp_none(const UA_SecurityPolicy *const securityPolicy,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_UInt16
-asym_calculatePadding_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                              const void *const channelContext,
-                              const void *const endpointContext,
-                              const size_t bytesToWrite,
-                              UA_Byte *const paddingSize,
-                              UA_Byte *const extraPaddingSize) {
-    if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
-        return 0;
-
-    *paddingSize = 0;
-    *extraPaddingSize = 0;
-    return 0;
-}
-
 /////////////////////////////////////
 // End asymmetric module functions //
 /////////////////////////////////////
@@ -124,19 +109,6 @@ sym_generateNonce_sp_none(const UA_SecurityPolicy *const securityPolicy,
     out->data[0] = 'a';
 
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_UInt16
-sym_calculatePadding_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                             const size_t bytesToWrite,
-                             UA_Byte *const paddingSize,
-                             UA_Byte *const extraPaddingSize) {
-    if(securityPolicy == NULL || paddingSize == NULL || extraPaddingSize == NULL)
-        return 0;
-
-    *paddingSize = 0;
-    *extraPaddingSize = 0;
-    return 0;
 }
 
 ////////////////////////////////////
@@ -490,7 +462,6 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         asym_encrypt_sp_none, // .encrypt
         asym_decrypt_sp_none, // .decrypt
         asym_makeThumbprint_sp_none, // .makeThumbprint
-        asym_calculatePadding_sp_none, // .calculatePadding
 
         0, // .minAsymmetricKeyLength
         0, // .maxAsymmetricKeyLength
@@ -511,7 +482,6 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
         sym_decrypt_sp_none, // .decrypt
         sym_generateKey_sp_none, // .generateKey
         sym_generateNonce_sp_none, // .generateNonce 
-        sym_calculatePadding_sp_none, // .calculatePadding
 
         /* Symmetric signing module */
         { // .signingModule
