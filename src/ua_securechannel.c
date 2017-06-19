@@ -500,11 +500,11 @@ calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
 
     UA_UInt16 plainTextBlockSize =
         (UA_UInt16)securityPolicy->channelContext.getRemoteAsymPlainTextBlockSize(channelContext);
-    size_t signatureSize =
-        securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
-                                                                             channelContext);
+    UA_UInt16 signatureSize =
+        (UA_UInt16)securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                        channelContext);
     UA_UInt16 padding =
-        plainTextBlockSize - ((bytesToWrite + signatureSize + 1) % plainTextBlockSize);
+        plainTextBlockSize - (((UA_UInt16)bytesToWrite + signatureSize + 1) % plainTextBlockSize);
 
     *paddingSize = (UA_Byte)padding;
     *extraPaddingSize = (UA_Byte)(padding >> 8);
