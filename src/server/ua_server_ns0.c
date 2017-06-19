@@ -655,10 +655,10 @@ void UA_Server_createNS0(UA_Server *server) {
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERDIAGNOSTICSTYPE), NULL);
 
     UA_DataSource statusDS = {
-		server, //handle
-		readStatus, //read
-		NULL //write
-	};
+        server, //handle
+        readStatus, //read
+        NULL //write
+    };
     addDataSourceVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS, "ServerStatus", -1,
                               &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE].typeId, &statusDS,
                               UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
@@ -669,14 +669,14 @@ void UA_Server_createNS0(UA_Server *server) {
                     UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_DataSource currentDS = {
-		NULL, //handle
-		readCurrentTime, //read
-		NULL //write
-	};
+        NULL, //handle
+        readCurrentTime, //read
+        NULL //write
+    };
     addDataSourceVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME, "CurrentTime", -1,
-							  &UA_TYPES[UA_TYPES_DATETIME].typeId, &currentDS,
-							  UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
-							  UA_NS0ID_BASEDATAVARIABLETYPE);
+                              &UA_TYPES[UA_TYPES_DATETIME].typeId, &currentDS,
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_ServerState state = UA_SERVERSTATE_RUNNING;
     UA_Variant_setScalar(&var, &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);
