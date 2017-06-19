@@ -44,7 +44,6 @@ asym_getRemoteSignatureSize_sp_none(const UA_SecurityPolicy *const securityPolic
 
 static UA_StatusCode
 asym_encrypt_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                     const void *const endpointContext,
                      const void *const channelContext,
                      UA_ByteString *const data) {
     return UA_STATUSCODE_GOOD;
@@ -52,7 +51,7 @@ asym_encrypt_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 asym_decrypt_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                     const void *const endpointContext,
+                     const void *const channelContext,
                      UA_ByteString *const data) {
     return UA_STATUSCODE_GOOD;
 }
@@ -294,6 +293,7 @@ endpointContext_compareCertificateThumbprint_sp_none(const void *const endpointC
 // it is there to serve as a small example for policies that need context per channel
 typedef struct {
     const UA_SecurityPolicy *securityPolicy;
+    const void * endpointContext;
     int callCounter;
 } UA_SP_NONE_ChannelContextData;
 
@@ -315,6 +315,7 @@ channelContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
     data->callCounter = 0;
     data->securityPolicy = securityPolicy;
+    data->endpointContext = endpointContext;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -331,6 +332,8 @@ static UA_StatusCode channelContext_deleteContext_sp_none(void *const channelCon
                  "Call counter was %i before deletion.", data->callCounter);
 
     data->callCounter = 0;
+    data->securityPolicy = NULL;
+    data->endpointContext = NULL;
 
     UA_free(channelContext);
 
@@ -465,14 +468,16 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
     /* Asymmetric module */
     { // .asymmetricModule
-        asym_encrypt_sp_none, // .encrypt
-        asym_decrypt_sp_none, // .decrypt
         asym_makeThumbprint_sp_none, // .makeThumbprint
 
         0, // .minAsymmetricKeyLength
         0, // .maxAsymmetricKeyLength
         20, // .thumbprintLength
 
+        { // .encryptingModule
+            asym_encrypt_sp_none, // .encrypt
+            asym_decrypt_sp_none // .decrypt
+        },
         /* Asymmetric signing module */
         {
             asym_verify_sp_none, // .verify
@@ -485,10 +490,13 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 
     /* Symmetric module */
     { // .symmetricModule
-        sym_encrypt_sp_none, // .encrypt
-        sym_decrypt_sp_none, // .decrypt
         sym_generateKey_sp_none, // .generateKey
         sym_generateNonce_sp_none, // .generateNonce 
+
+        { // .encryptingModule
+            sym_encrypt_sp_none, // .encrypt
+            sym_decrypt_sp_none // .decrypt
+        },
 
         /* Symmetric signing module */
         { // .signingModule

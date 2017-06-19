@@ -100,20 +100,23 @@ typedef struct
      * \param channelContext the channelContext which contains information about the keys to encrypt data.
      * \param data the data that is encrypted. The encrypted data will overwrite the data that was supplied.
      */
-    UA_StatusCode (*const encrypt)(const UA_SecurityPolicy *securityPolicy,
-                                   const void *endpointContext,
-                                   const void *channelContext,
-                                   UA_ByteString *data);
+    UA_StatusCode(*const encrypt)(const UA_SecurityPolicy *securityPolicy,
+                                  const void *channelContext,
+                                  UA_ByteString *data);
     /**
      * \brief Decrypts the given ciphertext in place using an asymmetric algorithm and key.
      *
      * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param endpointContext the EndpointContext which contains information about the keys needed to decrypt the message.
+     * \param channelContext the channelContext which contains information about the keys needed to decrypt the message.
      * \param data the data to decrypt. The decryption is done in place.
      */
-    UA_StatusCode (*const decrypt)(const UA_SecurityPolicy *securityPolicy,
-                                   const void *endpointContext,
-                                   UA_ByteString *data);
+    UA_StatusCode(*const decrypt)(const UA_SecurityPolicy *securityPolicy,
+                                  const void *channelContext,
+                                  UA_ByteString *data);
+} UA_SecurityPolicyEncryptingModule;
+
+typedef struct
+{
     /**
      * \brief Generates a thumprint for the specified certificate.
      *
@@ -130,34 +133,12 @@ typedef struct
     const size_t maxAsymmetricKeyLength;
     const size_t thumbprintLength;
 
+    const UA_SecurityPolicyEncryptingModule encryptingModule;
     const UA_SecurityPolicySigningModule signingModule;
 } UA_SecurityPolicyAsymmetricModule;
 
 typedef struct
 {
-    /**
-     * \brief Encrypts the given plaintext in place using a symmetric algorithm and key.
-     *
-     * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param channelContext the ChannelContext to work with.
-     * \param data the data to encrypt. The data will be encrypted in place.
-     *             The implementation may allocate additional memory though.
-     */
-    UA_StatusCode (*const encrypt)(const UA_SecurityPolicy *securityPolicy,
-                                   const void *channelContext,
-                                   UA_ByteString *data);
-
-    /**
-     * \brief Decrypts the given ciphertext using a symmetric algorithm and key.
-     *
-     * \param securityPolicy the securityPolicy the function is invoked on.
-     * \param channelContext the ChannelContext which contains information about the keys needed to decrypt the message.
-     * \param data the data to decrypt. The decryption is done in place.
-     */
-    UA_StatusCode (*const decrypt)(const UA_SecurityPolicy *securityPolicy,
-                                   const void *channelContext,
-                                   UA_ByteString *data);
-
     /**
      * \brief Pseudo random function that is used to generate the symmetric keys.
      *
@@ -189,6 +170,7 @@ typedef struct
                                          const void *endpointContext,
                                          UA_ByteString *out);
 
+    const UA_SecurityPolicyEncryptingModule encryptingModule;
     const UA_SecurityPolicySigningModule signingModule;
 
     const size_t signingKeyLength;

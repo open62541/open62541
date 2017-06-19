@@ -336,8 +336,8 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         total_length +=
-        securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
-                                                                            channel->securityContext);
+        (UA_UInt32)securityPolicy->symmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
+                                                                                       channel->securityContext);
 
     /* Encode the chunk headers at the beginning of the buffer */
     UA_Byte *header_pos = ci->messageBuffer.data;
@@ -401,9 +401,9 @@ UA_SecureChannel_sendChunk(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **
         dataToEncrypt.data = ci->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
         dataToEncrypt.length = total_length - UA_SECUREMH_AND_SYMALGH_LENGTH;
 
-        securityPolicy->symmetricModule.encrypt(securityPolicy,
-                                                channel->securityContext,
-                                                &dataToEncrypt);
+        securityPolicy->symmetricModule.encryptingModule.encrypt(securityPolicy,
+                                                                 channel->securityContext,
+                                                                 &dataToEncrypt);
     }
 
     /* Send the chunk, the buffer is freed in the network layer */
@@ -504,7 +504,7 @@ calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
         (UA_UInt16)securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
                                                                                         channelContext);
     UA_UInt16 padding =
-        plainTextBlockSize - (((UA_UInt16)bytesToWrite + signatureSize + 1) % plainTextBlockSize);
+        (UA_UInt16)(plainTextBlockSize - ((bytesToWrite + signatureSize + 1) % plainTextBlockSize));
 
     *paddingSize = (UA_Byte)padding;
     *extraPaddingSize = (UA_Byte)(padding >> 8);
@@ -675,10 +675,9 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
             securityHeaderLength
         };
 
-        securityPolicy->asymmetricModule.encrypt(securityPolicy,
-                                                 channel->endpoint->securityContext,
-                                                 channel->securityContext,
-                                                 &dataToEncrypt);
+        securityPolicy->asymmetricModule.encryptingModule.encrypt(securityPolicy,
+                                                                  channel->securityContext,
+                                                                  &dataToEncrypt);
     }
 
     // Send the chunk, the buffer is freed in the network layer
@@ -973,9 +972,9 @@ UA_SecureChannel_processSymmetricChunk(UA_ByteString* const chunk,
             chunk->data + messageAndSecurityHeaderOffset
         };
 
-        retval |= securityPolicy->symmetricModule.decrypt(securityPolicy,
-                                                          channel->securityContext,
-                                                          &cipherText);
+        retval |= securityPolicy->symmetricModule.encryptingModule.decrypt(securityPolicy,
+                                                                           channel->securityContext,
+                                                                           &cipherText);
 
         if(retval != UA_STATUSCODE_GOOD) {
             return retval;
@@ -1147,9 +1146,9 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         };
 
         size_t sizeBeforeDecryption = cipherText.length;
-        retval |= securityPolicy->asymmetricModule.decrypt(securityPolicy,
-                                                           channel->endpoint->securityContext,
-                                                           &cipherText);
+        retval |= securityPolicy->asymmetricModule.encryptingModule.decrypt(securityPolicy,
+                                                                            channel->securityContext,
+                                                                            &cipherText);
         chunkSize -= (sizeBeforeDecryption - cipherText.length);
 
         if(retval != UA_STATUSCODE_GOOD) {
