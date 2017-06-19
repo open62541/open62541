@@ -255,7 +255,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
         UA_SecurityPolicy *const policy = conf->endpoints[i].securityPolicy;
         policy->logger = conf->logger;
 
-        policy->endpointContext.new(policy, NULL, &conf->endpoints[i].securityContext);
+        policy->endpointContext.newContext(policy, NULL, &conf->endpoints[i].securityContext);
     }
 
     return conf;
@@ -273,7 +273,7 @@ UA_EXPORT void UA_ServerConfig_standard_deleteMembers(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; ++i) {
         UA_SecurityPolicy *const policy = config->endpoints[i].securityPolicy;
 
-        policy->endpointContext.delete(policy, config->endpoints[i].securityContext);
+        policy->endpointContext.deleteContext(config->endpoints[i].securityContext);
 
         UA_EndpointDescription_deleteMembers(&config->endpoints[i].endpointDescription);
     }

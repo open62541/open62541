@@ -39,8 +39,7 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel* channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
 
     if(channel->securityContext != NULL) {
-        channel->endpoint->securityPolicy->channelContext.delete(channel->endpoint->securityPolicy,
-                                                                 channel->securityContext);
+        channel->endpoint->securityPolicy->channelContext.deleteContext(channel->securityContext);
     }
 
     /* Detach from the channel */
@@ -115,25 +114,22 @@ UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel) 
         symmetricModule->signingKeyLength,
         buffer.data,
     };
-    retval |= securityContext->setRemoteSymSigningKey(securityPolicy,
-                                                      &clientSigningKey,
-                                                      channel->securityContext);
+    retval |= securityContext->setRemoteSymSigningKey(channel->securityContext,
+                                                      &clientSigningKey);
 
     const UA_ByteString clientEncryptingKey = {
         symmetricModule->encryptingKeyLength,
         buffer.data + symmetricModule->signingKeyLength
     };
-    retval |= securityContext->setRemoteSymEncryptingKey(securityPolicy,
-                                                         &clientEncryptingKey,
-                                                         channel->securityContext);
+    retval |= securityContext->setRemoteSymEncryptingKey(channel->securityContext,
+                                                         &clientEncryptingKey);
 
     const UA_ByteString clientIv = {
         symmetricModule->encryptingBlockSize,
         buffer.data + symmetricModule->signingKeyLength + symmetricModule->encryptingKeyLength
     };
-    retval |= securityContext->setRemoteSymIv(securityPolicy,
-                                              &clientIv,
-                                              channel->securityContext);
+    retval |= securityContext->setRemoteSymIv(channel->securityContext,
+                                              &clientIv);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&buffer);
@@ -154,25 +150,22 @@ UA_StatusCode UA_SecureChannel_generateNewKeys(UA_SecureChannel* const channel) 
         symmetricModule->signingKeyLength,
         buffer.data
     };
-    retval |= securityContext->setLocalSymSigningKey(securityPolicy,
-                                                     &serverSigningKey,
-                                                     channel->securityContext);
+    retval |= securityContext->setLocalSymSigningKey(channel->securityContext,
+                                                     &serverSigningKey);
 
     const UA_ByteString serverEncryptingKey = {
         symmetricModule->encryptingKeyLength,
         buffer.data + symmetricModule->signingKeyLength
     };
-    retval |= securityContext->setLocalSymEncryptingKey(securityPolicy,
-                                                        &serverEncryptingKey,
-                                                        channel->securityContext);
+    retval |= securityContext->setLocalSymEncryptingKey(channel->securityContext,
+                                                        &serverEncryptingKey);
 
     const UA_ByteString serverIv = {
         symmetricModule->encryptingBlockSize,
         buffer.data + symmetricModule->signingKeyLength + symmetricModule->encryptingKeyLength
     };
-    retval |= securityContext->setLocalSymIv(securityPolicy,
-                                             &serverIv,
-                                             channel->securityContext);
+    retval |= securityContext->setLocalSymIv(channel->securityContext,
+                                             &serverIv);
 
     UA_ByteString_deleteMembers(&buffer);
     return retval;
@@ -472,8 +465,7 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
         // see documentation of getRemoteAsymEncryptionBufferLengthOverhead for why this is needed.
         *buf_end -=
             securityPolicy->channelContext
-            .getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
-                                                         channel->securityContext,
+            .getRemoteAsymEncryptionBufferLengthOverhead(channel->securityContext,
                                                          potentialEncryptionMaxSize);
     }
 }
@@ -501,8 +493,7 @@ static UA_UInt16 calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy,
         return 0;
 
     UA_UInt16 plainTextBlockSize =
-        (UA_UInt16)securityPolicy->channelContext.getRemoteAsymPlainTextBlockSize(securityPolicy,
-                                                                                  channelContext);
+        (UA_UInt16)securityPolicy->channelContext.getRemoteAsymPlainTextBlockSize(channelContext);
     size_t signatureSize =
         securityPolicy->endpointContext.getLocalAsymSignatureSize(securityPolicy,
                                                                   endpointContext);
@@ -618,8 +609,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
         size_t dataToEncryptLength = total_length -
             (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
         respHeader.messageHeader.messageSize = total_length +
-            (UA_UInt32)securityPolicy->channelContext.getRemoteAsymEncryptionBufferLengthOverhead(securityPolicy,
-                                                                                                  channel->securityContext,
+            (UA_UInt32)securityPolicy->channelContext.getRemoteAsymEncryptionBufferLengthOverhead(channel->securityContext,
                                                                                                   dataToEncryptLength);
     }
     if(ci->errorCode == UA_STATUSCODE_GOOD) {
@@ -1119,10 +1109,10 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         void *channelContext = NULL;
 
         // create new channel context and verify the certificate
-        retval |= securityPolicy->channelContext.new(securityPolicy,
-                                                     channel->endpoint->securityContext,
-                                                     &clientAsymHeader.senderCertificate,
-                                                     &channelContext);
+        retval |= securityPolicy->channelContext.newContext(securityPolicy,
+                                                            channel->endpoint->securityContext,
+                                                            &clientAsymHeader.senderCertificate,
+                                                            &channelContext);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return retval;
@@ -1131,8 +1121,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         channel->securityContext = channelContext;
     }
     else {
-        retval |= securityPolicy->channelContext.compareCertificate(securityPolicy,
-                                                                    channel->securityContext,
+        retval |= securityPolicy->channelContext.compareCertificate(channel->securityContext,
                                                                     &clientAsymHeader.senderCertificate);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
@@ -1163,15 +1152,13 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         // signature is made over everything except the signature itself.
         const UA_ByteString chunkDataToVerify = {
             chunkSize -
-            securityPolicy->channelContext.getRemoteAsymSignatureSize(securityPolicy,
-                                                                      channel->securityContext),
+            securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext),
 
             chunk->data
         };
 
         const UA_ByteString signature = {
-            securityPolicy->channelContext.getRemoteAsymSignatureSize(securityPolicy,
-                                                                      channel->securityContext),
+            securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext),
             chunk->data + chunkDataToVerify.length // Signature starts after the signed data
         };
 
@@ -1202,8 +1189,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
 
     // calculate body size
     size_t signatureSize =
-        securityPolicy->channelContext.getRemoteAsymSignatureSize(securityPolicy,
-                                                                  channel->securityContext);
+        securityPolicy->channelContext.getRemoteAsymSignatureSize(channel->securityContext);
 
     UA_UInt16 paddingSize = 0;
     if(!UA_ByteString_equal(&securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {

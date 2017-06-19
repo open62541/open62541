@@ -177,12 +177,11 @@ typedef struct
 } UA_SecurityPolicySymmetricModule;
 
 struct UA_Endpoint_SecurityContext {
-    UA_StatusCode (*const new)(const UA_SecurityPolicy *securityPolicy,
-                               const void *initData,
-                               void **pp_contextData);
+    UA_StatusCode (*const newContext)(const UA_SecurityPolicy *securityPolicy,
+                                      const void *initData,
+                                      void **pp_contextData);
 
-    UA_StatusCode (*const delete)(const UA_SecurityPolicy *securityPolicy, //TODO: remove parameter
-                                  void *endpointContext);
+    UA_StatusCode (*const deleteContext)(void *endpointContext);
 
     //TODO: Remove these functions from the public api.
     UA_StatusCode (*const setLocalPrivateKey)(const UA_SecurityPolicy *securityPolicy,
@@ -236,140 +235,118 @@ struct UA_Channel_SecurityContext {
      * The caller needs to call delete on the recieved object to free allocated memory.
      *
      * Memory is only allocated if the function succeeds so there is no need to manually free
-     * the memory pointed to by *pp_contextData or to call delete in case of failure.
+     * the memory pointed to by *pp_channelContext or to call delete in case of failure.
      *
      * \param securityPolicy contains the function pointers associated with the policy.
      * \param remoteCertificate the remote certificate contains the remote asymmetric key.
      *                          The certificate will be verified and then stored in the context
      *                          so that its details may be accessed.
-     * \param contextData the initialized contextData that is passed to functions that work
+     * \param pp_channelContext the initialized channelContext that is passed to functions that work
      *                    on a context.
      */
-    UA_StatusCode (*const new)(const UA_SecurityPolicy *securityPolicy,
-                                const void *endpointContext,
-                                const UA_ByteString *remoteCertificate,
-                                void **pp_contextData);
+    UA_StatusCode (*const newContext)(const UA_SecurityPolicy *securityPolicy,
+                                      const void *endpointContext,
+                                      const UA_ByteString *remoteCertificate,
+                                      void **pp_channelContext);
 
     /**
      * \brief Deletes the the security context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
-     * \param contextData the context to delete the members of.
+     * \param channelContext the context to delete the members of.
      */
-    UA_StatusCode (*const delete)(const UA_SecurityPolicy *securityPolicy, // TODO: remove this pointer
-                                  void *contextData);
+    UA_StatusCode (*const deleteContext)(void *channelContext);
 
     /**
      * \brief Sets the local encrypting key in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param key the local encrypting key to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setLocalSymEncryptingKey)(const UA_SecurityPolicy *securityPolicy,
-                                                    const UA_ByteString *key,
-                                                    void *contextData);
+    UA_StatusCode (*const setLocalSymEncryptingKey)(void *channelContext,
+                                                    const UA_ByteString *key);
 
     /**
      * \brief Sets the local signing key in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param key the local signing key to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setLocalSymSigningKey)(const UA_SecurityPolicy *securityPolicy,
-                                                 const UA_ByteString *key,
-                                                 void *contextData);
+    UA_StatusCode (*const setLocalSymSigningKey)(void *channelContext,
+                                                 const UA_ByteString *key);
 
     /**
      * \brief Sets the local initialization vector in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param iv the local initialization vector to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setLocalSymIv)(const UA_SecurityPolicy *securityPolicy,
-                                         const UA_ByteString *iv,
-                                         void *contextData);
+    UA_StatusCode (*const setLocalSymIv)(void *channelContext,
+                                         const UA_ByteString *iv);
     /**
      * \brief Sets the remote encrypting key in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param key the remote encrypting key to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setRemoteSymEncryptingKey)(const UA_SecurityPolicy *securityPolicy,
-                                                     const UA_ByteString *key,
-                                                     void *contextData);
+    UA_StatusCode (*const setRemoteSymEncryptingKey)(void *channelContext,
+                                                     const UA_ByteString *key);
 
     /**
      * \brief Sets the remote signing key in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param key the remote signing key to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setRemoteSymSigningKey)(const UA_SecurityPolicy *securityPolicy,
-                                                  const UA_ByteString *key,
-                                                  void *contextData);
+    UA_StatusCode (*const setRemoteSymSigningKey)(void *channelContext,
+                                                  const UA_ByteString *key);
 
     /**
      * \brief Sets the remote initialization vector in the supplied context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
+     * \param channelContext the context to work on.
      * \param iv the remote initialization vector to store in the context.
-     * \param contextData the context to work on.
      */
-    UA_StatusCode (*const setRemoteSymIv)(const UA_SecurityPolicy *securityPolicy,
-                                          const UA_ByteString *iv,
-                                          void *contextData);
+    UA_StatusCode (*const setRemoteSymIv)(void *channelContext,
+                                          const UA_ByteString *iv);
 
     /**
      * \brief Compares the supplied certificate with the certificate in the channel context.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
      * \param channelContext the channel context data that contains the certificate to compare to.
      * \param certificate the certificate to compare to the one stored in the context.
      * \return if the certificates match UA_STATUSCODE_GOOD is returned. If they don't match
      *         or an errror occured an error code is returned.
      */
-    UA_StatusCode (*const compareCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                              const void *channelContext,
+    UA_StatusCode (*const compareCertificate)(const void *channelContext,
                                               const UA_ByteString *certificate);
 
     /**
      * \brief Gets the signature size that depends on the remote public key.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
-     * \param contextData the context to retrieve data from.
+     * \param channelContext the context to retrieve data from.
      * \return the size of the remote asymmetric signature. Returns 0 if no remote certificate
      *                     was set previousely.
      */
-    size_t (*const getRemoteAsymSignatureSize)(const UA_SecurityPolicy *securityPolicy,
-                                               const void *contextData);
+    size_t (*const getRemoteAsymSignatureSize)(const void *channelContext);
 
     /**
      * \brief Gets the plaintext block size that depends on the remote public key.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
-     * \param contextData the context to retrieve data from.
+     * \param channelContext the context to retrieve data from.
      * \return the size of the plain text block size when encrypting with the remote public key.
      *         Returns 0 as long as no remote certificate was set previousely.
      */
-    size_t (*const getRemoteAsymPlainTextBlockSize)(const UA_SecurityPolicy *securityPolicy,
-                                                    const void *contextData);
+    size_t (*const getRemoteAsymPlainTextBlockSize)(const void *channelContext);
 
     /**
      * Gets the number of bytes that are needed by the encryption function in addition to the length of the plaintext message.
      * This is needed, since most rsa encryption methods have their own padding mechanism included. This makes the encrypted
      * message larger than the plainText, so we need to have enough room in the buffer for the overhead.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
-     * \param contextData the retrieve data from.
+     * \param channelContext the retrieve data from.
      * \param maxEncryptionLength the maximum number of bytes that the data to encrypt can be.
      */
-    size_t (*const getRemoteAsymEncryptionBufferLengthOverhead)(const UA_SecurityPolicy *securityPolicy,
-                                                                const void *contextData,
+    size_t (*const getRemoteAsymEncryptionBufferLengthOverhead)(const void *channelContext,
                                                                 size_t maxEncryptionLength);
 };
 
