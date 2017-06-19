@@ -90,10 +90,10 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         return true;
 
     /* Enum allows Int32 (only) */
-	UA_NodeId enumNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION);
+    UA_NodeId enumNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION);
     if (isNodeInTree(server->nodestore, constraintDataType, &enumNodeId, &subtypeId, 1)) {
-		return UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId);
-	}
+        return UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId);
+    }
 
     return isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
 }
