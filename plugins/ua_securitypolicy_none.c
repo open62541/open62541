@@ -34,7 +34,7 @@ static UA_StatusCode
 asym_encrypt_sp_none(const UA_SecurityPolicy *const securityPolicy,
                      const void *const endpointContext,
                      const void *const channelContext,
-                     const UA_ByteString *const data) {
+                     UA_ByteString *const data) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -171,9 +171,9 @@ typedef struct {
 } UA_SP_NONE_EndpointContextData;
 
 static UA_StatusCode
-endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                             const void *const initData,
-                             void **const pp_contextData) {
+endpointContext_new_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                            const void *const initData,
+                            void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -194,8 +194,8 @@ endpointContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
 }
 
 static UA_StatusCode
-endpointContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                      void *const securityContext) {
+endpointContext_delete_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                               void *const securityContext) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -305,10 +305,10 @@ typedef struct {
 } UA_SP_NONE_ChannelContextData;
 
 static UA_StatusCode
-channelContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                            const void *const endpointContext,
-                            const UA_ByteString *const remoteCertificate,
-                            void **const pp_contextData) {
+channelContext_new_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                           const void *const endpointContext,
+                           const UA_ByteString *const remoteCertificate,
+                           void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -325,8 +325,8 @@ channelContext_init_sp_none(const UA_SecurityPolicy *const securityPolicy,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode channelContext_deleteMembers_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                          void *const contextData) {
+static UA_StatusCode channelContext_delete_sp_none(const UA_SecurityPolicy *const securityPolicy,
+                                                   void *const contextData) {
     if(securityPolicy == NULL || contextData == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -527,8 +527,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     },
 
     { // .context
-        endpointContext_init_sp_none, // .init
-        endpointContext_deleteMembers_sp_none, // .deleteMembers
+        endpointContext_new_sp_none, // .init
+        endpointContext_delete_sp_none, // .deleteMembers
         endpointContext_setLocalPrivateKey_sp_none, // .setLocalPrivateKey
         endpointContext_setServerCertificate_sp_none,
         endpointContext_getServerCertificate_sp_none,
@@ -539,8 +539,8 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
     },
 
     { // .channelContext
-        channelContext_init_sp_none,  // .init
-        channelContext_deleteMembers_sp_none, // .deleteMembers
+        channelContext_new_sp_none,  // .new
+        channelContext_delete_sp_none, // .delete
 
         channelContext_setLocalSymEncryptingKey_sp_none, // .setLocalSymEncryptingKey
         channelContext_setLocalSymSigningKey_sp_none, // .setLocalSymSigningKey

@@ -39,8 +39,8 @@ void UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel* channel) {
     UA_ChannelSecurityToken_deleteMembers(&channel->nextSecurityToken);
 
     if(channel->securityContext != NULL) {
-        channel->endpoint->securityPolicy->channelContext.deleteMembers(channel->endpoint->securityPolicy,
-                                                                        channel->securityContext);
+        channel->endpoint->securityPolicy->channelContext.delete(channel->endpoint->securityPolicy,
+                                                                 channel->securityContext);
     }
 
     /* Detach from the channel */
@@ -607,7 +607,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     // Always encrypt message if mode not none, since we are exchanging keys.
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        const UA_ByteString dataToEncrypt = {
+        UA_ByteString dataToEncrypt = {
             total_length -
             (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH +
              securityHeaderLength),
@@ -1058,10 +1058,10 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         void *channelContext = NULL;
 
         // create new channel context and verify the certificate
-        retval |= securityPolicy->channelContext.init(securityPolicy,
-                                                      channel->endpoint->securityContext,
-                                                      &clientAsymHeader.senderCertificate,
-                                                      &channelContext);
+        retval |= securityPolicy->channelContext.new(securityPolicy,
+                                                     channel->endpoint->securityContext,
+                                                     &clientAsymHeader.senderCertificate,
+                                                     &channelContext);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&clientAsymHeader);
             return retval;
