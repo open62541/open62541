@@ -108,15 +108,18 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
             return UA_STATUSCODE_BADTYPEMISMATCH;
         break;
     case 0: /* the value is an array with one or more dimensions */
-        if(arrayDimensionsSize < 1)
+        if(arrayDimensionsSize > 3)
             return UA_STATUSCODE_BADTYPEMISMATCH;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank < 0)
             return UA_STATUSCODE_BADTYPEMISMATCH;
-        /* Must hold if the array has a defined length. Null arrays (length -1)
-         * need to be caught before. */
-        if(arrayDimensionsSize != (size_t)valueRank)
+        /* Less restrictive check:
+         * 1. Array Dimensions may be 0 in case of:
+         *    - VariableType
+         *    - Variable that is component of an ObjectType (structural check required!)
+         * 2. Must match the Value Rank in all other cases */
+        if(arrayDimensionsSize > 0 && arrayDimensionsSize != (size_t)valueRank)
             return UA_STATUSCODE_BADTYPEMISMATCH;
     }
     return UA_STATUSCODE_GOOD;
