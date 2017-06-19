@@ -190,9 +190,9 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Fix the variable: Set a sane valueRank if required (the most permissive -2) */
-    if(node->valueRank == 0 &&
-       (!value.hasValue || !value.value.type || UA_Variant_isScalar(&value.value))) {
+    /* Fix the variable: Set a sane valueRank if required (the least permissive -2)
+     * A valueRank of 0 can mean an unset valueRank in case of a type, too! */
+    if(node->valueRank == 0 && !value.value.type && value.hasValue && UA_Variant_isScalar(&value.value)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Use a default ValueRank of -2");
         UA_RCU_UNLOCK();
