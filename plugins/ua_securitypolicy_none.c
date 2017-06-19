@@ -167,8 +167,20 @@ typedef struct {
 } UA_SP_NONE_EndpointContextData;
 
 static UA_StatusCode
+endpointContext_setLocalCertificate_sp_none(const UA_ByteString *const certificate,
+                                            void *endpointContext) {
+    if(certificate == NULL || endpointContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
+
+    return UA_ByteString_copy(certificate, &data->localCert);
+}
+
+static UA_StatusCode
 endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                   const void *const initData,
+                                   const UA_Endpoint_SecurityContext_RequiredInitData *initData,
+                                   const void *const optInitData,
                                    void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -184,6 +196,9 @@ endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy
     data->securityPolicy = securityPolicy;
 
     UA_ByteString_init(&data->localCert);
+
+    if (initData != NULL)
+        endpointContext_setLocalCertificate_sp_none(&initData->localCertificate, *pp_contextData);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Initialized PolicyContext for sp_none");
@@ -211,60 +226,14 @@ endpointContext_deleteContext_sp_none(void *const securityContext) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-endpointContext_setLocalPrivateKey_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                           const UA_ByteString *const privateKey,
-                                           void *const endpointContext) {
-    if(securityPolicy == NULL || privateKey == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-endpointContext_setServerCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                             const UA_ByteString *const certificate,
-                                             void *endpointContext) {
-    if(securityPolicy == NULL || certificate == NULL || endpointContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
-
-    return UA_ByteString_copy(certificate, &data->localCert);
-}
-
 static const UA_ByteString*
-endpointContext_getServerCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                             const void *const endpointContext) {
-    if(securityPolicy == NULL || endpointContext == NULL)
+endpointContext_getLocalCertificate_sp_none(const void *const endpointContext) {
+    if(endpointContext == NULL)
         return NULL;
 
     const UA_SP_NONE_EndpointContextData *const data = (const UA_SP_NONE_EndpointContextData*)endpointContext;
 
     return &data->localCert;
-}
-
-static UA_StatusCode
-endpointContext_setCertificateTrustList_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                const UA_ByteString *const trustList,
-                                                void *const endpointContext) {
-    if(securityPolicy == NULL || trustList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-endpointContext_setCertificateRevocationList_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                                     const UA_ByteString *const revocationList,
-                                                     void *const endpointContext) {
-    if(securityPolicy == NULL || revocationList == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -478,68 +447,64 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
             asym_encrypt_sp_none, // .encrypt
             asym_decrypt_sp_none // .decrypt
         },
-        /* Asymmetric signing module */
-        {
-            asym_verify_sp_none, // .verify
-            asym_sign_sp_none, // .sign
-            asym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
-            asym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
-            UA_STRING_STATIC_NULL // .signatureAlgorithmUri
-        }
+    /* Asymmetric signing module */
+    {
+        asym_verify_sp_none, // .verify
+        asym_sign_sp_none, // .sign
+        asym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
+        asym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
+        UA_STRING_STATIC_NULL // .signatureAlgorithmUri
+    }
+},
+
+/* Symmetric module */
+{ // .symmetricModule
+    sym_generateKey_sp_none, // .generateKey
+    sym_generateNonce_sp_none, // .generateNonce 
+
+    { // .encryptingModule
+        sym_encrypt_sp_none, // .encrypt
+        sym_decrypt_sp_none // .decrypt
     },
 
-    /* Symmetric module */
-    { // .symmetricModule
-        sym_generateKey_sp_none, // .generateKey
-        sym_generateNonce_sp_none, // .generateNonce 
-
-        { // .encryptingModule
-            sym_encrypt_sp_none, // .encrypt
-            sym_decrypt_sp_none // .decrypt
-        },
-
-        /* Symmetric signing module */
-        { // .signingModule
-            sym_verify_sp_none, // .verify
-            sym_sign_sp_none, // .sign
-            sym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
-            sym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
-            UA_STRING_STATIC_NULL // .signatureAlgorithmUri
-        },
-
-        0, // .signingKeyLength
-        1, // .encryptingKeyLength
-        0 // .encryptingBlockSize
+    /* Symmetric signing module */
+    { // .signingModule
+        sym_verify_sp_none, // .verify
+        sym_sign_sp_none, // .sign
+        sym_getLocalSignatureSize_sp_none, // .getLocalSignatureSize
+        sym_getRemoteSignatureSize_sp_none, // .getRemoteSignatureSize
+        UA_STRING_STATIC_NULL // .signatureAlgorithmUri
     },
 
-    { // .context
-        endpointContext_newContext_sp_none, // .init
-        endpointContext_deleteContext_sp_none, // .deleteMembers
-        endpointContext_setLocalPrivateKey_sp_none, // .setLocalPrivateKey
-        endpointContext_setServerCertificate_sp_none,
-        endpointContext_getServerCertificate_sp_none,
-        endpointContext_setCertificateTrustList_sp_none, // .setCertificateTrustList
-        endpointContext_setCertificateRevocationList_sp_none, // .setCertificateRevocationList
-        endpointContext_compareCertificateThumbprint_sp_none
-    },
+    0, // .signingKeyLength
+    1, // .encryptingKeyLength
+    0 // .encryptingBlockSize
+},
 
-    { // .channelContext
-        channelContext_newContext_sp_none,  // .new
-        channelContext_deleteContext_sp_none, // .delete
+{ // .context
+    endpointContext_newContext_sp_none, // .init
+    endpointContext_deleteContext_sp_none, // .deleteMembers
+    endpointContext_getLocalCertificate_sp_none,
+    endpointContext_compareCertificateThumbprint_sp_none
+},
 
-        channelContext_setLocalSymEncryptingKey_sp_none, // .setLocalSymEncryptingKey
-        channelContext_setLocalSymSigningKey_sp_none, // .setLocalSymSigningKey
-        channelContext_setLocalSymIv_sp_none, // .setLocalSymIv
+{ // .channelContext
+    channelContext_newContext_sp_none,  // .new
+    channelContext_deleteContext_sp_none, // .delete
 
-        channelContext_setRemoteSymEncryptingKey_sp_none, // .setRemoteSymEncryptingKey
-        channelContext_setRemoteSymSigningKey_sp_none, // .setRemoteSymSigningKey
-        channelContext_setRemoteSymIv_sp_none, // .setRemoteSymIv
+    channelContext_setLocalSymEncryptingKey_sp_none, // .setLocalSymEncryptingKey
+    channelContext_setLocalSymSigningKey_sp_none, // .setLocalSymSigningKey
+    channelContext_setLocalSymIv_sp_none, // .setLocalSymIv
 
-        channelContext_compareCertificate_sp_none, // .parseRemoteCertificate
+    channelContext_setRemoteSymEncryptingKey_sp_none, // .setRemoteSymEncryptingKey
+    channelContext_setRemoteSymSigningKey_sp_none, // .setRemoteSymSigningKey
+    channelContext_setRemoteSymIv_sp_none, // .setRemoteSymIv
 
-        channelContext_getRemoteAsymPlainTextBlockSize_sp_none, // .getRemoteAsymPlainTextBlockSize
-        channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_none // .getRemoteAsymEncryptionBufferLengthOverhead
-    },
+    channelContext_compareCertificate_sp_none, // .parseRemoteCertificate
 
-    NULL // .logger
+    channelContext_getRemoteAsymPlainTextBlockSize_sp_none, // .getRemoteAsymPlainTextBlockSize
+    channelContext_getRemoteAsymEncryptionBufferLengthOverhead_sp_none // .getRemoteAsymEncryptionBufferLengthOverhead
+},
+
+NULL // .logger
 };

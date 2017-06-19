@@ -255,7 +255,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
         UA_SecurityPolicy *const policy = conf->endpoints[i].securityPolicy;
         policy->logger = conf->logger;
 
-        policy->endpointContext.newContext(policy, NULL, &conf->endpoints[i].securityContext);
+        policy->endpointContext.newContext(policy, NULL, NULL, &conf->endpoints[i].securityContext);
     }
 
     return conf;

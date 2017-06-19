@@ -14,9 +14,9 @@
 #include "ua_nodeids.h"
 #include "ua_securitypolicy_none.h"
 
-/*********************/
-/* Create and Delete */
-/*********************/
+ /*********************/
+ /* Create and Delete */
+ /*********************/
 
 static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
@@ -28,8 +28,9 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.endpoints->count = 1;
     client->channel.endpoint->securityPolicy = &UA_SecurityPolicy_None;
     UA_SecurityPolicy_None.endpointContext.newContext(&UA_SecurityPolicy_None,
-                                                NULL,
-                                                &client->channel.endpoint->securityContext);
+                                                      NULL,
+                                                      NULL,
+                                                      &client->channel.endpoint->securityContext);
     client->config = config;
 }
 
@@ -68,12 +69,12 @@ static void UA_Client_deleteMembers(UA_Client* client) {
 #endif
 }
 
-void UA_Client_reset(UA_Client* client){
+void UA_Client_reset(UA_Client* client) {
     UA_Client_deleteMembers(client);
     UA_Client_init(client, client->config);
 }
 
-void UA_Client_delete(UA_Client* client){
+void UA_Client_delete(UA_Client* client) {
     UA_Client_deleteMembers(client);
     UA_free(client);
 }
@@ -391,7 +392,7 @@ __UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
     request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     // assume the endpointurl outlives the service call
-    request.endpointUrl = client->endpointUrl; 
+    request.endpointUrl = client->endpointUrl;
 
     UA_GetEndpointsResponse response;
     UA_GetEndpointsResponse_init(&response);
@@ -439,10 +440,10 @@ EndpointsHandshake(UA_Client *client) {
         /* look out for an endpoint without security */
         if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
             continue;
-        
+
         /* endpoint with no security found */
         endpointFound = true;
-       
+
         /* look for a user token policy with an anonymous token */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
             UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
@@ -551,7 +552,7 @@ CloseSecureChannel(UA_Client *client) {
     UA_ByteString message;
     UA_Connection *conn = &client->connection;
     UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
-    if(retval != UA_STATUSCODE_GOOD){
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_CloseSecureChannelRequest_deleteMembers(&request);
         return retval;
     }
@@ -560,7 +561,7 @@ CloseSecureChannel(UA_Client *client) {
     UA_Byte *bufPos = &message.data[UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH];
 
     const UA_Byte *bufEnd = &message.data[message.length];
-    
+
     /* Encode some more headers and the CloseSecureChannelRequest */
     retval |= UA_SymmetricAlgorithmSecurityHeader_encodeBinary(&symHeader, &bufPos, &bufEnd);
     retval |= UA_SequenceHeader_encodeBinary(&seqHeader, &bufPos, &bufEnd);
@@ -586,8 +587,8 @@ CloseSecureChannel(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password){
-    client->authenticationMethod=UA_CLIENTAUTHENTICATION_USERNAME;
+                           const char *username, const char *password) {
+    client->authenticationMethod = UA_CLIENTAUTHENTICATION_USERNAME;
     client->username = UA_STRING_ALLOC(username);
     client->password = UA_STRING_ALLOC(password);
     return UA_Client_connect(client, endpointUrl);
@@ -635,7 +636,7 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
     }
     return retval;
 
- cleanup:
+cleanup:
     UA_Client_reset(client);
     return retval;
 }
@@ -746,7 +747,7 @@ processServiceResponse(struct ResponseDescription *rd, UA_SecureChannel *channel
                              rd->client->config.customDataTypesSize,
                              rd->client->config.customDataTypes);
 
- finish:
+finish:
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Received a response of type %i", responseId.identifier.numeric);
@@ -797,7 +798,7 @@ __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *r
 
     /* Prepare the response and the structure we give into processServiceResponse */
     UA_init(response, responseType);
-    struct ResponseDescription rd = {client, false, requestId, response, responseType};
+    struct ResponseDescription rd = { client, false, requestId, response, responseType };
 
     /* Retrieve the response */
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (client->config.timeout * UA_MSEC_TO_DATETIME);
@@ -818,7 +819,7 @@ __UA_Client_Service(UA_Client *client, const void *request, const UA_DataType *r
         }
         /* ProcessChunks and call processServiceResponse for complete messages */
         UA_SecureChannel_processChunks(&client->channel, &reply,
-                                       (UA_ProcessMessageCallback*)processServiceResponse, &rd);
+            (UA_ProcessMessageCallback*)processServiceResponse, &rd);
         /* Free the received buffer */
         if(!realloced)
             client->connection.releaseRecvBuffer(&client->connection, &reply);

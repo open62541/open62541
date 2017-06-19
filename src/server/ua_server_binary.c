@@ -321,8 +321,7 @@ processOPN(UA_Server *server,
     const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
 
     const UA_ByteString *const endpointCert =
-        securityPolicy->endpointContext.getServerCertificate(securityPolicy,
-                                                            channel->endpoint->securityContext);
+        securityPolicy->endpointContext.getLocalCertificate(channel->endpoint->securityContext);
 
     UA_ByteString_copy(endpointCert, &channel->localAsymAlgSettings.senderCertificate);
     UA_ByteString_copy(&securityPolicy->policyUri, &channel->localAsymAlgSettings.securityPolicyUri);
@@ -384,8 +383,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Client requested a subscription, " \
                                 "but those are not enabled in the build");
-        }
-        else {
+        } else {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Unknown request with type identifier %i",
                                 requestTypeId.identifier.numeric);
@@ -589,8 +587,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         if(retval != UA_STATUSCODE_GOOD)
             UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
                                  "resulted in error code %s", UA_StatusCode_name(retval));
-    }
-    else {
+    } else {
         /* Process messages without a channel and no chunking */
         size_t offset = 0;
         UA_TcpMessageHeader tcpMessageHeader;

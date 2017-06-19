@@ -178,32 +178,34 @@ typedef struct
     const size_t encryptingBlockSize;
 } UA_SecurityPolicySymmetricModule;
 
+/**
+ * This struct defines initialization Data that is potentially needed by every security policy.
+ * Some of these, like the revocation list for example, may be omitted (empty ByteString).
+ */
+typedef struct
+{
+    UA_ByteString localPrivateKey;
+    UA_ByteString localCertificate;
+    UA_ByteString certificateTrustList;
+    UA_ByteString certificateRevocationList;
+} UA_Endpoint_SecurityContext_RequiredInitData;
+
 struct UA_Endpoint_SecurityContext {
+    /**
+     * \brief Creates a new endpoint context with the supplied initialization data.
+     *
+     * \param securityPolicy the securityPolicy this function is invoked on.
+     * \param initData the required initialization data for the endpoint context.
+     */
     UA_StatusCode (*const newContext)(const UA_SecurityPolicy *securityPolicy,
-                                      const void *initData,
+                                      const UA_Endpoint_SecurityContext_RequiredInitData *initData,
+                                      const void *optInitData,
                                       void **pp_contextData);
 
     UA_StatusCode (*const deleteContext)(void *endpointContext);
 
     //TODO: Remove these functions from the public api.
-    UA_StatusCode (*const setLocalPrivateKey)(const UA_SecurityPolicy *securityPolicy,
-                                              const UA_ByteString *privateKey,
-                                              void *endpointContext);
-
-    UA_StatusCode (*const setServerCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                                const UA_ByteString *certificate,
-                                                void *endpointContext);
-
-    const UA_ByteString *(*const getServerCertificate)(const UA_SecurityPolicy *securityPolicy,
-                                                       const void *endpointContext);
-
-    UA_StatusCode (*const setCertificateTrustList)(const UA_SecurityPolicy *securityPolicy,
-                                                   const UA_ByteString *trustList,
-                                                   void *endpointContext);
-
-    UA_StatusCode (*const setCertificateRevocationList)(const UA_SecurityPolicy *securityPolicy,
-                                                        const UA_ByteString *revocationList,
-                                                        void *endpointContext);
+    const UA_ByteString *(*const getLocalCertificate)(const void *endpointContext);
 
     /**
      * \brief Compares the supplied certificate with the certificate in the endpoit context.
