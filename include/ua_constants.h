@@ -51,41 +51,41 @@ typedef enum {
  * ------------------
  * The access level to a node is given by the following constants that are ANDed
  * with the overall access level. */
-#define UA_ACCESSLEVELMASK_READ           1<<0
-#define UA_ACCESSLEVELMASK_WRITE          1<<1
-#define UA_ACCESSLEVELMASK_HISTORYREAD    1<<2
-#define UA_ACCESSLEVELMASK_HISTORYWRITE   1<<3
-#define UA_ACCESSLEVELMASK_SEMANTICCHANGE 1<<4
-#define UA_ACCESSLEVELMASK_STATUSWRITE    1<<5
-#define UA_ACCESSLEVELMASK_TIMESTAMPWRITE 1<<6
+#define UA_ACCESSLEVELMASK_READ           (0x01<<0)
+#define UA_ACCESSLEVELMASK_WRITE          (0x01<<1)
+#define UA_ACCESSLEVELMASK_HISTORYREAD    (0x01<<2)
+#define UA_ACCESSLEVELMASK_HISTORYWRITE   (0x01<<3)
+#define UA_ACCESSLEVELMASK_SEMANTICCHANGE (0x01<<4)
+#define UA_ACCESSLEVELMASK_STATUSWRITE    (0x01<<5)
+#define UA_ACCESSLEVELMASK_TIMESTAMPWRITE (0x01<<6)
 
 /**
  * Write Masks
  * -----------
  * The write mask and user write mask is given by the following constants that
  * are ANDed for the overall write mask. Part 3: 5.2.7 Table 2 */
-#define UA_WRITEMASK_ACCESSLEVEL             1<<0
-#define UA_WRITEMASK_ARRRAYDIMENSIONS        1<<1
-#define UA_WRITEMASK_BROWSENAME              1<<2
-#define UA_WRITEMASK_CONTAINSNOLOOPS         1<<3
-#define UA_WRITEMASK_DATATYPE                1<<4
-#define UA_WRITEMASK_DESCRIPTION             1<<5
-#define UA_WRITEMASK_DISPLAYNAME             1<<6
-#define UA_WRITEMASK_EVENTNOTIFIER           1<<7
-#define UA_WRITEMASK_EXECUTABLE              1<<8
-#define UA_WRITEMASK_HISTORIZING             1<<9
-#define UA_WRITEMASK_INVERSENAME             1<<10
-#define UA_WRITEMASK_ISABSTRACT              1<<11
-#define UA_WRITEMASK_MINIMUMSAMPLINGINTERVAL 1<<12
-#define UA_WRITEMASK_NODECLASS               1<<13
-#define UA_WRITEMASK_NODEID                  1<<14
-#define UA_WRITEMASK_SYMMETRIC               1<<15
-#define UA_WRITEMASK_USERACCESSLEVEL         1<<16
-#define UA_WRITEMASK_USEREXECUTABLE          1<<17
-#define UA_WRITEMASK_USERWRITEMASK           1<<18
-#define UA_WRITEMASK_VALUERANK               1<<19
-#define UA_WRITEMASK_WRITEMASK               1<<20
-#define UA_WRITEMASK_VALUEFORVARIABLETYPE    1<<21
+#define UA_WRITEMASK_ACCESSLEVEL             (0x01<<0)
+#define UA_WRITEMASK_ARRRAYDIMENSIONS        (0x01<<1)
+#define UA_WRITEMASK_BROWSENAME              (0x01<<2)
+#define UA_WRITEMASK_CONTAINSNOLOOPS         (0x01<<3)
+#define UA_WRITEMASK_DATATYPE                (0x01<<4)
+#define UA_WRITEMASK_DESCRIPTION             (0x01<<5)
+#define UA_WRITEMASK_DISPLAYNAME             (0x01<<6)
+#define UA_WRITEMASK_EVENTNOTIFIER           (0x01<<7)
+#define UA_WRITEMASK_EXECUTABLE              (0x01<<8)
+#define UA_WRITEMASK_HISTORIZING             (0x01<<9)
+#define UA_WRITEMASK_INVERSENAME             (0x01<<10)
+#define UA_WRITEMASK_ISABSTRACT              (0x01<<11)
+#define UA_WRITEMASK_MINIMUMSAMPLINGINTERVAL (0x01<<12)
+#define UA_WRITEMASK_NODECLASS               (0x01<<13)
+#define UA_WRITEMASK_NODEID                  (0x01<<14)
+#define UA_WRITEMASK_SYMMETRIC               (0x01<<15)
+#define UA_WRITEMASK_USERACCESSLEVEL         (0x01<<16)
+#define UA_WRITEMASK_USEREXECUTABLE          (0x01<<17)
+#define UA_WRITEMASK_USERWRITEMASK           (0x01<<18)
+#define UA_WRITEMASK_VALUERANK               (0x01<<19)
+#define UA_WRITEMASK_WRITEMASK               (0x01<<20)
+#define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01<<21)
 
 /**
  * .. _statuscodes:
