@@ -483,8 +483,8 @@ readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn,
                            UA_DataValue *v, UA_NumericRange *rangeptr) {
     if(vn->value.data.callback.onRead) {
         UA_RCU_UNLOCK();
-        vn->value.data.callback.onRead(vn->value.data.callback.handle,
-                                       vn->nodeId, &vn->value.data.value.value, rangeptr);
+        vn->value.data.callback.onRead(&vn->nodeId, vn->context,
+                                       &vn->value.data.value.value, rangeptr);
         UA_RCU_LOCK();
 #ifdef UA_ENABLE_MULTITHREADING
         /* Reopen the node to see the changes (multithreading only) */
@@ -508,7 +508,7 @@ readValueAttributeFromDataSource(const UA_VariableNode *vn, UA_DataValue *v,
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_RCU_UNLOCK();
     UA_StatusCode retval =
-        vn->value.dataSource.read(vn->value.dataSource.handle, vn->nodeId,
+        vn->value.dataSource.read(&vn->nodeId, vn->context,
                                   sourceTimeStamp, rangeptr, v);
     UA_RCU_LOCK();
     return retval;
@@ -649,15 +649,15 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                                    change with the nodestore plugin approach) */
 #endif
             UA_RCU_UNLOCK();
-            writtenNode->value.data.callback.onWrite(writtenNode->value.data.callback.handle,
-                          writtenNode->nodeId, &writtenNode->value.data.value.value, rangeptr);
+            writtenNode->value.data.callback.onWrite(&writtenNode->nodeId, writtenNode->context,
+                                                     &writtenNode->value.data.value.value, rangeptr);
             UA_RCU_LOCK();
         }
     } else {
         if(node->value.dataSource.write) {
             UA_RCU_UNLOCK();
-            retval = node->value.dataSource.write(node->value.dataSource.handle,
-                                      node->nodeId, &editableValue.value, rangeptr);
+            retval = node->value.dataSource.write(&node->nodeId, node->context,
+                                                  &editableValue.value, rangeptr);
             UA_RCU_LOCK();
         } else {
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
