@@ -48,6 +48,7 @@ extern "C" {
  * Internally, open62541 uses ``UA_Node`` in places where the exact node type is
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
+
 /* List of reference targets with the same reference type and direction */
 typedef struct {
     UA_NodeId referenceTypeId;
@@ -55,6 +56,13 @@ typedef struct {
     size_t targetIdsSize;
     UA_ExpandedNodeId *targetIds;
 } UA_NodeReferenceKind;
+
+/* Which constructors were run on the node? */
+typedef enum {
+    UA_NODELIFECYCLE_FRESH,
+    UA_NODELIFECYCLE_CONSTRUCTOR_GLOBAL,
+    UA_NODELIFECYCLE_CONSTRUCTOR_NODETYPE
+} UA_NodeLifecycleState;
 
 #define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
@@ -64,7 +72,11 @@ typedef struct {
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
     size_t referencesSize;                      \
-    UA_NodeReferenceKind *references;
+    UA_NodeReferenceKind *references;           \
+                                                \
+    /* Members specific to open62541 */         \
+    void *context;                              \
+    UA_NodeLifecycleState lifecycleState;
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
@@ -183,6 +195,9 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Boolean isAbstract;
+
+    /* Members specific to open62541 */
+    UA_NodeTypeLifecycle lifecycle;
 } UA_VariableTypeNode;
 
 /**
@@ -208,8 +223,7 @@ typedef struct {
     UA_Boolean executable;
 
     /* Members specific to open62541 */
-    void *methodHandle;
-    UA_MethodCallback attachedMethod;
+    UA_MethodCallback method;
 } UA_MethodNode;
 
 /**
@@ -223,9 +237,6 @@ typedef struct {
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Byte eventNotifier;
-
-    /* Members specific to open62541 */
-    void *instanceHandle;
 } UA_ObjectNode;
 
 /**
@@ -242,7 +253,7 @@ typedef struct {
     UA_Boolean isAbstract;
 
     /* Members specific to open62541 */
-    UA_ObjectLifecycleManagement lifecycleManagement;
+    UA_NodeTypeLifecycle lifecycle;
 } UA_ObjectTypeNode;
 
 /**

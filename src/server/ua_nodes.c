@@ -66,7 +66,6 @@ void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
 static UA_StatusCode
 UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
     dst->eventNotifier = src->eventNotifier;
-    dst->instanceHandle = src->instanceHandle;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -112,15 +111,14 @@ UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
 static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
-    dst->methodHandle  = src->methodHandle;
-    dst->attachedMethod = src->attachedMethod;
+    dst->method = src->method;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_ObjectTypeNode_copy(const UA_ObjectTypeNode *src, UA_ObjectTypeNode *dst) {
     dst->isAbstract = src->isAbstract;
-    dst->lifecycleManagement = src->lifecycleManagement;
+    dst->lifecycle = src->lifecycle;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -158,6 +156,8 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
     dst->writeMask = src->writeMask;
+    dst->context = src->context;
+    dst->lifecycleState = src->lifecycleState;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_deleteMembersAnyNodeClass(dst);
         return retval;
@@ -198,32 +198,25 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     /* Copy unique content of the nodeclass */
     switch(src->nodeClass) {
     case UA_NODECLASS_OBJECT:
-        retval = UA_ObjectNode_copy((const UA_ObjectNode*)src,
-                                    (UA_ObjectNode*)dst);
+        retval = UA_ObjectNode_copy((const UA_ObjectNode*)src, (UA_ObjectNode*)dst);
         break;
     case UA_NODECLASS_VARIABLE:
-        retval = UA_VariableNode_copy((const UA_VariableNode*)src,
-                                      (UA_VariableNode*)dst);
+        retval = UA_VariableNode_copy((const UA_VariableNode*)src, (UA_VariableNode*)dst);
         break;
     case UA_NODECLASS_METHOD:
-        retval = UA_MethodNode_copy((const UA_MethodNode*)src,
-                                    (UA_MethodNode*)dst);
+        retval = UA_MethodNode_copy((const UA_MethodNode*)src, (UA_MethodNode*)dst);
         break;
     case UA_NODECLASS_OBJECTTYPE:
-        retval = UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)src,
-                                        (UA_ObjectTypeNode*)dst);
+        retval = UA_ObjectTypeNode_copy((const UA_ObjectTypeNode*)src, (UA_ObjectTypeNode*)dst);
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        retval = UA_VariableTypeNode_copy((const UA_VariableTypeNode*)src,
-                                          (UA_VariableTypeNode*)dst);
+        retval = UA_VariableTypeNode_copy((const UA_VariableTypeNode*)src, (UA_VariableTypeNode*)dst);
         break;
     case UA_NODECLASS_REFERENCETYPE:
-        retval = UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)src,
-                                           (UA_ReferenceTypeNode*)dst);
+        retval = UA_ReferenceTypeNode_copy((const UA_ReferenceTypeNode*)src, (UA_ReferenceTypeNode*)dst);
         break;
     case UA_NODECLASS_DATATYPE:
-        retval = UA_DataTypeNode_copy((const UA_DataTypeNode*)src,
-                                      (UA_DataTypeNode*)dst);
+        retval = UA_DataTypeNode_copy((const UA_DataTypeNode*)src, (UA_DataTypeNode*)dst);
         break;
     case UA_NODECLASS_VIEW:
         retval = UA_ViewNode_copy((const UA_ViewNode*)src, (UA_ViewNode*)dst);

@@ -110,6 +110,9 @@ struct UA_Server {
     /* Address Space */
     UA_NodeStore *nodestore;
 
+    /* Global Node Lifecycle */
+    UA_NodeLifecycle nodeLifecycle;
+
 #ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
@@ -347,7 +350,7 @@ UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
                          const UA_NodeId parentNodeId,
                          const UA_NodeId referenceTypeId,
                          const UA_NodeId typeDefinition,
-                         UA_InstantiationCallback *instantiationCallback);
+                         void *nodeContext);
 
 static UA_INLINE UA_StatusCode
 UA_Server_addReferenceTypeNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -428,7 +431,7 @@ UA_StatusCode
 UA_Server_addMethodNode_begin(UA_Server *server, const UA_NodeId requestedNewNodeId,
                               const UA_QualifiedName browseName,
                               const UA_MethodAttributes attr, UA_MethodCallback method,
-                              void *handle, UA_NodeId *outNewNodeId);
+                              UA_NodeId *outNewNodeId);
 
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
@@ -437,7 +440,8 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                size_t inputArgumentsSize,
                                const UA_Argument* inputArguments,
                                size_t outputArgumentsSize,
-                               const UA_Argument* outputArguments);
+                               const UA_Argument* outputArguments,
+                               void *nodeContext);
 #endif
 
 /**********************/

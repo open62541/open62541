@@ -608,22 +608,81 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
 #endif
 
 /**
- * Node Management
- * ---------------
+ * Node Lifecycle
+ * --------------
  *
- * Callback Mechanisms
- * ^^^^^^^^^^^^^^^^^^^
- * There are four mechanisms for callbacks from the node-based information model
- * into userspace:
+ * Every node has a context pointer with user-defined data (or NULL). The
+ * user-defined data is assigned before the first constructor is called. The
+ * constructors and destructors can can change (reallocate or free) the context
+ * pointer.
  *
+ * There are two layers of lifecycle management: global and for the specific
+ * node-type (for VariableTypes and ObjectTypes only). The lifecycle is as
+ * follows:
+ *
+ * 1. Global Constructor
+ * 2. Node-Type Constructor (for Variables and Objects)
+ * 3. (Usage-period of the Node)
+ * 4. Node-Type Destructor
+ * 5. Global Destructor
+ *
+ * The constructor callbacks can be set to NULL and are not used in that case.
+ * When the AddNodes service is used over the network, the context pointer is
+ * initially set to NULL.
+ *
+ * If the node-type constructor fails, the global destructor is called before
+ * the node is removed.
+ *
+ * Global Node Lifecycle
+ * ^^^^^^^^^^^^^^^^^^^^^ */
+
+typedef struct {
+    /* Can be NULL. */
+    UA_StatusCode (*constructor)(const UA_NodeId *nodeId, void **nodeContext);
+
+    /* Can be NULL. The global destructor cannot set a new context pointer. The
+     * node memory is freed directly afterwards anyway. */
+    void (*destructor)(const UA_NodeId *nodeId, void *nodeContext);
+} UA_NodeLifecycle;
+
+void UA_EXPORT
+UA_Server_setNodeLifecycle(UA_Server *server, UA_NodeLifecycle lifecycle);
+
+/**
+ * Node Type Lifecycle
+ * ^^^^^^^^^^^^^^^^^^^ */
+
+typedef struct {
+    /* Can be NULL. */
+    UA_StatusCode (*constructor)(const UA_NodeId *typeId, void *typeContext,
+                                 const UA_NodeId *instanceId, void **instanceContext);
+
+    /* Can be NULL. */
+    void (*destructor)(const UA_NodeId *typeId, void *typeContext,
+                       const UA_NodeId *instanceId, void **instanceContext);
+} UA_NodeTypeLifecycle;
+
+UA_StatusCode UA_EXPORT
+UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
+                               UA_NodeTypeLifecycle lifecycle);
+
+/**
+ * Interacting with the Node Context
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+UA_StatusCode UA_EXPORT
+UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId, void **context);
+
+UA_StatusCode UA_EXPORT
+UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId, void *context);
+
+/**
+ * Variable Value Storage
+ * ^^^^^^^^^^^^^^^^^^^^^^
  * - Datasources for variable nodes, where the variable content is managed
  *   externally
  * - Value-callbacks for variable nodes, where userspace is notified when a
  *   read/write occurs
- * - Object lifecycle management, where a user-defined constructor and
- *   destructor is added to an object type
- * - Method callbacks, where a user-defined method is exposed in the information
- *   model
  *
  * .. _datasource:
  *
@@ -639,8 +698,6 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * It is expected that the read callback is implemented. The write callback can
  * be set to a null-pointer. */
 typedef struct {
-    void *handle; /* A custom pointer to reuse the same datasource functions for
-                     multiple sources */
     /* Copies the data from the source into the provided value.
      *
      * @param handle An optional pointer to user-defined data for the
@@ -658,7 +715,7 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
      *         then no releasing of the value is done. */
-    UA_StatusCode (*read)(void *handle, const UA_NodeId nodeid,
+    UA_StatusCode (*read)(const UA_NodeId *nodeId, void *nodeContext,
                           UA_Boolean includeSourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *value);
 
@@ -671,9 +728,8 @@ typedef struct {
      * @param data The data to be written into the data source
      * @param range An optional data range. If the data source is scalar or does
      *        not support writing of ranges, then an error code is returned.
-     * @return Returns a status code that is returned to the user
-     */
-    UA_StatusCode (*write)(void *handle, const UA_NodeId nodeid,
+     * @return Returns a status code that is returned to the user */
+    UA_StatusCode (*write)(const UA_NodeId *nodeId, void *nodeContext,
                            const UA_Variant *data, const UA_NumericRange *range);
 } UA_DataSource;
 
@@ -689,9 +745,6 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
  * Value Callbacks can be attached to variable and variable type nodes. If
  * not-null, they are called before reading and after writing respectively. */
 typedef struct {
-    /* Pointer to user-provided data for the callback */
-    void *handle;
-
     /* Called before the value attribute is read. It is possible to write into the
      * value attribute during onRead (using the write service). The node is
      * re-opened afterwards so that changes are considered in the following read
@@ -702,7 +755,7 @@ typedef struct {
      * @param data Points to the current node value.
      * @param range Points to the numeric range the client wants to read from
      *        (or NULL). */
-    void (*onRead)(void *handle, const UA_NodeId nodeid,
+    void (*onRead)(const UA_NodeId *nodeid, void *nodeContext, 
                    const UA_Variant *data, const UA_NumericRange *range);
 
     /* Called after writing the value attribute. The node is re-opened after
@@ -713,53 +766,35 @@ typedef struct {
      * @param data Points to the current node value (after writing).
      * @param range Points to the numeric range the client wants to write to (or
      *        NULL). */
-    void (*onWrite)(void *handle, const UA_NodeId nodeid,
+    void (*onWrite)(const UA_NodeId *nodeId, void *nodeContext,
                     const UA_Variant *data, const UA_NumericRange *range);
 } UA_ValueCallback;
 
 UA_StatusCode UA_EXPORT
-UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+UA_Server_setVariableNode_valueCallback(UA_Server *server,
+                                        const UA_NodeId nodeId,
                                         const UA_ValueCallback callback);
-
-/**
- * .. _object-lifecycle:
- *
- * Object Lifecycle Management Callbacks
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Lifecycle management adds constructor and destructor callbacks to
- * object types. */
-typedef struct {
-    /* Returns the instance handle that is then attached to the node */
-    void * (*constructor)(const UA_NodeId instance);
-    void (*destructor)(const UA_NodeId instance, void *instanceHandle);
-} UA_ObjectLifecycleManagement;
-
-UA_StatusCode UA_EXPORT
-UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server,
-                                                UA_NodeId nodeId,
-                                                UA_ObjectLifecycleManagement olm);
 
 /**
  * Method Callbacks
  * ~~~~~~~~~~~~~~~~ */
 typedef UA_StatusCode
-(*UA_MethodCallback)(void *methodHandle, const UA_NodeId *objectId,
-                     const UA_NodeId *sessionId, void *sessionHandle,
+(*UA_MethodCallback)(const UA_NodeId *methodId, void *methodContext,
+                     const UA_NodeId *objectId, void *objectContext,
+                     const UA_NodeId *sessionId, void *sessionContext,
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
-UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
-                                 UA_MethodCallback method, void *handle);
-#endif
+UA_Server_setMethodNode_callback(UA_Server *server,
+                                 const UA_NodeId methodNodeId,
+                                 UA_MethodCallback methodCallback);
 
 /**
  * .. _addnodes:
  *
  * Node Addition and Deletion
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^
- *
  * When creating dynamic node instances at runtime, chances are that you will
  * not care about the specific NodeId of the new node, as long as you can
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
@@ -815,8 +850,7 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId *typeDefinition,
                     const UA_NodeAttributes *attr,
                     const UA_DataType *attributeType,
-                    UA_InstantiationCallback *instantiationCallback,
-                    UA_NodeId *outNewNodeId);
+                    void *nodeContext, UA_NodeId *outNewNodeId);
 
 static UA_INLINE UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
@@ -825,13 +859,12 @@ UA_Server_addVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_QualifiedName browseName,
                           const UA_NodeId typeDefinition,
                           const UA_VariableAttributes attr,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *outNewNodeId) {
+                          void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &typeDefinition, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -842,14 +875,13 @@ UA_Server_addVariableTypeNode(UA_Server *server,
                               const UA_QualifiedName browseName,
                               const UA_NodeId typeDefinition,
                               const UA_VariableTypeAttributes attr,
-                              UA_InstantiationCallback *instantiationCallback,
-                              UA_NodeId *outNewNodeId) {
+                              void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLETYPE,
                                &requestedNewNodeId, &parentNodeId, &referenceTypeId,
                                browseName, &typeDefinition,
                                (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -859,13 +891,12 @@ UA_Server_addObjectNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_QualifiedName browseName,
                         const UA_NodeId typeDefinition,
                         const UA_ObjectAttributes attr,
-                        UA_InstantiationCallback *instantiationCallback,
-                        UA_NodeId *outNewNodeId) {
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECT, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &typeDefinition, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -874,13 +905,12 @@ UA_Server_addObjectTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeI
                             const UA_NodeId referenceTypeId,
                             const UA_QualifiedName browseName,
                             const UA_ObjectTypeAttributes attr,
-                            UA_InstantiationCallback *instantiationCallback,
-                            UA_NodeId *outNewNodeId) {
+                            void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECTTYPE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -889,13 +919,12 @@ UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                       const UA_NodeId referenceTypeId,
                       const UA_QualifiedName browseName,
                       const UA_ViewAttributes attr,
-                      UA_InstantiationCallback *instantiationCallback,
-                      UA_NodeId *outNewNodeId) {
+                      void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_VIEW, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VIEWATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -905,14 +934,13 @@ UA_Server_addReferenceTypeNode(UA_Server *server,
                                const UA_NodeId referenceTypeId,
                                const UA_QualifiedName browseName,
                                const UA_ReferenceTypeAttributes attr,
-                               UA_InstantiationCallback *instantiationCallback,
-                               UA_NodeId *outNewNodeId) {
+                               void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_REFERENCETYPE,
                                &requestedNewNodeId, &parentNodeId, &referenceTypeId,
                                browseName, &UA_NODEID_NULL,
                                (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 static UA_INLINE UA_StatusCode
@@ -922,13 +950,12 @@ UA_Server_addDataTypeNode(UA_Server *server,
                           const UA_NodeId referenceTypeId,
                           const UA_QualifiedName browseName,
                           const UA_DataTypeAttributes attr,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *outNewNodeId) {
+                          void *nodeContext, UA_NodeId *outNewNodeId) {
     return __UA_Server_addNode(server, UA_NODECLASS_DATATYPE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES],
-                               instantiationCallback, outNewNodeId);
+                               nodeContext, outNewNodeId);
 }
 
 UA_StatusCode UA_EXPORT
@@ -940,22 +967,17 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_NodeId typeDefinition,
                                     const UA_VariableAttributes attr,
                                     const UA_DataSource dataSource,
-                                    UA_NodeId *outNewNodeId);
+                                    void *nodeContext, UA_NodeId *outNewNodeId);
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId,
                         const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName,
-                        const UA_MethodAttributes attr,
-                        UA_MethodCallback method, void *handle,
-                        size_t inputArgumentsSize,
-                        const UA_Argument* inputArguments, 
-                        size_t outputArgumentsSize,
-                        const UA_Argument* outputArguments,
-                        UA_NodeId *outNewNodeId);
-#endif
+                        const UA_MethodAttributes attr, UA_MethodCallback method,
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t outputArgumentsSize, const UA_Argument* outputArguments,
+                        void *nodeContext, UA_NodeId *outNewNodeId);
 
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,

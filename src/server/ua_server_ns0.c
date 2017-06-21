@@ -23,7 +23,8 @@ UA_THREAD_LOCAL UA_Session* methodCallSession = NULL;
 /****************/
 
 static UA_StatusCode
-readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+readStatus(const UA_NodeId *nodeid, void *nodeContext,
+           UA_Boolean sourceTimestamp,
            const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = true;
@@ -31,7 +32,7 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_Server *server = (UA_Server*)handle;
+    UA_Server *server = (UA_Server*)nodeContext;
     UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
     status->startTime = server->startTime;
     status->currentTime = UA_DateTime_now();
@@ -45,7 +46,7 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
     value->hasValue = true;
-    if(sourceTimeStamp) {
+    if(sourceTimestamp) {
         value->hasSourceTimestamp = true;
         value->sourceTimestamp = UA_DateTime_now();
     }
@@ -53,14 +54,15 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
 }
 
 static UA_StatusCode
-readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
+readNamespaces(const UA_NodeId *nodeid, void *nodeContext,
+               UA_Boolean sourceTimestamp,
                const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    UA_Server *server = (UA_Server*)handle;
+    UA_Server *server = (UA_Server*)nodeContext;
     UA_StatusCode retval;
     retval = UA_Variant_setArrayCopy(&value->value, server->namespaces,
                                      server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
@@ -75,9 +77,9 @@ readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
 }
 
 static UA_StatusCode
-writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-                const UA_NumericRange *range) {
-    UA_Server *server = (UA_Server*)handle;
+writeNamespaces(const UA_NodeId *nodeid, void *nodeContext,
+                const UA_Variant *data, const UA_NumericRange *range) {
+    UA_Server *server = (UA_Server*)nodeContext;
 
     /* Check the data type */
     if(data->type != &UA_TYPES[UA_TYPES_STRING])
@@ -111,7 +113,8 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
 }
 
 static UA_StatusCode
-readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
+readCurrentTime(const UA_NodeId *nodeid, void *nodeContext,
+                UA_Boolean sourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = true;
@@ -133,7 +136,8 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
-readMonitoredItems(void *handle, const UA_NodeId *objectId,
+readMonitoredItems(const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
                    const UA_NodeId *sessionId, void *sessionHandle,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output) {
@@ -530,17 +534,13 @@ void UA_Server_createNS0(UA_Server *server) {
     nsarray_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Server_addVariableNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                     UA_QUALIFIEDNAME(0, "NamespaceArray"), nsarray_attr, NULL);
-    UA_DataSource nsarray_datasource =  {
-        server, //handle
-        readNamespaces, //read
-        writeNamespaces //write
-    };
+    UA_DataSource nsarray_datasource =  {readNamespaces, writeNamespaces};
     UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                                          nsarray_datasource);
     UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), NULL);
+                             UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE), server /* context for datasource*/);
 
     /* Begin ServerCapabilities */
     UA_ObjectAttributes servercap_attr = UA_ObjectAttributes_default;
@@ -744,7 +744,6 @@ void UA_Server_createNS0(UA_Server *server) {
                                   UA_QUALIFIEDNAME(0, "GetMonitoredItems"),
                                   addmethodattributes,
                                   readMonitoredItems, /* callback of the method node */
-                                  NULL, /* handle passed with the callback */
                                   NULL);
 
     /* Add the arguments manually to get the nodeids right */
@@ -778,7 +777,7 @@ void UA_Server_createNS0(UA_Server *server) {
     UA_Server_addMethodNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                   0, NULL, 0, NULL);
+                                   0, NULL, 0, NULL, NULL);
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
     /* Finish adding the server object */

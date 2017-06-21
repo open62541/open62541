@@ -63,31 +63,28 @@ static void
 Operation_CallMethod(UA_Server *server, UA_Session *session,
                      const UA_CallMethodRequest *request,
                      UA_CallMethodResult *result) {
-    /* Get/verify the method node */
-    const UA_MethodNode *methodCalled =
-        (const UA_MethodNode*)UA_NodeStore_get(server->nodestore, &request->methodId);
+    /* Verify the method node */
+    const UA_MethodNode *methodCalled = (const UA_MethodNode*)
+        UA_NodeStore_get(server->nodestore, &request->methodId);
     if(!methodCalled)
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
     else if(methodCalled->nodeClass != UA_NODECLASS_METHOD)
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
-    else if(!methodCalled->attachedMethod)
+    else if(!methodCalled->method)
         result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
-
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
-    /* Get/verify the object node */
-    const UA_ObjectNode *object =
-        (const UA_ObjectNode*)UA_NodeStore_get(server->nodestore, &request->objectId);
-    if(!object) {
+    /* Verify the object node */
+    const UA_ObjectNode *object = (const UA_ObjectNode*)
+        UA_NodeStore_get(server->nodestore, &request->objectId);
+    if(!object)
         result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
-        return;
-    }
-    if(object->nodeClass != UA_NODECLASS_OBJECT &&
-       object->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+    else if(object->nodeClass != UA_NODECLASS_OBJECT &&
+            object->nodeClass != UA_NODECLASS_OBJECTTYPE)
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
+    if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
-    }
 
     /* Verify access rights */
     UA_Boolean executable = methodCalled->executable;
@@ -160,10 +157,11 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     methodCallSession = session;
 #endif
     result->statusCode =
-        methodCalled->attachedMethod(methodCalled->methodHandle, &object->nodeId,
-                                     &session->sessionId, session->sessionHandle,
-                                     request->inputArgumentsSize, request->inputArguments,
-                                     result->outputArgumentsSize, result->outputArguments);
+        methodCalled->method(&methodCalled->nodeId, (void*)(uintptr_t)methodCalled->context,
+                             &object->nodeId, (void*)(uintptr_t)&object->context,
+                             &session->sessionId, session->sessionHandle,
+                             request->inputArgumentsSize, request->inputArguments,
+                             result->outputArgumentsSize, result->outputArguments);
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     methodCallSession = NULL;
 #endif
