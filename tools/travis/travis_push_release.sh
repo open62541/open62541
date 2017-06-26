@@ -7,6 +7,11 @@ BRANCH="$(git log --pretty=format:"%d" --date=iso --abbrev=10 --all -1)"
 DATE="$(git log --pretty=format:"%ad" --date=iso --abbrev=10 --all -1)"
 COMMENT="$(git log --pretty=format:"%s" --date=iso --abbrev=10 --all -1)"
 
+# The encrypted key is not available in pull requests from forks
+if [ -z "$GITAUTH" ]; then
+    exit 0
+fi
+
 git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
 cd open62541-www
 

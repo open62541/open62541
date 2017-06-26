@@ -85,99 +85,36 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /* Information Model Operations */
 /********************************/
 
-UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    size_t results_size = 20; // probably too big, but saves mallocs
-    UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
-    if(!results)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode retval = UA_NodeId_copy(&rootRef->nodeId, &results[0]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(results);
-        return retval;
-    }
-
-    const UA_Node *node = rootRef;
-    size_t idx = 0; /* Current index (contains NodeId of node) */
-    size_t last = 0; /* Index of the last element in the array */
-    const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    while(true) {
-        for(size_t i = 0; i < node->referencesSize; ++i) {
-            /* is the reference relevant? */
-            if(node->references[i].isInverse != inverse ||
-               !UA_NodeId_equal(&hasSubtypeNodeId, &node->references[i].referenceTypeId))
-                continue;
-
-            /* is the target already considered? (multi-inheritance) */
-            UA_Boolean duplicate = false;
-            for(size_t j = 0; j <= last; ++j) {
-                if(UA_NodeId_equal(&node->references[i].targetId.nodeId, &results[j])) {
-                    duplicate = true;
-                    break;
-                }
-            }
-            if(duplicate)
-                continue;
-
-            /* increase array length if necessary */
-            if(last + 1 >= results_size) {
-                UA_NodeId *new_results =
-                    (UA_NodeId*)UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
-                if(!new_results) {
-                    retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                    break;
-                }
-                results = new_results;
-                results_size *= 2;
-            }
-
-            /* copy new nodeid to the end of the list */
-            retval = UA_NodeId_copy(&node->references[i].targetId.nodeId, &results[++last]);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
-        }
-
-        /* Get the next node */
-    next:
-        ++idx;
-        if(idx > last || retval != UA_STATUSCODE_GOOD)
-            break;
-        node = UA_NodeStore_get(ns, &results[idx]);
-        if(!node || node->nodeClass != rootRef->nodeClass)
-            goto next;
-    }
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
-        return retval;
-    }
-
-    *typeHierarchy = results;
-    *typeHierarchySize = last + 1;
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_Boolean
 isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
-    if(UA_NodeId_equal(leafNode, nodeToFind))
+    if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
 
-    const UA_Node *node = UA_NodeStore_get(ns,leafNode);
+    const UA_Node *node = UA_NodeStore_get(ns, leafNode);
     if(!node)
         return false;
 
-    /* Search upwards in the tree */
     for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(!node->references[i].isInverse)
+        UA_NodeReferenceKind *refs = &node->references[i];
+        /* Search upwards in the tree */
+        if(!refs->isInverse)
             continue;
 
-        /* Recurse only for valid reference types */
+        /* Consider only the indicated reference types */
+        UA_Boolean match = false;
         for(size_t j = 0; j < referenceTypeIdsSize; ++j) {
-            if(UA_NodeId_equal(&node->references[i].referenceTypeId, &referenceTypeIds[j]) &&
-               isNodeInTree(ns, &node->references[i].targetId.nodeId, nodeToFind,
+            if(UA_NodeId_equal(&refs->referenceTypeId, &referenceTypeIds[j])) {
+                match = true;
+                break;
+            }
+        }
+        if(!match)
+            continue;
+
+        /* Match the targets or recurse */
+        for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+            if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
                             referenceTypeIds, referenceTypeIdsSize))
                 return true;
         }
@@ -207,11 +144,14 @@ void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId) {
 
     /* Stop at the first matching candidate */
     for(size_t i = 0; i < node->referencesSize; ++i) {
-        if(node->references[i].isInverse == inverse &&
-           UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef)) {
-            UA_NodeId_copy(&node->references[i].targetId.nodeId, typeId);
-            break;
-        }
+        if(node->references[i].isInverse != inverse)
+            continue;
+        if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
+            continue;
+        if(node->references[i].targetIdsSize == 0)
+            return;
+        UA_NodeId_copy(&node->references[i].targetIds[0].nodeId, typeId);
+        return;
     }
 }
 

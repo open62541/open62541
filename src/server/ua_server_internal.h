@@ -12,7 +12,6 @@ extern "C" {
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_timer.h"
-#include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
@@ -59,15 +58,6 @@ extern "C" {
 # define UA_ASSERT_RCU_UNLOCKED()
 #endif
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/* Mapping of namespace-id and url to an external nodestore. For namespaces that
- * have no mapping defined, the internal nodestore is used by default. */
-typedef struct UA_ExternalNamespace {
-    UA_UInt16 index;
-    UA_String url;
-    UA_ExternalNodeStore externalNodeStore;
-} UA_ExternalNamespace;
-#endif
 
 #ifdef UA_ENABLE_MULTITHREADING
 typedef struct {
@@ -171,10 +161,6 @@ struct UA_Server {
     size_t namespacesSize;
     UA_String *namespaces;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    size_t externalNamespacesSize;
-    UA_ExternalNamespace *externalNamespaces;
-#endif
 
     /* Jobs with a repetition interval */
     UA_RepeatedJobsList repeatedJobs;
@@ -203,6 +189,7 @@ struct UA_Server {
 /*****************/
 
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
+void UA_Node_deleteReferences(UA_Node *node);
 UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
@@ -238,14 +225,6 @@ getVariableNodeType(UA_Server *server, const UA_VariableNode *node);
 
 const UA_ObjectTypeNode *
 getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
-
-/* Returns an array with all subtype nodeids (including the root). Subtypes need
- * to have the same nodeClass as root and are (recursively) related with a
- * hasSubType reference. Since multi-inheritance is possible, we test for
- * duplicates and return evey nodeid at most once. */
-UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
@@ -315,10 +294,6 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
 void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v);
-
-void Service_Call_single(UA_Server *server, UA_Session *session,
-                         const UA_CallMethodRequest *request,
-                         UA_CallMethodResult *result);
 
 /* Periodic task to clean up the discovery registry */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);

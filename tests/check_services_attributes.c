@@ -15,6 +15,12 @@
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
 
+#ifdef __clang__
+//required for ck_assert_ptr_eq and const casting
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#endif
+
 static UA_StatusCode
 readCPUTemperature(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
                    const UA_NumericRange *range, UA_DataValue *dataValue) {
@@ -1024,3 +1030,8 @@ int main(void) {
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif

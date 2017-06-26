@@ -503,23 +503,24 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     code.append("if(UA_ByteString_allocBuffer(&" + self.getCodeInstanceName() + "->content.encoded.body, 65000) != UA_STATUSCODE_GOOD) {}" )
 
     # Encode each value as a bytestring seperately.
-    code.append("size_t " + self.getCodeInstanceName() + "_encOffset = 0;" )
+    code.append("UA_Byte *pos" + self.getCodeInstanceName() + " = " + self.getCodeInstanceName() + "->content.encoded.body.data;")
+    code.append("const UA_Byte *end" + self.getCodeInstanceName() + " = &" + self.getCodeInstanceName() + "->content.encoded.body.data[65000];")
     encFieldIdx = 0;
     for subv in self.value:
       encField = self.getEncodingRule()[encFieldIdx]
       encFieldIdx = encFieldIdx + 1;
       if encField[2] == 0:
-        #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
-        code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &UA_TYPES[UA_TYPES_" + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+        code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &UA_TYPES[UA_TYPES_" + subv.stringRepresentation.upper() + "], &pos" + self.getCodeInstanceName() + ", &end" + self.getCodeInstanceName() + ", NULL, NULL);" )
       else:
         if isinstance(subv, list):
           for subvidx in range(0,len(subv)):
-            #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
-            code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+            code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], &pos" + self.getCodeInstanceName() + ", &end" + self.getCodeInstanceName() + ", NULL, NULL);" )
         else:
-          code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+          code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], &pos" + self.getCodeInstanceName() + ", &end" + self.getCodeInstanceName() + ", NULL, NULL);" )
 
     # Reallocate the memory by swapping the 65k Bytestring for a new one
+    code.append("size_t " + self.getCodeInstanceName() + "_encOffset = (uintptr_t)(" +
+                "pos" + self.getCodeInstanceName() + "-" + self.getCodeInstanceName() + "->content.encoded.body.data);")
     code.append(self.getCodeInstanceName() + "->content.encoded.body.length = " + self.getCodeInstanceName() + "_encOffset;");
     code.append("UA_Byte *" + self.getCodeInstanceName() + "_newBody = (UA_Byte *) UA_malloc(" + self.getCodeInstanceName() + "_encOffset );" )
     code.append("memcpy(" + self.getCodeInstanceName() + "_newBody, " + self.getCodeInstanceName() + "->content.encoded.body.data, " + self.getCodeInstanceName() + "_encOffset);" )

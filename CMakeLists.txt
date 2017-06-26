@@ -27,9 +27,9 @@ include(AssignSourceGroup)
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
@@ -97,9 +97,6 @@ mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
 option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
 mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
-
-option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
-mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
@@ -406,7 +403,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers} ${lib_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
-ADD_CUSTOM_TARGET(open625451_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
+ADD_CUSTOM_TARGET(open62541_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
                                                   ${PROJECT_BINARY_DIR}/open62541.c)
 
 # example information model from nodeset xml
@@ -436,6 +433,11 @@ assign_source_group(${exported_headers})
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
+
+    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object 
+    # and thus may overwrite the amalgamation result during multiprocessor compilation
+    add_dependencies(open62541-object open62541_amalgamation)
+
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
