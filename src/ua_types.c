@@ -87,6 +87,15 @@ UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (is == 0) ? true : false;
 }
 
+bool
+UA_String_equalNative(const UA_String *s1, const char *s2) {
+    if(s1->length != strlen(s2))
+        return false;
+    i32 is = memcmp((char const*)s1->data,
+                    (char const*)s2, s1->length);
+    return (is == 0) ? true : false;
+}
+
 static void
 String_deleteMembers(UA_String *s, const UA_DataType *_) {
     UA_free((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
