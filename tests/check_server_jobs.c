@@ -7,7 +7,7 @@
 #include "ua_config_standard.h"
 
 #include "check.h"
-#include <unistd.h>
+#include "testing_clock.h"
 
 UA_Server *server = NULL;
 
@@ -40,11 +40,11 @@ START_TEST(Server_addRemoveRepeatedJob) {
     UA_Server_run_iterate(server, false);
 
     /* Wait until the job has surely timed out */
-    usleep(15*1000);
+    UA_sleep(15);
     UA_Server_run_iterate(server, false);
 
     /* Wait a bit longer until the workers have picked up the dispatched job */
-    usleep(15*1000);
+    UA_sleep(15);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedJob(server, id);
@@ -67,7 +67,7 @@ START_TEST(Server_repeatedJobRemoveItself) {
     };
     UA_Server_addRepeatedJob(server, rj, 10, jobId);
 
-    usleep(15*1000);
+    UA_sleep(15);
     UA_Server_run_iterate(server, false);
 
     UA_Guid_delete(jobId);
