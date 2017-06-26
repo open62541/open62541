@@ -127,14 +127,16 @@ static void closeConnectionUDP(UA_Connection *handle) {
 static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     ServerNetworkLayerUDP *layer = nl->handle;
     layer->logger = logger;
-    layer->serversockfd = socket(PF_INET, SOCK_DGRAM, 0);
+    layer->serversockfd = socket(AF_INET6, SOCK_DGRAM, 0);
     if(layer->serversockfd < 0) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Error opening socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    const struct sockaddr_in serv_addr =
-        {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
-         .sin_port = htons(layer->port), .sin_zero = {0}};
+    struct sockaddr_in6 serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_port = htons(layer->port);
+    serv_addr.sin6_addr = in6addr_any;
     int optval = 1;
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
                   SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
