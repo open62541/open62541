@@ -187,6 +187,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
+
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -207,6 +208,8 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+
+# TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -240,14 +243,14 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
-                # plugins and dependencies
-                ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
+                # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
-                ##TODO: make client stuff optional
+
+set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c)
 
 if(UA_ENABLE_EMBEDDED_LIBC)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
@@ -338,13 +341,13 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers}
-                           ${internal_headers})
+                           ${exported_headers} ${internal_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers} ${lib_sources}
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                           ${internal_headers} ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
 ADD_CUSTOM_TARGET(open625451_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
@@ -374,19 +377,27 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJEC
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
+
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/plugins)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
+
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
+        set_source_files_properties(${default_plugin_sources} PROPERTIES LANGUAGE CXX)
     endif()
 endif()
-add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -411,7 +422,10 @@ if(UA_BUILD_EXAMPLES)
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
-    target_compile_definitions(open62541-object PRIVATE UA_BUILD_UNIT_TESTS) # Export some internal functions
+    if(UA_ENABLE_AMALGAMATION)
+        # Cannot compile tests with amalgamation. Amalgamation uses the default plugins, not the testing plugins
+        message(FATAL_ERROR "Unit tests cannot be generated with source amalgamation enabled")
+    endif()
     enable_testing()
     add_subdirectory(tests)
 endif()

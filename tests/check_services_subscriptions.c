@@ -9,7 +9,7 @@
 #include "ua_config_standard.h"
 
 #include "check.h"
-#include <unistd.h>
+#include "testing_clock.h"
 
 UA_Server *server = NULL;
 
@@ -162,7 +162,7 @@ START_TEST(Server_publishCallback) {
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
     /* Sleep until the publishing interval times out */
-    usleep((useconds_t)(publishingInterval * 1000) + 1000);
+    UA_sleep((UA_DateTime)publishingInterval + 1);
 
     /* Keepalive is set to max initially */
     UA_Subscription *sub;
@@ -171,9 +171,9 @@ START_TEST(Server_publishCallback) {
 
     UA_Server_run_iterate(server, false);
 #ifdef UA_ENABLE_MULTITHREADING
-    usleep((useconds_t)(publishingInterval * 1000) + 1000);
+    UA_sleep(publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    usleep((useconds_t)(publishingInterval * 1000) + 1000);
+    UA_sleep(publishingInterval + 1);
 #endif
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
