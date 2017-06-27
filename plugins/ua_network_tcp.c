@@ -393,7 +393,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     UA_String_copy(&du, &nl->discoveryUrl);
 
     /* Create the server socket */
-    SOCKET newsock = socket(PF_INET, SOCK_STREAM, 0);
+    SOCKET newsock = socket(AF_INET6, SOCK_STREAM, 0);
 #ifdef _WIN32
     if(newsock == INVALID_SOCKET)
 #else
@@ -417,11 +417,11 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     }
 
     /* Bind socket to address */
-    struct sockaddr_in serv_addr;
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(layer->port);
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    memset(&(serv_addr.sin_zero), '\0', 8);
+    struct sockaddr_in6 serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_port = htons(layer->port);
+    serv_addr.sin6_addr = in6addr_any;
     if(bind(newsock, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
                        "Error during binding of the server socket");
