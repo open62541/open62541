@@ -12,6 +12,8 @@ if(UA_ENABLE_VALGRIND_UNIT_TESTS)
     find_package(Valgrind REQUIRED)
 endif()
 
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+
 # Build the plugins used for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing_clock.c
@@ -21,22 +23,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
-target_include_directories(open62541-testplugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
-target_include_directories(open62541-testplugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
 
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT WIN32)
-  list(APPEND LIBS pthread m)
-  if(NOT APPLE)
-    list(APPEND LIBS rt subunit)
-  endif()
-else()
-    list(APPEND LIBS ws2_32)
-endif()
-if(UA_ENABLE_MULTITHREADING)
-    list(APPEND LIBS urcu-cds urcu urcu-common)
-endif()
-
+# Workaround some clang warnings in the uni tests
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-Wno-sign-conversion)
 endif()
@@ -107,6 +95,11 @@ add_test_valgrind(check_server_jobs ${CMAKE_CURRENT_BINARY_DIR}/check_server_job
 add_executable(check_server_userspace check_server_userspace.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_userspace ${LIBS})
 add_test_valgrind(check_server_userspace ${CMAKE_CURRENT_BINARY_DIR}/check_server_userspace)
+
+# Readspeed server
+add_executable(check_server_readspeed check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_server_readspeed ${LIBS})
+add_test_valgrind(check_server_readspeed ${CMAKE_CURRENT_BINARY_DIR}/check_server_readspeed)
 
 # Test server with network dumps from files
 

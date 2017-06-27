@@ -12,7 +12,7 @@ else
 
     echo "Documentation and certificate build"  && echo -en 'travis_fold:start:script.build.doc\\r'
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_DOCUMENTATION=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
+    cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
     make selfsigned
     ls examples
     cp examples/server_cert.der ../
@@ -40,14 +40,14 @@ else
 
     echo "Compile multithreaded version" && echo -en 'travis_fold:start:script.build.multithread\\r'
     mkdir -p build && cd build
-    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLESERVER=ON -DUA_BUILD_EXAMPLES=ON ..
+    cmake -DUA_ENABLE_MULTITHREADING=ON -DUA_BUILD_EXAMPLES=ON ..
     make -j
     cd .. && rm -rf build
 	echo -en 'travis_fold:end:script.build.multithread\\r'
 
     echo "Debug build and unit tests with valgrind" && echo -en 'travis_fold:start:script.build.unit_test\\r'
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=OFF -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
     cd .. && rm -rf build
 	echo -en 'travis_fold:end:script.build.unit_test\\r'
