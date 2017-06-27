@@ -3,6 +3,6 @@ Internals
 
 .. toctree::
 
+   plugin_network
    nodestore
-   connection
    log

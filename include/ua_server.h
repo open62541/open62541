@@ -15,13 +15,7 @@ extern "C" {
 #include "ua_types_generated_handling.h"
 #include "ua_nodeids.h"
 #include "ua_log.h"
-#include "ua_connection.h"
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
-
-struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
+#include "ua_plugin_network.h"
 
 /**
  * .. _server:
@@ -29,48 +23,6 @@ typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
  * Server
  * ======
  *
- * Network Layer
- * -------------
- * Interface to the binary network layers. The functions in the network layer
- * are never called in parallel but only sequentially from the server's main
- * loop. So the network layer does not need to be thread-safe. */
-struct UA_ServerNetworkLayer {
-    void *handle; // pointer to internal data
-    UA_String discoveryUrl;
-
-    /* Starts listening on the the networklayer.
-     *
-     * @param nl The network layer
-     * @param logger The logger
-     * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_Logger logger);
-
-    /* Gets called from the main server loop and dispatches the received
-     * messages in the server.
-     *
-     * @param nl The network layer
-     * @param server The server that processes the incoming packets and for closing
-     *               connections before deleting them.
-     * @param timeout The timeout during which an event must arrive in
-     *                microseconds
-     * @return A statuscode for the status of the network layer. */
-    UA_StatusCode (*listen)(UA_ServerNetworkLayer *nl, UA_Server *server,
-                            UA_UInt16 timeout);
-
-    /* Closes the network socket and all open connections before the network
-     * layer can be safely deleted.
-     *
-     * @param nl The network layer
-     * @param server The server that processes the incoming packets and for closing
-     *               connections before deleting them.
-     * @return A statuscode for the status of the closing operation. */
-    void (*stop)(UA_ServerNetworkLayer *nl, UA_Server *server);
-
-    /** Deletes the network content. Call only after stopping. */
-    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
-};
-
-/**
  * Access Control
  * --------------
  * The access control callback is used to authenticate sessions and grant access
@@ -136,7 +88,8 @@ typedef struct {
 /**
  * Server Configuration
  * --------------------
- * The following structure is passed to a new server for configuration. */
+ * The configuration structure is passed to the server during initialization. */
+
 typedef struct {
     UA_String username;
     UA_String password;
@@ -277,26 +230,6 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
  *         An error code otherwise. */
 UA_StatusCode UA_EXPORT
 UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
-
-/*
- * Networking
- * ----------
- *
- * Connections are created in the network layer. The server gets called to
- * remove the connection.
- * - Unlink the securechannel, and so on.
- * - Free the connection when no (concurrent) server thread uses it any more. */
-void UA_EXPORT
-UA_Server_removeConnection(UA_Server *server,
-                           UA_Connection *connection);
-
-/* Process a binary message (packet). The message can contain partial chunks.
- * (TCP is a streaming protocol and packets may be split/merge during
- * transport.) The message is freed with connection->releaseRecvBuffer. */
-void UA_EXPORT
-UA_Server_processBinaryMessage(UA_Server *server,
-                               UA_Connection *connection,
-                               UA_ByteString *message);
 
 /**
  * Reading and Writing Node Attributes

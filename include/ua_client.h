@@ -9,9 +9,8 @@
 extern "C" {
 #endif
 
-#include "ua_config.h"
 #include "ua_types.h"
-#include "ua_connection.h"
+#include "ua_plugin_network.h"
 #include "ua_log.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
@@ -35,9 +34,6 @@ extern "C" {
  *
  * Client Configuration
  * -------------------- */
-typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf,
-                              const char *endpointUrl, UA_Logger logger);
 
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout;               /* Sync response timeout */
