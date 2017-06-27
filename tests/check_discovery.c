@@ -29,6 +29,7 @@
 #include "ua_config_standard.h"
 #include "ua_network_tcp.h"
 #include "check.h"
+#include "testing_clock.h"
 
 
 // set register timeout to 1 second so we are able to test it.
@@ -69,6 +70,7 @@ static void setup_lds(void) {
     UA_Server_run_startup(server_lds);
     pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
     // wait until LDS started
+    UA_sleep(1000);
     sleep(1);
 }
 
@@ -148,7 +150,6 @@ START_TEST(Server_unregister) {
     }
 END_TEST
 
-
 START_TEST(Server_register_semaphore) {
         // create the semaphore
         int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
@@ -175,8 +176,11 @@ END_TEST
 
 START_TEST(Server_unregister_periodic) {
         // wait for first register delay
+        UA_sleep(1000);
         sleep(1);
         UA_Server_removeRepeatedJob(server_register, periodicRegisterJobId);
+        UA_sleep(1000);
+        sleep(1);
         UA_StatusCode retval = UA_Server_unregister_discovery(server_register, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
@@ -461,22 +465,26 @@ END_TEST
 
 START_TEST(Util_wait_timeout) {
         // wait until server is removed by timeout. Additionally wait a few seconds more to be sure.
-        sleep(checkWait);
+        UA_sleep(100000 * checkWait);
+        sleep(1);
     }
 END_TEST
 
 START_TEST(Util_wait_mdns) {
+        UA_sleep(1000);
         sleep(1);
     }
 END_TEST
 
 START_TEST(Util_wait_startup) {
+        UA_sleep(1000);
         sleep(1);
     }
 END_TEST
 
 START_TEST(Util_wait_retry) {
         // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
+        UA_sleep(3000);
         sleep(3);
     }
 END_TEST
@@ -527,7 +535,6 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_find, Client_filter_discovery);
     suite_add_tcase(s,tc_register_find);
 #endif
-
 
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");
