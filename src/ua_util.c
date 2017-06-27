@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
-#include "ua_connection.h"
+#include "ua_plugin_network.h"
 
 size_t
 UA_readNumber(u8 *buf, size_t buflen, u32 *number) {

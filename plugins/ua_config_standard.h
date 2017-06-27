@@ -12,8 +12,9 @@ extern "C" {
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
 
-extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
-extern UA_EXPORT const UA_ClientConfig UA_ClientConfig_standard;
+extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
+extern const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard;
+extern const UA_EXPORT UA_ClientConfig UA_ClientConfig_standard;
 
 #ifdef __cplusplus
 }
