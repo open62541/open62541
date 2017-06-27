@@ -12,6 +12,7 @@
 #endif
 
 #include "ua_network_tcp.h"
+#include "ua_log_stdout.h"
 #include "queue.h"
 
 #include <stdlib.h> // malloc, free
@@ -262,7 +263,6 @@ typedef struct ConnectionEntry {
 typedef struct {
     UA_ConnectionConfig conf;
     UA_UInt16 port;
-    UA_Logger logger; // Set during start
 
     /* open sockets and connections */
     UA_Int32 serversockfd;
@@ -301,8 +301,7 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
 static void
 ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
     connection->state = UA_CONNECTION_CLOSED;
-    UA_LOG_INFO(((ServerNetworkLayerTCP*)connection->handle)->logger,
-                UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                 "Connection %i | Force closing the connection",
                 connection->sockfd);
     shutdown(connection->sockfd, 2);
@@ -315,11 +314,11 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
     socklen_t addrlen = sizeof(struct sockaddr_in);
     int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
     if(res == 0) {
-        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New connection over TCP from %s:%d",
                     newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
     } else {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection %i | New connection over TCP, "
                        "getpeername failed with errno %i", newsockfd, errno);
     }
@@ -348,11 +347,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    layer->logger = logger;
 
-    /* get the discovery url from the hostname */
+    /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char hostname[256];
     if(gethostname(hostname, 255) == 0) {
@@ -376,7 +374,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     if(newsock < 0)
 #endif
     {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Error opening the server socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -386,7 +384,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
                   (const char *)&optval, sizeof(optval)) == -1 ||
        socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Error during setting of server socket options");
         CLOSESOCKET(newsock);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -399,7 +397,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     serv_addr.sin6_port = htons(layer->port);
     serv_addr.sin6_addr = in6addr_any;
     if(bind(newsock, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Error during binding of the server socket");
         CLOSESOCKET(newsock);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -407,14 +405,14 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
 
     /* Start listening */
     if(listen(newsock, MAXBACKLOG) < 0) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Error listening on server socket");
         CLOSESOCKET(newsock);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     layer->serversockfd = (UA_Int32)newsock; /* cast on win32 */
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                 "TCP network layer listening on %.*s",
                 nl->discoveryUrl.length, nl->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
@@ -504,7 +502,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 static void
 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                 "Shutting down the TCP network layer");
     shutdown((SOCKET)layer->serversockfd,2);
     CLOSESOCKET(layer->serversockfd);
@@ -586,8 +584,7 @@ ClientNetworkLayerClose(UA_Connection *connection) {
 
 /* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
-                       UA_Logger logger) {
+UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -617,13 +614,13 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
     UA_StatusCode parse_retval =
         UA_parseEndpointUrl(&endpointUrlString, &hostnameString, &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %s", endpointUrl);
         return connection;
     }
     if(port == 0) {
         port = 4840;
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "No port defined, using standard port %d", port);
     }
     memcpy(hostname, hostnameString.data, hostnameString.length);
@@ -641,7 +638,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
 #endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "DNS lookup of %s failed with error %s",
                        hostname, gai_strerror(error));
         return connection;
@@ -655,7 +652,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
 #else
     if(clientsockfd < 0) {
 #endif
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Could not create client socket");
         freeaddrinfo(server);
         return connection;
@@ -675,12 +672,12 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
                        NULL, WSAGetLastError(),
                        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                        (LPWSTR)&s, 0, NULL);
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection to %s failed. Error: %d: %S",
                        endpointUrl, WSAGetLastError(), s);
         LocalFree(s);
 #else
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection to %s failed. Error: %d: %s",
                        endpointUrl, errno, strerror(errno));
 #endif
@@ -693,7 +690,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
                                 SOL_SOCKET, SO_NOSIGPIPE,
                                 (void*)&val, sizeof(val));
     if(sso_result < 0)
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Couldn't set SO_NOSIGPIPE");
 #endif
 
