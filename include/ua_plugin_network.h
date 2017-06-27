@@ -10,7 +10,6 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#include "ua_log.h"
 
 /* Forward declarations */
 struct UA_Connection;
@@ -154,9 +153,8 @@ struct UA_ServerNetworkLayer {
     /* Start listening on the networklayer.
      *
      * @param nl The network layer
-     * @param logger The logger
      * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_Logger logger);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl);
 
     /* Listen for new and closed connections and arriving packets. Calls
      * UA_Server_processBinaryMessage for the arriving packets. Calls
@@ -191,8 +189,7 @@ struct UA_ServerNetworkLayer {
  * sending and receiving binary messages. */
 
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf,
-                              const char *endpointUrl, UA_Logger logger);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl);
 
 /**
  * Endpoint URL Parser

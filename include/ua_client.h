@@ -10,10 +10,10 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#include "ua_plugin_network.h"
-#include "ua_log.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_plugin_network.h"
+#include "ua_plugin_log.h"
 
 /**
  * .. _client:
