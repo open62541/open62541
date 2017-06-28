@@ -962,4 +962,7 @@ UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
 }
 #endif
 
+/* Old interfaces kept for API compatibility */
+#include "ua_server_deprecated.h"
+
 #endif /* UA_SERVER_H_ */
