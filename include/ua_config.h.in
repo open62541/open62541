@@ -172,6 +172,14 @@ typedef uint8_t bool;
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
 #endif
 
+#ifdef __GNUC__
+# define UA_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+# define UA_DEPRECATED __declspec(deprecated)
+#else
+# define UA_DEPRECATED
+#endif
+
 /**
  * String Manipulation
  * -------------------
