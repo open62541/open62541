@@ -126,7 +126,7 @@ sym_generateKey_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
 static UA_StatusCode
 sym_generateNonce_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                          const void *const endpointContext,
+                          const void *const policyContext,
                           UA_ByteString *const out) {
     out->length = securityPolicy->symmetricModule.encryptingKeyLength;
     out->data[0] = 'a';
@@ -143,10 +143,10 @@ sym_generateNonce_sp_none(const UA_SecurityPolicy *const securityPolicy,
 ///////////////////////////////
 static UA_StatusCode
 verifyCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                          const void *const endpointContext,
+                          const void *const policyContext,
                           const void *const channelContext) {
 
-    if(securityPolicy == NULL || endpointContext == NULL || channelContext == NULL)
+    if(securityPolicy == NULL || policyContext == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
 }
@@ -167,18 +167,18 @@ typedef struct {
 } UA_SP_NONE_EndpointContextData;
 
 static UA_StatusCode
-endpointContext_setLocalCertificate_sp_none(const UA_ByteString *const certificate,
-                                            void *endpointContext) {
-    if(certificate == NULL || endpointContext == NULL)
+policyContext_setLocalCertificate_sp_none(const UA_ByteString *const certificate,
+                                            void *policyContext) {
+    if(certificate == NULL || policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)endpointContext;
+    UA_SP_NONE_EndpointContextData *const data = (UA_SP_NONE_EndpointContextData*)policyContext;
 
     return UA_ByteString_copy(certificate, &data->localCert);
 }
 
 static UA_StatusCode
-endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
+policyContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
                                    const UA_Policy_SecurityContext_RequiredInitData *initData,
                                    const void *const optInitData,
                                    void **const pp_contextData) {
@@ -198,7 +198,7 @@ endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy
     UA_ByteString_init(&data->localCert);
 
     if (initData != NULL)
-        endpointContext_setLocalCertificate_sp_none(&initData->localCertificate, *pp_contextData);
+        policyContext_setLocalCertificate_sp_none(&initData->localCertificate, *pp_contextData);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Initialized PolicyContext for sp_none");
@@ -207,7 +207,7 @@ endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy
 }
 
 static UA_StatusCode
-endpointContext_deleteContext_sp_none(void *const securityContext) {
+policyContext_deleteContext_sp_none(void *const securityContext) {
     if(securityContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -227,19 +227,19 @@ endpointContext_deleteContext_sp_none(void *const securityContext) {
 }
 
 static const UA_ByteString*
-endpointContext_getLocalCertificate_sp_none(const void *const endpointContext) {
-    if(endpointContext == NULL)
+policyContext_getLocalCertificate_sp_none(const void *const policyContext) {
+    if(policyContext == NULL)
         return NULL;
 
-    const UA_SP_NONE_EndpointContextData *const data = (const UA_SP_NONE_EndpointContextData*)endpointContext;
+    const UA_SP_NONE_EndpointContextData *const data = (const UA_SP_NONE_EndpointContextData*)policyContext;
 
     return &data->localCert;
 }
 
 static UA_StatusCode
-endpointContext_compareCertificateThumbprint_sp_none(const void *const endpointContext,
+policyContext_compareCertificateThumbprint_sp_none(const void *const policyContext,
                                                      const UA_ByteString *const certificateThumbprint) {
-    if(endpointContext == NULL || certificateThumbprint == NULL) {
+    if(policyContext == NULL || certificateThumbprint == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -262,13 +262,13 @@ endpointContext_compareCertificateThumbprint_sp_none(const void *const endpointC
 // it is there to serve as a small example for policies that need context per channel
 typedef struct {
     const UA_SecurityPolicy *securityPolicy;
-    const void * endpointContext;
+    const void * policyContext;
     int callCounter;
 } UA_SP_NONE_ChannelContextData;
 
 static UA_StatusCode
 channelContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                  const void *const endpointContext,
+                                  const void *const policyContext,
                                   const UA_ByteString *const remoteCertificate,
                                   void **const pp_channelContext) {
     if(securityPolicy == NULL || pp_channelContext == NULL) {
@@ -284,7 +284,7 @@ channelContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
 
     data->callCounter = 0;
     data->securityPolicy = securityPolicy;
-    data->endpointContext = endpointContext;
+    data->policyContext = policyContext;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -302,7 +302,7 @@ static UA_StatusCode channelContext_deleteContext_sp_none(void *const channelCon
 
     data->callCounter = 0;
     data->securityPolicy = NULL;
-    data->endpointContext = NULL;
+    data->policyContext = NULL;
 
     UA_free(channelContext);
 
@@ -482,10 +482,10 @@ UA_EXPORT UA_SecurityPolicy UA_SecurityPolicy_None = {
 },
 
 { // .context
-    endpointContext_newContext_sp_none, // .init
-    endpointContext_deleteContext_sp_none, // .deleteMembers
-    endpointContext_getLocalCertificate_sp_none,
-    endpointContext_compareCertificateThumbprint_sp_none
+    policyContext_newContext_sp_none, // .init
+    policyContext_deleteContext_sp_none, // .deleteMembers
+    policyContext_getLocalCertificate_sp_none,
+    policyContext_compareCertificateThumbprint_sp_none
 },
 
 { // .channelContext

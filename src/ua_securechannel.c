@@ -482,7 +482,6 @@ static void UA_SecureChannel_hideBytesAsym(UA_SecureChannel *const channel,
  * \param securityPolicy the securityPolicy the function is invoked on.
  * \param channelContext the channel context that is used to obtain the plaintext block size.
  *                       Has to have a remote certificate set.
- * \aram endpointContext the endpoint context that is used to get the local asym signature size.
  * \param bytesToWrite the size of the payload plus the sequence header, since both need to be encoded
  * \param paddingSize out parameter. Will contain the paddingSize byte.
  * \param extraPaddingSize out parameter. Will contain the extraPaddingSize. If no extra padding is needed, this is 0.
@@ -1079,7 +1078,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
                 continue;
             }
 
-            if(endpointCandidate->securityPolicy->endpointContext.compareCertificateThumbprint(
+            if(endpointCandidate->securityPolicy->policyContext.compareCertificateThumbprint(
                 endpointCandidate->securityContext,
                 &clientAsymHeader.receiverCertificateThumbprint) != UA_STATUSCODE_GOOD) {
                 continue;

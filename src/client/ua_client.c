@@ -27,7 +27,7 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.endpoints->endpoints = client->channel.endpoint;
     client->channel.endpoints->count = 1;
     client->channel.endpoint->securityPolicy = &UA_SecurityPolicy_None;
-    UA_SecurityPolicy_None.endpointContext.newContext(&UA_SecurityPolicy_None,
+    UA_SecurityPolicy_None.policyContext.newContext(&UA_SecurityPolicy_None,
                                                       NULL,
                                                       NULL,
                                                       &client->channel.endpoint->securityContext);
@@ -44,7 +44,7 @@ UA_Client * UA_Client_new(UA_ClientConfig config) {
 
 static void UA_Client_deleteMembers(UA_Client* client) {
     UA_Client_disconnect(client);
-    UA_SecurityPolicy_None.endpointContext.deleteContext(client->channel.endpoint->securityContext);
+    UA_SecurityPolicy_None.policyContext.deleteContext(client->channel.endpoint->securityContext);
     UA_free(client->channel.endpoint);
     UA_free(client->channel.endpoints);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);

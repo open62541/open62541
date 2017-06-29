@@ -321,7 +321,7 @@ processOPN(UA_Server *server,
     const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
 
     const UA_ByteString *const endpointCert =
-        securityPolicy->endpointContext.getLocalCertificate(channel->endpoint->securityContext);
+        securityPolicy->policyContext.getLocalCertificate(channel->endpoint->securityContext);
 
     UA_ByteString_copy(endpointCert, &channel->localAsymAlgSettings.senderCertificate);
     UA_ByteString_copy(&securityPolicy->policyUri, &channel->localAsymAlgSettings.securityPolicyUri);
