@@ -1351,6 +1351,7 @@ UA_SecureChannel_processChunk(UA_SecureChannel *const channel,
     {
         UA_Boolean realloced = false;
         UA_ByteString message;
+        UA_ByteString_init(&message);
         UA_SecureChannel_finalizeChunk(channel,
                                        requestId,
                                        &chunkBody,
