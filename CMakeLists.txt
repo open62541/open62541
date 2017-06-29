@@ -480,6 +480,7 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+    set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
@@ -632,7 +633,6 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
-set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
 set_target_properties(open62541_amalgamation PROPERTIES FOLDER "open62541/lib")
