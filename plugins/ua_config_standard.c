@@ -88,8 +88,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     NULL, /* .networkLayers */
 
     /* Endpoints */
-    0,
-    NULL,
+    {0,
+    NULL},
 
     /* Access Control */
     {true, true,
