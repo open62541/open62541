@@ -1117,8 +1117,7 @@ UA_SecureChannel_processAsymmetricOPNChunk(const UA_ByteString* const chunk,
         void *channelContext = NULL;
 
         // create new channel context and verify the certificate
-        retval |= securityPolicy->channelContext.newContext(securityPolicy,
-                                                            channel->endpoint->securityContext,
+        retval |= securityPolicy->channelContext.newContext(channel->endpoint->securityContext,
                                                             &clientAsymHeader.senderCertificate,
                                                             &channelContext);
         if(retval != UA_STATUSCODE_GOOD) {

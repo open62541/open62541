@@ -183,10 +183,10 @@ typedef struct
  */
 typedef struct
 {
-    UA_ByteString localPrivateKey;
-    UA_ByteString localCertificate;
-    UA_ByteString certificateTrustList;
-    UA_ByteString certificateRevocationList;
+    const UA_ByteString *localPrivateKey;
+    const UA_ByteString *localCertificate;
+    const UA_ByteString *certificateTrustList;
+    const UA_ByteString *certificateRevocationList;
 } UA_Policy_SecurityContext_RequiredInitData;
 
 struct UA_Policy_SecurityContext {
@@ -234,7 +234,6 @@ struct UA_Channel_SecurityContext {
      * Memory is only allocated if the function succeeds so there is no need to manually free
      * the memory pointed to by *pp_channelContext or to call delete in case of failure.
      *
-     * \param securityPolicy contains the function pointers associated with the policy.
      * \param policyContext the policy context of the endpoint that is connected to. It will be
      *                      stored in the channelContext for further access by the policy.
      * \param remoteCertificate the remote certificate contains the remote asymmetric key.
@@ -243,8 +242,7 @@ struct UA_Channel_SecurityContext {
      * \param pp_channelContext the initialized channelContext that is passed to functions that work
      *                    on a context.
      */
-    UA_StatusCode (*const newContext)(const UA_SecurityPolicy *securityPolicy,
-                                      const void *policyContext,
+    UA_StatusCode (*const newContext)(const void *policyContext,
                                       const UA_ByteString *remoteCertificate,
                                       void **pp_channelContext);
 

@@ -90,7 +90,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
         size_t signatureSize =
             securityPolicy->asymmetricModule.signingModule.getLocalSignatureSize(securityPolicy,
-                                                                                 channel->endpoint->securityContext);
+                                                                                 channel->securityContext);
 
         UA_SignatureData signatureData;
         UA_SignatureData_init(&signatureData);
@@ -123,7 +123,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
         retval |=
             securityPolicy->asymmetricModule.signingModule.sign(securityPolicy,
-                                                                channel->endpoint->securityContext,
+                                                                channel->securityContext,
                                                                 &dataToSign,
                                                                 &signatureData.signature);
         if(retval != UA_STATUSCODE_GOOD) {
