@@ -89,6 +89,12 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
     if(UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
         return true;
 
+    /* Enum allows Int32 (only) */
+    UA_NodeId enumNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION);
+    if (isNodeInTree(server->nodestore, constraintDataType, &enumNodeId, &subtypeId, 1)) {
+        return UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId);
+    }
+
     return isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
 }
 
@@ -1215,11 +1221,9 @@ Service_Write(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
-    UA_RCU_LOCK();
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &value->nodeId,
                            (UA_EditNodeCallback)copyAttributeIntoNode, value);
-    UA_RCU_UNLOCK();
     return retval;
 }
 

@@ -20,12 +20,12 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 requestedLifetimeCount,
                         UA_UInt32 requestedMaxKeepAliveCount,
                         UA_UInt32 maxNotificationsPerPublish, UA_Byte priority) {
-    /* deregister the job if required */
-    UA_StatusCode retval = Subscription_unregisterPublishJob(server, subscription);
+    /* deregister the callback if required */
+    UA_StatusCode retval = Subscription_unregisterPublishCallback(server, subscription);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session, "Subscription %u | "
-                             "Could not unregister publish job with error code 0x%08x",
-                             subscription->subscriptionID, retval);
+                             "Could not unregister publish callback with error code %s",
+                             subscription->subscriptionID, UA_StatusCode_name(retval));
 
     /* re-parameterize the subscription */
     subscription->publishingInterval = requestedPublishingInterval;
@@ -46,11 +46,11 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
         subscription->notificationsPerPublish = server->config.maxNotificationsPerPublish;
     subscription->priority = priority;
 
-    retval = Subscription_registerPublishJob(server, subscription);
+    retval = Subscription_registerPublishCallback(server, subscription);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_DEBUG_SESSION(server->config.logger, subscription->session, "Subscription %u | "
-                             "Could not register publish job with error code 0x%08x",
-                             subscription->subscriptionID, retval);
+                             "Could not register publish callback with error code %s",
+                             subscription->subscriptionID, UA_StatusCode_name(retval));
 }
 
 void
@@ -145,7 +145,7 @@ static void
 setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
                          UA_MonitoringMode monitoringMode,
                          const UA_MonitoringParameters *params) {
-    MonitoredItem_unregisterSampleJob(server, mon);
+    MonitoredItem_unregisterSampleCallback(server, mon);
     mon->monitoringMode = monitoringMode;
 
     /* ClientHandle */
@@ -186,9 +186,9 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     /* DiscardOldest */
     mon->discardOldest = params->discardOldest;
 
-    /* Register sample job if reporting is enabled */
+    /* Register sample callback if reporting is enabled */
     if(monitoringMode == UA_MONITORINGMODE_REPORTING)
-        MonitoredItem_registerSampleJob(server, mon);
+        MonitoredItem_registerSampleCallback(server, mon);
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
@@ -391,9 +391,9 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
             continue;
         mon->monitoringMode = request->monitoringMode;
         if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING)
-            MonitoredItem_registerSampleJob(server, mon);
+            MonitoredItem_registerSampleCallback(server, mon);
         else
-            MonitoredItem_unregisterSampleJob(server, mon);
+            MonitoredItem_unregisterSampleCallback(server, mon);
     }
 }
 
@@ -511,15 +511,16 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Send dangling publish responses in a delayed job if the last subscription
-       was removed */
+    /* Send dangling publish responses in a delayed callback if the last
+     * subscription was removed */
     if(LIST_FIRST(&session->serverSubscriptions))
         return;
     UA_NodeId *sessionToken = UA_NodeId_new();
     if(!sessionToken)
         return;
     UA_NodeId_copy(&session->authenticationToken, sessionToken);
-    UA_Server_delayedCallback(server, (UA_ServerCallback)UA_Subscription_answerPublishRequestsNoSubscription,
+    UA_Server_delayedCallback(server,
+                              (UA_ServerCallback)UA_Subscription_answerPublishRequestsNoSubscription,
                               sessionToken);
 }
 

@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "ua_connection.h"
+#include "ua_plugin_network.h"
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. Furthermore, the networklayer may operate on ringbuffers or

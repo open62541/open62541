@@ -18,13 +18,6 @@ extern "C" {
 /* BSD Queue Macros */
 #include "queue.h"
 
-/* C++ Access to datatypes defined inside structs (for queue.h) */
-#ifdef __cplusplus
-# define memberstruct(container,member) container::member
-#else
-# define memberstruct(container,member) member
-#endif
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -45,7 +38,7 @@ extern "C" {
 /* Integer Shortnames
  * ------------------
  * These are not exposed on the public API, since many user-applications make
- * the same in their headers. */
+ * the same definitions in their headers. */
 
 typedef UA_Byte u8;
 typedef UA_SByte i8;

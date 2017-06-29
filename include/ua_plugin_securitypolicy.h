@@ -10,7 +10,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#include "ua_log.h"
+#include "ua_plugin_log.h"
 #include "ua_types_generated.h"
 
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;

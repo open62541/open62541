@@ -575,15 +575,24 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
 }
 
 /* Takes the raw message from the network layer */
-void
-UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                               const UA_ByteString *message) {
+static void
+processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                     UA_ByteString *message) {
+    UA_Boolean realloced = UA_FALSE;
+    UA_StatusCode retval = UA_Connection_completeMessages(connection, message, &realloced);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(!realloced)
+            connection->releaseRecvBuffer(connection, message);
+        else
+            UA_ByteString_deleteMembers(message);
+        return;
+    }
+    
     UA_SecureChannel *channel = connection->channel;
     if(channel) {
         /* Assemble chunks in the securechannel and process complete messages */
-        UA_StatusCode retval =
-            UA_SecureChannel_processChunks(channel, message,
-            (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
+        retval = UA_SecureChannel_processChunks(channel, message,
+                      (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
         if(retval != UA_STATUSCODE_GOOD)
             UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
                                  "resulted in error code %s", UA_StatusCode_name(retval));
@@ -591,7 +600,7 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
         /* Process messages without a channel and no chunking */
         size_t offset = 0;
         UA_TcpMessageHeader tcpMessageHeader;
-        UA_StatusCode retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
+        retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
         if(retval != UA_STATUSCODE_GOOD) {
             connection->close(connection);
             return;
@@ -655,4 +664,69 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
             connection->close(connection);
         }
     }
+
+    if(!realloced)
+        connection->releaseRecvBuffer(connection, message);
+    else
+        UA_ByteString_deleteMembers(message);
+}
+
+#ifndef UA_ENABLE_MULTITHREADING
+
+void
+UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                               UA_ByteString *message) {
+    processBinaryMessage(server, connection, message);
+}
+
+#else
+
+typedef struct {
+    UA_Connection *connection;
+    UA_ByteString message;
+} ConnectionMessage;
+
+static void
+workerProcessBinaryMessage(UA_Server *server, ConnectionMessage *cm) {
+    processBinaryMessage(server, cm->connection, &cm->message);
+    UA_free(cm);
+}
+
+void
+UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                               UA_ByteString *message) {
+    /* Allocate the memory for the callback data */
+    ConnectionMessage *cm = UA_malloc(sizeof(ConnectionMessage));
+
+    /* If malloc failed, execute immediately */
+    if(!cm) {
+        processBinaryMessage(server, connection, message);
+        return;
+    }
+
+    /* Dispatch to the workers */
+    cm->connection = connection;
+    cm->message = *message;
+    UA_Server_workerCallback(server, (UA_ServerCallback)workerProcessBinaryMessage, cm);
+}
+
+#endif
+
+/* Remove a connection after it was closed in the network layer */
+#ifdef UA_ENABLE_MULTITHREADING
+static void
+deleteConnectionTrampoline(UA_Server *server, void *data) {
+    UA_Connection *connection = (UA_Connection*)data;
+    connection->free(connection);
+}
+#endif
+
+void
+UA_Server_removeConnection(UA_Server *server, UA_Connection *connection) {
+    UA_Connection_detachSecureChannel(connection);
+#ifndef UA_ENABLE_MULTITHREADING
+    connection->free(connection);
+#else
+    UA_Server_delayedCallback(server, deleteConnectionTrampoline, connection);
+#endif
 }

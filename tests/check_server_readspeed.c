@@ -6,15 +6,9 @@
 
 #include <time.h>
 #include <stdio.h>
-#include "open62541.h"
 
-/* include guards to prevent double definitions with open62541.h */
-#define UA_TYPES_H_
-#define UA_SERVER_H_
-#define UA_CONNECTION_H_
-#define UA_TYPES_GENERATED_H_
-#define UA_LOG_H_
-#define UA_PLUGIN_SECURITYPOLICY_H_
+#include "ua_server.h"
+#include "ua_config_standard.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 

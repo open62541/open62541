@@ -526,7 +526,7 @@ static UA_StatusCode UA_SecureChannel_sendOPNChunkAsymmetric(UA_ChunkInfo* const
     UA_SecureChannel *const channel = ci->channel;
     UA_Connection *const connection = channel->connection;
     const UA_SecurityPolicy *const securityPolicy = channel->endpoint->securityPolicy;
-    UA_Channel_SecurityContext *channelContext = channel->securityContext;
+    void *channelContext = channel->securityContext;
 
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;

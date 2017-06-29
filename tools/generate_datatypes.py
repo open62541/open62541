@@ -19,6 +19,7 @@ typedescriptions = {} # contains type nodeids
 excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
                   "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
                   "MethodNode", "ViewNode", "DataTypeNode",
+                  "NumericRange", "NumericRangeDimensions",
                   "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
                   "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
                   "UA_SessionDiagnosticsDataType"]

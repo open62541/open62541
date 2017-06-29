@@ -16,6 +16,11 @@
 const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
 const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
+typedef struct {
+    UA_String username;
+    UA_String password;
+} UA_UsernamePasswordLogin;
+
 const size_t usernamePasswordsSize = 2;
 UA_UsernamePasswordLogin usernamePasswords[2] = {
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },

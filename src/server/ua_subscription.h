@@ -27,6 +27,8 @@ typedef struct MonitoredItem_queuedValue {
     UA_DataValue value;
 } MonitoredItem_queuedValue;
 
+typedef TAILQ_HEAD(QueuedValueQueue, MonitoredItem_queuedValue) QueuedValueQueue;
+
 typedef struct UA_MonitoredItem {
     LIST_ENTRY(UA_MonitoredItem) listEntry;
 
@@ -47,20 +49,20 @@ typedef struct UA_MonitoredItem {
     // TODO: dataEncoding is hardcoded to UA binary
     UA_DataChangeTrigger trigger;
 
-    /* Sample Job */
-    UA_Guid sampleJobGuid;
-    UA_Boolean sampleJobIsRegistered;
+    /* Sample Callback */
+    UA_UInt64 sampleCallbackId;
+    UA_Boolean sampleCallbackIsRegistered;
 
     /* Sample Queue */
     UA_ByteString lastSampledValue;
-    TAILQ_HEAD(QueueOfQueueDataValues, MonitoredItem_queuedValue) queue;
+    QueuedValueQueue queue;
 } UA_MonitoredItem;
 
-UA_MonitoredItem *UA_MonitoredItem_new(void);
+UA_MonitoredItem * UA_MonitoredItem_new(void);
 void MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
 void UA_MoniteredItem_SampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
-UA_StatusCode MonitoredItem_registerSampleJob(UA_Server *server, UA_MonitoredItem *mon);
-UA_StatusCode MonitoredItem_unregisterSampleJob(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_registerSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+UA_StatusCode MonitoredItem_unregisterSampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -79,6 +81,8 @@ typedef enum {
     UA_SUBSCRIPTIONSTATE_LATE,
     UA_SUBSCRIPTIONSTATE_KEEPALIVE
 } UA_SubscriptionState;
+
+typedef TAILQ_HEAD(ListOfNotificationMessages, UA_NotificationMessageEntry) ListOfNotificationMessages;
 
 struct UA_Subscription {
     LIST_ENTRY(UA_Subscription) listEntry;
@@ -100,22 +104,22 @@ struct UA_Subscription {
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
 
-    /* Publish Job */
-    UA_Guid publishJobGuid;
-    UA_Boolean publishJobIsRegistered;
+    /* Publish Callback */
+    UA_UInt64 publishCallbackId;
+    UA_Boolean publishCallbackIsRegistered;
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
 
     /* Retransmission Queue */
-    TAILQ_HEAD(UA_ListOfNotificationMessages, UA_NotificationMessageEntry) retransmissionQueue;
+    ListOfNotificationMessages retransmissionQueue;
     UA_UInt32 retransmissionQueueSize;
 };
 
-UA_Subscription *UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
+UA_Subscription * UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID);
 void UA_Subscription_deleteMembers(UA_Subscription *subscription, UA_Server *server);
-UA_StatusCode Subscription_registerPublishJob(UA_Server *server, UA_Subscription *sub);
-UA_StatusCode Subscription_unregisterPublishJob(UA_Server *server, UA_Subscription *sub);
+UA_StatusCode Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub);
+UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,

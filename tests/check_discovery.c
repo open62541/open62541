@@ -29,7 +29,7 @@
 #include "ua_config_standard.h"
 #include "ua_network_tcp.h"
 #include "check.h"
-
+#include "testing_clock.h"
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
@@ -55,7 +55,8 @@ static void setup_lds(void) {
     config_lds_dyn = UA_ServerConfig_standard_new();
     UA_ServerConfig config_lds = *config_lds_dyn;
     config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config_lds.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.local_discovery_server");
+    config_lds.applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.test.local_discovery_server");
     config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("en");
     config_lds.applicationDescription.applicationName.text = UA_String_fromChars("LDS Server");
     config_lds.mdnsServerName = UA_String_fromChars("LDS_test");
@@ -71,6 +72,7 @@ static void setup_lds(void) {
     UA_Server_run_startup(server_lds);
     pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
     // wait until LDS started
+    UA_sleep(1000);
     sleep(1);
 }
 
@@ -82,12 +84,13 @@ static void teardown_lds(void) {
     UA_String_deleteMembers(&server_lds->config.applicationDescription.applicationUri);
     UA_LocalizedText_deleteMembers(&server_lds->config.applicationDescription.applicationName);
     UA_String_deleteMembers(&server_lds->config.mdnsServerName);
-    UA_Array_delete(server_lds->config.serverCapabilities, server_lds->config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Array_delete(server_lds->config.serverCapabilities,
+                    server_lds->config.serverCapabilitiesSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server_lds);
     nl_lds.deleteMembers(&nl_lds);
     UA_ServerConfig_standard_delete(config_lds_dyn);
 }
-
 
 UA_Server *server_register;
 UA_ServerConfig *config;
@@ -95,7 +98,7 @@ UA_Boolean *running_register;
 UA_ServerNetworkLayer nl_register;
 pthread_t server_thread_register;
 
-UA_Guid periodicRegisterJobId;
+UA_UInt64 periodicRegisterCallbackId;
 
 static void * serverloop_register(void *_) {
     while(*running_register)
@@ -107,9 +110,12 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
+
     config = UA_ServerConfig_standard_new();
     UA_ServerConfig config_register = *config;
-    config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_register");
+    config_register.applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.test.server_register");
+
     config_register.applicationDescription.applicationName.locale = UA_String_fromChars("de");
     config_register.applicationDescription.applicationName.text = UA_String_fromChars("Anmeldungsserver");
     config_register.mdnsServerName = UA_String_fromChars("Register_test");
@@ -134,61 +140,65 @@ static void teardown_register(void) {
     UA_ServerConfig_standard_delete(config);
 }
 
-
-static char* UA_String_to_char_alloc(const UA_String *str) {
-    char* ret = malloc(sizeof(char)*str->length+1);
-    memcpy( ret, str->data, str->length );
-    ret[str->length] = '\0';
-    return ret;
-}
-
 START_TEST(Server_register) {
-        UA_StatusCode retval = UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", NULL);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    UA_StatusCode retval =
+        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
 END_TEST
 
 START_TEST(Server_unregister) {
-        UA_StatusCode retval = UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    UA_StatusCode retval =
+        UA_Server_unregister_discovery(server_register, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
 END_TEST
 
-
 START_TEST(Server_register_semaphore) {
-        // create the semaphore
-        int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-        ck_assert_int_ne(fd, -1);
-        close(fd);
+    // create the semaphore
+    int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+    ck_assert_int_ne(fd, -1);
+    close(fd);
 
-        UA_StatusCode retval = UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840", "/tmp/open62541-unit-test-semaphore");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    UA_StatusCode retval =
+        UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840",
+                                     "/tmp/open62541-unit-test-semaphore");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
 END_TEST
 
 START_TEST(Server_unregister_semaphore) {
-        // delete the semaphore, this should remove the registration automatically on next check
-        ck_assert_int_eq(remove("/tmp/open62541-unit-test-semaphore"), 0);
-    }
+    // delete the semaphore, this should remove the registration automatically on next check
+    ck_assert_int_eq(remove("/tmp/open62541-unit-test-semaphore"), 0);
+}
 END_TEST
 
 START_TEST(Server_register_periodic) {
-        // periodic register every minute, first register immediately
-        UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server_register, NULL, 60*1000, 100, &periodicRegisterJobId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    // periodic register every minute, first register immediately
+    UA_StatusCode retval =
+        UA_Server_addPeriodicServerRegisterCallback(server_register, "opc.tcp://localhost:4840",
+                                                    60*1000, 100, &periodicRegisterCallbackId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
 END_TEST
 
 START_TEST(Server_unregister_periodic) {
-        // wait for first register delay
-        sleep(1);
-        UA_Server_removeRepeatedJob(server_register, periodicRegisterJobId);
-        UA_StatusCode retval = UA_Server_unregister_discovery(server_register, NULL);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
+    // wait for first register delay
+    UA_sleep(1000);
+    sleep(1);
+    UA_Server_removeRepeatedCallback(server_register, periodicRegisterCallbackId);
+    UA_StatusCode retval = UA_Server_unregister_discovery(server_register,
+                                                          "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
 END_TEST
 
-static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, const char* expectedLocales[], const char* expectedNames[], const char *filterUri, const char *filterLocale) {
+static void
+FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
+             const UA_String expectedLocales[],
+             const UA_String expectedNames[],
+             const char *filterUri,
+             const char *filterLocale) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
@@ -197,7 +207,7 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
     size_t serverUrisSize = 0;
     UA_String *serverUris = NULL;
 
-    if (filterUri) {
+    if(filterUri) {
         serverUrisSize = 1;
         serverUris = UA_malloc(sizeof(UA_String));
         serverUris[0] = UA_String_fromChars(filterUri);
@@ -206,23 +216,22 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
     size_t localeIdsSize = 0;
     UA_String *localeIds = NULL;
 
-    if (filterLocale) {
+    if(filterLocale) {
         localeIdsSize = 1;
         localeIds = UA_malloc(sizeof(UA_String));
         localeIds[0] = UA_String_fromChars(filterLocale);
     }
 
-    UA_StatusCode retval = UA_Client_findServers(client, "opc.tcp://localhost:4840",
-                                                 serverUrisSize, serverUris, localeIdsSize, localeIds,
-                                                 &applicationDescriptionArraySize, &applicationDescriptionArray);
+    UA_StatusCode retval =
+        UA_Client_findServers(client, "opc.tcp://localhost:4840",
+                              serverUrisSize, serverUris, localeIdsSize, localeIds,
+                              &applicationDescriptionArraySize, &applicationDescriptionArray);
 
-    if (filterUri) {
+    if(filterUri)
         UA_Array_delete(serverUris, serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
 
-    if (filterLocale) {
+    if(filterLocale)
         UA_Array_delete(localeIds, localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -230,32 +239,30 @@ static void FindAndCheck(const char* expectedUris[], size_t expectedUrisSize, co
     ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
     assert(applicationDescriptionArray != NULL);
 
-    for (size_t i=0; i < expectedUrisSize; ++i) {
-        char* serverUri = UA_String_to_char_alloc(&applicationDescriptionArray[i].applicationUri);
-        ck_assert_str_eq(serverUri, expectedUris[i]);
-        free(serverUri);
+    for(size_t i = 0; i < expectedUrisSize; ++i) {
+        ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationUri,
+                                  &expectedUris[i]));
 
-        if (expectedNames && expectedNames[i] != NULL) {
-            char *name = UA_String_to_char_alloc(&applicationDescriptionArray[i].applicationName.text);
-            ck_assert_str_eq(name, expectedNames[i]);
-            free(name);
-        }
-        if (expectedLocales && expectedLocales[i] != NULL) {
-            char *locale = UA_String_to_char_alloc(&applicationDescriptionArray[i].applicationName.locale);
-            ck_assert_str_eq(locale, expectedLocales[i]);
-            free(locale);
-        }
+        if(expectedNames)
+            ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationName.text,
+                                      &expectedNames[i]));
+
+        if (expectedLocales)
+            ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationName.locale,
+                                      &expectedLocales[i]));
     }
 
-
-    UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize,
+                    &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 
-static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedServerNamesSize, const char *filterUri, const char *filterLocale,
-                                  const char** filterCapabilities, size_t filterCapabilitiesSize) {
+static void
+FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
+                      const char *filterUri, const char *filterLocale,
+                      const char** filterCapabilities, size_t filterCapabilitiesSize) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
@@ -265,40 +272,35 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
     size_t  serverCapabilityFilterSize = 0;
     UA_String *serverCapabilityFilter = NULL;
 
-    if (filterCapabilitiesSize) {
+    if(filterCapabilitiesSize) {
         serverCapabilityFilterSize = filterCapabilitiesSize;
         serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
-        for (size_t i=0; i<filterCapabilitiesSize; i++) {
+        for(size_t i = 0; i < filterCapabilitiesSize; i++)
             serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
-        }
     }
 
 
-    UA_StatusCode retval = UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840", 0, 0,
-                                                          serverCapabilityFilterSize, serverCapabilityFilter,
-                                                          &serverOnNetworkSize, &serverOnNetwork);
+    UA_StatusCode retval =
+        UA_Client_findServersOnNetwork(client, "opc.tcp://localhost:4840", 0, 0,
+                                       serverCapabilityFilterSize, serverCapabilityFilter,
+                                       &serverOnNetworkSize, &serverOnNetwork);
 
-    if (serverCapabilityFilterSize) {
-        UA_Array_delete(serverCapabilityFilter, serverCapabilityFilterSize, &UA_TYPES[UA_TYPES_STRING]);
-    }
+    if(serverCapabilityFilterSize)
+        UA_Array_delete(serverCapabilityFilter, serverCapabilityFilterSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // only the discovery server is expected
     ck_assert_uint_eq(serverOnNetworkSize , expectedServerNamesSize);
 
-    if (expectedServerNamesSize > 0) {
+    if(expectedServerNamesSize > 0)
         ck_assert_ptr_ne(serverOnNetwork, NULL);
-    }
 
-    if (serverOnNetwork != NULL) {
-        for (size_t i=0; i<expectedServerNamesSize; i++) {
-            char* serverName = malloc(sizeof(char) * (serverOnNetwork[i].serverName.length+1));
-            memcpy( serverName, serverOnNetwork[i].serverName.data, serverOnNetwork[i].serverName.length );
-            serverName[serverOnNetwork[i].serverName.length] = '\0';
-            ck_assert_str_eq(serverName, expectedServerNames[i]);
-            free(serverName);
-        }
+    if(serverOnNetwork != NULL) {
+        for(size_t i = 0; i < expectedServerNamesSize; i++)
+            ck_assert(UA_String_equal(&serverOnNetwork[i].serverName,
+                                      &expectedServerNames[i]));
     }
 
     UA_Array_delete(serverOnNetwork, serverOnNetworkSize, &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
@@ -307,9 +309,11 @@ static void FindOnNetworkAndCheck(char* expectedServerNames[], size_t expectedSe
     UA_Client_delete(client);
 }
 
-static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUrl, size_t* endpointDescriptionsSize, UA_EndpointDescription** endpointDescriptions,
-                                  const char* filterTransportProfileUri
-) {
+static UA_StatusCode
+GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
+             size_t* endpointDescriptionsSize,
+             UA_EndpointDescription** endpointDescriptions,
+             const char* filterTransportProfileUri) {
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
     //request.requestHeader.authenticationToken = client->authenticationToken;
@@ -334,7 +338,9 @@ static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUr
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     *endpointDescriptionsSize = response.endpointsSize;
-    *endpointDescriptions = (UA_EndpointDescription*)UA_Array_new(response.endpointsSize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    *endpointDescriptions =
+        (UA_EndpointDescription*)UA_Array_new(response.endpointsSize,
+                                              &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     for(size_t i=0;i<response.endpointsSize;i++) {
         UA_EndpointDescription_init(&(*endpointDescriptions)[i]);
         UA_EndpointDescription_copy(&response.endpoints[i], &(*endpointDescriptions)[i]);
@@ -344,8 +350,9 @@ static UA_StatusCode GetEndpoints(UA_Client *client, const UA_String* endpointUr
 }
 
 
-static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri, const char* expectedEndpointUrls[], size_t expectedEndpointUrlsSize) {
-
+static void
+GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
+                     const UA_String expectedEndpointUrls[], size_t expectedEndpointUrlsSize) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
@@ -353,7 +360,8 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_String discoveryUrlUA = UA_String_fromChars(discoveryUrl);
-    UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize, &endpointArray, filterTransportProfileUri);
+    UA_StatusCode retval = GetEndpoints(client, &discoveryUrlUA, &endpointArraySize,
+                                        &endpointArray, filterTransportProfileUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_String_deleteMembers(&discoveryUrlUA);
 
@@ -361,10 +369,7 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
 
     for(size_t j = 0; j < endpointArraySize && j < expectedEndpointUrlsSize; j++) {
         UA_EndpointDescription* endpoint = &endpointArray[j];
-        char *eu = UA_String_to_char_alloc(&endpoint->endpointUrl);
-        ck_assert_ptr_ne(eu, NULL); // clang static analysis fix
-        ck_assert_str_eq(eu, expectedEndpointUrls[j]);
-        free(eu);
+        ck_assert(UA_String_equal(&endpoint->endpointUrl, &expectedEndpointUrls[j]));
     }
 
     UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -373,118 +378,136 @@ static void GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTra
 
 // Test if discovery server lists himself as registered server, before any other registration.
 START_TEST(Client_find_discovery) {
-        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server"};
-        FindAndCheck(expectedUris, 1,NULL, NULL, NULL, NULL);
-    }
+    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
+}
 END_TEST
 
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
-        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server"};
-        FindAndCheck(expectedUris, 1,NULL, NULL, "urn:open62541.test.local_discovery_server", NULL);
-    }
+    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.local_discovery_server", NULL);
+}
 END_TEST
 
 // Test if server filters locale
 START_TEST(Client_filter_locale) {
-        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server", "urn:open62541.test.server_register"};
-        const char* expectedNames[] ={"LDS Server", "Anmeldungsserver"};
-        const char* expectedLocales[] ={"en", "de"};
-        // even if we request en_US, the server will return de_DE because it only has that name.
-        FindAndCheck(expectedUris, 2,expectedLocales, expectedNames, NULL, "en");
+    const UA_String expectedUris[] = {
+        UA_STRING("urn:open62541.test.local_discovery_server"),
+        UA_STRING("urn:open62541.test.server_register")
+    };
+    const UA_String expectedNames[] = {
+        UA_STRING("LDS Server"),
+        UA_STRING("Anmeldungsserver")
+    };
+    const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
+    // even if we request en_US, the server will return de_DE because it only has that name.
+    FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
-    }
+}
 END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-        const char* expectedUris[] ={"urn:open62541.test.local_discovery_server", "urn:open62541.test.server_register"};
-        FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
-    }
+    const UA_String expectedUris[] = {
+        UA_STRING("urn:open62541.test.local_discovery_server"),
+        UA_STRING("urn:open62541.test.server_register")
+    };
+    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
+}
 END_TEST
 
 // Test if registered server is returned from LDS using FindServersOnNetwork
 START_TEST(Client_find_on_network_registered) {
-        char *expectedUris[2];
-        char hostname[256];
+    char urls[2][64];
+    UA_String expectedUris[2];
+    char hostname[256];
 
-        ck_assert_uint_eq(gethostname(hostname, 255), 0);
+    ck_assert_uint_eq(gethostname(hostname, 255), 0);
 
-        //DNS limits name to max 63 chars (+ \0)
-        expectedUris[0] = malloc(64);
-        snprintf(expectedUris[0], 64, "LDS_test-%s", hostname);
-        expectedUris[1] = malloc(64);
-        snprintf(expectedUris[1], 64, "Register_test-%s", hostname);
-        FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
+    //DNS limits name to max 63 chars (+ \0)
+    snprintf(urls[0], 64, "LDS_test-%s", hostname);
+    snprintf(urls[1], 64, "Register_test-%s", hostname);
+    expectedUris[0] = UA_STRING(urls[0]);
+    expectedUris[1] = UA_STRING(urls[1]);
+    FindOnNetworkAndCheck(expectedUris, 2, NULL, NULL, NULL, 0);
 
+    // filter by Capabilities
+    const char* capsLDS[] = {"LDS"};
+    const char* capsNA[] = {"NA"};
+    const char* capsMultiple[] = {"LDS", "NA"};
 
-        // filter by Capabilities
-        const char* capsLDS[] ={"LDS"};
-        const char* capsNA[] ={"NA"};
-        const char* capsMultiple[] ={"LDS", "NA"};
-
-        // only LDS expected
-        FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
-        // only register server expected
-        FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
-        // no server expected
-        FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultiple, 2);
-
-        free(expectedUris[0]);
-        free(expectedUris[1]);
-
-    }
+    // only LDS expected
+    FindOnNetworkAndCheck(expectedUris, 1, NULL, NULL, capsLDS, 1);
+    // only register server expected
+    FindOnNetworkAndCheck(&expectedUris[1], 1, NULL, NULL, capsNA, 1);
+    // no server expected
+    FindOnNetworkAndCheck(NULL, 0, NULL, NULL, capsMultiple, 2);
+}
 END_TEST
 
 // Test if filtering with uris works
 START_TEST(Client_find_filter) {
-        const char* expectedUris[] ={"urn:open62541.test.server_register"};
-        FindAndCheck(expectedUris, 1,NULL, NULL, "urn:open62541.test.server_register", NULL);
-    }
+    const UA_String expectedUris[] = {
+        UA_STRING("urn:open62541.test.server_register")
+    };
+    FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.server_register", NULL);
+}
 END_TEST
 
-
 START_TEST(Client_get_endpoints) {
-        const char* expectedEndpoints[] ={"opc.tcp://localhost:4840"};
-        // general check if expected endpoints are returned
-        GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
-        // check if filtering transport profile still returns the endpoint
-        GetEndpointsAndCheck("opc.tcp://localhost:4840", "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary", expectedEndpoints, 1);
-        // filter transport profily by HTTPS, which should return no endpoint
-        GetEndpointsAndCheck("opc.tcp://localhost:4840", "http://opcfoundation.org/UA-Profile/Transport/https-uabinary", NULL, 0);
-    }
+    const UA_String  expectedEndpoints[] ={
+        UA_STRING("opc.tcp://localhost:4840")
+    };
+
+    // general check if expected endpoints are returned
+    GetEndpointsAndCheck("opc.tcp://localhost:4840", NULL,expectedEndpoints, 1);
+
+    // check if filtering transport profile still returns the endpoint
+    GetEndpointsAndCheck("opc.tcp://localhost:4840",
+                         "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+                         expectedEndpoints, 1);
+
+    // filter transport profily by HTTPS, which should return no endpoint
+    GetEndpointsAndCheck("opc.tcp://localhost:4840",
+                         "http://opcfoundation.org/UA-Profile/Transport/https-uabinary", NULL, 0);
+}
 END_TEST
 
 START_TEST(Util_start_lds) {
-        setup_lds();
-    }
+    setup_lds();
+}
 END_TEST
 
 START_TEST(Util_stop_lds) {
-        teardown_lds();
-    }
+    teardown_lds();
+}
 END_TEST
 
 START_TEST(Util_wait_timeout) {
-        // wait until server is removed by timeout. Additionally wait a few seconds more to be sure.
-        sleep(checkWait);
-    }
+    // wait until server is removed by timeout. Additionally wait a few seconds more to be sure.
+    UA_sleep(100000 * checkWait);
+    sleep(1);
+}
 END_TEST
 
 START_TEST(Util_wait_mdns) {
-        sleep(1);
-    }
+    UA_sleep(1000);
+    sleep(1);
+}
 END_TEST
 
 START_TEST(Util_wait_startup) {
-        sleep(1);
-    }
+    UA_sleep(1000);
+    sleep(1);
+}
 END_TEST
 
 START_TEST(Util_wait_retry) {
-        // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
-        sleep(3);
-    }
+    // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
+    UA_sleep(3000);
+    sleep(3);
+}
 END_TEST
 
 static Suite* testSuite_Client(void) {
@@ -533,7 +556,6 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_register_find, Client_filter_discovery);
     suite_add_tcase(s,tc_register_find);
 #endif
-
 
     // register server again, then wait for timeout and auto unregister
     TCase *tc_register_timeout = tcase_create("RegisterServer timeout");
