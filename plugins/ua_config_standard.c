@@ -182,7 +182,7 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_standard = {
 static UA_StatusCode createSecurityPolicyNoneEndpoint(UA_ServerConfig *const conf,
                                                       const UA_ByteString *const cert,
                                                       size_t slot) {
-    UA_Endpoint *endpoint_sp_none = &conf->endpoints[slot];
+    UA_Endpoint *endpoint_sp_none = &conf->endpoints.endpoints[slot];
 
     UA_EndpointDescription_init(&endpoint_sp_none->endpointDescription);
 
@@ -241,9 +241,9 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
     conf->networkLayers = (UA_ServerNetworkLayer*)UA_malloc(sizeof(UA_ServerNetworkLayer) * conf->networkLayersSize);
     conf->networkLayers[0] = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
 
-    conf->endpointsSize = 1;
-    conf->endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint) * conf->endpointsSize);
-    if(conf->endpoints == NULL) {
+    conf->endpoints.count = 1;
+    conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint) * conf->endpoints.count);
+    if(conf->endpoints.endpoints == NULL) {
         UA_free(conf);
         return NULL;
     }
@@ -251,11 +251,11 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
     createSecurityPolicyNoneEndpoint(conf, certificate, 0);
 
     // Initialize policy contexts
-    for(size_t i = 0; i < conf->endpointsSize; ++i) {
-        UA_SecurityPolicy *const policy = conf->endpoints[i].securityPolicy;
+    for(size_t i = 0; i < conf->endpoints.count; ++i) {
+        UA_SecurityPolicy *const policy = conf->endpoints.endpoints[i].securityPolicy;
         policy->logger = conf->logger;
 
-        policy->endpointContext.newContext(policy, NULL, NULL, &conf->endpoints[i].securityContext);
+        policy->endpointContext.newContext(policy, NULL, NULL, &conf->endpoints.endpoints[i].securityContext);
     }
 
     return conf;
@@ -270,19 +270,19 @@ UA_EXPORT void UA_ServerConfig_standard_delete(UA_ServerConfig *config) {
     if(config == NULL)
         return;
 
-    for(size_t i = 0; i < config->endpointsSize; ++i) {
-        UA_SecurityPolicy *const policy = config->endpoints[i].securityPolicy;
+    for(size_t i = 0; i < config->endpoints.count; ++i) {
+        UA_SecurityPolicy *const policy = config->endpoints.endpoints[i].securityPolicy;
 
-        policy->endpointContext.deleteContext(config->endpoints[i].securityContext);
+        policy->endpointContext.deleteContext(config->endpoints.endpoints[i].securityContext);
 
-        UA_EndpointDescription_deleteMembers(&config->endpoints[i].endpointDescription);
+        UA_EndpointDescription_deleteMembers(&config->endpoints.endpoints[i].endpointDescription);
     }
 
     for(size_t i = 0; i < config->networkLayersSize; ++i) {
         config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
     }
 
-    UA_free(config->endpoints);
+    UA_free(config->endpoints.endpoints);
     UA_free(config->networkLayers);
 
     UA_free(config);

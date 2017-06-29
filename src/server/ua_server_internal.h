@@ -97,7 +97,6 @@ typedef struct serverOnNetwork_hash_entry {
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
-    UA_Endpoints endpoints;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;

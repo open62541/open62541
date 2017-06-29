@@ -24,8 +24,8 @@ typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 struct UA_Channel_SecurityContext;
 typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 
-struct UA_Endpoint_SecurityContext;
-typedef struct UA_Endpoint_SecurityContext UA_Endpoint_SecurityContext;
+struct UA_Policy_SecurityContext;
+typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
 /////////////////////////////////
 // End of forward declarations //
 /////////////////////////////////
@@ -188,9 +188,9 @@ typedef struct
     UA_ByteString localCertificate;
     UA_ByteString certificateTrustList;
     UA_ByteString certificateRevocationList;
-} UA_Endpoint_SecurityContext_RequiredInitData;
+} UA_Policy_SecurityContext_RequiredInitData;
 
-struct UA_Endpoint_SecurityContext {
+struct UA_Policy_SecurityContext {
     /**
      * \brief Creates a new endpoint context with the supplied initialization data.
      *
@@ -198,7 +198,7 @@ struct UA_Endpoint_SecurityContext {
      * \param initData the required initialization data for the endpoint context.
      */
     UA_StatusCode (*const newContext)(const UA_SecurityPolicy *securityPolicy,
-                                      const UA_Endpoint_SecurityContext_RequiredInitData *initData,
+                                      const UA_Policy_SecurityContext_RequiredInitData *initData,
                                       const void *optInitData,
                                       void **pp_contextData);
 
@@ -343,7 +343,7 @@ struct UA_SecurityPolicy {
     const UA_SecurityPolicyAsymmetricModule asymmetricModule;
     const UA_SecurityPolicySymmetricModule symmetricModule;
 
-    const UA_Endpoint_SecurityContext endpointContext;
+    const UA_Policy_SecurityContext endpointContext;
     const UA_Channel_SecurityContext channelContext;
 
     UA_Logger logger;

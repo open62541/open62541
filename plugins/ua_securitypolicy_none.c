@@ -179,7 +179,7 @@ endpointContext_setLocalCertificate_sp_none(const UA_ByteString *const certifica
 
 static UA_StatusCode
 endpointContext_newContext_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                                   const UA_Endpoint_SecurityContext_RequiredInitData *initData,
+                                   const UA_Policy_SecurityContext_RequiredInitData *initData,
                                    const void *const optInitData,
                                    void **const pp_contextData) {
     if(securityPolicy == NULL || pp_contextData == NULL)

@@ -60,8 +60,7 @@ typedef struct {
     UA_ServerNetworkLayer *networkLayers;
 
     /* Available endpoints */
-    size_t endpointsSize;
-    UA_Endpoint *endpoints;
+    UA_Endpoints endpoints;
 
     /* Access Control */
     UA_AccessControl accessControl;

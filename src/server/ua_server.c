@@ -103,12 +103,6 @@ void UA_Server_delete(UA_Server *server) {
     UA_NodeStore_delete(server->nodestore);
     UA_RCU_UNLOCK();
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
-    
-    for(size_t i = 0; i < server->endpoints.count; ++i) {
-        UA_EndpointDescription_deleteMembers(&server->endpoints.endpoints[i].endpointDescription);
-    }
-    UA_free(server->endpoints.endpoints);
-    server->endpoints.count = 0;
 
 #ifdef UA_ENABLE_DISCOVERY
     registeredServer_list_entry *rs, *rs_tmp;
@@ -168,27 +162,13 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 #endif
 }
 
-/* Create endpoints w/o endpointurl from the config. It is added from the networklayers at startup */
-static void
-addEndpointDefinitions(UA_Server* server) {
-    server->endpoints.endpoints = (UA_Endpoint*) UA_malloc(sizeof(UA_Endpoint) * server->config.endpointsSize);
-    server->endpoints.count = server->config.endpointsSize;
-
-    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
-        server->endpoints.endpoints[i].securityPolicy = server->config.endpoints[i].securityPolicy;
-        server->endpoints.endpoints[i].securityContext = server->config.endpoints[i].securityContext;
-        UA_EndpointDescription_copy(&server->config.endpoints[i].endpointDescription,
-                                    &server->endpoints.endpoints[i].endpointDescription);
-    }
-}
-
 UA_Server *
 UA_Server_new(const UA_ServerConfig config) {
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    if(config.endpointsSize == 0) {
+    if(config.endpoints.count == 0) {
         UA_LOG_FATAL(config.logger,
                      UA_LOGCATEGORY_SERVER,
                      "There has to be at least one endpoint.");
@@ -224,9 +204,6 @@ UA_Server_new(const UA_ServerConfig config) {
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
-
-    /* Create Endpoint Definitions */
-    addEndpointDefinitions(server);
 
     /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);

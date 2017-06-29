@@ -25,7 +25,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Copy the server's endpoints into the response */
     response->serverEndpoints =
-        (UA_EndpointDescription*)UA_Array_new(server->endpoints.count,
+        (UA_EndpointDescription*)UA_Array_new(server->config.endpoints.count,
                                               &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     if(response->serverEndpoints == NULL) {
@@ -33,15 +33,15 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    for(size_t i = 0; i < server->endpoints.count; ++i) {
+    for(size_t i = 0; i < server->config.endpoints.count; ++i) {
         response->responseHeader.serviceResult |= UA_EndpointDescription_copy(
-            &server->endpoints.endpoints[i].endpointDescription,
+            &server->config.endpoints.endpoints[i].endpointDescription,
             &response->serverEndpoints[i]);
     }
 
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    response->serverEndpointsSize = server->endpoints.count;
+    response->serverEndpointsSize = server->config.endpoints.count;
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i)
@@ -69,7 +69,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpoints.count > 0)
+    if(server->config.endpoints.count > 0)
         response->responseHeader.serviceResult |=
         UA_ByteString_copy(&channel->endpoint->endpointDescription.serverCertificate,
                            &response->serverCertificate);

@@ -47,7 +47,7 @@ UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
 
 UA_StatusCode
 UA_SecureChannelManager_close_temporary(UA_SecureChannelManager* const cm,
-										UA_SecureChannel* const channel);
+                                        UA_SecureChannel* const channel);
 
 UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
