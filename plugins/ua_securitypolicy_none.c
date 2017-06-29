@@ -282,7 +282,7 @@ channelContext_newContext_sp_none(const void *const policyContext,
     UA_SP_NONE_ChannelContextData* const data = (UA_SP_NONE_ChannelContextData*)*pp_channelContext;
 
     data->callCounter = 0;
-    data->securityPolicy = ((UA_SP_NONE_PolicyContextData*)policyContext)->securityPolicy;
+    data->securityPolicy = ((const UA_SP_NONE_PolicyContextData*)policyContext)->securityPolicy;
     data->policyContext = policyContext;
 
     return UA_STATUSCODE_GOOD;
