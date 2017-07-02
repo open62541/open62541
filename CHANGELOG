@@ -1,6 +1,18 @@
 The changelog tracks changes to the public API.
 Internal refactorings and bug fixes are not reported here.
 
+2017-06-26 janitza-thbe
+
+    * Enable IPv6 in the networklayer plugin
+
+      The server networklayer listens on several sockets for available
+      networks and IP versions. IPv4 connections are still supported.
+
+      The OPC Foundation ANSI C Stack before 2016 does not fully support IPv6.
+      On Windows, the 'localhost' target is resolved to IPv6 by default. Old
+      applications (e.g. the Conformance Testing Tools) need to connect to
+      127.0.0.1 instead of 'localhost' to force IPv4.
+
 2017-06-16 jpfr <julius.pfrommer at web.de>
 
     * Require the AccessLevel bit UA_ACCESSLEVELMASK_READ for reading
