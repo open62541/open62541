@@ -69,7 +69,7 @@
 #endif
 
 #ifdef _WIN32
-#define errno__ WSAGetLastError()
+# define errno__ WSAGetLastError()
 # define INTERRUPTED WSAEINTR
 # define WOULDBLOCK WSAEWOULDBLOCK
 # define AGAIN WSAEWOULDBLOCK
@@ -272,73 +272,66 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
 }
 
 static void
-addServerSockets(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
-    /* There might be serveral addrinfos (for different network cards,
-     * IPv4/IPv6). Add a server socket for all of them. */
-    for(layer->serverSocketsSize = 0;
-        layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
-        ai = ai->ai_next) {
-
-        /* Create the server socket */
-        SOCKET newsock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
+    /* Create the server socket */
+    SOCKET newsock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 #ifdef _WIN32
-        if(newsock == INVALID_SOCKET)
+    if(newsock == INVALID_SOCKET)
 #else
-        if(newsock < 0)
+    if(newsock < 0)
 #endif
-        {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Error opening the server socket");
-            continue;
-        }
-
-        /* Some Linux distributions have net.ipv6.bindv6only not activated. So
-         * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
-         * AF_INET6 sockets only for IPv6. */
-        int optval = 1;
-        if(ai->ai_family == AF_INET6 &&
-           setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
-                      (const char*)&optval, sizeof(optval)) == -1) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Could not set an IPv6 socket to IPv6 only");
-            CLOSESOCKET(newsock);
-            continue;
-        }
-
-        if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
-                      (const char *)&optval, sizeof(optval)) == -1) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Could not make the socket reusable");
-            CLOSESOCKET(newsock);
-            continue;
-        }
-
-        if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Could not set the server socket to nonblocking");
-            CLOSESOCKET(newsock);
-            continue;
-        }
-
-        /* Bind socket to address */
-        if(bind(newsock, ai->ai_addr, WIN32_INT ai->ai_addrlen) < 0) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Error binding a server socket: %i", errno__);
-            CLOSESOCKET(newsock);
-            continue;
-        }
-
-        /* Start listening */
-        if(listen(newsock, MAXBACKLOG) < 0) {
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Error listening on server socket");
-            CLOSESOCKET(newsock);
-            continue;
-        }
-
-        layer->serverSockets[layer->serverSocketsSize] = (UA_Int32)newsock;
-        layer->serverSocketsSize++;
+    {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error opening the server socket");
+        return;
     }
+
+    /* Some Linux distributions have net.ipv6.bindv6only not activated. So
+     * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
+     * AF_INET6 sockets only for IPv6. */
+    int optval = 1;
+    if(ai->ai_family == AF_INET6 &&
+       setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
+                  (const char*)&optval, sizeof(optval)) == -1) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not set an IPv6 socket to IPv6 only");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
+                  (const char *)&optval, sizeof(optval)) == -1) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not make the socket reusable");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not set the server socket to nonblocking");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    /* Bind socket to address */
+    if(bind(newsock, ai->ai_addr, WIN32_INT ai->ai_addrlen) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error binding a server socket: %i", errno__);
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    /* Start listening */
+    if(listen(newsock, MAXBACKLOG) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error listening on server socket");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    layer->serverSockets[layer->serverSocketsSize] = (UA_Int32)newsock;
+    layer->serverSocketsSize++;
 }
 
 static UA_StatusCode
@@ -368,14 +361,20 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
 #else
     _snprintf_s(portno, 6, _TRUNCATE, "%d", layer->port);
 #endif
-
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
     getaddrinfo(NULL, portno, &hints, &res);
-    addServerSockets(layer, res);
+
+    /* There might be serveral addrinfos (for different network cards,
+     * IPv4/IPv6). Add a server socket for all of them. */
+    struct addrinfo *ai = res;
+    for(layer->serverSocketsSize = 0;
+        layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
+        ai = ai->ai_next)
+        addServerSocket(layer, ai);
     freeaddrinfo(res);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
