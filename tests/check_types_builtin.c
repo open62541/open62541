@@ -1319,6 +1319,23 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 }
 END_TEST
 
+START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
+    UA_ByteString text = UA_BYTESTRING("My xml");
+    UA_Variant src;
+    UA_Variant_setScalar(&src, &text, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_NumericRangeDimension d1 = {0, 8388607};
+    UA_NumericRange nr;
+    nr.dimensionsSize = 1;
+    nr.dimensions = &d1;
+
+    UA_Variant dst;
+    UA_StatusCode retval = UA_Variant_copyRange(&src, &dst, nr);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&dst);
+}
+END_TEST
+
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     // given
     UA_String *srcArray = UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
@@ -1543,6 +1560,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
+    tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
