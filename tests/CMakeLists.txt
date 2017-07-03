@@ -39,6 +39,8 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 endif()
 
 # Unit Test Definition Macro
+# TODO: Re-enable all valgrind tests when travis uses a libc without the freeaddrinfo bug
+# Probably this: https://bugzilla.redhat.com/show_bug.cgi?id=754026
 set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_VALGRIND_UNIT_TESTS)
@@ -77,9 +79,10 @@ add_test_valgrind(check_utils ${TESTS_BINARY_DIR}/check_utils)
 
 # Test Server
 
+# TODO: Re-enable valgrind test
 add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_view ${LIBS})
-add_test_valgrind(services_view ${TESTS_BINARY_DIR}/check_services_view)
+add_test(services_view ${TESTS_BINARY_DIR}/check_services_view)
 
 add_executable(check_services_attributes check_services_attributes.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_attributes ${LIBS})
@@ -110,9 +113,10 @@ target_link_libraries(check_server_userspace ${LIBS})
 add_test_valgrind(check_server_userspace ${TESTS_BINARY_DIR}/check_server_userspace)
 
 if(UA_ENABLE_DISCOVERY)
+    # TODO: Re-enable valgrind test
     add_executable(check_discovery check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_discovery ${LIBS})
-    add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
+    add_test(discovery ${TESTS_BINARY_DIR}/check_discovery)
 endif()
 
 # Readspeed server
@@ -171,14 +175,17 @@ add_test_valgrind(check_server_binary_messages_write ${TESTS_BINARY_DIR}/check_s
 
 # Test Client
 
+# TODO: Re-enable valgrind test
 add_executable(check_client check_client.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client ${LIBS})
-add_test_valgrind(check_client ${TESTS_BINARY_DIR}/check_client)
+add_test(check_client ${TESTS_BINARY_DIR}/check_client)
 
+# TODO: Re-enable valgrind test
 add_executable(check_client_subscriptions check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
-add_test_valgrind(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
+add_test(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
 
+# TODO: Re-enable valgrind test
 add_executable(check_client_highlevel check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
-add_test_valgrind(check_client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+add_test(check_client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
