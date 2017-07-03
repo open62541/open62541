@@ -12,7 +12,6 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
-#include "ua_nodeids.h"
 #include "ua_plugin_log.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_access_control.h"
