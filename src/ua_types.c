@@ -582,13 +582,13 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
 
     /* Allocate the array */
     UA_Variant_init(dst);
-    size_t elem_size = src->type->memSize;
-    dst->data = UA_malloc(elem_size * count);
+    dst->data = UA_Array_new(count, src->type);
     if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Copy the range */
     size_t block_count = count / block;
+    size_t elem_size = src->type->memSize;
     uintptr_t nextdst = (uintptr_t)dst->data;
     uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
     if(nextrange.dimensionsSize == 0) {
