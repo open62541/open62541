@@ -79,7 +79,7 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
                              ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
   add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
   add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der ca.crt)
-  target_link_libraries(server_certificate ${LIBS})
+  target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
 endif()
 
 if(UA_ENABLE_DISCOVERY)
