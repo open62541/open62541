@@ -6,10 +6,11 @@ open62541 (http://open62541.org) is an open source and free implementation of OP
 open62541 is licensed under the Mozilla Public License v2.0. So the **open62541 library can be used in projects that are not open source**. However, changes to the open62541 library itself need to published under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
-[![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
-[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
-[![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=0.2)](https://coveralls.io/r/open62541/open62541?branch=0.2)
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/12248/badge.svg)](https://scan.coverity.com/projects/open62541-open62541)
+[![Build Status](https://img.shields.io/travis/open62541/open62541/0.2.svg)](https://travis-ci.org/open62541/open62541)
+[![MSVS build status](https://img.shields.io/appveyor/ci/open62541/open62541/0.2.svg)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
+[![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
+[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/0.2.svg)](https://coveralls.io/r/open62541/open62541?branch=0.2)
+[![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
 ### Features
 
