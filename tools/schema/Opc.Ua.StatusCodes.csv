@@ -46,6 +46,9 @@ BadRequestHeaderInvalid,0x802A0000,The header for the request is missing or inva
 BadTimestampsToReturnInvalid,0x802B0000,The timestamps to return parameter is invalid.
 BadRequestCancelledByClient,0x802C0000,The request was cancelled by the client.
 BadTooManyArguments,0x80E50000,Too many arguments were provided.
+BadLicenseExpired,0x810E0000,The server requires a license to operate in general or to perform a service or operation, but existing license is expired.
+BadLicenseLimitsExceeded,0x810F0000,The server has limits on number of allowed operations / objects, based on installed licenses, and these limits where exceeded.
+BadLicenseNotAvailable,0x81100000,The server does not have a license which is required to operate in general or to perform a service or operation.
 GoodSubscriptionTransferred,0x002D0000,The subscription was transferred to another session.
 GoodCompletesAsynchronously,0x002E0000,The processing will complete asynchronously.
 GoodOverload,0x002F0000,Sampling has slowed down due to resource limitations.
