@@ -3,9 +3,9 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import print_function
-import re
 import argparse
 import os.path
+import re
 import io
 
 parser = argparse.ArgumentParser()
@@ -26,7 +26,7 @@ guard_re = re.compile("^#(?:(?:ifndef|define) [A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*
 
 print ("Starting amalgamating file "+ args.outfile)
 
-file = io.open(args.outfile, 'w')
+file = io.open(args.outfile, 'w', encoding='utf8', errors='replace')
 file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
@@ -60,7 +60,7 @@ extern "C" {
 #endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
-    with io.open(fname, encoding="utf8") as infile:
+    with io.open(fname, encoding='utf8', errors='replace') as infile:
         file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
         print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
