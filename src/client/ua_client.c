@@ -20,6 +20,15 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     client->channel.connection = &client->connection;
     client->config = config;
+    UA_Timer_init(&client->timer);
+
+    /* Retrieve complete chunks */
+    client->reply = UA_BYTESTRING_NULL;
+    client->realloced = false;
+
+    #ifndef UA_ENABLE_MULTITHREADING
+        SLIST_INIT(&client->delayedCallbacks);
+    #endif
 }
 
 UA_Client * UA_Client_new(UA_ClientConfig config) {
@@ -826,6 +835,37 @@ processServiceResponse(SyncResponseDescription *rd, UA_SecureChannel *channel,
         respHeader->serviceResult = retval;
     }
 }
+UA_StatusCode
+receiveServiceResponse_async(UA_Client *client, void *response,
+                       const UA_DataType *responseType) {
+    /* Prepare the response and the structure we give into processServiceResponse */
+    SyncResponseDescription rd = {client, false, 0, response, responseType};
+
+    /* Return upon receiving the synchronized response. All other responses are
+     * processed with a callback "in the background". */
+
+        UA_StatusCode retval =
+            UA_Connection_receiveChunksNonBlocking(&client->connection, &client->reply,
+                                                &client->realloced);
+
+        if(retval != UA_STATUSCODE_GOOD || client->reply.length > 0){
+            /* ProcessChunks and call processServiceResponse for complete messages */
+            UA_SecureChannel_processChunks(&client->channel, &client->reply,
+                                       (UA_ProcessMessageCallback*)processServiceResponse, &rd);
+            /* Free the received buffer */
+            if(!client->realloced)
+                client->connection.releaseRecvBuffer(&client->connection, &client->reply);
+            else
+                UA_ByteString_deleteMembers(&client->reply);
+
+            /* Retrieve complete chunks */
+            client->reply = UA_BYTESTRING_NULL;
+            client->realloced = false;
+        }
+
+
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response,
@@ -920,7 +960,14 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
         *requestId = ac->requestId;
     return UA_STATUSCODE_GOOD;
 }
-
+UA_StatusCode
+UA_Client_addAsyncRequest(UA_Client *client, const void *request,
+        const UA_DataType *requestType,
+        UA_ClientAsyncServiceCallback callback,
+        const UA_DataType *responseType,
+        void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client,request,requestType,callback,responseType,userdata,requestId);
+}
 UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */

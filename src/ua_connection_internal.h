@@ -52,6 +52,10 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection,
                                     UA_Boolean *realloced,
                                     UA_UInt32 timeout);
 
+UA_StatusCode
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, UA_ByteString *chunks,
+                                    UA_Boolean *realloced);
+
 void UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_Connection_attachSecureChannel(UA_Connection *connection,
                                        UA_SecureChannel *channel);

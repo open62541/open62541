@@ -43,10 +43,12 @@ typedef struct UA_ClientConfig {
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
 
+
     /* Custom DataTypes */
     size_t customDataTypesSize;
     const UA_DataType *customDataTypes;
 } UA_ClientConfig;
+
 
 /**
  * Client Lifecycle
@@ -431,10 +433,33 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
+
+UA_UInt16
+UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal);
+
+
+UA_StatusCode
+UA_Client_run_shutdown(UA_Client *client);
+
+
+UA_StatusCode
+UA_Client_run(UA_Client *client, volatile UA_Boolean *running);
+
+UA_StatusCode
+UA_Client_addAsyncRequest(UA_Client *client, const void *request,
+        const UA_DataType *requestType,
+        UA_ClientAsyncServiceCallback callback,
+        const UA_DataType *responseType,
+        void *userdata, UA_UInt32 *requestId);
+
 /**
  * .. toctree::
  *
  *    client_highlevel */
+/**
+* Repeated Callbacks
+* ------------------ */
+typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -154,6 +154,25 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
 }
 
 UA_StatusCode
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, UA_ByteString *chunks,
+                                    UA_Boolean *realloced) {
+    *realloced = false;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+        /* Listen for messages to arrive */
+
+        retval = connection->recv(connection, chunks, 1);
+
+        /* Get complete chunks and return */
+        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+
+        /* We received a message. But the chunk is incomplete. Compute the
+         * remaining timeout. */
+    return retval;
+}
+
+UA_StatusCode
 UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *chunks,
                                     UA_Boolean *realloced, UA_UInt32 timeout) {
     UA_DateTime now = UA_DateTime_nowMonotonic();

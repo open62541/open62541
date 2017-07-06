@@ -189,6 +189,7 @@ UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *d
 void
 UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
+
 /*********************/
 /* Utility Functions */
 /*********************/

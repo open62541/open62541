@@ -616,6 +616,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
     /* Get a socket */
     SOCKET clientsockfd = socket(server->ai_family, server->ai_socktype,
                                  server->ai_protocol);
+
 #ifdef _WIN32
     if(clientsockfd == INVALID_SOCKET) {
 #else
@@ -631,6 +632,13 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
     connection.sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
     error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
     freeaddrinfo(server);
+    if(socket_set_nonblocking(clientsockfd)!=UA_STATUSCODE_GOOD){
+        connection_close(&connection);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %s failed with error %d",
+                       endpointUrl, errno__);
+        return connection;
+    }
 
     if(error < 0) {
         connection_close(&connection);
