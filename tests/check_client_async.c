@@ -14,6 +14,7 @@
 #include "check.h"
 #include "testing_clock.h"
 
+UA_ServerConfig *config;
 UA_Server *server;
 UA_Boolean *running;
 UA_ServerNetworkLayer nl;
@@ -28,11 +29,8 @@ static void * serverloop(void *_) {
 static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
-    server = UA_Server_new(config);
+    config = UA_ServerConfig_standard_parametrized_new(16664, NULL);
+    server = UA_Server_new(*config);
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
 }
@@ -43,7 +41,7 @@ static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_standard_delete(config);
 }
 
 static void
