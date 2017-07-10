@@ -239,7 +239,7 @@ UA_EXPORT UA_ServerConfig *UA_ServerConfig_standard_parametrized_new(UA_UInt16 p
 
     conf->networkLayersSize = 1;
     conf->networkLayers = (UA_ServerNetworkLayer*)UA_malloc(sizeof(UA_ServerNetworkLayer) * conf->networkLayersSize);
-    conf->networkLayers[0] = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
+    conf->networkLayers[0] = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, portNumber);
 
     conf->endpoints.count = 1;
     conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint) * conf->endpoints.count);
