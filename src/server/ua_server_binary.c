@@ -12,7 +12,6 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
-#include "ua_nodeids.h"
 
  /********************/
  /* Helper Functions */
