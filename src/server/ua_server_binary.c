@@ -712,7 +712,6 @@ UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
 
 #endif
 
-/* Remove a connection after it was closed in the network layer */
 #ifdef UA_ENABLE_MULTITHREADING
 static void
 deleteConnectionTrampoline(UA_Server *server, void *data) {

@@ -101,9 +101,9 @@ struct UA_Connection {
     /* Release the buffer of a received message */
     void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);
 
-    /* Close the connection. The network layer closes the socket, removes
-     * internal pointers to the connection and calls
-     * UA_Server_removeConnection. */
+    /* Close the connection. The network layer closes the socket. This is picked
+     * up during the next 'listen' and the connection is freed in the network
+     * layer. */
     void (*close)(UA_Connection *connection);
 
     /* To be called only from within the server (and not the network layer).
@@ -157,8 +157,9 @@ struct UA_ServerNetworkLayer {
     UA_StatusCode (*start)(UA_ServerNetworkLayer *nl);
 
     /* Listen for new and closed connections and arriving packets. Calls
-     * UA_Server_processBinaryMessage for the arriving packets. Calls
-     * UA_Server_removeConnection for closed connections.
+     * UA_Server_processBinaryMessage for the arriving packets. Closed
+     * connections are picked up here and forwarded to
+     * UA_Server_removeConnection where they are cleaned up and freed.
      *
      * @param nl The network layer
      * @param server The server for processing the incoming packets and for

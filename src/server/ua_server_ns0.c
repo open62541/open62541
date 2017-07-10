@@ -7,7 +7,6 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
-#include "ua_nodeids.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"

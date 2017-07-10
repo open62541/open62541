@@ -52,9 +52,9 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    *running = false;
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    *running = false;
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
@@ -66,17 +66,15 @@ static void teardown(void) {
 START_TEST(Misc_State) {
     UA_ClientState state = UA_Client_getState(client);
     ck_assert_uint_eq(state, UA_CLIENTSTATE_CONNECTED);
-
 }
 END_TEST
 
 START_TEST(Misc_NamespaceGetIndex) {
     UA_UInt16 idx;
-
     UA_String ns = UA_STRING(CUSTOM_NS);
     UA_StatusCode retval = UA_Client_NamespaceGetIndex(client, &ns, &idx);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(idx, 2);
 
     // namespace uri is case sensitive
