@@ -166,9 +166,11 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
  * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Client_connect(UA_Client *client, const char *endpointUrl);
+//UA_StatusCode UA_EXPORT
+//UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean *waiting, UA_Boolean *connected);
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -178,7 +180,7 @@ UA_Client_connect(UA_Client *client, const char *endpointUrl);
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password);
+                           const char *username, const char *password, UA_Boolean *waiting, UA_Boolean *connected);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
