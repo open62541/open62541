@@ -165,6 +165,7 @@ HelAckHandshake(UA_Client *client) {
     /* Store remote connection settings and adjust local configuration to not
        exceed the limits */
     if(retval == UA_STATUSCODE_GOOD) {
+    	client->connectState = HEL_ACK;
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
         conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
         conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
@@ -191,8 +192,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         return UA_STATUSCODE_GOOD;
 
     UA_Connection *conn = &client->connection;
-    if(conn->state != UA_CONNECTION_ESTABLISHED)
-        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+//    if(conn->state != UA_CONNECTION_ESTABLISHED)
+//        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_ByteString message;
     UA_StatusCode retval = conn->getSendBuffer(conn, conn->remoteConf.recvBufferSize, &message);
@@ -308,6 +309,8 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
     retval |= response.responseHeader.serviceResult;
 
     if(retval == UA_STATUSCODE_GOOD) {
+    	client->connectState = SECURECHANNEL_ACK;
+
         /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
          * to DateTime=Int64 we take 75% of lifetime to start renewing as
          *  described in standard */
@@ -383,6 +386,7 @@ ActivateSession(UA_Client *client) {
     UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_ActivateSessionRequest_deleteMembers(&request);
     UA_ActivateSessionResponse_deleteMembers(&response);
+    client->connectState = ACTIVATE_ACK;
     return retval;
 }
 
@@ -481,6 +485,8 @@ EndpointsHandshake(UA_Client *client) {
                      "No suitable UserTokenPolicy found for the possible endpoints");
         retval = UA_STATUSCODE_BADINTERNALERROR;
     }
+    client->connectState = ENDPOINTS_ACK;
+
     return retval;
 }
 
@@ -506,6 +512,7 @@ SessionHandshake(UA_Client *client) {
     UA_StatusCode retval = response.responseHeader.serviceResult;
     UA_CreateSessionRequest_deleteMembers(&request);
     UA_CreateSessionResponse_deleteMembers(&response);
+    client->connectState = SESSION_ACK;
     return retval;
 }
 
@@ -589,28 +596,31 @@ CloseSecureChannel(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password){
+                           const char *username, const char *password,  UA_Boolean *waiting, UA_Boolean *connected){
     client->authenticationMethod=UA_CLIENTAUTHENTICATION_USERNAME;
     client->username = UA_STRING_ALLOC(username);
     client->password = UA_STRING_ALLOC(password);
-    return UA_Client_connect(client, endpointUrl);
+    return UA_Client_connect(client, endpointUrl, waiting, connected);
 }
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, const char *endpointUrl,
-                    UA_Boolean endpointsHandshake, UA_Boolean createSession) {
-    if(client->state == UA_CLIENTSTATE_CONNECTED)
-        return UA_STATUSCODE_GOOD;
-    if(client->state == UA_CLIENTSTATE_ERRORED) {
-        UA_Client_reset(client);
-    }
+__UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpointsHandshake,
+		UA_Boolean createSession, ConnectState *last_cs, UA_Boolean *waiting, UA_Boolean *connected) {
+
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    client->connection =
-        client->config.connectionFunc(client->config.localConnectionConfig, endpointUrl);
-    if(client->connection.state != UA_CONNECTION_OPENING) {
-        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
-        goto cleanup;
+    if(client->connectState == NO_ACK){
+        if(client->state == UA_CLIENTSTATE_CONNECTED)
+            return UA_STATUSCODE_GOOD;
+        if(client->state == UA_CLIENTSTATE_ERRORED) {
+            UA_Client_reset(client);
+        }
+		client->connection =
+			client->config.connectionFunc(client->config.localConnectionConfig, endpointUrl);
+		if(client->connection.state != UA_CONNECTION_OPENING) {
+			retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
+			goto cleanup;
+		}
     }
 
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
@@ -620,21 +630,70 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
     }
 
     client->connection.localConf = client->config.localConnectionConfig;
-    retval = HelAckHandshake(client);
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = SecureChannelHandshake(client, false);
-    if(endpointsHandshake && retval == UA_STATUSCODE_GOOD)
-        retval = EndpointsHandshake(client);
-    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
-        retval = SessionHandshake(client);
-    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
-        retval = ActivateSession(client);
-    if(retval == UA_STATUSCODE_GOOD) {
-        client->connection.state = UA_CONNECTION_ESTABLISHED;
-        client->state = UA_CLIENTSTATE_CONNECTED;
-    } else {
-        goto cleanup;
-    }
+    //hello msg must always be sent
+
+    ConnectState cs;
+    //ConnectState *last_cs = client->lastConnectState;
+
+    //while(client->state != UA_CLIENTSTATE_CONNECTED){
+    	cs = client->connectState;
+		switch(cs){
+			//original endpoint, session, activate functions contain __UA_Client_Service, should be divided?
+		case NO_ACK:
+			retval = HelAckHandshake(client);
+			break;
+
+			case HEL_ACK:
+				if(*last_cs != HEL_ACK){
+					retval = SecureChannelHandshake(client, false);
+					*last_cs = HEL_ACK;
+				}
+				else
+					*waiting = true; //still waiting for the expected ack
+				break;
+
+			case SECURECHANNEL_ACK:
+				if (*last_cs != SECURECHANNEL_ACK) {
+					retval = EndpointsHandshake(client);
+					*last_cs = SECURECHANNEL_ACK;
+				}
+				else
+					*waiting = true;
+				break;
+
+			case ENDPOINTS_ACK:
+				if (*last_cs != ENDPOINTS_ACK) {
+					retval = SessionHandshake(client);
+					*last_cs = ENDPOINTS_ACK;
+				}
+				else
+					*waiting = true;
+				break;
+
+			case SESSION_ACK:
+				if (*last_cs!=SESSION_ACK) {
+					retval = ActivateSession(client);
+					*last_cs = SESSION_ACK;
+				}
+				else
+					*waiting = true;
+				break;
+
+			case ACTIVATE_ACK:
+				client->connection.state = UA_CONNECTION_ESTABLISHED;
+				client->state = UA_CLIENTSTATE_CONNECTED;
+				*waiting = false;
+				*connected = true;
+				break;
+
+			default:
+				break;
+		}
+    //}
+
+    if(retval != UA_STATUSCODE_GOOD)
+    	goto cleanup;
+
     return retval;
 
  cleanup:
@@ -642,9 +701,10 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
     return retval;
 }
 
+
 UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl) {
-    return __UA_Client_connect(client, endpointUrl, UA_TRUE, UA_TRUE);
+UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean *waiting, UA_Boolean *connected) {
+    return __UA_Client_connect(client, endpointUrl, true, true, &(client->lastConnectState), waiting, connected);
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {

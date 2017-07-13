@@ -18,6 +18,15 @@
 /**********/
 /* Client */
 /**********/
+typedef enum ConnectState{
+	NO_ACK,
+	HEL_ACK,
+	SECURECHANNEL_ACK,
+	ENDPOINTS_ACK,
+	SESSION_ACK,
+	ACTIVATE_ACK
+}ConnectState;
+
 
 typedef struct AsyncServiceCall {
     LIST_ENTRY(AsyncServiceCall) pointers;
@@ -40,6 +49,8 @@ typedef enum {
 
 struct UA_Client {
     /* State */
+	ConnectState connectState;
+	ConnectState lastConnectState;
     UA_ClientState state;
     UA_ClientConfig config;
 
@@ -96,7 +107,7 @@ UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
 
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, const char *endpointUrl,
-                    UA_Boolean endpointsHandshake, UA_Boolean createSession);
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs,UA_Boolean *waiting, UA_Boolean *connected);
 
 UA_StatusCode
 __UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
