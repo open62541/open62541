@@ -260,6 +260,7 @@ addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueR
     attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
     attr.dataType = *dataType;
     attr.valueRank = valueRank;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
     if(value)
         attr.value = *value;
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
