@@ -231,14 +231,6 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
  * - Returns the next datetime when a repeated job is scheduled */
 static UA_DateTime
 processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatched) {
-    /* Find the last job that is executed in this iteration */
-    struct RepeatedJob *lastNow = NULL, *tmp;
-    LIST_FOREACH(tmp, &server->repeatedJobs, next) {
-        if(tmp->nextTime > current)
-            break;
-        lastNow = tmp;
-    }
-
     /* Keep pointer to the previously dispatched job to avoid linear search for
      * "batched" jobs with the same nexttime and interval */
     struct RepeatedJob tmp_last;
@@ -264,8 +256,13 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatch
         if((void*)*previousNext != (void*)rj) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                          "The current repeated job removed itself");
+            tmp_rj = LIST_FIRST(&server->repeatedJobs);
             continue;
         }
+
+        /* Was tmp_rj removed during the job? */
+        if(LIST_NEXT(rj, next) != tmp_rj)
+            tmp_rj = LIST_FIRST(&server->repeatedJobs);
 #endif
 
         /* Set the time for the next execution */
@@ -284,10 +281,8 @@ processRepeatedJobs(UA_Server *server, UA_DateTime current, UA_Boolean *dispatch
             UA_assert(last_dispatched != &tmp_last);
             prev_rj = last_dispatched;
         } else {
-            /* Find the position by a linear search starting at the first
-             * possible job */
-            UA_assert(lastNow); /* Not NULL. Otherwise, we never reach this point. */
-            prev_rj = lastNow;
+            /* Find the position by a linear search */
+            prev_rj = LIST_FIRST(&server->repeatedJobs);
             while(true) {
                 struct RepeatedJob *n = LIST_NEXT(prev_rj, next);
                 if(!n || n->nextTime >= rj->nextTime)
