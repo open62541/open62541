@@ -344,10 +344,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         // need to use select with timeout on the multicast socket
         // server->mdnsSocket (see example in mdnsd library) on higher level.
         UA_DateTime multicastNextRepeat = 0;
-        UA_Boolean hasNext =
+        UA_StatusCode hasNext =
             iterateMulticastDiscoveryServer(server, &multicastNextRepeat,
                                             UA_TRUE);
-        if(hasNext && multicastNextRepeat < nextRepeated)
+        if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
 #endif

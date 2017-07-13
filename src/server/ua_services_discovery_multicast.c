@@ -490,7 +490,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if(createTxt) {
-        char *pathChars = UA_alloca(path->length + 1);
+        char *pathChars = (char *)UA_alloca(path->length + 1);
         memcpy(pathChars, path->data, path->length);
         pathChars[path->length] = 0;
         mdns_create_txt(server, fullServiceDomain, pathChars, capabilites,
