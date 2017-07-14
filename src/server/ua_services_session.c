@@ -23,6 +23,13 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    if(!UA_ByteString_equal(&channel->endpoint->securityPolicy->policyUri,
+                            &UA_SECURITY_POLICY_NONE_URI)
+       && request->clientNonce.length < 32) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
+    }
+
     /* Copy the server's endpoints into the response */
     response->serverEndpoints =
         (UA_EndpointDescription*)UA_Array_new(server->config.endpoints.count,
