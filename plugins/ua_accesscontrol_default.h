@@ -10,41 +10,47 @@
 extern "C" {
 #endif
 
-extern const UA_Boolean enableAnonymousLogin;
-extern const UA_Boolean enableUsernamePasswordLogin;
-extern const size_t usernamePasswordsSize;
-extern const UA_UsernamePasswordLogin *usernamePasswords;
+UA_StatusCode UA_EXPORT
+activateSession_default(const UA_NodeId *sessionId,
+                        const UA_ExtensionObject *userIdentityToken,
+                        void **sessionHandle);
 
-UA_EXPORT UA_StatusCode
-activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *userIdentityToken, void **sessionHandle);
-
-UA_EXPORT void
+void UA_EXPORT
 closeSession_default(const UA_NodeId *sessionId, void *sessionHandle);
 
-UA_EXPORT UA_UInt32
-getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+UA_UInt32 UA_EXPORT
+getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *nodeId);
 
-UA_EXPORT UA_Byte
-getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+UA_Byte UA_EXPORT
+getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionHandle,
+                           const UA_NodeId *nodeId);
 
-UA_EXPORT UA_Boolean
-getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId);
+UA_Boolean UA_EXPORT
+getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *nodeId);
 
-UA_EXPORT UA_Boolean
-getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionHandle,
-                                  const UA_NodeId *methodId, const UA_NodeId *objectId);
+UA_Boolean UA_EXPORT
+getUserExecutableOnObject_default(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_NodeId *methodId,
+                                  const UA_NodeId *objectId);
 
-UA_EXPORT UA_Boolean
-allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item);
+UA_Boolean UA_EXPORT
+allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle,
+                     const UA_AddNodesItem *item);
 
-UA_EXPORT UA_Boolean
-allowAddReference_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddReferencesItem *item);
+UA_Boolean UA_EXPORT
+allowAddReference_default(const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_AddReferencesItem *item);
 
-UA_EXPORT UA_Boolean
-allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteNodesItem *item);
-      
-UA_EXPORT UA_Boolean
-allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteReferencesItem *item);
+UA_Boolean UA_EXPORT
+allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionHandle,
+                        const UA_DeleteNodesItem *item);
+
+UA_Boolean UA_EXPORT
+allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_DeleteReferencesItem *item);
 
 #ifdef __cplusplus
 }

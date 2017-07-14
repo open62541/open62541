@@ -834,9 +834,9 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
         return retval;
     }
     
-    /* Type check node */
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
+        /* Type check node */
         retval = typeCheckVariableNode(server, session, (const UA_VariableNode*)node, typeDefinition);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -844,6 +844,17 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
                                 UA_StatusCode_name(retval));
             deleteNode(server, &adminSession, nodeId, true);
             return retval;
+        }
+
+        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+            /* Set AccessLevel to readable */
+            const UA_VariableNode *vn = (const UA_VariableNode*)node;
+            if(!(vn->accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                UA_LOG_INFO_SESSION(server->config.logger, session,
+                                    "AddNodes: Set the AccessLevel to readable by default");
+                UA_Byte readable = vn->accessLevel | (UA_ACCESSLEVELMASK_READ);
+                UA_Server_writeAccessLevel(server, vn->nodeId, readable);
+            }
         }
     }
 
@@ -1379,7 +1390,9 @@ removeReferences(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 deleteNode(UA_Server *server, UA_Session *session,
            const UA_NodeId *nodeId, UA_Boolean deleteReferences) {
+    UA_RCU_LOCK();
     const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+    UA_RCU_UNLOCK();
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -1389,8 +1402,10 @@ deleteNode(UA_Server *server, UA_Session *session,
     /* Destroy an object before removing it */
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
         /* Call the destructor from the object type */
+        UA_RCU_LOCK();
         const UA_ObjectTypeNode *typenode =
             getObjectNodeType(server, (const UA_ObjectNode*)node);
+        UA_RCU_UNLOCK();
         if(typenode && typenode->lifecycleManagement.destructor) {
             const UA_ObjectNode *on = (const UA_ObjectNode*)node;
             typenode->lifecycleManagement.destructor(*nodeId, on->instanceHandle);
@@ -1402,7 +1417,11 @@ deleteNode(UA_Server *server, UA_Session *session,
     if(deleteReferences)
         removeReferences(server, session, node);
 
-    return UA_NodeStore_remove(server->nodestore, nodeId);
+    UA_RCU_LOCK();
+    UA_StatusCode retval = UA_NodeStore_remove(server->nodestore, nodeId);
+    UA_RCU_UNLOCK();
+
+    return retval;
 }
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session,
@@ -1433,10 +1452,8 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
                      UA_Boolean deleteReferences) {
-    UA_RCU_LOCK();
     UA_StatusCode retval = deleteNode(server, &adminSession,
                                       &nodeId, deleteReferences);
-    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1593,11 +1610,9 @@ setDataSource(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource) {
-    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setDataSource,
                                               &dataSource);
-    UA_RCU_UNLOCK();
     return retval;
 }
 
@@ -1617,10 +1632,8 @@ setOLM(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_setObjectTypeNode_lifecycleManagement(UA_Server *server, UA_NodeId nodeId,
                                                 UA_ObjectLifecycleManagement olm) {
-    UA_RCU_LOCK();
     UA_StatusCode retval = UA_Server_editNode(server, &adminSession, &nodeId,
                                               (UA_EditNodeCallback)setOLM, &olm);
-    UA_RCU_UNLOCK();
     return retval;
 }
 

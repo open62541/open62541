@@ -7,7 +7,6 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
-#include "ua_nodeids.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -266,6 +265,21 @@ addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueR
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
                               UA_NODEID_NUMERIC(0, referenceid), UA_QUALIFIEDNAME(0, name),
                               UA_NODEID_NUMERIC(0, type_id), attr, NULL, NULL);
+}
+
+static void
+addDataSourceVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueRank,
+                const UA_NodeId *dataType, UA_DataSource *dataSource, UA_UInt32 parentid,
+                UA_UInt32 referenceid, UA_UInt32 type_id) {
+    UA_VariableAttributes attr;
+    UA_VariableAttributes_init(&attr);
+    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.dataType = *dataType;
+    attr.valueRank = valueRank;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    UA_Server_addDataSourceVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
+                                        UA_NODEID_NUMERIC(0, referenceid), UA_QUALIFIEDNAME(0, name),
+                                        UA_NODEID_NUMERIC(0, type_id), attr, *dataSource, NULL);
 }
 
 /**********************/
@@ -639,50 +653,29 @@ void UA_Server_createNS0(UA_Server *server) {
                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERDIAGNOSTICSTYPE), NULL);
 
-    // TODO: Begin Serverstatus
-    UA_VariableAttributes serverstatus_attr;
-    UA_VariableAttributes_init(&serverstatus_attr);
-    serverstatus_attr.displayName = UA_LOCALIZEDTEXT("en_US", "ServerStatus");
-    serverstatus_attr.valueRank = -1;
-    serverstatus_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERSTATUSDATATYPE);
-    UA_Server_addVariableNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
-                                    UA_QUALIFIEDNAME(0, "ServerStatus"), serverstatus_attr, NULL);
     UA_DataSource statusDS = {
         server, //handle
         readStatus, //read
         NULL //write
     };
-    UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
-                                         statusDS);
-    UA_Server_addNode_finish(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), NULL);
+    addDataSourceVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS, "ServerStatus", -1,
+                              &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE].typeId, &statusDS,
+                              UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
     addVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME, "StartTime", -1,
                     &UA_TYPES[UA_TYPES_DATETIME].typeId, &var, UA_NS0ID_SERVER_SERVERSTATUS,
                     UA_NS0ID_HASCOMPONENT, UA_NS0ID_BASEDATAVARIABLETYPE);
 
-    /* TODO: UTC Time Type */
-    const UA_NodeId currentTimeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    UA_VariableAttributes currenttime_attr;
-    UA_VariableAttributes_init(&currenttime_attr);
-    currenttime_attr.displayName = UA_LOCALIZEDTEXT("en_US", "CurrentTime");
-    currenttime_attr.valueRank = -1;
-    currenttime_attr.dataType = UA_TYPES[UA_TYPES_DATETIME].typeId;
-    UA_Server_addVariableNode_begin(server, currentTimeId, UA_QUALIFIEDNAME(0, "CurrentTime"),
-                                    currenttime_attr, NULL);
     UA_DataSource currentDS = {
         NULL, //handle
         readCurrentTime, //read
         NULL //write
     };
-    UA_Server_setVariableNode_dataSource(server, currentTimeId, currentDS);
-    UA_Server_addNode_finish(server, currentTimeId,
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), NULL);
+    addDataSourceVariableNode(server, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME, "CurrentTime", -1,
+                              &UA_TYPES[UA_TYPES_DATETIME].typeId, &currentDS,
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_NS0ID_BASEDATAVARIABLETYPE);
 
     UA_ServerState state = UA_SERVERSTATE_RUNNING;
     UA_Variant_setScalar(&var, &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);

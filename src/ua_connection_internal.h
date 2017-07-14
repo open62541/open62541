@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "ua_connection.h"
+#include "ua_plugin_network.h"
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. Furthermore, the networklayer may operate on ringbuffers or
@@ -25,10 +25,12 @@ extern "C" {
  *        previsouly received buffer is completed.
  * @param realloced The Boolean value is set to true if the outgoing message has
  *        been reallocated from the network layer.
- * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs, the ingoing message
- *         and the current buffer in the connection are freed. */
+ * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
+ *         the ingoing message and the current buffer in the connection are
+ *         freed. */
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
+UA_Connection_completeMessages(UA_Connection *connection,
+                               UA_ByteString * UA_RESTRICT message,
                                UA_Boolean * UA_RESTRICT realloced);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
@@ -45,27 +47,14 @@ UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RES
  *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned.
  */
 UA_StatusCode
-UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *chunks,
-                                    UA_Boolean *realloced, UA_UInt32 timeout);
+UA_Connection_receiveChunksBlocking(UA_Connection *connection,
+                                    UA_ByteString *chunks,
+                                    UA_Boolean *realloced,
+                                    UA_UInt32 timeout);
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection);
-void UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
-
-/* Split the given endpoint url into hostname and port. Some of the chunks are
- * returned as pointer.
- * @param endpointUrl The endpoint URL to split up
- * @param hostname the target array for hostname. Has to be at least 256 size.
- * @param port if url contains port, it will point to the beginning of port.
- *        NULL otherwise. It may also include the path part, thus stop at
- *        position of path pointer, if it is not NULL.
- * @param path points to the first occurance of '/' after the port or NULL if no
- *        path in url
- * @return UA_STATUSCODE_BADOUTOFRANGE if url too long,
- *         UA_STATUSCODE_BADATTRIBUTEIDINVALID if url not starting with
- *         'opc.tcp://', UA_STATUSCODE_GOOD on success */
-UA_StatusCode
-UA_EndpointUrl_split_ptr(const char *endpointUrl, char *hostname,
-                         const char ** port, const char ** path);
+void UA_Connection_attachSecureChannel(UA_Connection *connection,
+                                       UA_SecureChannel *channel);
 
 #ifdef __cplusplus
 } // extern "C"

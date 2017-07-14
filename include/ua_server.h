@@ -9,14 +9,12 @@
 extern "C" {
 #endif
 
-#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
-#include "ua_nodeids.h"
-#include "ua_log.h"
-#include "ua_job.h"
-#include "ua_connection.h"
+#include "ua_plugin_log.h"
+#include "ua_plugin_network.h"
+#include "ua_plugin_access_control.h"
 
 /**
  * .. _server:
@@ -24,119 +22,9 @@ extern "C" {
  * Server
  * ======
  *
- * Network Layer
- * -------------
- * Interface to the binary network layers. The functions in the network layer
- * are never called in parallel but only sequentially from the server's main
- * loop. So the network layer does not need to be thread-safe. */
-struct UA_ServerNetworkLayer;
-typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
-
-struct UA_ServerNetworkLayer {
-    void *handle; // pointer to internal data
-    UA_String discoveryUrl;
-
-    /* Starts listening on the the networklayer.
-     *
-     * @param nl The network layer
-     * @param logger The logger
-     * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, UA_Logger logger);
-
-    /* Gets called from the main server loop and returns the jobs (accumulated
-     * messages and close events) for dispatch.
-     *
-     * @param nl The network layer
-     * @param jobs When the returned integer is >0, *jobs points to an array of
-     *        UA_Job of the returned size.
-     * @param timeout The timeout during which an event must arrive in
-     *        microseconds
-     * @return The size of the jobs array. If the result is negative,
-     *         an error has occurred. */
-    size_t (*getJobs)(UA_ServerNetworkLayer *nl, UA_Job **jobs, UA_UInt16 timeout);
-
-    /* Closes the network connection and returns all the jobs that need to be
-     * finished before the network layer can be safely deleted.
-     *
-     * @param nl The network layer
-     * @param jobs When the returned integer is >0, jobs points to an array of
-     *        UA_Job of the returned size.
-     * @return The size of the jobs array. If the result is negative,
-     *         an error has occurred. */
-    size_t (*stop)(UA_ServerNetworkLayer *nl, UA_Job **jobs);
-
-    /** Deletes the network content. Call only after stopping. */
-    void (*deleteMembers)(UA_ServerNetworkLayer *nl);
-};
-
-/**
- * Access Control
- * --------------
- * The access control callback is used to authenticate sessions and grant access
- * rights accordingly. */
-typedef struct {
-    UA_Boolean enableAnonymousLogin;
-    UA_Boolean enableUsernamePasswordLogin;
-    
-    /* Authenticate a session */
-    UA_StatusCode (*activateSession)(const UA_NodeId *sessionId,
-                                     const UA_ExtensionObject *userIdentityToken,
-                                     void **sessionHandle);
-
-    /* Deauthenticate a session and cleanup */
-    void (*closeSession)(const UA_NodeId *sessionId, void *sessionHandle);
-
-    /* Access control for all nodes*/
-    UA_UInt32 (*getUserRightsMask)(const UA_NodeId *sessionId,
-                                   void *sessionHandle,
-                                   const UA_NodeId *nodeId);
-
-    /* Additional access control for variable nodes */
-    UA_Byte (*getUserAccessLevel)(const UA_NodeId *sessionId,
-                                  void *sessionHandle,
-                                  const UA_NodeId *nodeId);
-
-    /* Additional access control for method nodes */
-    UA_Boolean (*getUserExecutable)(const UA_NodeId *sessionId,
-                                    void *sessionHandle,
-                                    const UA_NodeId *methodId);
-
-    /* Additional access control for calling a method node in the context of a
-     * specific object */
-    UA_Boolean (*getUserExecutableOnObject)(const UA_NodeId *sessionId,
-                                            void *sessionHandle,
-                                            const UA_NodeId *methodId,
-                                            const UA_NodeId *objectId);
-
-    /* Allow adding a node */
-    UA_Boolean (*allowAddNode)(const UA_NodeId *sessionId,
-                               void *sessionHandle,
-                               const UA_AddNodesItem *item);
-
-    /* Allow adding a reference */
-    UA_Boolean (*allowAddReference)(const UA_NodeId *sessionId,
-                                    void *sessionHandle,
-                                    const UA_AddReferencesItem *item);
-
-    /* Allow deleting a node */
-    UA_Boolean (*allowDeleteNode)(const UA_NodeId *sessionId,
-                                  void *sessionHandle,
-                                  const UA_DeleteNodesItem *item);
-
-    /* Allow deleting a reference */
-    UA_Boolean (*allowDeleteReference)(const UA_NodeId *sessionId,
-                                       void *sessionHandle,
-                                       const UA_DeleteReferencesItem *item);
-} UA_AccessControl;
-
-/**
  * Server Configuration
  * --------------------
- * The following structure is passed to a new server for configuration. */
-typedef struct {
-    UA_String username;
-    UA_String password;
-} UA_UsernamePasswordLogin;
+ * The configuration structure is passed to the server during initialization. */
 
 typedef struct {
     UA_UInt32 min;
@@ -204,9 +92,6 @@ typedef struct {
 #endif
 } UA_ServerConfig;
 
-/* Add a new namespace to the server. Returns the index of the new namespace */
-UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
-
 /**
  * .. _server-lifecycle:
  *
@@ -216,8 +101,7 @@ UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /* Runs the main loop of the server. In each iteration, this calls into the
- * networklayers to see if jobs have arrived and checks if repeated jobs need to
- * be triggered.
+ * networklayers to see if messages have arrived.
  *
  * @param server The server object.
  * @param running The loop is run as long as *running is true.
@@ -237,7 +121,7 @@ UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
  *        Otherwise, the timouts for the networklayers are set to zero.
  *        The default max wait time is 50millisec.
  * @return Returns how long we can wait until the next scheduled
- *         job (in millisec) */
+ *         callback (in ms) */
 UA_UInt16 UA_EXPORT
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
@@ -246,31 +130,37 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
 
 /**
- * Repeated jobs
- * ------------- */
-/* Add a job for cyclic repetition to the server.
+ * Repeated Callbacks
+ * ------------------ */
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
+/* Add a callback for cyclic repetition to the server.
  *
  * @param server The server object.
- * @param job The job that shall be added.
- * @param interval The job shall be repeatedly executed with the given interval
+ * @param callback The callback that shall be added.
+ * @param interval The callback shall be repeatedly executed with the given interval
  *        (in ms). The interval must be larger than 5ms. The first execution
  *        occurs at now() + interval at the latest.
- * @param jobId Set to the guid of the repeated job. This can be used to cancel
- *        the job later on. If the pointer is null, the guid is not set.
+ * @param callbackId Set to the identifier of the repeated callback . This can be used to cancel
+ *        the callback later on. If the pointer is null, the identifier is not set.
  * @return Upon success, UA_STATUSCODE_GOOD is returned.
  *         An error code otherwise. */
 UA_StatusCode UA_EXPORT
-UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
-                         UA_UInt32 interval, UA_Guid *jobId);
+UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
+                              void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
 
-/* Remove repeated job.
+UA_StatusCode UA_EXPORT
+UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
+                                         UA_UInt32 interval);
+
+/* Remove a repeated callback.
  *
  * @param server The server object.
- * @param jobId The id of the job that shall be removed.
+ * @param callbackId The id of the callback that shall be removed.
  * @return Upon sucess, UA_STATUSCODE_GOOD is returned.
  *         An error code otherwise. */
 UA_StatusCode UA_EXPORT
-UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId);
+UA_Server_removeRepeatedCallback(UA_Server *server, UA_UInt64 callbackId);
 
 /**
  * Reading and Writing Node Attributes
@@ -631,7 +521,7 @@ UA_Server_register_discovery(UA_Server *server, const char* discoveryServerUrl,
 UA_StatusCode UA_EXPORT
 UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl);
 
- /* Adds a periodic job to register the server with the LDS (local discovery server)
+ /* Adds a periodic callback to register the server with the LDS (local discovery server)
   * periodically. The interval between each register call is given as second parameter.
   * It should be 10 minutes by default (= 10*60*1000).
   *
@@ -639,26 +529,26 @@ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl
   * If it is 0, the first register call will be after intervalMs milliseconds,
   * otherwise the server's first register will be after delayFirstRegisterMs.
   *
-  * When you manually unregister the server, you also need to cancel the periodic job,
-  * otherwise it will be automatically be registered again.
+  * When you manually unregister the server, you also need to cancel the
+  * periodic callback, otherwise it will be automatically be registered again.
   *
   * @param server
   * @param discoveryServerUrl if set to NULL, the default value
   *        'opc.tcp://localhost:4840' will be used
   * @param intervalMs
   * @param delayFirstRegisterMs
-  * @param periodicJobId */
+  * @param periodicCallbackId */
 UA_StatusCode UA_EXPORT
-UA_Server_addPeriodicServerRegisterJob(UA_Server *server, const char* discoveryServerUrl,
-                                       const UA_UInt32 intervalMs,
-                                       const UA_UInt32 delayFirstRegisterMs,
-                                       UA_Guid* periodicJobId);
+UA_Server_addPeriodicServerRegisterCallback(UA_Server *server, const char* discoveryServerUrl,
+                                            UA_UInt32 intervalMs,
+                                            UA_UInt32 delayFirstRegisterMs,
+                                            UA_UInt64 *periodicCallbackId);
 
 /* Callback for RegisterServer. Data is passed from the register call */
 typedef void (*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer,
                                                  void* data);
 
-/* Set the callback which is called if another server registeres or unregisteres
+/* Set the callback which is called if another server registeres or unregisters
  * with this instance. If called multiple times, previous data will be
  * overwritten.
  *
@@ -1061,8 +951,17 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
                           const UA_ExpandedNodeId targetNodeId,
                           UA_Boolean deleteBidirectional);
 
+/**
+ * Utility Functions
+ * ----------------- */
+/* Add a new namespace to the server. Returns the index of the new namespace */
+UA_UInt16 UA_EXPORT UA_Server_addNamespace(UA_Server *server, const char* name);
+
 #ifdef __cplusplus
 }
 #endif
+
+/* Old interfaces kept for API compatibility */
+#include "ua_server_deprecated.h"
 
 #endif /* UA_SERVER_H_ */

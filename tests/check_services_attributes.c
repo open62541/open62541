@@ -10,7 +10,6 @@
 #include "server/ua_nodestore.h"
 #include "server/ua_services.h"
 #include "ua_client.h"
-#include "ua_nodeids.h"
 #include "ua_types.h"
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
@@ -472,7 +471,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
 } END_TEST

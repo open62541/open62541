@@ -61,7 +61,7 @@ extern "C" {
 #endif
 
 // Disable deprecation warnings for sprintf, strncpy, strerror
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
@@ -170,6 +170,14 @@ typedef uint8_t bool;
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+#endif
+
+#ifdef __GNUC__
+# define UA_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+# define UA_DEPRECATED __declspec(deprecated)
+#else
+# define UA_DEPRECATED
 #endif
 
 /**

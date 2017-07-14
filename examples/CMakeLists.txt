@@ -7,38 +7,10 @@ include_directories(${PROJECT_BINARY_DIR})
 #############################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
-
-list(APPEND LIBS ${open62541_LIBRARIES})
-if(NOT WIN32)
-  if(QNXNTO)
-    list(APPEND LIBS socket)
-    list(APPEND LIBS c)
-    list(APPEND LIBS stdc++)
-  else()
-    list(APPEND LIBS pthread)
-    if (NOT APPLE)
-      list(APPEND LIBS rt)
-    endif()
-  endif()
-else()
-  list(APPEND LIBS ws2_32)
-endif()
-if(UA_ENABLE_MULTITHREADING)
-  list(APPEND LIBS urcu-cds urcu urcu-common)
-endif(UA_ENABLE_MULTITHREADING)
-
-set(STATIC_OBJECTS $<TARGET_OBJECTS:open62541-object>)
-if(WIN32 AND BUILD_SHARED_LIBS)
-    # on windows the .dll.a file has to be used for the linker
-    list(APPEND LIBS open62541)
-    set(STATIC_OBJECTS "")
-endif()
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE})
-  target_link_libraries(${EXAMPLE_NAME} ${LIBS})
+  target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
   add_dependencies(${EXAMPLE_NAME} open62541_amalgamation)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
@@ -90,13 +62,6 @@ add_example(server_mainloop server_mainloop.c)
 add_example(server_instantiation server_instantiation.c)
 
 add_example(server_repeated_job server_repeated_job.c)
-
-
-if(NOT BUILD_SHARED_LIBS)
-    # needs internal methods which are not exported in the dynamic lib
-    add_example(server_readspeed server_readspeed.c)
-    target_include_directories(server_readspeed PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-endif()
 
 add_example(server_inheritance server_inheritance.c)
 

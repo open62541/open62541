@@ -4,6 +4,7 @@
 
 #include <stdlib.h>
 #include "testing_networklayers.h"
+#include "ua_config_standard.h"
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
