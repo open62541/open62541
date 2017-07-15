@@ -220,10 +220,9 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
     rvid.nodeId = monitoredItem->monitoredNodeId;
     rvid.attributeId = monitoredItem->attributeID;
     rvid.indexRange = monitoredItem->indexRange;
-    UA_DataValue value;
-    UA_DataValue_init(&value);
-    Service_Read_single(server, sub->session, monitoredItem->timestampsToReturn,
-                        &rvid, &value);
+    UA_DataValue value =
+        UA_Server_readWithSession(server, sub->session,
+                                  &rvid, monitoredItem->timestampsToReturn);
 
     /* Stack-allocate some memory for the value encoding. We might heap-allocate
      * more memory if needed. This is just enough for scalars and small

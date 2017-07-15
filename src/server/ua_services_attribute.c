@@ -718,15 +718,18 @@ writeIsAbstractAttribute(UA_Node *node, UA_Boolean value) {
 static const UA_String binEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
 /* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
 
+/* Thread-local variables to pass additional arguments into the operation */
+static UA_THREAD_LOCAL UA_TimestampsToReturn op_timestampsToReturn;
+
 #define CHECK_NODECLASS(CLASS)                                  \
     if(!(node->nodeClass & (CLASS))) {                          \
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;           \
         break;                                                  \
     }
 
-void Service_Read_single(UA_Server *server, UA_Session *session,
-                         const UA_TimestampsToReturn timestamps,
-                         const UA_ReadValueId *id, UA_DataValue *v) {
+static void
+Operation_Read(UA_Server *server, UA_Session *session,
+               const UA_ReadValueId *id, UA_DataValue *v) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Read the attribute %i", id->attributeId);
 
@@ -809,7 +812,7 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
             break;
         }
         retval = readValueAttributeComplete(server, (const UA_VariableNode*)node,
-                                            timestamps, &id->indexRange, v);
+                                            op_timestampsToReturn, &id->indexRange, v);
         break;
     }
     case UA_ATTRIBUTEID_DATATYPE:
@@ -870,16 +873,16 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
     v->hasValue = true;
 
     /* Create server timestamp */
-    if(timestamps == UA_TIMESTAMPSTORETURN_SERVER ||
-       timestamps == UA_TIMESTAMPSTORETURN_BOTH) {
+    if(op_timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+       op_timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
         v->serverTimestamp = UA_DateTime_now();
         v->hasServerTimestamp = true;
     }
 
     /* Handle source time stamp */
     if(id->attributeId == UA_ATTRIBUTEID_VALUE) {
-        if (timestamps == UA_TIMESTAMPSTORETURN_SERVER ||
-            timestamps == UA_TIMESTAMPSTORETURN_NEITHER) {
+        if(op_timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+           op_timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
             v->hasSourceTimestamp = false;
             v->hasSourcePicoseconds = false;
         } else if(!v->hasSourceTimestamp) {
@@ -894,34 +897,24 @@ void Service_Read(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing ReadRequest", NULL);
 
-    if(request->nodesToReadSize <= 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
-
-    /* check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+    /* Check if the timestampstoreturn is valid */
+    op_timestampsToReturn = request->timestampsToReturn;
+    if(op_timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
         return;
     }
 
-    size_t size = request->nodesToReadSize;
-    response->results = (UA_DataValue *)UA_Array_new(size, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    response->resultsSize = size;
-
+    /* Check if maxAge is valid */
     if(request->maxAge < 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
         return;
     }
 
-    for(size_t i = 0;i < size;++i) {
-            Service_Read_single(server, session, request->timestampsToReturn,
-                                &request->nodesToRead[i], &response->results[i]);
-    }
+    response->responseHeader.serviceResult = 
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_Read,
+                  &request->nodesToReadSize, &UA_TYPES[UA_TYPES_READVALUEID],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
 
 #ifdef UA_ENABLE_NONSTANDARD_STATELESS
     /* Add an expiry header for caching */
@@ -965,16 +958,24 @@ void Service_Read(UA_Server *server, UA_Session *session,
 #endif
 }
 
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, UA_Session *session,
+                          const UA_ReadValueId *item,
+                          UA_TimestampsToReturn timestamps) {
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    op_timestampsToReturn = timestamps;
+    UA_RCU_LOCK();
+    Operation_Read(server, session, item, &dv);
+    UA_RCU_UNLOCK();
+    return dv;
+}
+
 /* Exposes the Read service to local users */
 UA_DataValue
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
-    UA_DataValue dv;
-    UA_DataValue_init(&dv);
-    UA_RCU_LOCK();
-    Service_Read_single(server, &adminSession, timestamps, item, &dv);
-    UA_RCU_UNLOCK();
-    return dv;
+    return UA_Server_readWithSession(server, &adminSession, item, timestamps);
 }
 
 /* Used in inline functions exposing the Read service with more syntactic sugar
@@ -1198,29 +1199,24 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+static void
+Operation_Write(UA_Server *server, UA_Session *session,
+                UA_WriteValue *wv, UA_StatusCode *result) {
+    *result = UA_Server_editNode(server, session, &wv->nodeId,
+                                  (UA_EditNodeCallback)copyAttributeIntoNode, wv);
+}
+
 void
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request, UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing WriteRequest", NULL);
 
-    if(request->nodesToWriteSize <= 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
-
-    response->results = (UA_StatusCode *)UA_Array_new(request->nodesToWriteSize,
-                                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    response->resultsSize = request->nodesToWriteSize;
-
-    for(size_t i = 0; i < request->nodesToWriteSize; ++i)
-        response->results[i] = UA_Server_editNode(server, session, &request->nodesToWrite[i].nodeId,
-                                                  (UA_EditNodeCallback)copyAttributeIntoNode,
-                                                  &request->nodesToWrite[i]);
+    response->responseHeader.serviceResult = 
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_Write,
+                  &request->nodesToWriteSize, &UA_TYPES[UA_TYPES_WRITEVALUE],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode

@@ -352,12 +352,7 @@ Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) 
  * deleted... Send out empty responses */
 void
 UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
-                                                    UA_NodeId *sessionToken) {
-    /* Get session */
-    UA_Session *session =
-        UA_SessionManager_getSession(&server->sessionManager, sessionToken);
-    UA_NodeId_delete(sessionToken);
-
+                                                    UA_Session *session) {
     /* No session or there are remaining subscriptions */
     if(!session || LIST_FIRST(&session->serverSubscriptions))
         return;
