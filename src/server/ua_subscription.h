@@ -8,7 +8,6 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "ua_nodes.h"
 #include "ua_session.h"
 
 /*****************/
