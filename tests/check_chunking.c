@@ -34,8 +34,8 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     bufIndex = 0;
     counter = 0;
     dataCount = 0;
-    UA_Int32 *ar = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
-    buffers = UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Int32 *ar = (UA_Int32*)UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
     }
@@ -78,11 +78,11 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     counter = 0;
     dataCount = 0;
     UA_String_init(&string);
-    string.data = malloc(stringLength);
+    string.data = (UA_Byte*)malloc(stringLength);
     string.length = stringLength;
     char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
     //char tmpString[9] = {'1','4','5','2','6','n','e','p','o'};
-    buffers = UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
     }
@@ -125,11 +125,10 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     counter = 0;
     dataCount = 0;
     UA_String_init(&string);
-    string.data = malloc(stringLength);
+    string.data = (UA_Byte*)malloc(stringLength);
     string.length = stringLength;
     char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
-    //char tmpString[9] = {'1','4','5','2','6','n','e','p','o'};
-    buffers = UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
     }

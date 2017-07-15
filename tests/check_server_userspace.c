@@ -46,7 +46,7 @@ START_TEST(Server_addNamespace_writeService)
 
     namespaces.data = realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
     ++namespaces.arrayLength;
-    UA_String *ns = namespaces.data;
+    UA_String *ns = (UA_String*)namespaces.data;
     ns[namespaces.arrayLength-1] = UA_STRING_ALLOC("test");
     size_t nsSize = namespaces.arrayLength;
 

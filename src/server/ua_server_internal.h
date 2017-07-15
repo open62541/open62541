@@ -236,9 +236,6 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType);
 
 UA_StatusCode
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
@@ -246,16 +243,10 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType);
-
-UA_StatusCode
-compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_StatusCode
 writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
                         UA_Int32 valueRank, UA_Int32 constraintValueRank);
-
-UA_StatusCode
-compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 UA_StatusCode
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
@@ -276,7 +267,8 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
                          UA_TimestampsToReturn timestamps,
                          const UA_ReadValueId *id, UA_DataValue *v);
 
-/* Periodic task to clean up the discovery registry */
+/* Checks if a registration timed out and removes that registration.
+ * Should be called periodically in main loop */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST

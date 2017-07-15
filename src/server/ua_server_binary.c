@@ -394,7 +394,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Client requested a subscription, " \
-                                "but those are not enabled in the build");
+                                "but those are not enabled in the build", NULL);
         } else {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Unknown request with type identifier %i",
@@ -419,7 +419,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                              server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Could not decode the request");
+                             "Could not decode the request", NULL);
         sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
@@ -447,7 +447,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         if(!session) {
             UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
                                  "Trying to activate a session that is " \
-                                 "not known in the server");
+                                 "not known in the server", NULL);
             sendError(channel, msg, requestPos, responseType,
                       requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
@@ -493,7 +493,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* The session is bound to another channel */
     if(session->channel != channel) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Client tries to use an obsolete securechannel");
+                             "Client tries to use an obsolete securechannel", NULL);
         sendError(channel, msg, requestPos, responseType,
                   requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         UA_deleteMembers(request, requestType);
@@ -565,26 +565,24 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     }
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Cannot process a HEL on an open channel");
+                             "Cannot process a HEL on an open channel", NULL);
         break;
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process an OPN on an open channel");
+                             "Process an OPN on an open channel", NULL);
         processOPN(server, channel->connection, channel->securityToken.channelId, message);
         break;
     case UA_MESSAGETYPE_MSG:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a MSG", channel->connection->sockfd);
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a MSG", NULL);
         processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a CLO", channel->connection->sockfd);
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a CLO", NULL);
         Service_CloseSecureChannel(server, channel);
         break;
     default:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Unknown message type");
+                             "Unknown message type", NULL);
     }
 }
 
@@ -694,7 +692,7 @@ void
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message) {
     /* Allocate the memory for the callback data */
-    ConnectionMessage *cm = UA_malloc(sizeof(ConnectionMessage));
+    ConnectionMessage *cm = (ConnectionMessage*)UA_malloc(sizeof(ConnectionMessage));
 
     /* If malloc failed, execute immediately */
     if(!cm) {

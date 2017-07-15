@@ -267,7 +267,7 @@ void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request,
                     UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing BrowseRequest");
+                         "Processing BrowseRequest", NULL);
 
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
@@ -334,7 +334,8 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
                    const UA_BrowseNextRequest *request,
                    UA_BrowseNextResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing BrowseNextRequest");
+                         "Processing BrowseNextRequest", NULL);
+
     if(request->continuationPointsSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -663,7 +664,8 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing TranslateBrowsePathsToNodeIdsRequest");
+                         "Processing TranslateBrowsePathsToNodeIdsRequest", NULL);
+
     if(request->browsePathsSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -688,7 +690,8 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing RegisterNodesRequest");
+                         "Processing RegisterNodesRequest", NULL);
+
     //TODO: hang the nodeids to the session if really needed
     if(request->nodesToRegisterSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -706,7 +709,8 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing UnRegisterNodesRequest");
+                         "Processing UnRegisterNodesRequest", NULL);
+
     //TODO: remove the nodeids from the session if really needed
     if(request->nodesToUnregisterSize == 0)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

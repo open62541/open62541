@@ -16,9 +16,9 @@ struct nodeEntry {
     UA_Node node; ///< Might be cast from any _bigger_ UA_Node* type. Allocate enough memory!
 };
 
-static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
+static struct nodeEntry * instantiateEntry(UA_NodeClass nc) {
     size_t size = sizeof(struct nodeEntry) - sizeof(UA_Node);
-    switch(class) {
+    switch(nc) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
         break;
@@ -46,10 +46,10 @@ static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
     default:
         return NULL;
     }
-    struct nodeEntry *entry = UA_calloc(1, size);
+    struct nodeEntry *entry = (struct nodeEntry*)UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = class;
+    entry->node.nodeClass = nc;
     return entry;
 }
 
@@ -91,8 +91,8 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
     UA_RCU_LOCK();
 }
 
-UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
-    struct nodeEntry *entry = instantiateEntry(class);
+UA_Node * UA_NodeStore_newNode(UA_NodeClass nc) {
+    struct nodeEntry *entry = instantiateEntry(nc);
     if(!entry)
         return NULL;
     return (UA_Node*)&entry->node;
@@ -209,15 +209,15 @@ UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     struct nodeEntry *entry = (struct nodeEntry*)iter.node;
     if(!entry)
         return NULL;
-    struct nodeEntry *new = instantiateEntry(entry->node.nodeClass);
-    if(!new)
+    struct nodeEntry *n = instantiateEntry(entry->node.nodeClass);
+    if(!n)
         return NULL;
-    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
-        deleteEntry(&new->rcu_head);
+    if(UA_Node_copyAnyNodeClass(&entry->node, &n->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(&n->rcu_head);
         return NULL;
     }
-    new->orig = entry;
-    return &new->node;
+    n->orig = entry;
+    return &n->node;
 }
 
 void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {

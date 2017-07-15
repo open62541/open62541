@@ -460,8 +460,8 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
 static UA_StatusCode
 computeStrides(const UA_Variant *v, const UA_NumericRange range,
                size_t *total, size_t *block, size_t *stride, size_t *first) {
-    /* Test for max array size */
-#if(MAX_SIZE > 0xffffffff) /* 64bit only */
+    /* Test for max array size (64bit only) */
+#if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif

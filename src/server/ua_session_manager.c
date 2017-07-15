@@ -60,7 +60,7 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
         if(sentry->session.validTill >= nowMonotonic)
             continue;
         UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
-                            "Session has timed out");
+                            "Session has timed out", NULL);
         sm->server->config.accessControl.closeSession(&sentry->session.sessionId,
                                                       sentry->session.sessionHandle);
         removeSession(sm, sentry);
@@ -78,7 +78,7 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
         /* Session has timed out */
         if(UA_DateTime_nowMonotonic() > current->session.validTill) {
             UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
-                                "Client tries to use a session that has timed out");
+                                "Client tries to use a session that has timed out", NULL);
             return NULL;
         }
 
