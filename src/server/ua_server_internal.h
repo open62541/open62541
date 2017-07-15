@@ -218,6 +218,17 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
  * class, typeId is set to UA_NODEID_NULL. */
 void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
 
+typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
+                                    const void *requestOperation, void *responseOperation);
+
+UA_StatusCode
+UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
+                                   UA_ServiceOperation operationCallback,
+                                   const size_t *requestOperations,
+                                   const UA_DataType *requestOperationsType,
+                                   size_t *responseOperations,
+                                   const UA_DataType *responseOperationsType);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
@@ -263,9 +274,10 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
-void Service_Read_single(UA_Server *server, UA_Session *session,
-                         UA_TimestampsToReturn timestamps,
-                         const UA_ReadValueId *id, UA_DataValue *v);
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, UA_Session *session,
+                          const UA_ReadValueId *item,
+                          UA_TimestampsToReturn timestamps);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */

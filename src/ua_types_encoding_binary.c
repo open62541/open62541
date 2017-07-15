@@ -53,12 +53,12 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-UA_THREAD_LOCAL size_t customTypesArraySize;
-UA_THREAD_LOCAL const UA_DataType *customTypesArray;
+static UA_THREAD_LOCAL size_t customTypesArraySize;
+static UA_THREAD_LOCAL const UA_DataType *customTypesArray;
 
 /* Pointers to the current position and the last position in the buffer */
-UA_THREAD_LOCAL UA_Byte *pos;
-UA_THREAD_LOCAL const UA_Byte *end;
+static UA_THREAD_LOCAL UA_Byte *pos;
+static UA_THREAD_LOCAL const UA_Byte *end;
 
 /* In UA_encodeBinaryInternal, we store a pointer to the last "good" position in
  * the buffer. When encoding reaches the end of the buffer, send out a chunk
@@ -82,8 +82,8 @@ UA_THREAD_LOCAL const UA_Byte *end;
  * DiagnosticInfo_encodeBinary */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
-UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
-UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
+static UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
+static UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
 /* Send the current chunk and replace the buffer */
 static UA_StatusCode

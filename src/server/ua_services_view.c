@@ -306,11 +306,12 @@ UA_Server_browse(UA_Server *server, UA_UInt32 maxrefs,
     return result;
 }
 
+/* Thread-local variables to pass additional arguments into the operation */
+static UA_THREAD_LOCAL UA_Boolean op_releaseContinuationPoint;
+
 static void
-browseNext(UA_Server *server, UA_Session *session,
-           UA_Boolean releaseContinuationPoint,
-           const UA_ByteString *continuationPoint,
-           UA_BrowseResult *result) {
+Operation_BrowseNext(UA_Server *server, UA_Session *session,
+           const UA_ByteString *continuationPoint, UA_BrowseResult *result) {
     /* Find the continuation point */
     ContinuationPointEntry *cp;
     LIST_FOREACH(cp, &session->continuationPoints, pointers) {
@@ -323,7 +324,7 @@ browseNext(UA_Server *server, UA_Session *session,
     }
 
     /* Do the work */
-    if(!releaseContinuationPoint)
+    if(!op_releaseContinuationPoint)
         Service_Browse_single(server, session, cp, NULL, 0, result);
     else
         removeCp(cp, session);
@@ -336,24 +337,13 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing BrowseNextRequest", NULL);
 
-    if(request->continuationPointsSize == 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
+    op_releaseContinuationPoint = request->releaseContinuationPoints;
 
-    /* Allocate the result array */
-    size_t size = request->continuationPointsSize;
-    response->results =
-        (UA_BrowseResult*)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSERESULT]);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    response->resultsSize = size;
-
-    for(size_t i = 0; i < size; ++i)
-        browseNext(server, session, request->releaseContinuationPoints,
-                   &request->continuationPoints[i], &response->results[i]);
+    response->responseHeader.serviceResult = 
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_BrowseNext,
+                  &request->continuationPointsSize, &UA_TYPES[UA_TYPES_BYTESTRING],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -361,9 +351,10 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
                      const UA_ByteString *continuationPoint) {
     UA_BrowseResult result;
     UA_BrowseResult_init(&result);
+    op_releaseContinuationPoint = releaseContinuationPoint;
     UA_RCU_LOCK();
-    browseNext(server, &adminSession, releaseContinuationPoint,
-               continuationPoint, &result);
+    Operation_BrowseNext(server, &adminSession,
+                         continuationPoint, &result);
     UA_RCU_UNLOCK();
     return result;
 }
@@ -568,8 +559,9 @@ walkBrowsePath(UA_Server *server, UA_Session *session, const UA_BrowsePath *path
 }
 
 static void
-translateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
-                             const UA_BrowsePath *path, UA_BrowsePathResult *result) {
+Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
+                                       const UA_BrowsePath *path,
+                                       UA_BrowsePathResult *result) {
     if(path->relativePath.elementsSize <= 0) {
         result->statusCode = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -654,7 +646,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
     UA_BrowsePathResult result;
     UA_BrowsePathResult_init(&result);
     UA_RCU_LOCK();
-    translateBrowsePathToNodeIds(server, &adminSession, browsePath, &result);
+    Operation_TranslateBrowsePathToNodeIds(server, &adminSession, browsePath, &result);
     UA_RCU_UNLOCK();
     return result;
 }
@@ -666,24 +658,11 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest", NULL);
 
-    if(request->browsePathsSize <= 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
-    }
-
-    size_t size = request->browsePathsSize;
-    response->results =
-        (UA_BrowsePathResult*)UA_Array_new(size, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
-    if(!response->results) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-
-    response->resultsSize = size;
-    for(size_t i = 0; i < size; ++i)
-        translateBrowsePathToNodeIds(server, session, &request->browsePaths[i],
-                                     &response->results[i]);
-
+    response->responseHeader.serviceResult = 
+        UA_Server_processServiceOperations(server, session,
+                  (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+                  &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
+                  &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }
 
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
