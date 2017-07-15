@@ -891,7 +891,9 @@ void Service_Read_single(UA_Server *server, UA_Session *session,
 
 void Service_Read(UA_Server *server, UA_Session *session,
                   const UA_ReadRequest *request, UA_ReadResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing ReadRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing ReadRequest", NULL);
+
     if(request->nodesToReadSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;
@@ -1199,7 +1201,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 void
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request, UA_WriteResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing WriteRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing WriteRequest", NULL);
+
     if(request->nodesToWriteSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
         return;

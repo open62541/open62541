@@ -215,11 +215,6 @@ UInt16_encodeBinary(UA_UInt16 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int16_encodeBinary(UA_Int16 const *src, const UA_DataType *_) {
-    return UInt16_encodeBinary((const UA_UInt16*)src, NULL);
-}
-
 static UA_StatusCode
 UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt16) > end)
@@ -231,11 +226,6 @@ UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
 #endif
     pos += 2;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int16_decodeBinary(UA_Int16 *dst) {
-    return UInt16_decodeBinary((UA_UInt16*)dst, NULL);
 }
 
 /* UInt32 */
@@ -254,11 +244,6 @@ UInt32_encodeBinary(UA_UInt32 const *src, const UA_DataType *_) {
 
 static UA_INLINE UA_StatusCode
 Int32_encodeBinary(UA_Int32 const *src) {
-    return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-StatusCode_encodeBinary(UA_StatusCode const *src) {
     return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
 }
 
@@ -299,16 +284,6 @@ UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int64_encodeBinary(UA_Int64 const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-DateTime_encodeBinary(UA_DateTime const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
 static UA_StatusCode
 UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt64) > end)
@@ -320,11 +295,6 @@ UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
 #endif
     pos += 8;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int64_decodeBinary(UA_Int64 *dst) {
-    return UInt64_decodeBinary((UA_UInt64*)dst, NULL);
 }
 
 static UA_INLINE UA_StatusCode

@@ -165,7 +165,8 @@ callMethod(UA_Server *server, UA_Session *session,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request,
                   UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing CallRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing CallRequest", NULL);
 
     if(request->methodsToCallSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;

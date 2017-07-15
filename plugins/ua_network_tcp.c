@@ -64,7 +64,7 @@
 # define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
-#if UNDER_CE
+#ifdef UNDER_CE
 # define errno WSAGetLastError()
 #endif
 
