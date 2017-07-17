@@ -166,11 +166,11 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
  * @return Indicates whether the operation succeeded or returns an error code */
-//UA_StatusCode UA_EXPORT
-//UA_Client_connect(UA_Client *client, const char *endpointUrl);
+UA_StatusCode UA_EXPORT
+UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
 UA_StatusCode UA_EXPORT
-UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean *waiting, UA_Boolean *connected);
+UA_Client_connect_async(UA_Client *client, const char *endpointUrl);
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -420,9 +420,11 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * be made without waiting for a response first. Responess may come in a
  * different ordering. */
 
+
 typedef void
 (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
                                  UA_UInt32 requestId, const void *response);
+
 
 /* Don't use this function. Use the type versions below instead. */
 UA_StatusCode UA_EXPORT

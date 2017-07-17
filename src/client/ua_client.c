@@ -11,7 +11,7 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_util.h"
-
+#include<stdio.h>
 /*********************/
 /* Create and Delete */
 /*********************/
@@ -600,15 +600,68 @@ UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
     client->authenticationMethod=UA_CLIENTAUTHENTICATION_USERNAME;
     client->username = UA_STRING_ALLOC(username);
     client->password = UA_STRING_ALLOC(password);
-    return UA_Client_connect(client, endpointUrl, waiting, connected);
+    return UA_Client_connect(client, endpointUrl);
 }
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpointsHandshake,
-		UA_Boolean createSession, ConnectState *last_cs, UA_Boolean *waiting, UA_Boolean *connected) {
-
+__UA_Client_connect(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession) {
+    if(client->state == UA_CLIENTSTATE_CONNECTED)
+        return UA_STATUSCODE_GOOD;
+    if(client->state == UA_CLIENTSTATE_ERRORED) {
+        UA_Client_reset(client);
+    }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    client->connection =
+        client->config.connectionFunc(client->config.localConnectionConfig, endpointUrl);
+    if(client->connection.state != UA_CONNECTION_OPENING) {
+        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
+        goto cleanup;
+    }
+
+    client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    if(!client->endpointUrl.data) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    client->connection.localConf = client->config.localConnectionConfig;
+    retval = HelAckHandshake(client);
+    if(retval == UA_STATUSCODE_GOOD)
+        retval = SecureChannelHandshake(client, false);
+    if(endpointsHandshake && retval == UA_STATUSCODE_GOOD)
+        retval = EndpointsHandshake(client);
+    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
+        retval = SessionHandshake(client);
+    if(endpointsHandshake && createSession && retval == UA_STATUSCODE_GOOD)
+        retval = ActivateSession(client);
+    if(retval == UA_STATUSCODE_GOOD) {
+        client->connection.state = UA_CONNECTION_ESTABLISHED;
+        client->state = UA_CLIENTSTATE_CONNECTED;
+    } else {
+        goto cleanup;
+    }
+    return retval;
+
+ cleanup:
+    UA_Client_reset(client);
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    return __UA_Client_connect(client, endpointUrl, UA_TRUE, UA_TRUE);
+}
+
+
+
+UA_StatusCode
+__UA_Client_connect_async(UA_Client *client, const char *endpointUrl, UA_Boolean endpointsHandshake,
+		UA_Boolean createSession, ConnectState *last_cs, UA_Boolean *waiting) {
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /*does state-check only when no ack has been sent*/
     if(client->connectState == NO_ACK){
         if(client->state == UA_CLIENTSTATE_CONNECTED)
             return UA_STATUSCODE_GOOD;
@@ -630,69 +683,67 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpo
     }
 
     client->connection.localConf = client->config.localConnectionConfig;
-    //hello msg must always be sent
 
     ConnectState cs;
-    //ConnectState *last_cs = client->lastConnectState;
+	cs = client->connectState;
+	/*compare current state with last state, if the state didn't change, wait for the expected ack*/
+	switch(cs){
+	case NO_ACK:
+		retval = HelAckHandshake(client);
+		break;
 
-    //while(client->state != UA_CLIENTSTATE_CONNECTED){
-    	cs = client->connectState;
-		switch(cs){
-			//original endpoint, session, activate functions contain __UA_Client_Service, should be divided?
-		case NO_ACK:
-			retval = HelAckHandshake(client);
-			break;
-
-			case HEL_ACK:
-				if(*last_cs != HEL_ACK){
-					retval = SecureChannelHandshake(client, false);
-					*last_cs = HEL_ACK;
-				}
-				else
-					*waiting = true; //still waiting for the expected ack
-				break;
-
-			case SECURECHANNEL_ACK:
-				if (*last_cs != SECURECHANNEL_ACK) {
-					retval = EndpointsHandshake(client);
-					*last_cs = SECURECHANNEL_ACK;
-				}
-				else
-					*waiting = true;
-				break;
-
-			case ENDPOINTS_ACK:
-				if (*last_cs != ENDPOINTS_ACK) {
-					retval = SessionHandshake(client);
-					*last_cs = ENDPOINTS_ACK;
-				}
-				else
-					*waiting = true;
-				break;
-
-			case SESSION_ACK:
-				if (*last_cs!=SESSION_ACK) {
-					retval = ActivateSession(client);
-					*last_cs = SESSION_ACK;
-				}
-				else
-					*waiting = true;
-				break;
-
-			case ACTIVATE_ACK:
-				client->connection.state = UA_CONNECTION_ESTABLISHED;
-				client->state = UA_CLIENTSTATE_CONNECTED;
-				*waiting = false;
-				*connected = true;
-				break;
-
-			default:
-				break;
+	case HEL_ACK:
+		if(*last_cs != HEL_ACK){
+			retval = SecureChannelHandshake(client, false);
+			*last_cs = HEL_ACK;
 		}
-    //}
+		else
+			*waiting = true; //still waiting for the expected ack
+		break;
+
+	case SECURECHANNEL_ACK:
+		if (*last_cs != SECURECHANNEL_ACK) {
+			retval = EndpointsHandshake(client);
+			*last_cs = SECURECHANNEL_ACK;
+		}
+		else
+			*waiting = true;
+		break;
+
+	case ENDPOINTS_ACK:
+		if (*last_cs != ENDPOINTS_ACK) {
+			retval = SessionHandshake(client);
+			*last_cs = ENDPOINTS_ACK;
+		}
+		else
+			*waiting = true;
+		break;
+
+	case SESSION_ACK:
+		if (*last_cs!=SESSION_ACK) {
+			retval = ActivateSession(client);
+			*last_cs = SESSION_ACK;
+		}
+		else
+			*waiting = true;
+		break;
+
+	case ACTIVATE_ACK:
+		client->connection.state = UA_CONNECTION_ESTABLISHED;
+		client->state = UA_CLIENTSTATE_CONNECTED;
+		*waiting = false;
+		break;
+
+	default:
+		break;
+	}
 
     if(retval != UA_STATUSCODE_GOOD)
     	goto cleanup;
+
+    //TODO: USE CALLBACK
+    if(waiting)
+    	printf("waiting to be connected \n");
 
     return retval;
 
@@ -703,8 +754,9 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean endpo
 
 
 UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl, UA_Boolean *waiting, UA_Boolean *connected) {
-    return __UA_Client_connect(client, endpointUrl, true, true, &(client->lastConnectState), waiting, connected);
+UA_Client_connect_async(UA_Client *client, const char *endpointUrl) {
+	UA_Boolean waiting = false;
+	return __UA_Client_connect_async(client, endpointUrl, true, true, &(client->lastConnectState), &waiting);
 }
 
 UA_StatusCode UA_Client_disconnect(UA_Client *client) {

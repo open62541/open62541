@@ -15,14 +15,12 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    //UA_StatusCode retval = __UA_Client_connect(client, serverUrl, UA_FALSE, UA_FALSE);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval;
 
-    UA_Boolean waiting = false;
-    UA_Boolean connected = false;
-    while (!connected){
-    	retval = __UA_Client_connect(client, serverUrl,UA_FALSE, UA_FALSE, &(client->lastConnectState), &waiting, &connected);
-    }
+	while (UA_Client_getState(client) != UA_CLIENTSTATE_CONNECTED){
+		retval = UA_Client_connect_async(client, serverUrl);
+	}
+
     if(retval == UA_STATUSCODE_GOOD)
         retval = __UA_Client_getEndpoints(client, endpointDescriptionsSize, endpointDescriptions);
 
@@ -42,8 +40,7 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    //UA_StatusCode retval = __UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = __UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_reset(client);
@@ -93,8 +90,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
         strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    //UA_StatusCode retval = __UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = __UA_Client_connect(client, serverUrl, UA_TRUE, UA_FALSE);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_reset(client);
