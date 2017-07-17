@@ -31,6 +31,11 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
     return UA_STATUSCODE_GOOD;
 }
 
+static
+void waitingToConnect(void){
+
+    printf("waiting to be connected \n");
+}
 
 
 int main(int argc, char *argv[]) {
@@ -59,13 +64,12 @@ int main(int argc, char *argv[]) {
     /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664"); */
     //retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
 
-    UA_Boolean waiting = false;
-    UA_Boolean connected = false;
-    while (!connected){
-    	retval = UA_Client_connect(client, "opc.tcp://localhost:16664", &waiting, &connected);
-    	if (waiting) //do something else
-    		sleep(1);
-    }
+	while (UA_Client_getState(client) != UA_CLIENTSTATE_CONNECTED){
+		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
+		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
+		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
+	}
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;

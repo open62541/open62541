@@ -25,8 +25,7 @@ register_server_with_discovery_server(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Connect the client */
-    //UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
-    UA_StatusCode retval =UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Connecting to the discovery server failed with statuscode %s",

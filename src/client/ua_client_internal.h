@@ -47,10 +47,12 @@ typedef enum {
     UA_CLIENTAUTHENTICATION_USERNAME
 } UA_Client_Authentication;
 
+
 struct UA_Client {
-    /* State */
 	ConnectState connectState;
 	ConnectState lastConnectState;
+
+    /* State */
     UA_ClientState state;
     UA_ClientConfig config;
 
@@ -107,7 +109,11 @@ UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
 
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, const char *endpointUrl,
-                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs,UA_Boolean *waiting, UA_Boolean *connected);
+UA_Boolean endpointsHandshake, UA_Boolean createSession);
+
+UA_StatusCode
+__UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs,UA_Boolean *waiting);
 
 UA_StatusCode
 __UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
