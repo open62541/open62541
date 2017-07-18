@@ -14,7 +14,7 @@
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    buf->data = malloc(length);
+    buf->data = (UA_Byte*)malloc(length);
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }

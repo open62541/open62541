@@ -23,6 +23,7 @@ env:
     - ANALYZE=false
     - ANALYZE=true
     - DOCKER=true
+    - FUZZER=true
 
 matrix:
   exclude:
@@ -33,9 +34,14 @@ matrix:
       env: ANALYZE=true
     - os: osx
       env: DOCKER=true
+    - os: osx
+      env: FUZZER=true
     - os: linux
       compiler: clang
       env: DOCKER=true
+    - os: linux
+      compiler: gcc
+      env: FUZZER=true
 
 # Required for docker build test
 services:
@@ -48,25 +54,26 @@ addons:
     packages:
       - binutils-mingw-w64-i686
       - build-essential
-      - cmake
-      - gcc-multilib
-      - g++-multilib
-      - valgrind
       - check
+      - clang-3.9
+      - clang-tidy-3.9
+      - cmake
       - cppcheck
-      - mingw-w64
-      - g++-mingw-w64-x86-64
+      - gcc-multilib
       - g++-mingw-w64-i686
-      - libc6-dbg # for valgrind compilation
+      - g++-mingw-w64-x86-64
+      - g++-multilib
+      - graphviz
       - libsubunit-dev
       - libx11-dev
+      - mingw-w64
+      - texlive-fonts-recommended
+      - texlive-latex-extra
+      - texlive-latex-recommended
+      - valgrind
       - wget
       - xutils-dev
       - zip
-      - graphviz
-      - texlive-latex-recommended
-      - texlive-latex-extra
-      - texlive-fonts-recommended
   coverity_scan:
     project:
       name: "open62541/open62541"

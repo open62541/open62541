@@ -11,6 +11,20 @@ if ! [ -z ${DOCKER+x} ]; then
     exit 0
 fi
 
+# Fuzzer build test
+if ! [ -z ${FUZZER+x} ]; then
+	mkdir -p build && cd build
+	export CC=$TRAVIS_BUILD_DIR/third_party/llvm-build/Release+Asserts/bin/clang
+	export CXX=$TRAVIS_BUILD_DIR/third_party/llvm-build/Release+Asserts/bin/clang++
+	# libFuzzer.a is in the build dir.
+	export LIB_FUZZER_DIR=$TRAVIS_BUILD_DIR
+	cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_FUZZING=ON ..
+	make VERBOSE=1 && make run_fuzzer
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+	cd .. && rm build -rf
+    exit 0
+fi
+
 if [ $ANALYZE = "true" ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if [ "$CC" = "clang" ]; then
@@ -201,4 +215,5 @@ else
         echo -en 'travis_fold:end:script.build.coveralls\\r'
     fi
     cd .. && rm build -rf
+
 fi

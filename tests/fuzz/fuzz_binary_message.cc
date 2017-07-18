@@ -9,17 +9,18 @@
 ** Main entry point.  The fuzzer invokes this function with each
 ** fuzzed input.
 */
-int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     UA_Connection c = createDummyConnection();
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.logger = UA_Log_Stdout;
     UA_Server *server = UA_Server_new(config);
-    UA_ByteString msg;
+    UA_ByteString msg = {
+			.length = size,
+			.data = const_cast<UA_Byte*>(data)
+	};
 
     config.logger = UA_Log_Stdout;
-    msg.length = size;
-    msg.data = data;
     UA_Boolean reallocated = UA_FALSE;
     UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
     if(retval == UA_STATUSCODE_GOOD && msg.length > 0)

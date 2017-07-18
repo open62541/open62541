@@ -113,6 +113,7 @@ endif()
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
@@ -493,6 +494,10 @@ if(UA_BUILD_UNIT_TESTS)
     endif()
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+if(UA_BUILD_FUZZING)
+    add_subdirectory(tests/fuzz)
 endif()
 
 ############################

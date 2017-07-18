@@ -1,15 +1,25 @@
 #!/bin/bash
 set -ev
 
+
+if ! [ -z ${FUZZER+x} ]; then
+	# we need libfuzzer 5.0, all the older versions do not work on travis.
+	sudo apt-get --yes install git
+	git clone https://github.com/google/fuzzer-test-suite.git FTS
+	./FTS/tutorial/install-deps.sh  # Get deps
+	./FTS/tutorial/install-clang.sh # Get fresh clang binaries
+	# Get libFuzzer sources and build it
+	svn co http://llvm.org/svn/llvm-project/llvm/trunk/lib/Fuzzer
+	Fuzzer/build.sh
+	exit 0
+fi
+
 if [ -z ${DOCKER+x} ]; then
 	# Only on non-docker builds required
 
 	echo "=== Installing from external package sources ===" && echo -en 'travis_fold:start:before_install.external\\r'
-	wget -O - http://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-	echo "deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-3.9 main" | sudo tee -a /etc/apt/sources.list
 	sudo add-apt-repository -y ppa:lttng/ppa
 	sudo apt-get update -qq
-	sudo apt-get install -y clang-3.9 clang-tidy-3.9
 	sudo apt-get install -y liburcu4 liburcu-dev
 	echo -en 'travis_fold:end:script.before_install.external\\r'
 
