@@ -13,12 +13,11 @@ if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 endif()
 
 if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-    MESSAGE(WARNING "You should use at least clang version 5.0 for fuzzing support")
-endif()
-
-if(NOT $ENV{LIB_FUZZER_DIR} STREQUAL "")
-    # specific settings for travis
-    link_directories($ENV{LIB_FUZZER_DIR})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+else()
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fsanitize-coverage=trace-pc-guard")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize-coverage=trace-pc-guard")
 endif()
 
 set(LIBS Fuzzer ${open62541_LIBRARIES})
@@ -29,8 +28,6 @@ set(LIBS Fuzzer ${open62541_LIBRARIES})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/fuzz)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fsanitize-coverage=trace-pc-guard")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize-coverage=trace-pc-guard")
 
 
 # Use different plugins for testing

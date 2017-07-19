@@ -55,8 +55,6 @@ addons:
       - binutils-mingw-w64-i686
       - build-essential
       - check
-      - clang-3.9
-      - clang-tidy-3.9
       - cmake
       - cppcheck
       - gcc-multilib

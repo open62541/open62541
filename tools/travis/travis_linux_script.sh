@@ -14,12 +14,10 @@ fi
 # Fuzzer build test
 if ! [ -z ${FUZZER+x} ]; then
 	mkdir -p build && cd build
-	export CC=$TRAVIS_BUILD_DIR/third_party/llvm-build/Release+Asserts/bin/clang
-	export CXX=$TRAVIS_BUILD_DIR/third_party/llvm-build/Release+Asserts/bin/clang++
-	# libFuzzer.a is in the build dir.
-	export LIB_FUZZER_DIR=$TRAVIS_BUILD_DIR
+	export CC=clang-3.9
+	export CXX=clang++-3.9
 	cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_FUZZING=ON ..
-	make VERBOSE=1 && make run_fuzzer
+	make && make run_fuzzer
 	if [ $? -ne 0 ] ; then exit 1 ; fi
 	cd .. && rm build -rf
     exit 0
