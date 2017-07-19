@@ -53,12 +53,12 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-UA_THREAD_LOCAL size_t customTypesArraySize;
-UA_THREAD_LOCAL const UA_DataType *customTypesArray;
+static UA_THREAD_LOCAL size_t customTypesArraySize;
+static UA_THREAD_LOCAL const UA_DataType *customTypesArray;
 
 /* Pointers to the current position and the last position in the buffer */
-UA_THREAD_LOCAL UA_Byte *pos;
-UA_THREAD_LOCAL const UA_Byte *end;
+static UA_THREAD_LOCAL UA_Byte *pos;
+static UA_THREAD_LOCAL const UA_Byte *end;
 
 /* In UA_encodeBinaryInternal, we store a pointer to the last "good" position in
  * the buffer. When encoding reaches the end of the buffer, send out a chunk
@@ -82,8 +82,8 @@ UA_THREAD_LOCAL const UA_Byte *end;
  * DiagnosticInfo_encodeBinary */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
-UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
-UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
+static UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
+static UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
 /* Send the current chunk and replace the buffer */
 static UA_StatusCode
@@ -215,11 +215,6 @@ UInt16_encodeBinary(UA_UInt16 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int16_encodeBinary(UA_Int16 const *src, const UA_DataType *_) {
-    return UInt16_encodeBinary((const UA_UInt16*)src, NULL);
-}
-
 static UA_StatusCode
 UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt16) > end)
@@ -231,11 +226,6 @@ UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
 #endif
     pos += 2;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int16_decodeBinary(UA_Int16 *dst) {
-    return UInt16_decodeBinary((UA_UInt16*)dst, NULL);
 }
 
 /* UInt32 */
@@ -254,11 +244,6 @@ UInt32_encodeBinary(UA_UInt32 const *src, const UA_DataType *_) {
 
 static UA_INLINE UA_StatusCode
 Int32_encodeBinary(UA_Int32 const *src) {
-    return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-StatusCode_encodeBinary(UA_StatusCode const *src) {
     return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
 }
 
@@ -299,16 +284,6 @@ UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int64_encodeBinary(UA_Int64 const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-DateTime_encodeBinary(UA_DateTime const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
 static UA_StatusCode
 UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt64) > end)
@@ -320,11 +295,6 @@ UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
 #endif
     pos += 8;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int64_decodeBinary(UA_Int64 *dst) {
-    return UInt64_decodeBinary((UA_UInt64*)dst, NULL);
 }
 
 static UA_INLINE UA_StatusCode

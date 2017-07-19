@@ -85,49 +85,52 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
 
 /**
  * Log Helper
- * ---------- */
+ * ----------
+ * C99 requires at least one element for the variadic argument. If the log
+ * statement has no variable arguments, supply an additional NULL. It will be
+ * ignored by printf. */
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, MSG, ...)                 \
     UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                  ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                  ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                 ##__VA_ARGS__);
+                 __VA_ARGS__);
 
 #define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, MSG, ...)                 \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                  ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                  ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                 ##__VA_ARGS__);
+                 __VA_ARGS__);
 
 #define UA_LOG_INFO_SESSION(LOGGER, SESSION, MSG, ...)                  \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                  ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                  ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                 ##__VA_ARGS__);
+                 __VA_ARGS__);
 
 #define UA_LOG_WARNING_SESSION(LOGGER, SESSION, MSG, ...)               \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                    ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                    ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                    UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                   ##__VA_ARGS__);
+                   __VA_ARGS__);
 
 #define UA_LOG_ERROR_SESSION(LOGGER, SESSION, MSG, ...)                 \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                  ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                  ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                 ##__VA_ARGS__);
+                 __VA_ARGS__);
 
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, MSG, ...)                 \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SESSION, "Connection %i | SecureChannel %i | Session " UA_PRINTF_GUID_FORMAT " | " MSG, \
                  ((SESSION)->channel ? ((SESSION)->channel->connection ? (SESSION)->channel->connection->sockfd : 0) : 0), \
                  ((SESSION)->channel ? (SESSION)->channel->securityToken.channelId : 0), \
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), \
-                 ##__VA_ARGS__);
+                 __VA_ARGS__);
 
 #ifdef __cplusplus
 } // extern "C"

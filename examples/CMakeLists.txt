@@ -9,7 +9,7 @@ include_directories(${PROJECT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
 
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
-  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE})
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
   target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
   add_dependencies(${EXAMPLE_NAME} open62541_amalgamation)
@@ -65,7 +65,11 @@ add_example(server_repeated_job server_repeated_job.c)
 
 add_example(server_inheritance server_inheritance.c)
 
-if(NOT BUILD_SHARED_open62541_LIBRARIES AND UA_BUILD_EXAMPLES_NODESET_COMPILER)
+if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
+  if(BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "The nodeset compiler currently requires static linking to access internal API")
+  endif()
+
   # example information model from nodeset xml
   add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
                     PRE_BUILD
@@ -84,8 +88,9 @@ if(NOT BUILD_SHARED_open62541_LIBRARIES AND UA_BUILD_EXAMPLES_NODESET_COMPILER)
                             ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
 
   # needs internal methods which are not exported in the dynamic lib
-  add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
+  add_example(server_nodeset ${PROJECT_BINARY_DIR}/src_generated/nodeset.c server_nodeset.c)
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+  set_target_properties(server_nodeset PROPERTIES COMPILE_FLAGS "-Wno-pedantic -Wno-sign-conversion")
 endif()
 
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
