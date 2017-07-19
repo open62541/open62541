@@ -544,6 +544,8 @@ static void processERR(UA_Server *server, UA_Connection *connection, const UA_By
     UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Client replied with an error message: %s %.*s",
                  UA_StatusCode_name(errorMessage.error), errorMessage.reason.length, errorMessage.reason.data);
+
+    UA_TcpErrorMessage_deleteMembers(&errorMessage);
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. Only OPN
