@@ -6,7 +6,7 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
 remove_definitions(-std=c99 -Wmissing-prototypes -Wstrict-prototypes)
-
+set (CMAKE_CXX_STANDARD 11)
 
 if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     MESSAGE(FATAL_ERROR "To build fuzzing, you need to use Clang as the compiler")
