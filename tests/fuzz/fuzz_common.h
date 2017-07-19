@@ -5,36 +5,35 @@
 #ifndef OPEN62541_FUZZ_COMMON_H_H
 #define OPEN62541_FUZZ_COMMON_H_H
 
-#include "ua_server.h"
 #include "ua_server_internal.h"
 #include "ua_config_standard.h"
 #include "ua_log_stdout.h"
 #include "ua_plugin_log.h"
 
-static UA_StatusCode
+static UA_INLINE UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
     buf->data = (UA_Byte*)malloc(length);
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_INLINE void
 dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
     free(buf->data);
 }
 
-static UA_StatusCode
+static UA_INLINE UA_StatusCode
 dummySend(UA_Connection *connection, UA_ByteString *buf) {
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_INLINE void
 dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
     return;
 }
 
-static void
+static UA_INLINE void
 dummyClose(UA_Connection *connection) {
     return;
 }

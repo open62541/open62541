@@ -16,8 +16,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     config.logger = UA_Log_Stdout;
     UA_Server *server = UA_Server_new(config);
     UA_ByteString msg = {
-			.length = size,
-			.data = const_cast<UA_Byte*>(data)
+			size, //length
+			const_cast<UA_Byte*>(data) //data
 	};
 
     config.logger = UA_Log_Stdout;
