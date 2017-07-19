@@ -2,8 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-
-#include "fuzz_common.h"
+#include "ua_server_internal.h"
+#include "ua_config_standard.h"
+#include "ua_log_stdout.h"
+#include "ua_plugin_log.h"
+#include "testing_networklayers.h"
 
 /*
 ** Main entry point.  The fuzzer invokes this function with each

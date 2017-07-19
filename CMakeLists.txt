@@ -114,6 +114,8 @@ endif()
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
+option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
+mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
@@ -511,7 +513,10 @@ if(UA_BUILD_UNIT_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_FUZZING)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    # Force enable discovery, to also fuzzy-test this code
+    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
 
