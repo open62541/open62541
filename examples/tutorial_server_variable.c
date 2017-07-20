@@ -18,8 +18,7 @@
 static void
 addVariable(UA_Server *server) {
     /* Define the attribute of the myInteger variable node */
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
