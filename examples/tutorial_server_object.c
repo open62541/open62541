@@ -61,8 +61,7 @@
 static void
 manuallyDefinePump(UA_Server *server) {
     UA_NodeId pumpId; /* get the nodeid assigned by the server */
-    UA_ObjectAttributes oAttr;
-    UA_ObjectAttributes_init(&oAttr);
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Pump (Manual)");
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -70,8 +69,7 @@ manuallyDefinePump(UA_Server *server) {
                             UA_QUALIFIEDNAME(1, "Pump (Manual)"), UA_NODEID_NULL,
                             oAttr, NULL, &pumpId);
 
-    UA_VariableAttributes mnAttr;
-    UA_VariableAttributes_init(&mnAttr);
+    UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
     UA_String manufacturerName = UA_STRING("Pump King Ltd.");
     UA_Variant_setScalar(&mnAttr.value, &manufacturerName, &UA_TYPES[UA_TYPES_STRING]);
     mnAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ManufacturerName");
@@ -80,8 +78,7 @@ manuallyDefinePump(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
                               UA_NODEID_NULL, mnAttr, NULL, NULL);
 
-    UA_VariableAttributes modelAttr;
-    UA_VariableAttributes_init(&modelAttr);
+    UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
     UA_String modelName = UA_STRING("Mega Pump 3000");
     UA_Variant_setScalar(&modelAttr.value, &modelName, &UA_TYPES[UA_TYPES_STRING]);
     modelAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ModelName");
@@ -90,8 +87,7 @@ manuallyDefinePump(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "ModelName"),
                               UA_NODEID_NULL, modelAttr, NULL, NULL);
 
-    UA_VariableAttributes statusAttr;
-    UA_VariableAttributes_init(&statusAttr);
+    UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     UA_Boolean status = true;
     UA_Variant_setScalar(&statusAttr.value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     statusAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Status");
@@ -100,8 +96,7 @@ manuallyDefinePump(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "Status"),
                               UA_NODEID_NULL, statusAttr, NULL, NULL);
 
-    UA_VariableAttributes rpmAttr;
-    UA_VariableAttributes_init(&rpmAttr);
+    UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     UA_Double rpm = 50.0;
     UA_Variant_setScalar(&rpmAttr.value, &rpm, &UA_TYPES[UA_TYPES_DOUBLE]);
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MotorRPM");
@@ -174,8 +169,7 @@ static void
 defineObjectTypes(UA_Server *server) {
     /* Define the object type for "Device" */
     UA_NodeId deviceTypeId; /* get the nodeid assigned by the server */
-    UA_ObjectTypeAttributes dtAttr;
-    UA_ObjectTypeAttributes_init(&dtAttr);
+    UA_ObjectTypeAttributes dtAttr = UA_ObjectTypeAttributes_default;
     dtAttr.displayName = UA_LOCALIZEDTEXT("en_US", "DeviceType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
@@ -183,8 +177,7 @@ defineObjectTypes(UA_Server *server) {
                                 UA_QUALIFIEDNAME(1, "DeviceType"), dtAttr,
                                 NULL, &deviceTypeId);
 
-    UA_VariableAttributes mnAttr;
-    UA_VariableAttributes_init(&mnAttr);
+    UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
     mnAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ManufacturerName");
     UA_NodeId manufacturerNameId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
@@ -197,8 +190,7 @@ defineObjectTypes(UA_Server *server) {
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
 
 
-    UA_VariableAttributes modelAttr;
-    UA_VariableAttributes_init(&modelAttr);
+    UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
     modelAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ModelName");
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -206,16 +198,14 @@ defineObjectTypes(UA_Server *server) {
                               UA_NODEID_NULL, modelAttr, NULL, NULL);
 
     /* Define the object type for "Pump" */
-    UA_ObjectTypeAttributes ptAttr;
-    UA_ObjectTypeAttributes_init(&ptAttr);
+    UA_ObjectTypeAttributes ptAttr = UA_ObjectTypeAttributes_default;
     ptAttr.displayName = UA_LOCALIZEDTEXT("en_US", "PumpType");
     UA_Server_addObjectTypeNode(server, pumpTypeId,
                                 deviceTypeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "PumpType"), ptAttr,
                                 NULL, NULL);
 
-    UA_VariableAttributes statusAttr;
-    UA_VariableAttributes_init(&statusAttr);
+    UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     statusAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Status");
     statusAttr.valueRank = -1;
     UA_NodeId statusId;
@@ -228,8 +218,7 @@ defineObjectTypes(UA_Server *server) {
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
                            UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
 
-    UA_VariableAttributes rpmAttr;
-    UA_VariableAttributes_init(&rpmAttr);
+    UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MotorRPM");
     rpmAttr.valueRank = -1;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
@@ -248,8 +237,7 @@ defineObjectTypes(UA_Server *server) {
 
 static void
 addPumpObjectInstance(UA_Server *server, char *name) {
-    UA_ObjectAttributes oAttr;
-    UA_ObjectAttributes_init(&oAttr);
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en_US", name);
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),

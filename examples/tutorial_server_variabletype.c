@@ -25,8 +25,7 @@ static UA_NodeId pointTypeId;
 
 static void
 addVariableType2DPoint(UA_Server *server) {
-    UA_VariableTypeAttributes vtAttr;
-    UA_VariableTypeAttributes_init(&vtAttr);
+    UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
     vtAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     vtAttr.valueRank = 1; /* array with one dimension */
     UA_UInt32 arrayDims[1] = {2};
@@ -56,8 +55,7 @@ static UA_NodeId pointVariableId;
 static void
 addVariable(UA_Server *server) {
     /* Prepare the node attributes */
-    UA_VariableAttributes vAttr;
-    UA_VariableAttributes_init(&vAttr);
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     vAttr.valueRank = 1; /* array with one dimension */
     UA_UInt32 arrayDims[1] = {2};
@@ -83,8 +81,7 @@ addVariable(UA_Server *server) {
 static void
 addVariableFail(UA_Server *server) {
     /* Prepare the node attributes */
-    UA_VariableAttributes vAttr;
-    UA_VariableAttributes_init(&vAttr);
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
     vAttr.valueRank = -1; /* a scalar. this is not allowed per the variable type */
     vAttr.displayName = UA_LOCALIZEDTEXT("en_US", "2DPoint Variable (fail)");

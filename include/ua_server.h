@@ -772,6 +772,24 @@ UA_Server_setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId
  * pointing to a memory location on the stack. If you need changes to a variable
  * value to manifest at a specific memory location, please use a
  * :ref:`datasource` or a :ref:`value-callback`. */
+
+/* Protect against redundant definitions for server/client */
+#ifndef UA_DEFAULT_ATTRIBUTES_DEFINED
+#define UA_DEFAULT_ATTRIBUTES_DEFINED
+/* The default for variables is "BaseDataType" for the datatype, -2 for the
+ * valuerank and a read-accesslevel. */
+UA_EXPORT extern const UA_VariableAttributes UA_VariableAttributes_default;
+UA_EXPORT extern const UA_VariableTypeAttributes UA_VariableTypeAttributes_default;
+/* Methods are executable by default */
+UA_EXPORT extern const UA_MethodAttributes UA_MethodAttributes_default;
+/* The remaining attribute definitions are currently all zeroed out */
+UA_EXPORT extern const UA_ObjectAttributes UA_ObjectAttributes_default;
+UA_EXPORT extern const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default;
+UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default;
+UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
+UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
+#endif
+
 /* The instantiation callback is used to track the addition of new nodes. It is
  * also called for all sub-nodes contained in an object or variable type node
  * that is instantiated. */
