@@ -556,7 +556,7 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
         break;
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process an OPN on an open channel");
+                             "Process an OPN on an open channel", NULL);
         processOPN(server, channel->connection, channel->securityToken.channelId, requestId, message, channel);
         break;
     case UA_MESSAGETYPE_MSG:
