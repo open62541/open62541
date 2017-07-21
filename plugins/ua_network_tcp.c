@@ -15,7 +15,6 @@
 #include "ua_log_stdout.h"
 #include "queue.h"
 
-#include <stdlib.h> // malloc, free
 #include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
@@ -147,7 +146,7 @@ static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
     response->data =
-        (UA_Byte*)malloc(connection->localConf.recvBufferSize);
+        (UA_Byte*)UA_malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
@@ -229,7 +228,7 @@ typedef struct {
 static void
 ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
     UA_Connection_deleteMembers(connection);
-    free(connection);
+    UA_free(connection);
 }
 
 static UA_StatusCode
@@ -249,7 +248,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     }
 
     /* Allocate and initialize the connection */
-    ConnectionEntry *e = (ConnectionEntry*)malloc(sizeof(ConnectionEntry));
+    ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
     if(!e)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     UA_Connection *c = &e->connection;
@@ -513,11 +512,11 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
         LIST_REMOVE(e, pointers);
         connection_close(&e->connection);
         CLOSESOCKET(e->connection.sockfd);
-        free(e);
+        UA_free(e);
     }
 
     /* Free the layer */
-    free(layer);
+    UA_free(layer);
 }
 
 UA_ServerNetworkLayer
@@ -532,7 +531,7 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
     ServerNetworkLayerTCP *layer =
-        (ServerNetworkLayerTCP *)calloc(1,sizeof(ServerNetworkLayerTCP));
+        (ServerNetworkLayerTCP *)UA_calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
 

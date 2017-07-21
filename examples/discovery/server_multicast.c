@@ -76,8 +76,8 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
                 serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
     if (discovery_url != NULL)
-        free(discovery_url);
-    discovery_url = (char*)malloc(serverOnNetwork->discoveryUrl.length + 1);
+        UA_free(discovery_url);
+    discovery_url = (char*)UA_malloc(serverOnNetwork->discoveryUrl.length + 1);
     memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
     discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
 }
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
 
@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return (int) retval;
     }
 
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
     //UA_Array_delete(config.serverCapabilities, config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    free(discovery_url);
+    UA_free(discovery_url);
 
     return (int) retval;
 }

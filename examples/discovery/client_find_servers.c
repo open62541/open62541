@@ -128,14 +128,14 @@ int main(void) {
 
         UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
 
-        char *discoveryUrl = (char *) malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
+        char *discoveryUrl = (char *) UA_malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
         memcpy(discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length);
         discoveryUrl[description->discoveryUrls[0].length] = '\0';
 
         UA_EndpointDescription *endpointArray = NULL;
         size_t endpointArraySize = 0;
         retval = UA_Client_getEndpoints(client, discoveryUrl, &endpointArraySize, &endpointArray);
-        free(discoveryUrl);
+        UA_free(discoveryUrl);
         if (retval != UA_STATUSCODE_GOOD) {
             UA_Client_disconnect(client);
             UA_Client_delete(client);

@@ -78,7 +78,7 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     counter = 0;
     dataCount = 0;
     UA_String_init(&string);
-    string.data = (UA_Byte*)malloc(stringLength);
+    string.data = (UA_Byte*)UA_malloc(stringLength);
     string.length = stringLength;
     char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
     //char tmpString[9] = {'1','4','5','2','6','n','e','p','o'};
@@ -125,7 +125,7 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
     counter = 0;
     dataCount = 0;
     UA_String_init(&string);
-    string.data = (UA_Byte*)malloc(stringLength);
+    string.data = (UA_Byte*)UA_malloc(stringLength);
     string.length = stringLength;
     char tmpString[9] = {'o','p','e','n','6','2','5','4','1'};
     buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
