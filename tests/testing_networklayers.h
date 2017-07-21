@@ -7,7 +7,15 @@
 
 #include "ua_server.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @brief Create the TCP networklayer and listen to the specified port */
 UA_Connection createDummyConnection(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* TESTING_NETWORKLAYERS_H_ */

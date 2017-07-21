@@ -105,7 +105,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing FindServersRequest");
+                         "Processing FindServersRequest", NULL);
 
     size_t foundServersSize = 0;
     UA_ApplicationDescription *foundServers = NULL;
@@ -242,7 +242,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                              UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
     } else {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "Processing GetEndpointsRequest with an empty endpointUrl");
+                             "Processing GetEndpointsRequest with an empty endpointUrl", NULL);
     }
 
     /* test if the supported binary profile shall be returned */
@@ -316,10 +316,12 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
 freeEntry(UA_Server *server, void *entry) {
     UA_free(entry);
 }
+#endif
 
 static void
 process_RegisterServer(UA_Server *server, UA_Session *session,
@@ -477,7 +479,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServerRequest", NULL);
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -485,7 +488,8 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServer2Request", NULL);
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,

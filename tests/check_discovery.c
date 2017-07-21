@@ -209,7 +209,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
     if(filterUri) {
         serverUrisSize = 1;
-        serverUris = UA_malloc(sizeof(UA_String));
+        serverUris = UA_String_new();
         serverUris[0] = UA_String_fromChars(filterUri);
     }
 
@@ -218,7 +218,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
     if(filterLocale) {
         localeIdsSize = 1;
-        localeIds = UA_malloc(sizeof(UA_String));
+        localeIds = UA_String_new();
         localeIds[0] = UA_String_fromChars(filterLocale);
     }
 
@@ -259,6 +259,8 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
     UA_Client_delete(client);
 }
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
 static void
 FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
                       const char *filterUri, const char *filterLocale,
@@ -274,7 +276,7 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
 
     if(filterCapabilitiesSize) {
         serverCapabilityFilterSize = filterCapabilitiesSize;
-        serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
+        serverCapabilityFilter = (UA_String*)UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
         for(size_t i = 0; i < filterCapabilitiesSize; i++)
             serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
     }
@@ -322,7 +324,7 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
     request.endpointUrl = *endpointUrl; // assume the endpointurl outlives the service call
     if (filterTransportProfileUri) {
         request.profileUrisSize = 1;
-        request.profileUris = UA_malloc(sizeof(UA_String));
+        request.profileUris = (UA_String*)UA_malloc(sizeof(UA_String));
         request.profileUris[0] = UA_String_fromChars(filterTransportProfileUri);
     }
 
@@ -348,7 +350,6 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
     UA_GetEndpointsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
 }
-
 
 static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
@@ -376,13 +377,6 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     UA_Client_delete(client);
 }
 
-// Test if discovery server lists himself as registered server, before any other registration.
-START_TEST(Client_find_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
-    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
-}
-END_TEST
-
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
     const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
@@ -404,16 +398,6 @@ START_TEST(Client_filter_locale) {
     // even if we request en_US, the server will return de_DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
-}
-END_TEST
-
-// Test if registered server is returned from LDS
-START_TEST(Client_find_registered) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
-    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 END_TEST
 
@@ -474,6 +458,25 @@ START_TEST(Client_get_endpoints) {
 }
 END_TEST
 
+#endif
+
+// Test if discovery server lists himself as registered server, before any other registration.
+START_TEST(Client_find_discovery) {
+    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
+}
+END_TEST
+
+// Test if registered server is returned from LDS
+START_TEST(Client_find_registered) {
+    const UA_String expectedUris[] = {
+        UA_STRING("urn:open62541.test.local_discovery_server"),
+        UA_STRING("urn:open62541.test.server_register")
+    };
+    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
+}
+END_TEST
+
 START_TEST(Util_start_lds) {
     setup_lds();
 }
@@ -491,11 +494,13 @@ START_TEST(Util_wait_timeout) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Util_wait_mdns) {
     UA_sleep(1000);
     sleep(1);
 }
 END_TEST
+#endif
 
 START_TEST(Util_wait_startup) {
     UA_sleep(1000);

@@ -77,7 +77,7 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
 
     if (discovery_url != NULL)
         free(discovery_url);
-    discovery_url = malloc(serverOnNetwork->discoveryUrl.length + 1);
+    discovery_url = (char*)malloc(serverOnNetwork->discoveryUrl.length + 1);
     memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
     discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
 }

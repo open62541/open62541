@@ -113,6 +113,9 @@ endif()
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
+option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
+mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
@@ -161,12 +164,26 @@ endif(UA_ENABLE_MULTITHREADING)
 
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
-    add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
-                    -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+    add_definitions(-std=c99 -pipe
+                    -Wall -Wextra -Werror -Wpedantic
+                    -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
+                    -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
+                    -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
+                    -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls
+                    -Wformat -Wformat-security -Wformat-nonliteral
+                    -Wuninitialized -Winit-self
+                    -Wcast-qual
+                    -Wstrict-overflow
+                    -Wnested-externs
+                    -Wmultichar
+                    -Wundef
+                    -Wc++-compat)
      if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
+     endif()
+
+     if(UA_ENABLE_AMALGAMATION)
+         add_definitions(-Wno-unused-function)
      endif()
 
     # Linker
@@ -303,6 +320,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
                 # subscriptions
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
@@ -423,23 +441,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
 ADD_CUSTOM_TARGET(open62541_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
                                                  ${PROJECT_BINARY_DIR}/open62541.c)
 
-# example information model from nodeset xml
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-                  PRE_BUILD
-                  COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                                                -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                                                ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
-                                                ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
-                                                ${PROJECT_BINARY_DIR}/src_generated/nodeset
-                  DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                          ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-
 #####################
 # Build the Library #
 #####################
@@ -518,9 +519,11 @@ if(UA_BUILD_UNIT_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  add_custom_target(generate_informationmodel ALL
-                    DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    # Force enable discovery, to also fuzzy-test this code
+    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
+    add_subdirectory(tests/fuzz)
 endif()
 
 ############################

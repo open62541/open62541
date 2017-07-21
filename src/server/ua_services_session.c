@@ -236,7 +236,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Detach the old SecureChannel */
     if(session->channel && session->channel != channel) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Detach from old channel");
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: Detach from old channel", NULL);
         UA_SecureChannel_detachSession(session->channel, session);
     }
 
@@ -244,13 +245,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_SecureChannel_attachSession(channel, session);
     session->activated = true;
     UA_Session_updateLifetime(session);
-    UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "ActivateSession: Session activated", NULL);
 }
 
 void
 Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "CloseSession", NULL);
     /* Callback into userland access control */
     server->config.accessControl.closeSession(&session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =

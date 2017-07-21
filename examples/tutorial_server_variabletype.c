@@ -135,6 +135,7 @@ int main(void) {
     addVariableType2DPoint(server);
     addVariable(server);
     addVariableFail(server);
+    writeVariable(server);
 
     UA_Server_run(server, &running);
     UA_Server_delete(server);

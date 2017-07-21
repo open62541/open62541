@@ -77,7 +77,7 @@ START_TEST(copyIntoStringArrayRange) {
 
     UA_String s1 = UA_STRING("bc");
     UA_String s2 = UA_STRING("xy");
-    UA_String *arr2 = v2.data;
+    UA_String *arr2 = (UA_String*)v2.data;
     ck_assert(UA_String_equal(&arr2[0], &s1));
     ck_assert(UA_String_equal(&arr2[1], &s2));
 

@@ -45,12 +45,12 @@ UA_Server_addRepeatedJob(UA_Server *server, UA_Job job,
                          UA_UInt32 interval, UA_Guid *jobId) {
     return UA_Server_addRepeatedCallback(server, job.job.methodCall.method,
                                          job.job.methodCall.data, interval,
-                                         (UA_UInt64*)jobId);
+                                         (UA_UInt64*)(uintptr_t)jobId);
 }
 
 UA_DEPRECATED static UA_INLINE UA_StatusCode
 UA_Server_removeRepeatedJob(UA_Server *server, UA_Guid jobId) {
-    return UA_Server_removeRepeatedCallback(server, *(UA_UInt64*)&jobId);
+    return UA_Server_removeRepeatedCallback(server, *(UA_UInt64*)(uintptr_t)&jobId);
 }
 
 #ifdef __cplusplus
