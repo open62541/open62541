@@ -138,23 +138,6 @@ sym_generateNonce_sp_none(const UA_SecurityPolicy *const securityPolicy,
 // End symmetric module functions //
 ////////////////////////////////////
 
-///////////////////////////////
-// Security policy functions //
-///////////////////////////////
-static UA_StatusCode
-verifyCertificate_sp_none(const UA_SecurityPolicy *const securityPolicy,
-                          const void *const policyContext,
-                          const void *const channelContext) {
-
-    if(securityPolicy == NULL || policyContext == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
-}
-
-///////////////////////////////////
-// End security policy functions //
-///////////////////////////////////
-
 /////////////////////////////
 // PolicyContext functions //
 /////////////////////////////
