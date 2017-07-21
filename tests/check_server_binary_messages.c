@@ -24,7 +24,7 @@ static UA_ByteString readFile(char *filename) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         rewind(f);
-        buf.data = (UA_Byte*)malloc(length);
+        buf.data = (UA_Byte*)UA_malloc(length);
         fread(buf.data, sizeof(char), length, f);
         buf.length = length;
         fclose(f);
