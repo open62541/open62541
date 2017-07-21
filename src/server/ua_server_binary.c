@@ -614,6 +614,12 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                      UA_ByteString *message) {
     UA_Boolean realloced = UA_FALSE;
     UA_StatusCode retval = UA_Connection_completeMessages(connection, message, &realloced);
+
+    /* No failure, but no chunk ready */
+    if(message->length == 0)
+        return;
+
+    /* Failed to complete a chunk */
     if(retval != UA_STATUSCODE_GOOD) {
         if(!realloced)
             connection->releaseRecvBuffer(connection, message);
