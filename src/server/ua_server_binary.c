@@ -612,12 +612,17 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
 static void
 processBinaryMessage(UA_Server *server, UA_Connection *connection,
                      UA_ByteString *message) {
+    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Connection %i | Received a packet.", connection->sockfd);
     UA_Boolean realloced = UA_FALSE;
-    UA_StatusCode retval = UA_Connection_completeMessages(connection, message, &realloced);
+    UA_StatusCode retval = UA_Connection_completeChunks(connection, message, &realloced);
 
     /* No failure, but no chunk ready */
-    if(message->length == 0)
+    if(message->length == 0) {
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Connection %i | Not a complete chunk yet.", connection->sockfd);
         return;
+    }
 
     /* Failed to complete a chunk */
     if(retval != UA_STATUSCODE_GOOD) {
@@ -642,6 +647,9 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                  "resulted in error code %s", UA_StatusCode_name(retval));
     } else {
         /* Process messages without a channel and no chunking */
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Connection %i | No channel attached to the connection. "
+                     "Process the chunk directly", connection->sockfd);
         size_t offset = 0;
         UA_TcpMessageHeader tcpMessageHeader;
         retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);

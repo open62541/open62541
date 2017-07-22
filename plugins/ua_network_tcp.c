@@ -234,10 +234,19 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
 static UA_StatusCode
 ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
                           struct sockaddr_storage *remote) {
+    /* Set nonblocking */
+    socket_set_nonblocking(newsockfd);
+
+    /* Do not merge packets on the socket (disable Nagle's algorithm) */
+    int dummy = 1;
+    setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
+               (const char *)&dummy, sizeof(dummy));
+
     /* Get the peer name for logging */
     char remote_name[100];
-    if(getnameinfo((struct sockaddr*)remote, sizeof(struct sockaddr_storage), remote_name,
-                   sizeof(remote_name), NULL, 0, 0) == 0) {
+    int res = getnameinfo((struct sockaddr*)remote, sizeof(struct sockaddr_storage),
+                          remote_name, sizeof(remote_name), NULL, 0, NI_NUMERICHOST);
+    if(res == 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New connection over TCP from %s",
                     newsockfd, remote_name);
@@ -432,11 +441,10 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 #endif
             continue;
 
-        socket_set_nonblocking(newsockfd);
-        /* Do not merge packets on the socket (disable Nagle's algorithm) */
-        int dummy = 1;
-        setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
-                   (const char *)&dummy, sizeof(dummy));
+        UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | New connection over TCP on server socket %i",
+                    newsockfd, layer->serverSockets[i]);
+
         ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd, &remote);
     }
 
@@ -446,6 +454,10 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
         if(!UA_fd_isset(e->connection.sockfd, &errset) &&
            !UA_fd_isset(e->connection.sockfd, &fdset))
           continue;
+
+        UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Activity on the socket",
+                    e->connection.sockfd);
 
         UA_ByteString buf = UA_BYTESTRING_NULL;
         UA_StatusCode retval = connection_recv(&e->connection, &buf, 0);
@@ -457,11 +469,11 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             /* The socket is shutdown but not closed */
             if(e->connection.state != UA_CONNECTION_CLOSED) {
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                            "Connection %d was closed by the client",
+                            "Connection %i | Closed by the client",
                             e->connection.sockfd);
             } else {
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                            "Connection %d was closed by the server",
+                            "Connection %i | Closed by the server",
                             e->connection.sockfd);
             }
             LIST_REMOVE(e, pointers);
