@@ -25,7 +25,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     config.logger = UA_Log_Stdout;
     UA_Boolean reallocated = UA_FALSE;
-    UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
+    UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
     if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
         UA_Server_processBinaryMessage(server, &c, &msg);
     UA_Server_delete(server);
