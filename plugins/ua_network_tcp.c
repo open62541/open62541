@@ -51,7 +51,8 @@
 #endif
 
 /* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using musl libc (e.g. Docker Alpine) */
+/* Additionally if GNU_LIBRARY is not defined, it may be using 
+ * musl libc (e.g. Docker Alpine) */
 #if defined(_WIN32) || defined(__OpenBSD__) || \
     (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
      (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
@@ -83,8 +84,8 @@
 /* Generic Socket Functions */
 /****************************/
 
-/* This performs only 'shutdown'. 'close' is called after the next recv on the
- * socket. */
+/* This performs only 'shutdown'. 'close' is called after the next
+ * recv on the socket. */
 static void
 connection_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
@@ -160,7 +161,8 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         UA_UInt32 timeout_usec = timeout * 1000;
         struct timeval tmptv = {(long int)(timeout_usec / 1000000),
                                 (long int)(timeout_usec % 1000000)};
-        int resultsize = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
+        int resultsize = select(connection->sockfd+1, &fdset, NULL,
+                                NULL, &tmptv);
 
         /* No result */
         if(resultsize == 0)
@@ -232,7 +234,8 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
+ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
+                          UA_Int32 newsockfd,
                           struct sockaddr_storage *remote) {
     /* Set nonblocking */
     socket_set_nonblocking(newsockfd);
@@ -244,8 +247,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
 
     /* Get the peer name for logging */
     char remote_name[100];
-    int res = getnameinfo((struct sockaddr*)remote, sizeof(struct sockaddr_storage),
-                          remote_name, sizeof(remote_name), NULL, 0, NI_NUMERICHOST);
+    int res = getnameinfo((struct sockaddr*)remote,
+                          sizeof(struct sockaddr_storage),
+                          remote_name, sizeof(remote_name),
+                          NULL, 0, NI_NUMERICHOST);
     if(res == 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New connection over TCP from %s",
@@ -253,7 +258,8 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     } else {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection %i | New connection over TCP, "
-                       "getnameinfo failed with errno %i", newsockfd, errno__);
+                       "getnameinfo failed with errno %i",
+                       newsockfd, errno__);
     }
 
     /* Allocate and initialize the connection */
@@ -344,6 +350,12 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 
 static UA_StatusCode
 ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
+#ifdef _WIN32
+    WORD wVersionRequested = MAKEWORD(2, 2);
+    WSADATA wsaData;
+    WSAStartup(wVersionRequested, &wsaData);
+#endif
+
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
     /* Get the discovery url from the hostname */
@@ -356,7 +368,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
                                      hostname, layer->port);
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
-                                        "opc.tcp://%s:%d", hostname, layer->port);
+                                        "opc.tcp://%s:%d", hostname,
+					layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
     }
@@ -442,7 +455,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             continue;
 
         UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | New connection over TCP on server socket %i",
+                    "Connection %i | New TCP connection on server socket %i",
                     newsockfd, layer->serverSockets[i]);
 
         ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd, &remote);
@@ -533,17 +546,10 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
-#ifdef _WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(2, 2);
-    WSAStartup(wVersionRequested, &wsaData);
-#endif
-
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    ServerNetworkLayerTCP *layer =
-        (ServerNetworkLayerTCP *)UA_calloc(1,sizeof(ServerNetworkLayerTCP));
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
+        UA_calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
 
@@ -563,7 +569,8 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 /***************************/
 
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
+UA_ClientConnectionTCP(UA_ConnectionConfig conf,
+                       const char *endpointUrl) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -591,7 +598,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
     char hostname[512];
 
     UA_StatusCode parse_retval =
-        UA_parseEndpointUrl(&endpointUrlString, &hostnameString, &port, &pathString);
+        UA_parseEndpointUrl(&endpointUrlString, &hostnameString,
+                            &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %s", endpointUrl);
@@ -625,7 +633,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
     }
 
     /* Get a socket */
-    SOCKET clientsockfd = socket(server->ai_family, server->ai_socktype,
+    SOCKET clientsockfd = socket(server->ai_family,
+                                 server->ai_socktype,
                                  server->ai_protocol);
 #ifdef _WIN32
     if(clientsockfd == INVALID_SOCKET) {
@@ -640,7 +649,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl) {
 
     /* Connect to the server */
     connection.sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
-    error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
+    error = connect(clientsockfd, server->ai_addr,
+                    WIN32_INT server->ai_addrlen);
     freeaddrinfo(server);
 
     if(error < 0) {
