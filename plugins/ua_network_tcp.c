@@ -111,6 +111,18 @@
 
 #include "ua_log_socket_error.h"
 
+/**
+ * When multithreading is disabled, the networking plugin uses a fixed buffer
+ * for sending/receiving. The same could be done with thread-local variables for
+ * the multi-threaded case as well. */
+#ifndef UA_ENABLE_MULTITHREADING
+# define FIXED_NETWORK_BUFFER true
+UA_ByteString sendBuffer;
+UA_ByteString recvBuffer;
+#else
+# define FIXED_NETWORK_BUFFER false
+#endif
+
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -120,19 +132,29 @@ connection_getsendbuffer(UA_Connection *connection,
                          size_t length, UA_ByteString *buf) {
     if(length > connection->remoteConf.recvBufferSize)
         return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+#ifdef FIXED_NETWORK_BUFFER
+    *buf = sendBuffer;
+    buf->length = length;
+    return UA_STATUSCODE_GOOD;
+#else
     return UA_ByteString_allocBuffer(buf, length);
+#endif
 }
 
 static void
 connection_releasesendbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
+#ifndef FIXED_NETWORK_BUFFER
     UA_ByteString_deleteMembers(buf);
+#endif
 }
 
 static void
 connection_releaserecvbuffer(UA_Connection *connection,
                              UA_ByteString *buf) {
+#ifndef FIXED_NETWORK_BUFFER
     UA_ByteString_deleteMembers(buf);
+#endif
 }
 
 static UA_StatusCode
@@ -162,7 +184,11 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     } while(nWritten < buf->length);
 
     /* Free the buffer */
+#ifdef FIXED_NETWORK_BUFFER
+    *buf = UA_BYTESTRING_NULL;
+#else
     UA_ByteString_deleteMembers(buf);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -192,23 +218,34 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
-    /* Get the received packet(s) */
-    ssize_t ret = recv(connection->sockfd, (char*)response->data,
-                       connection->localConf.recvBufferSize, 0);
-
-    /* The remote side closed the connection */
-    if(ret == 0) {
-        UA_ByteString_deleteMembers(response);
-        connection->close(connection);
-        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+#ifdef FIXED_NETWORK_BUFFER
+    size_t recvSize = recvBuffer.length;
+    response->data = recvBuffer.data;
+#else
+    size_t recvSize = connection->localConf.recvBufferSize;
+    response->data = (UA_Byte*)UA_malloc(recvSize);
+    if(!response->data) {
+        response->length = 0;
+        return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
+#endif
 
-    /* Error case */
-    if(ret < 0) {
+    /* Get the received packet(s) */
+    ssize_t ret = recv(connection->sockfd, (char*)response->data, recvSize, 0);
+
+    /* Error or the connection was closed */
+    if(ret <= 0) {
+#ifdef FIXED_NETWORK_BUFFER
+        *response = UA_BYTESTRING_NULL;
+#else
         UA_ByteString_deleteMembers(response);
-        if(errno__ == INTERRUPTED || (timeout > 0) ?
-           false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
-            return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
+#endif
+        /* Error case */
+        if(ret < 0) {
+            if(errno__ == INTERRUPTED || (timeout > 0) ?
+               false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
+                return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
+        }
         connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
@@ -433,7 +470,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                         layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
-    }else{    
+    }else{
         char hostname[256];
         if(gethostname(hostname, 255) == 0) {
             char discoveryUrl[256];
@@ -626,6 +663,12 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
         UA_free(e);
     }
 
+    /* Free the send/receive buffer */
+#ifdef FIXED_NETWORK_BUFFER
+    UA_ByteString_deleteMembers(&sendBuffer);
+    UA_ByteString_deleteMembers(&recvBuffer);
+#endif
+
     /* Free the layer */
     UA_free(layer);
 }
@@ -638,6 +681,18 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
         UA_calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
+
+#ifdef FIXED_NETWORK_BUFFER
+    if(!sendBuffer.data || !recvBuffer.data) {
+        UA_StatusCode retval = UA_ByteString_allocBuffer(&sendBuffer, conf.sendBufferSize);
+        retval |= UA_ByteString_allocBuffer(&recvBuffer, conf.recvBufferSize);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                         "Cannot allocate the send/receive buffer");
+            return nl;
+        }
+    }
+#endif
 
     layer->conf = conf;
     layer->port = port;
