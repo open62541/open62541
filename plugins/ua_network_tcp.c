@@ -369,7 +369,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
                                         "opc.tcp://%s:%d", hostname,
-					layer->port);
+                    layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
     }
