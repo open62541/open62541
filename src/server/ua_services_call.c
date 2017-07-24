@@ -68,10 +68,11 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
         (const UA_MethodNode*)UA_NodeStore_get(server->nodestore, &request->methodId);
     if(!methodCalled)
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-    if(methodCalled->nodeClass != UA_NODECLASS_METHOD)
+    else if(methodCalled->nodeClass != UA_NODECLASS_METHOD)
         result->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
-    if(!methodCalled->attachedMethod)
+    else if(!methodCalled->attachedMethod)
         result->statusCode = UA_STATUSCODE_BADINTERNALERROR;
+
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
