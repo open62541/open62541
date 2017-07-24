@@ -120,6 +120,15 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3
 Build Options
 -------------
 
+The open62541 project uses CMake to manage the build options, for code
+generation and to generate build projects for the different systems and IDEs.
+The tools *ccmake* or *cmake-gui* can be used to graphically set the build
+options.
+
+Most options can be changed manually in :file:`ua_config.h` (:file:`open62541.h`
+for the single-file release) after the code generation. But usually there is no
+need to adjust them.
+
 Build Type and Logging
 ^^^^^^^^^^^^^^^^^^^^^^
 
@@ -130,17 +139,15 @@ Build Type and Logging
   - ``MinSizeRel`` -Os optimization without debug symbols
 
 **UA_LOGLEVEL**
-   The level of logging events that are reported
+   The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
+   The logging event levels are as follows:
 
-     - 600: Fatal and all below
-     - 500: Error and all below
-     - 400: Error and all below
-     - 300: Info and all below
-     - 200: Debug and all below
-     - 100: Trace and all below
-
-Further options that are not inherited from the CMake configuration are defined
-in :file:`ua_config.h`. Usually there is no need to adjust them.
+     - 600: Fatal
+     - 500: Error
+     - 400: Warning
+     - 300: Info
+     - 200: Debug
+     - 100: Trace
 
 UA_BUILD_* group
 ^^^^^^^^^^^^^^^^
@@ -173,7 +180,7 @@ This group contains build options related to the supported OPC UA features.
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release files :file:`open62541.c` and :file:`open62541.h`
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`
 **UA_ENABLE_MULTITHREADING**
    Enable multi-threading support
 **UA_ENABLE_COVERAGE**
@@ -183,7 +190,9 @@ Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
 **UA_ENABLE_TYPENAMES**
-   Add the type and member names to the UA_DataType structure
+   Add the type and member names to the UA_DataType structure. Enabled by default.
+**UA_ENABLE_STATUSCODE_DESCRIPTIONS**
+   Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
 **UA_ENABLE_GENERATE_NAMESPACE0**
    Generate and load UA XML Namespace 0 definition
    ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
@@ -197,5 +206,26 @@ be visible in the cmake GUIs.
 Building a shared library
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-open62541 is small enough that most users will want to statically link the library into their programs. If a shared library (.dll, .so) is required, this can be enabled in CMake with the `BUILD_SHARED_LIBS` option.
-Note that this option modifies the :file:`ua_config.h` file that is also included in :file:`open62541.h` for the single-file distribution.
+open62541 is small enough that most users will want to statically link the
+library into their programs. If a shared library (.dll, .so) is required, this
+can be enabled in CMake with the ``BUILD_SHARED_LIBS`` option. Note that this
+option modifies the :file:`ua_config.h` file that is also included in
+:file:`open62541.h` for the single-file distribution.
+
+
+Minimizing the binary size
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The size of the generated binary can be reduced considerably by adjusting the
+build configuration. First, in CMake, the build type can be set to
+``CMAKE_BUILD_TYPE=MinSizeRel``. This sets the compiler flags to minimize the
+binary size. The build type also strips out debug information. Second, the
+binary size can be reduced by removing features via the build-flags described
+above.
+
+Especially, logging takes up a lot of space in the binary and might not be
+needed in embedded scenarios. Setting ``UA_LOGLEVEL`` to a value above 600
+(=FATAL) disables all logging. In addition, the feature-flags
+``UA_ENABLE_TYPENAMES`` and ``UA_ENABLE_STATUSCODE_DESCRIPTIONS`` add static
+information to the binary that is only used for human-readable logging and
+debugging.
