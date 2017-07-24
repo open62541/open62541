@@ -242,8 +242,11 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
 
     /* Do not merge packets on the socket (disable Nagle's algorithm) */
     int dummy = 1;
-    setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
-               (const char *)&dummy, sizeof(dummy));
+    if (setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
+               (const char *)&dummy, sizeof(dummy)) < 0) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Cannot set socket option TCP_NODELAY. Error: %s", strerror(errno));
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
 
     /* Get the peer name for logging */
     char remote_name[100];
@@ -436,7 +439,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
-    select(highestfd+1, &fdset, NULL, &errset, &tmptv);
+    if (select(highestfd+1, &fdset, NULL, &errset, &tmptv) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Socket select failed with %s", strerror(errno));
+    }
 
     /* Accept new connections via the server sockets */
     for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
