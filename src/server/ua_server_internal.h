@@ -478,6 +478,14 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 void UA_Server_createNS0(UA_Server *server);
 #endif
 
+/**********************/
+/* Namespace Handling */
+/**********************/
+
+UA_StatusCode
+replaceNamespaceArray_server(UA_Server * server,
+        					 UA_String * newNsUris, size_t newNsSize);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

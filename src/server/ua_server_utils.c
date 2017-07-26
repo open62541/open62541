@@ -226,7 +226,7 @@ getVariableNodeType(UA_Server *server, const UA_VariableNode *node) {
     UA_NodeId vtId;
     getNodeType(server, (const UA_Node*)node, &vtId);
 
-    const UA_Node *vt = UA_NodestoreSwitch_get(server->nodestore, &vtId);
+    const UA_Node *vt = UA_NodestoreSwitch_getNode(server, &vtId);
     if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE) {
         UA_NodestoreSwitch_releaseNode(server, vt);
         vt = NULL;
@@ -241,7 +241,7 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node) {
     UA_NodeId otId;
     getNodeType(server, (const UA_Node*)node, &otId);
 
-    const UA_Node *ot = UA_NodestoreSwitch_get(server->nodestore, &otId);
+    const UA_Node *ot = UA_NodestoreSwitch_getNode(server, &otId);
     if(!ot || ot->nodeClass != UA_NODECLASS_OBJECTTYPE) {
         UA_NodestoreSwitch_releaseNode(server, ot);        
         ot = NULL;

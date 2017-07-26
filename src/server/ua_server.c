@@ -23,113 +23,6 @@ UA_THREAD_LOCAL bool rcu_locked = false;
 /* Namespace Handling */
 /**********************/
 
-static UA_StatusCode
-replaceNamespaceArray_server(UA_Server * server,
-        UA_String * newNsUris, size_t newNsSize){
-
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Changing the servers namespace array with new length: %i.", newNsSize);
-    /* Check if new namespace uris are unique */
-    for(size_t i = 0 ; i < newNsSize-1 ; ++i){
-        for(size_t j = i+1 ; j < newNsSize ; ++j){
-            if(UA_String_equal(&newNsUris[i], &newNsUris[j])){
-                return UA_STATUSCODE_BADINVALIDARGUMENT;
-            }
-        }
-    }
-
-    /* Announce changing process */
-    //TODO set lock flag
-    size_t oldNsSize = server->namespacesSize;
-    server->namespacesSize = 0;
-
-    /* Alloc new NS Array  */
-    UA_Namespace * newNsArray = (UA_Namespace*)UA_malloc(newNsSize * sizeof(UA_Namespace));
-    if(!newNsArray)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    /* Alloc new index mapping array. Old ns index --> new ns index */
-    size_t* oldNsIdxToNewNsIdx = (size_t*)UA_malloc(oldNsSize * sizeof(size_t));
-    if(!oldNsIdxToNewNsIdx){
-        UA_free(newNsArray);
-        server->namespacesSize = oldNsSize;
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    //Fill oldNsIdxToNewNsIdx with default values
-    for(size_t i = 0 ; i < oldNsSize ; ++i){
-        oldNsIdxToNewNsIdx[i] = (size_t)UA_NAMESPACE_UNDEFINED;
-    }
-
-    /* Search for old ns and copy it. If not found add a new namespace with default values. */
-    //TODO forbid change of namespace 0?
-    for(size_t newIdx = 0 ; newIdx < newNsSize ; ++newIdx){
-        UA_Boolean nsExists = UA_FALSE;
-        for(size_t oldIdx = 0 ; oldIdx < oldNsSize ; ++oldIdx){
-            if(UA_String_equal(&newNsUris[newIdx], &server->namespaces[oldIdx].uri)){
-                nsExists = UA_TRUE;
-                newNsArray[newIdx] = server->namespaces[oldIdx];
-                oldNsIdxToNewNsIdx[oldIdx] = newIdx; //Mark as already copied
-                break;
-            }
-        }
-        if(nsExists == UA_FALSE){
-            UA_Namespace_init(&newNsArray[newIdx], &newNsUris[newIdx]);
-        }
-    }
-
-    /* Update the namespace indices in data types, new namespaces and nodestores. Set default nodestores */
-    UA_Namespace_updateNodestores(newNsArray,newNsSize,
-                                  oldNsIdxToNewNsIdx, oldNsSize);
-    for(size_t newIdx = 0 ; newIdx < newNsSize ; ++newIdx){
-        UA_Namespace_updateDataTypes(&newNsArray[newIdx], NULL, (UA_UInt16)newIdx);
-        newNsArray[newIdx].index = (UA_UInt16)newIdx;
-        if(!newNsArray[newIdx].nodestore){
-            newNsArray[newIdx].nodestore = server->nodestore_std;
-            newNsArray[newIdx].nodestore->linkNamespace(newNsArray[newIdx].nodestore->handle, (UA_UInt16)newIdx);
-        }
-    }
-
-    /* Delete old unused namespaces */
-    for(size_t i = 0; i<oldNsSize; ++i){
-        if(oldNsIdxToNewNsIdx[i] == (size_t)UA_NAMESPACE_UNDEFINED)
-            UA_Namespace_deleteMembers(&server->namespaces[i]);
-    }
-
-    /* Cleanup, copy new namespace array to server and make visible */
-    UA_free(oldNsIdxToNewNsIdx);
-    UA_free(server->namespaces);
-    server->namespaces = newNsArray;
-    server->namespacesSize = newNsSize;
-    //TODO make multithreading save and do at last step --> add real namespace array size as parameter or lock namespacearray?
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-                const UA_NumericRange *range) {
-    UA_Server *server = (UA_Server*)handle;
-
-    /* Check the data type */
-    if(data->type != &UA_TYPES[UA_TYPES_STRING])
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Check that the variant is not empty */
-    if(!data->data)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* TODO: Writing with a range is not implemented */
-    if(range)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-
-    /* Reorder and replace the namespaces with all consequences */
-    UA_StatusCode retval = replaceNamespaceArray_server(server,
-            (UA_String *)data->data, (size_t)data->arrayLength);
-
-    if(retval == UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_GOODEDITED; //Don't return good, as namespace array could be moved
-    return retval;
-}
-
 static void
 changeNamespace_server(UA_Server * server, UA_Namespace* newNs,  size_t newNsIdx){
     //change Nodestore
@@ -430,7 +323,6 @@ UA_Server_new(const UA_ServerConfig config) {
 
     server->config = config;
     server->startTime = UA_DateTime_now();
-    server->nodestore = UA_NodeStore_new();
 
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
@@ -458,11 +350,26 @@ UA_Server_new(const UA_ServerConfig config) {
     cds_lfs_init(&server->mainLoopJobs);
 #endif
 
-    /* Create Namespaces 0 and 1 */
-    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
-    server->namespacesSize = 2;
+    /* Initialize a default nodestoreInterface for namespaces */
+    server->nodestore_std = (UA_NodestoreInterface*)UA_malloc(sizeof(UA_NodestoreInterface));
+    *server->nodestore_std = UA_Nodestore_standard();
+    /* Namespace0 and Namespace1 initialization */
+    //TODO move to UA_ServerConfig_standard as namespace array of size2
+    UA_Namespace *ns0 = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
+    ns0->dataTypes = UA_TYPES;
+    ns0->dataTypesSize = UA_TYPES_COUNT;
+    UA_Server_addNamespace_full(server, ns0);
+    UA_Namespace_deleteMembers(ns0);
+    UA_free(ns0);
+
+    UA_Namespace *ns1 = UA_Namespace_new(&config.applicationDescription.applicationUri);
+    UA_Server_addNamespace_full(server, ns1);
+    UA_Namespace_deleteMembers(ns1);
+    UA_free(ns1);
+    /* Custom configuration of Namespaces at beginning overrides defaults.*/
+    for(size_t i = 0 ; i < config.namespacesSize ; ++i){
+        UA_Server_addNamespace_full(server, &config.namespaces[i]);
+    }
 
     /* Create Endpoint Definitions */
     addEndpointDefinitions(server);

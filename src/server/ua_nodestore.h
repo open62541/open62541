@@ -9,8 +9,8 @@
 extern "C" {
 #endif
 
-#include "ua_nodes.h"
 #include "ua_nodestore_interface.h"
+#include "ua_nodes.h"
 
 /**
  * Nodestore
