@@ -202,7 +202,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
             return;
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | Sending a KeepAlive",
-                             sub->subscriptionID)
+                             sub->subscriptionID);
     }
 
     /* Check if the securechannel is valid */
@@ -217,7 +217,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     if(!pre) {
         UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
                              "Subscription %u | Cannot send a publish response "
-                             "since the publish queue is empty", sub->subscriptionID)
+                             "since the publish queue is empty", sub->subscriptionID);
         if(sub->state != UA_SUBSCRIPTIONSTATE_LATE) {
             sub->state = UA_SUBSCRIPTIONSTATE_LATE;
         } else {

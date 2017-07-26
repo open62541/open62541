@@ -105,7 +105,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing FindServersRequest", NULL);
+                         "Processing FindServersRequest");
 
     size_t foundServersSize = 0;
     UA_ApplicationDescription *foundServers = NULL;
@@ -242,7 +242,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                              UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
     } else {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "Processing GetEndpointsRequest with an empty endpointUrl", NULL);
+                             "Processing GetEndpointsRequest with an empty endpointUrl");
     }
 
     /* test if the supported binary profile shall be returned */
@@ -386,10 +386,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        char* filePath = (char *)UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        char* filePath = (char*)
+            UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         if (!filePath) {
             UA_LOG_ERROR_SESSION(server->config.logger, session,
-                                   "Cannot allocate memory for semaphore path. Out of memory.", NULL);
+                                   "Cannot allocate memory for semaphore path. Out of memory.");
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
@@ -485,7 +486,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing RegisterServerRequest", NULL);
+                         "Processing RegisterServerRequest");
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -494,7 +495,7 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing RegisterServer2Request", NULL);
+                         "Processing RegisterServer2Request");
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,

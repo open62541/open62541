@@ -27,7 +27,7 @@ readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32 *) handle, &UA_TYPES[UA_TYPES_INT32]);
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
-                nodeid.identifier.string.length, nodeid.identifier.string.data);
+                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32 *) handle);
     return UA_STATUSCODE_GOOD;
 }
@@ -40,7 +40,7 @@ writeInteger(void *handle, const UA_NodeId nodeid,
     }
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
-                nodeid.identifier.string.length, nodeid.identifier.string.data);
+                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "written value %i", *(UA_UInt32 *) handle);
     return UA_STATUSCODE_GOOD;
 }
@@ -73,7 +73,7 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
     // the serverOnNetwork to make sure you are registering with the correct
     // LDS. We will ignore this for now
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
-                serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
+                (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
     if (discovery_url != NULL)
         UA_free(discovery_url);
