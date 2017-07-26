@@ -119,7 +119,7 @@ int main(void) {
         if (description->discoveryUrlsSize == 0) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT,
                         "[GetEndpoints] Server %.*s did not provide any discovery urls. Skipping.",
-                        description->applicationUri);
+                        (int)description->applicationUri.length, description->applicationUri.data);
             continue;
         }
 

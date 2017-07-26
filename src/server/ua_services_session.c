@@ -32,7 +32,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Processing CreateSessionRequest failed", NULL);
+                             "Processing CreateSessionRequest failed");
         return;
     }
 
@@ -83,7 +83,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Detach the old SecureChannel */
     if(session->channel && session->channel != channel) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: Detach from old channel", NULL);
+                            "ActivateSession: Detach from old channel");
         UA_SecureChannel_detachSession(session->channel, session);
     }
 
@@ -92,14 +92,14 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     session->activated = true;
     UA_Session_updateLifetime(session);
     UA_LOG_INFO_SESSION(server->config.logger, session,
-                        "ActivateSession: Session activated", NULL);
+                        "ActivateSession: Session activated");
 }
 
 void
-Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
+Service_CloseSession(UA_Server *server, UA_Session *session,
+                     const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOG_INFO_SESSION(server->config.logger, session,
-                        "CloseSession", NULL);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
     /* Callback into userland access control */
     server->config.accessControl.closeSession(&session->sessionId, session->sessionHandle);
     response->responseHeader.serviceResult =

@@ -760,7 +760,7 @@ processServiceResponse(SyncResponseDescription *rd, UA_SecureChannel *channel,
         UA_TcpErrorMessage *msg = (UA_TcpErrorMessage*)message;
         UA_LOG_ERROR(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Server replied with an error message: %s %.*s",
-                     UA_StatusCode_name(msg->error), msg->reason.length,
+                     UA_StatusCode_name(msg->error), (int)msg->reason.length,
                      msg->reason.data);
         retval = msg->error;
         goto finish;

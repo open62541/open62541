@@ -48,7 +48,7 @@ typedef enum {
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
                           const char *msg, va_list args);
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
     va_list args; va_start(args, msg);
@@ -57,7 +57,7 @@ UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 200
     va_list args; va_start(args, msg);
@@ -66,7 +66,7 @@ UA_LOG_DEBUG(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 300
     va_list args; va_start(args, msg);
@@ -75,7 +75,7 @@ UA_LOG_INFO(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 400
     va_list args; va_start(args, msg);
@@ -84,7 +84,7 @@ UA_LOG_WARNING(UA_Logger logger, UA_LogCategory category, const char *msg, ...) 
 #endif
 }
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 500
     va_list args; va_start(args, msg);
@@ -93,7 +93,7 @@ UA_LOG_ERROR(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #endif
 }
 
-static UA_INLINE void
+static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 600
     va_list args; va_start(args, msg);
@@ -111,7 +111,7 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
 
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
-#define UA_PRINTF_STRING_DATA(STRING) (STRING).length, (STRING).data
+#define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
 #ifdef __cplusplus
 } // extern "C"

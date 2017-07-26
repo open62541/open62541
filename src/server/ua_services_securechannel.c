@@ -42,6 +42,7 @@ void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
 /* The server does not send a CloseSecureChannel response */
 void Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-                        "CloseSecureChannel", NULL);
-    UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
+                        "CloseSecureChannel");
+    UA_SecureChannelManager_close(&server->secureChannelManager,
+                                  channel->securityToken.channelId);
 }

@@ -273,7 +273,7 @@ void mdns_record_received(const struct resource *r, void *data) {
     if(r->ttl == 0) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Multicast DNS: remove server (TTL=0): %.*s",
-                    entry->serverOnNetwork.discoveryUrl.length,
+                    (int)entry->serverOnNetwork.discoveryUrl.length,
                     entry->serverOnNetwork.discoveryUrl.data);
         mdns_record_remove(server, r->name, entry);
         return;
