@@ -3,55 +3,73 @@
 
 #include "ua_accesscontrol_default.h"
 
-/* We allow login anonymous and with the following username / password. The
- * access rights are maximally permissive in this example plugin. */
+/* Example access control management. Anonymous and username / password login.
+ * The access rights are maximally permissive. */
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
 
+// TODO: There should be one definition of these strings in the endpoint.
+// Put the endpoint definition in the access control struct?
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 const UA_String anonymous_policy = UA_STRING_STATIC(ANONYMOUS_POLICY);
 const UA_String username_policy = UA_STRING_STATIC(USERNAME_POLICY);
 
+typedef struct {
+    UA_String username;
+    UA_String password;
+} UA_UsernamePasswordLogin;
+
+const size_t usernamePasswordsSize = 2;
+UA_UsernamePasswordLogin usernamePasswords[2] = {
+    { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
+    { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
+
 UA_StatusCode
-activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *userIdentityToken,
+activateSession_default(const UA_NodeId *sessionId,
+                        const UA_ExtensionObject *userIdentityToken,
                         void **sessionHandle) {
     /* Could the token be decoded? */
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-    /* anonymous login */
-    if(enableAnonymousLogin &&
-       userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken *)userIdentityToken->content.decoded.data;
+    /* Anonymous login */
+    if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        const UA_AnonymousIdentityToken *token =
+            (UA_AnonymousIdentityToken*)userIdentityToken->content.decoded.data;
 
         /* Compatibility notice: Siemens OPC Scout v10 provides an empty
-         * policyId. This is not compliant. For compatibility we will assume
-         * that empty policyId == ANONYMOUS_POLICY */
-        if(token->policyId.data && !UA_String_equal(&token->policyId, &anonymous_policy))
+         * policyId. This is not compliant. For compatibility, assume that empty
+         * policyId == ANONYMOUS_POLICY */
+        if(token->policyId.data &&
+           !UA_String_equal(&token->policyId, &anonymous_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
+        /* No userdata atm */
         *sessionHandle = NULL;
         return UA_STATUSCODE_GOOD;
     }
 
-    /* username and password */
-    if(enableUsernamePasswordLogin &&
-       userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken *)userIdentityToken->content.decoded.data;
-        if(!UA_String_equal(&token->policyId, &username_policy))
+    /* Username and password */
+    if(userIdentityToken->content.decoded.type ==
+       &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *token =
+            (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+        if(!UA_String_equal(&token->policyId, &username_policy) || token->encryptionAlgorithm.length > 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        /* empty username and password */
+        /* Empty username and password */
         if(token->userName.length == 0 && token->password.length == 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        /* trying to match pw/username */
+        /* Try to match username/pw */
         UA_Boolean match = false;
         for(size_t i = 0; i < usernamePasswordsSize; i++) {
             const UA_String *user = &usernamePasswords[i].username;
             const UA_String *pw = &usernamePasswords[i].password;
-            if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
+            if(UA_String_equal(&token->userName, user) &&
+               UA_String_equal(&token->password, pw)) {
                 match = true;
                 break;
             }
@@ -59,6 +77,7 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
+        /* No userdata atm */
         *sessionHandle = NULL;
         return UA_STATUSCODE_GOOD;
     }
@@ -68,47 +87,64 @@ activateSession_default(const UA_NodeId *sessionId, const UA_ExtensionObject *us
 }
 
 void
-closeSession_default(const UA_NodeId *sessionId, void *sessionHandle) {
+closeSession_default(const UA_NodeId *sessionId,
+                     void *sessionHandle) {
     /* no handle to clean up */
 }
 
 UA_UInt32
-getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId) {
+getUserRightsMask_default(const UA_NodeId *sessionId,
+                          void *sessionHandle,
+                          const UA_NodeId *nodeId) {
     return 0xFFFFFFFF;
 }
 
 UA_Byte
-getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId) {
+getUserAccessLevel_default(const UA_NodeId *sessionId,
+                           void *sessionHandle,
+                           const UA_NodeId *nodeId) {
     return 0xFF;
 }
 
 UA_Boolean
-getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *nodeId) {
+getUserExecutable_default(const UA_NodeId *sessionId,
+                          void *sessionHandle,
+                          const UA_NodeId *nodeId) {
     return true;
 }
 
 UA_Boolean
-getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionHandle,
-                                  const UA_NodeId *methodId, const UA_NodeId *objectId) {
+getUserExecutableOnObject_default(const UA_NodeId *sessionId,
+                                  void *sessionHandle,
+                                  const UA_NodeId *methodId,
+                                  const UA_NodeId *objectId) {
     return true;
 }
 
 UA_Boolean
-allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddNodesItem *item) {
+allowAddNode_default(const UA_NodeId *sessionId,
+                     void *sessionHandle,
+                     const UA_AddNodesItem *item) {
     return true;
 }
 
 UA_Boolean
-allowAddReference_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_AddReferencesItem *item) {
+allowAddReference_default(const UA_NodeId *sessionId,
+                          void *sessionHandle,
+                          const UA_AddReferencesItem *item) {
     return true;
 }
 
 UA_Boolean
-allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteNodesItem *item) {
+allowDeleteNode_default(const UA_NodeId *sessionId,
+                        void *sessionHandle,
+                        const UA_DeleteNodesItem *item) {
     return true;
 }
       
 UA_Boolean
-allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionHandle, const UA_DeleteReferencesItem *item) {
+allowDeleteReference_default(const UA_NodeId *sessionId,
+                             void *sessionHandle,
+                             const UA_DeleteReferencesItem *item) {
     return true;
 }

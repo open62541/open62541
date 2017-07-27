@@ -852,7 +852,7 @@ class testing_open62541_header:
     code = self.namespace.printOpen62541Header()
 
     codeout = open("./open62541_namespace.c", "w+")
-    for line in code[0]:
+    for line in code:
       codeout.write(line + "\n")
     codeout.close()
 

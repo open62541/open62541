@@ -12,20 +12,14 @@
 #endif
 
 #include "ua_network_tcp.h"
+#include "ua_log_stdout.h"
+#include "queue.h"
 
-#include <stdlib.h> // malloc, free
 #include <stdio.h> // snprintf
 #include <string.h> // memset
 #include <errno.h>
-#if UNDER_CE
-#define errno WSAGetLastError()
-#endif
+
 #ifdef _WIN32
-# ifndef __clang__
-#  include <malloc.h>
-# endif
-/* inet_ntoa is deprecated on MSVC but used for compatibility */
-# define _WINSOCK_DEPRECATED_NO_WARNINGS
 # include <winsock2.h>
 # include <ws2tcpip.h>
 # define CLOSESOCKET(S) closesocket((SOCKET)S)
@@ -57,7 +51,8 @@
 #endif
 
 /* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using musl libc (e.g. Docker Alpine) */
+/* Additionally if GNU_LIBRARY is not defined, it may be using 
+ * musl libc (e.g. Docker Alpine) */
 #if defined(_WIN32) || defined(__OpenBSD__) || \
     (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
      (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
@@ -69,12 +64,12 @@
 # define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
-#ifdef UA_ENABLE_MULTITHREADING
-# include <urcu/uatomic.h>
+#ifdef UNDER_CE
+# define errno WSAGetLastError()
 #endif
 
 #ifdef _WIN32
-#define errno__ WSAGetLastError()
+# define errno__ WSAGetLastError()
 # define INTERRUPTED WSAEINTR
 # define WOULDBLOCK WSAEWOULDBLOCK
 # define AGAIN WSAEWOULDBLOCK
@@ -89,71 +84,76 @@
 /* Generic Socket Functions */
 /****************************/
 
+/* This performs only 'shutdown'. 'close' is called after the next
+ * recv on the socket. */
 static void
-socket_close(UA_Connection *connection) {
+connection_close(UA_Connection *connection) {
+    shutdown((SOCKET)connection->sockfd, 2);
     connection->state = UA_CONNECTION_CLOSED;
-    shutdown((SOCKET)connection->sockfd,2);
-    CLOSESOCKET(connection->sockfd);
 }
 
 static UA_StatusCode
-socket_write(UA_Connection *connection, UA_ByteString *buf) {
+connection_getsendbuffer(UA_Connection *connection,
+                         size_t length, UA_ByteString *buf) {
+    if(length > connection->remoteConf.recvBufferSize)
+        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
+    return UA_ByteString_allocBuffer(buf, length);
+}
+
+static void
+connection_releasesendbuffer(UA_Connection *connection,
+                             UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
+}
+
+static void
+connection_releaserecvbuffer(UA_Connection *connection,
+                             UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
+}
+
+static UA_StatusCode
+connection_write(UA_Connection *connection, UA_ByteString *buf) {
+    /* Prevent OS signals when sending to a closed socket */
+    int flags = 0;
+#ifdef MSG_NOSIGNAL
+    flags |= MSG_NOSIGNAL;
+#endif
+
+    /* Send the full buffer. This may require several calls to send */
     size_t nWritten = 0;
     do {
         ssize_t n = 0;
         do {
-        /* If the OS throws EMSGSIZE, force a smaller packet size:
-         * size_t bytes_to_send = buf->length - nWritten >  1024 ? 1024 : buf->length - nWritten; */
             size_t bytes_to_send = buf->length - nWritten;
-            n = send((SOCKET)connection->sockfd, (const char*)buf->data + nWritten,
-                     WIN32_INT bytes_to_send, 0);
+            n = send((SOCKET)connection->sockfd,
+                     (const char*)buf->data + nWritten,
+                     WIN32_INT bytes_to_send, flags);
             if(n < 0 && errno__ != INTERRUPTED && errno__ != AGAIN) {
-                connection->close(connection);
-                socket_close(connection);
+                connection_close(connection);
                 UA_ByteString_deleteMembers(buf);
                 return UA_STATUSCODE_BADCONNECTIONCLOSED;
             }
         } while(n < 0);
         nWritten += (size_t)n;
     } while(nWritten < buf->length);
+
+    /* Free the buffer */
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout) {
-    response->data = (UA_Byte *)malloc(connection->localConf.recvBufferSize);
+connection_recv(UA_Connection *connection, UA_ByteString *response,
+                UA_UInt32 timeout) {
+    response->data =
+        (UA_Byte*)UA_malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
-    if(timeout > 0) {
-        /* currently, only the client uses timeouts */
-#ifndef _WIN32
-        UA_UInt32 timeout_usec = timeout * 1000;
-# ifdef __APPLE__
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000), timeout_usec % 1000000};
-# else
-        struct timeval tmptv = {(long int)(timeout_usec / 1000000), (long int)(timeout_usec % 1000000)};
-# endif
-        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-                             (const char *)&tmptv, sizeof(struct timeval));
-#else
-        DWORD timeout_dw = timeout;
-        int ret = setsockopt(connection->sockfd, SOL_SOCKET, SO_RCVTIMEO,
-                             (const char*)&timeout_dw, sizeof(DWORD));
-#endif
-        if(0 != ret) {
-            UA_ByteString_deleteMembers(response);
-            socket_close(connection);
-            return UA_STATUSCODE_BADCONNECTIONCLOSED;
-        }
-    }
-
-#ifdef __CYGWIN__
-    /* Workaround for https://cygwin.com/ml/cygwin/2013-07/msg00107.html */
-    ssize_t ret;
+    /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
         FD_ZERO(&fdset);
@@ -161,45 +161,41 @@ socket_recv(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeou
         UA_UInt32 timeout_usec = timeout * 1000;
         struct timeval tmptv = {(long int)(timeout_usec / 1000000),
                                 (long int)(timeout_usec % 1000000)};
-        int retval = select(connection->sockfd+1, &fdset, NULL, NULL, &tmptv);
-        if(retval && UA_fd_isset(connection->sockfd, &fdset)) {
-            ret = recv(connection->sockfd, (char*)response->data,
-                       connection->localConf.recvBufferSize, 0);
-        } else {
-            ret = 0;
-        }
-    } else {
-        ret = recv(connection->sockfd, (char*)response->data,
-                   connection->localConf.recvBufferSize, 0);
+        int resultsize = select(connection->sockfd+1, &fdset, NULL,
+                                NULL, &tmptv);
+
+        /* No result */
+        if(resultsize == 0)
+            return UA_STATUSCODE_GOOD;
     }
-#else
+
+    /* Get the received packet(s) */
     ssize_t ret = recv(connection->sockfd, (char*)response->data,
                        connection->localConf.recvBufferSize, 0);
-#endif
 
-    /* server has closed the connection */
+    /* The remote side closed the connection */
     if(ret == 0) {
         UA_ByteString_deleteMembers(response);
-        socket_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    /* error case */
+    /* Error case */
     if(ret < 0) {
         UA_ByteString_deleteMembers(response);
         if(errno__ == INTERRUPTED || (timeout > 0) ?
            false : (errno__ == EAGAIN || errno__ == WOULDBLOCK))
             return UA_STATUSCODE_GOOD; /* statuscode_good but no data -> retry */
-        socket_close(connection);
+        connection_close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
-    
-    /* default case */
+
+    /* Set the length of the received buffer */
     response->length = (size_t)ret;
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode socket_set_nonblocking(SOCKET sockfd) {
+static UA_StatusCode
+socket_set_nonblocking(SOCKET sockfd) {
 #ifdef _WIN32
     u_long iMode = 1;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
@@ -212,171 +208,160 @@ static UA_StatusCode socket_set_nonblocking(SOCKET sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void FreeConnectionCallback(UA_Server *server, void *ptr) {
-    UA_Connection_deleteMembers((UA_Connection*)ptr);
-    free(ptr);
- }
-
 /***************************/
 /* Server NetworkLayer TCP */
 /***************************/
 
-/**
- * For the multithreaded mode, assume a single thread that periodically "gets
- * work" from the network layer. In addition, several worker threads are
- * asynchronously calling into the callbacks of the UA_Connection that holds a
- * single connection.
- *
- * Creating a connection: When "GetJobs" encounters a new connection, it creates
- * a UA_Connection with the socket information. This is added to the mappings
- * array that links sockets to UA_Connection structs.
- *
- * Reading data: In "GetJobs", we listen on the sockets in the mappings array.
- * If data arrives (or the connection closes), a WorkItem is created that
- * carries the work and a pointer to the connection.
- *
- * Closing a connection: Closing can happen in two ways. Either it is triggered
- * by the server in an asynchronous callback. Or the connection is close by the
- * client and this is detected in "GetJobs". The server needs to do some
- * internal cleanups (close attached securechannels, etc.). So even when a
- * closed connection is detected in "GetJobs", we trigger the server to close
- * the connection (with a WorkItem) and continue from the callback.
- *
- * - Server calls close-callback: We close the socket, set the connection-state
- *   to closed and add the connection to a linked list from which it is deleted
- *   later. The connection cannot be freed right away since other threads might
- *   still be using it.
- *
- * - GetJobs: We remove the connection from the mappings array. In the
- *   non-multithreaded case, the connection is freed. For multithreading, we
- *   return a workitem that is delayed, i.e. that is called only after all
- *   workitems created before are finished in all threads. This workitems
- *   contains a callback that goes through the linked list of connections to be
- *   freed. */
-
 #define MAXBACKLOG 100
 
-typedef struct {
-  UA_Connection *connection;
-  UA_Int32 sockfd;
-} ConnectionMapping;
+typedef struct ConnectionEntry {
+    UA_Connection connection;
+    LIST_ENTRY(ConnectionEntry) pointers;
+} ConnectionEntry;
 
 typedef struct {
     UA_ConnectionConfig conf;
     UA_UInt16 port;
-    UA_Logger logger; // Set during start
-
-    /* open sockets and connections */
-    UA_Int32 serversockfd;
-    size_t mappingsSize;
-    ConnectionMapping *mappings;
+    UA_Int32 serverSockets[FD_SETSIZE];
+    UA_UInt16 serverSocketsSize;
+    LIST_HEAD(, ConnectionEntry) connections;
 } ServerNetworkLayerTCP;
 
+static void
+ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
+    UA_Connection_deleteMembers(connection);
+    UA_free(connection);
+}
+
 static UA_StatusCode
-ServerNetworkLayerGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    if(length > connection->remoteConf.recvBufferSize)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    return UA_ByteString_allocBuffer(buf, length);
-}
+ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
+                          UA_Int32 newsockfd,
+                          struct sockaddr_storage *remote) {
+    /* Set nonblocking */
+    socket_set_nonblocking(newsockfd);
 
-static void
-ServerNetworkLayerReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
-}
-
-static void
-ServerNetworkLayerReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
-}
-
-/* after every select, we need to reset the sockets we want to listen on */
-static UA_Int32
-setFDSet(ServerNetworkLayerTCP *layer, fd_set *fdset) {
-    FD_ZERO(fdset);
-    UA_fd_set(layer->serversockfd, fdset);
-    UA_Int32 highestfd = layer->serversockfd;
-    for(size_t i = 0; i < layer->mappingsSize; ++i) {
-        UA_fd_set(layer->mappings[i].sockfd, fdset);
-        if(layer->mappings[i].sockfd > highestfd)
-            highestfd = layer->mappings[i].sockfd;
+    /* Do not merge packets on the socket (disable Nagle's algorithm) */
+    int dummy = 1;
+    if (setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
+               (const char *)&dummy, sizeof(dummy)) < 0) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Cannot set socket option TCP_NODELAY. Error: %s", strerror(errno));
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    return highestfd;
-}
 
-/* callback triggered from the server */
-static void
-ServerNetworkLayerTCP_closeConnection(UA_Connection *connection) {
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_xchg(&connection->state, UA_CONNECTION_CLOSED) == UA_CONNECTION_CLOSED)
-        return;
-#else
-    if(connection->state == UA_CONNECTION_CLOSED)
-        return;
-    connection->state = UA_CONNECTION_CLOSED;
-#endif
-#if UA_LOGLEVEL <= 300
-   //cppcheck-suppress unreadVariable
-    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)connection->handle;
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                "Connection %i | Force closing the connection",
-                connection->sockfd);
-#endif
-    /* only "shutdown" here. this triggers the select, where the socket is
-       "closed" in the mainloop */
-    shutdown(connection->sockfd, 2);
-}
-
-/* call only from the single networking thread */
-static UA_StatusCode
-ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd) {
-    UA_Connection *c = (UA_Connection *)malloc(sizeof(UA_Connection));
-    if(!c)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    struct sockaddr_in addr;
-    socklen_t addrlen = sizeof(struct sockaddr_in);
-    int res = getpeername(newsockfd, (struct sockaddr*)&addr, &addrlen);
+    /* Get the peer name for logging */
+    char remote_name[100];
+    int res = getnameinfo((struct sockaddr*)remote,
+                          sizeof(struct sockaddr_storage),
+                          remote_name, sizeof(remote_name),
+                          NULL, 0, NI_NUMERICHOST);
     if(res == 0) {
-        UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | New connection over TCP from %s:%d",
-                    newsockfd, inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | New connection over TCP from %s",
+                    newsockfd, remote_name);
     } else {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection %i | New connection over TCP, "
-                       "getpeername failed with errno %i", newsockfd, errno);
+                       "getnameinfo failed with errno %i",
+                       newsockfd, errno__);
     }
+
+    /* Allocate and initialize the connection */
+    ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
+    if(!e)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_Connection *c = &e->connection;
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
     c->handle = layer;
     c->localConf = layer->conf;
     c->remoteConf = layer->conf;
-    c->send = socket_write;
-    c->close = ServerNetworkLayerTCP_closeConnection;
-    c->getSendBuffer = ServerNetworkLayerGetSendBuffer;
-    c->releaseSendBuffer = ServerNetworkLayerReleaseSendBuffer;
-    c->releaseRecvBuffer = ServerNetworkLayerReleaseRecvBuffer;
+    c->send = connection_write;
+    c->close = connection_close;
+    c->free = ServerNetworkLayerTCP_freeConnection;
+    c->getSendBuffer = connection_getsendbuffer;
+    c->releaseSendBuffer = connection_releasesendbuffer;
+    c->releaseRecvBuffer = connection_releaserecvbuffer;
     c->state = UA_CONNECTION_OPENING;
-    ConnectionMapping *nm;
-    nm  = (ConnectionMapping *)realloc(layer->mappings, sizeof(ConnectionMapping)*(layer->mappingsSize+1));
-    if(!nm) {
-        UA_LOG_ERROR(layer->logger, UA_LOGCATEGORY_NETWORK,
-                     "No memory for a new Connection");
-        free(c);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    layer->mappings = nm;
-    layer->mappings[layer->mappingsSize].connection = c;
-    layer->mappings[layer->mappingsSize].sockfd = newsockfd;
-    ++layer->mappingsSize;
+
+    /* Add to the linked list */
+    LIST_INSERT_HEAD(&layer->connections, e, pointers);
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
-    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    layer->logger = logger;
+static void
+addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
+    /* Create the server socket */
+    SOCKET newsock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+#ifdef _WIN32
+    if(newsock == INVALID_SOCKET)
+#else
+    if(newsock < 0)
+#endif
+    {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error opening the server socket");
+        return;
+    }
 
-    /* get the discovery url from the hostname */
+    /* Some Linux distributions have net.ipv6.bindv6only not activated. So
+     * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
+     * AF_INET6 sockets only for IPv6. */
+    int optval = 1;
+    if(ai->ai_family == AF_INET6 &&
+       setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
+                  (const char*)&optval, sizeof(optval)) == -1) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not set an IPv6 socket to IPv6 only");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
+                  (const char *)&optval, sizeof(optval)) == -1) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not make the socket reusable");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Could not set the server socket to nonblocking");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    /* Bind socket to address */
+    if(bind(newsock, ai->ai_addr, WIN32_INT ai->ai_addrlen) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error binding a server socket: %i", errno__);
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    /* Start listening */
+    if(listen(newsock, MAXBACKLOG) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error listening on server socket");
+        CLOSESOCKET(newsock);
+        return;
+    }
+
+    layer->serverSockets[layer->serverSocketsSize] = (UA_Int32)newsock;
+    layer->serverSocketsSize++;
+}
+
+static UA_StatusCode
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
+#ifdef _WIN32
+    WORD wVersionRequested = MAKEWORD(2, 2);
+    WSADATA wsaData;
+    WSAStartup(wVersionRequested, &wsaData);
+#endif
+
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
+
+    /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
     char hostname[256];
     if(gethostname(hostname, 255) == 0) {
@@ -386,223 +371,199 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
                                      hostname, layer->port);
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
-                                        "opc.tcp://%s:%d", hostname, layer->port);
+                                        "opc.tcp://%s:%d", hostname,
+                    layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
     }
     UA_String_copy(&du, &nl->discoveryUrl);
 
-    /* Create the server socket */
-    SOCKET newsock = socket(PF_INET, SOCK_STREAM, 0);
-#ifdef _WIN32
-    if(newsock == INVALID_SOCKET)
+    /* Get addrinfo of the server and create server sockets */
+    char portno[6];
+#ifndef _MSC_VER
+    snprintf(portno, 6, "%d", layer->port);
 #else
-    if(newsock < 0)
+    _snprintf_s(portno, 6, _TRUNCATE, "%d", layer->port);
 #endif
-    {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error opening the server socket");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    struct addrinfo hints, *res;
+    memset(&hints, 0, sizeof hints);
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    getaddrinfo(NULL, portno, &hints, &res);
 
-    /* Set socket options */
-    int optval = 1;
-    if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
-                  (const char *)&optval, sizeof(optval)) == -1 ||
-       socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error during setting of server socket options");
-        CLOSESOCKET(newsock);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    /* There might be serveral addrinfos (for different network cards,
+     * IPv4/IPv6). Add a server socket for all of them. */
+    struct addrinfo *ai = res;
+    for(layer->serverSocketsSize = 0;
+        layer->serverSocketsSize < FD_SETSIZE && ai != NULL;
+        ai = ai->ai_next)
+        addServerSocket(layer, ai);
+    freeaddrinfo(res);
 
-    /* Bind socket to address */
-    struct sockaddr_in serv_addr;
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(layer->port);
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    memset(&(serv_addr.sin_zero), '\0', 8);
-    if(bind(newsock, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error during binding of the server socket");
-        CLOSESOCKET(newsock);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Start listening */
-    if(listen(newsock, MAXBACKLOG) < 0) {
-        UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK,
-                       "Error listening on server socket");
-        CLOSESOCKET(newsock);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    layer->serversockfd = (UA_Int32)newsock; /* cast on win32 */
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                 "TCP network layer listening on %.*s",
                 nl->discoveryUrl.length, nl->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-removeClosedConnections(ServerNetworkLayerTCP *layer, UA_Job *js) {
-    size_t c = 0;
-    for(size_t i = 0; i < layer->mappingsSize; ++i) {
-        if(layer->mappings[i].connection &&
-           layer->mappings[i].connection->state != UA_CONNECTION_CLOSED)
-            continue;
-        /* the socket was closed from remote */
-        UA_Connection *conn = layer->mappings[i].connection;
-        js[c].type = UA_JOBTYPE_DETACHCONNECTION;
-        js[c].job.closeConnection = conn;
-        layer->mappings[i] = layer->mappings[layer->mappingsSize-1];
-        --layer->mappingsSize;
-        ++c;
-        js[c].type = UA_JOBTYPE_METHODCALL_DELAYED;
-        js[c].job.methodCall.method = FreeConnectionCallback;
-        js[c].job.methodCall.data = conn;
-        ++c;
+/* After every select, reset the sockets to listen on */
+static UA_Int32
+setFDSet(ServerNetworkLayerTCP *layer, fd_set *fdset) {
+    FD_ZERO(fdset);
+    UA_Int32 highestfd = 0;
+    for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
+        UA_fd_set(layer->serverSockets[i], fdset);
+        if(layer->serverSockets[i] > highestfd)
+            highestfd = layer->serverSockets[i];
     }
-    return c;
+
+    ConnectionEntry *e;
+    LIST_FOREACH(e, &layer->connections, pointers) {
+        UA_fd_set(e->connection.sockfd, fdset);
+        if(e->connection.sockfd > highestfd)
+            highestfd = e->connection.sockfd;
+    }
+
+    return highestfd;
 }
 
-static size_t
-ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **jobs,
-                              UA_UInt16 timeout) {
+static UA_StatusCode
+ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
+                             UA_UInt16 timeout) {
     /* Every open socket can generate two jobs */
-    ServerNetworkLayerTCP *layer = nl->handle;
-    UA_Job *js = malloc(sizeof(UA_Job) * (size_t)((layer->mappingsSize * 2)));
-    if(!js)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Remove closed sockets */
-    size_t totalJobs = removeClosedConnections(layer, js);
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
     /* Listen on open sockets (including the server) */
     fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
-    UA_Int32 resultsize = select(highestfd+1, &fdset, NULL, &errset, &tmptv);
-    if(totalJobs == 0 && resultsize <= 0) {
-        free(js);
-        *jobs = NULL;
-        return 0;
+    if (select(highestfd+1, &fdset, NULL, &errset, &tmptv) < 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Socket select failed with %s", strerror(errno));
     }
 
-    /* Accept new connection via the server socket (can only be a single one) */
-    if(UA_fd_isset(layer->serversockfd, &fdset)) {
-        --resultsize;
-        SOCKET newsockfd = accept((SOCKET)layer->serversockfd, NULL, NULL);
+    /* Accept new connections via the server sockets */
+    for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
+        if(!UA_fd_isset(layer->serverSockets[i], &fdset))
+            continue;
+
+        struct sockaddr_storage remote;
+        socklen_t remote_size = sizeof(remote);
+        SOCKET newsockfd = accept((SOCKET)layer->serverSockets[i],
+                                  (struct sockaddr*)&remote, &remote_size);
 #ifdef _WIN32
-        if(newsockfd != INVALID_SOCKET)
+        if(newsockfd == INVALID_SOCKET)
 #else
-        if(newsockfd >= 0)
+        if(newsockfd < 0)
 #endif
-        {
-            socket_set_nonblocking(newsockfd);
-            /* Do not merge packets on the socket (disable Nagle's algorithm) */
-            int i = 1;
-            setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&i, sizeof(i));
-            ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd);
-        }
+            continue;
+
+        UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | New TCP connection on server socket %i",
+                    newsockfd, layer->serverSockets[i]);
+
+        ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd, &remote);
     }
 
     /* Read from established sockets */
-    size_t j = 0;
-    UA_ByteString buf = UA_BYTESTRING_NULL;
-    for(size_t i = 0; i < layer->mappingsSize && j < (size_t)resultsize; ++i) {
-        if(!UA_fd_isset(layer->mappings[i].sockfd, &errset) &&
-           !UA_fd_isset(layer->mappings[i].sockfd, &fdset))
+    ConnectionEntry *e, *e_tmp;
+    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        if(!UA_fd_isset(e->connection.sockfd, &errset) &&
+           !UA_fd_isset(e->connection.sockfd, &fdset))
           continue;
 
-        UA_StatusCode retval = socket_recv(layer->mappings[i].connection, &buf, 0);
+        UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Activity on the socket",
+                    e->connection.sockfd);
+
+        UA_ByteString buf = UA_BYTESTRING_NULL;
+        UA_StatusCode retval = connection_recv(&e->connection, &buf, 0);
+
         if(retval == UA_STATUSCODE_GOOD) {
-            js[totalJobs + j].job.binaryMessage.connection = layer->mappings[i].connection;
-            js[totalJobs + j].job.binaryMessage.message = buf;
-            js[totalJobs + j].type = UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER;
-            ++j;
-        } else if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-            UA_Connection *c = layer->mappings[i].connection;
-            UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                        "Connection %i | Connection closed from remote", c->sockfd);
-            /* the socket was closed from remote */
-            js[totalJobs + j].type = UA_JOBTYPE_DETACHCONNECTION;
-            js[totalJobs + j].job.closeConnection = c;
-            layer->mappings[i] = layer->mappings[layer->mappingsSize-1];
-            --layer->mappingsSize;
-            ++totalJobs; /* increase j only once */
-            js[totalJobs + j].type = UA_JOBTYPE_METHODCALL_DELAYED;
-            js[totalJobs + j].job.methodCall.method = FreeConnectionCallback;
-            js[totalJobs + j].job.methodCall.data = c;
-            ++j;
+            /* Process packets */
+            UA_Server_processBinaryMessage(server, &e->connection, &buf);
+        } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+            /* The socket is shutdown but not closed */
+            if(e->connection.state != UA_CONNECTION_CLOSED) {
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                            "Connection %i | Closed by the client",
+                            e->connection.sockfd);
+            } else {
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                            "Connection %i | Closed by the server",
+                            e->connection.sockfd);
+            }
+            LIST_REMOVE(e, pointers);
+            CLOSESOCKET(e->connection.sockfd);
+            UA_Server_removeConnection(server, &e->connection);
         }
     }
-    totalJobs += j;
-
-    if(totalJobs == 0) {
-        free(js);
-        js = NULL;
-    }
-    *jobs = js;
-    return totalJobs;
+    return UA_STATUSCODE_GOOD;
 }
 
-static size_t
-ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **jobs) {
+static void
+ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Server *server) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
-                "Shutting down the TCP network layer with %d open connection(s)",
-                layer->mappingsSize);
-    shutdown((SOCKET)layer->serversockfd,2);
-    CLOSESOCKET(layer->serversockfd);
-    UA_Job *items = (UA_Job *)malloc(sizeof(UA_Job) * layer->mappingsSize * 2);
-    if(!items)
-        return 0;
-    for(size_t i = 0; i < layer->mappingsSize; ++i) {
-        socket_close(layer->mappings[i].connection);
-        items[i*2].type = UA_JOBTYPE_DETACHCONNECTION;
-        items[i*2].job.closeConnection = layer->mappings[i].connection;
-        items[(i*2)+1].type = UA_JOBTYPE_METHODCALL_DELAYED;
-        items[(i*2)+1].job.methodCall.method = FreeConnectionCallback;
-        items[(i*2)+1].job.methodCall.data = layer->mappings[i].connection;
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                "Shutting down the TCP network layer");
+
+    /* Close the server sockets */
+    for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
+        shutdown((SOCKET)layer->serverSockets[i], 2);
+        CLOSESOCKET(layer->serverSockets[i]);
     }
+    layer->serverSocketsSize = 0;
+
+    /* Close open connections */
+    ConnectionEntry *e;
+    LIST_FOREACH(e, &layer->connections, pointers)
+        connection_close(&e->connection);
+
+    /* Run recv on client sockets. This picks up the closed sockets and frees
+     * the connection. */
+    ServerNetworkLayerTCP_listen(nl, server, 0);
+
 #ifdef _WIN32
     WSACleanup();
 #endif
-    *jobs = items;
-    return layer->mappingsSize*2;
 }
 
 /* run only when the server is stopped */
-static void ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
+static void
+ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
-    free(layer->mappings);
-    free(layer);
     UA_String_deleteMembers(&nl->discoveryUrl);
+
+    /* Hard-close and remove remaining connections. The server is no longer
+     * running. So this is safe. */
+    ConnectionEntry *e, *e_tmp;
+    LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        LIST_REMOVE(e, pointers);
+        connection_close(&e->connection);
+        CLOSESOCKET(e->connection.sockfd);
+        UA_free(e);
+    }
+
+    /* Free the layer */
+    UA_free(layer);
 }
 
 UA_ServerNetworkLayer
 UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
-#ifdef _WIN32
-    WORD wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(2, 2);
-    WSAStartup(wVersionRequested, &wsaData);
-#endif
-
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
-    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)calloc(1,sizeof(ServerNetworkLayerTCP));
+    ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP*)
+        UA_calloc(1,sizeof(ServerNetworkLayerTCP));
     if(!layer)
         return nl;
-    
+
     layer->conf = conf;
     layer->port = port;
 
     nl.handle = layer;
     nl.start = ServerNetworkLayerTCP_start;
-    nl.getJobs = ServerNetworkLayerTCP_getJobs;
+    nl.listen = ServerNetworkLayerTCP_listen;
     nl.stop = ServerNetworkLayerTCP_stop;
     nl.deleteMembers = ServerNetworkLayerTCP_deleteMembers;
     return nl;
@@ -612,38 +573,9 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 /* Client NetworkLayer TCP */
 /***************************/
 
-static UA_StatusCode
-ClientNetworkLayerGetBuffer(UA_Connection *connection, size_t length,
-                            UA_ByteString *buf) {
-    if(length > connection->remoteConf.recvBufferSize)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-    if(connection->state == UA_CONNECTION_CLOSED)
-        return UA_STATUSCODE_BADCONNECTIONCLOSED;
-    return UA_ByteString_allocBuffer(buf, connection->remoteConf.recvBufferSize);
-}
-
-static void
-ClientNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
-}
-
-static void
-ClientNetworkLayerClose(UA_Connection *connection) {
-#ifdef UA_ENABLE_MULTITHREADING
-    if(uatomic_xchg(&connection->state, UA_CONNECTION_CLOSED) == UA_CONNECTION_CLOSED)
-        return;
-#else
-    if(connection->state == UA_CONNECTION_CLOSED)
-        return;
-    connection->state = UA_CONNECTION_CLOSED;
-#endif
-    socket_close(connection);
-}
-
-/* we have no networklayer. instead, attach the reusable buffer to the handle */
 UA_Connection
-UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
-                       UA_Logger logger) {
+UA_ClientConnectionTCP(UA_ConnectionConfig conf,
+                       const char *endpointUrl) {
 #ifdef _WIN32
     WORD wVersionRequested;
     WSADATA wsaData;
@@ -656,12 +588,13 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
     connection.state = UA_CONNECTION_OPENING;
     connection.localConf = conf;
     connection.remoteConf = conf;
-    connection.send = socket_write;
-    connection.recv = socket_recv;
-    connection.close = ClientNetworkLayerClose;
-    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
-    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
-    connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
+    connection.send = connection_write;
+    connection.recv = connection_recv;
+    connection.close = connection_close;
+    connection.free = NULL;
+    connection.getSendBuffer = connection_getsendbuffer;
+    connection.releaseSendBuffer = connection_releasesendbuffer;
+    connection.releaseRecvBuffer = connection_releaserecvbuffer;
 
     UA_String endpointUrlString = UA_STRING((char*)(uintptr_t)endpointUrl);
     UA_String hostnameString = UA_STRING_NULL;
@@ -670,24 +603,26 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
     char hostname[512];
 
     UA_StatusCode parse_retval =
-        UA_parseEndpointUrl(&endpointUrlString, &hostnameString, &port, &pathString);
+        UA_parseEndpointUrl(&endpointUrlString, &hostnameString,
+                            &port, &pathString);
     if(parse_retval != UA_STATUSCODE_GOOD || hostnameString.length > 511) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Server url is invalid: %s", endpointUrl);
         return connection;
-    }
-    if(port == 0) {
-        port = 4840;
-        UA_LOG_INFO(logger, UA_LOGCATEGORY_NETWORK,
-                    "No port defined, using standard port %d", port);
     }
     memcpy(hostname, hostnameString.data, hostnameString.length);
     hostname[hostnameString.length] = 0;
 
+    if(port == 0) {
+        port = 4840;
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                    "No port defined, using default port %d", port);
+    }
+
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    hints.ai_family = AF_INET;
     char portStr[6];
 #ifndef _MSC_VER
     snprintf(portStr, 6, "%d", port);
@@ -696,21 +631,22 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
 #endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "DNS lookup of %s failed with error %s",
                        hostname, gai_strerror(error));
         return connection;
     }
 
     /* Get a socket */
-    SOCKET clientsockfd = socket(server->ai_family, server->ai_socktype,
+    SOCKET clientsockfd = socket(server->ai_family,
+                                 server->ai_socktype,
                                  server->ai_protocol);
 #ifdef _WIN32
     if(clientsockfd == INVALID_SOCKET) {
 #else
     if(clientsockfd < 0) {
 #endif
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Could not create client socket");
         freeaddrinfo(server);
         return connection;
@@ -718,37 +654,24 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl,
 
     /* Connect to the server */
     connection.sockfd = (UA_Int32)clientsockfd; /* cast for win32 */
-    error = connect(clientsockfd, server->ai_addr, WIN32_INT server->ai_addrlen);
+    error = connect(clientsockfd, server->ai_addr,
+                    WIN32_INT server->ai_addrlen);
     freeaddrinfo(server);
+
     if(error < 0) {
-        ClientNetworkLayerClose(&connection);
-#ifdef _WIN32
-        wchar_t *s = NULL;
-        FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                       FORMAT_MESSAGE_FROM_SYSTEM |
-                       FORMAT_MESSAGE_IGNORE_INSERTS,
-                       NULL, WSAGetLastError(),
-                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                       (LPWSTR)&s, 0, NULL);
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %s failed. Error: %d: %S",
-                       endpointUrl, WSAGetLastError(), s);
-        LocalFree(s);
-#else
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "Connection to %s failed. Error: %d: %s",
-                       endpointUrl, errno, strerror(errno));
-#endif
+        connection_close(&connection);
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Connection to %s failed with error %d",
+                       endpointUrl, errno__);
         return connection;
     }
 
 #ifdef SO_NOSIGPIPE
     int val = 1;
-    int sso_result = setsockopt(connection.sockfd,
-                                SOL_SOCKET, SO_NOSIGPIPE,
-                                (void*)&val, sizeof(val));
+    int sso_result = setsockopt(connection.sockfd, SOL_SOCKET,
+                                SO_NOSIGPIPE, (void*)&val, sizeof(val));
     if(sso_result < 0)
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Couldn't set SO_NOSIGPIPE");
 #endif
 

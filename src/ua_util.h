@@ -18,38 +18,27 @@ extern "C" {
 /* BSD Queue Macros */
 #include "queue.h"
 
-/* C++ Access to datatypes defined inside structs (for queue.h) */
-#ifdef __cplusplus
-# define memberstruct(container,member) container::member
-#else
-# define memberstruct(container,member) member
-#endif
-
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 
 /* Thread Local Storage */
-#ifdef UA_ENABLE_MULTITHREADING
-# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#  define UA_THREAD_LOCAL _Thread_local /* C11 */
-# elif defined(__GNUC__)
-#  define UA_THREAD_LOCAL __thread /* GNU extension */
-# elif defined(_MSC_VER)
-#  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-# else
-#  warning The compiler does not allow thread-local variables. \
-    The library can be built, but will not be thread-safe.
-# endif
-#endif
-#ifndef UA_THREAD_LOCAL
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+# define UA_THREAD_LOCAL _Thread_local /* C11 */
+#elif defined(__GNUC__)
+# define UA_THREAD_LOCAL __thread /* GNU extension */
+#elif defined(_MSC_VER)
+# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+#else
 # define UA_THREAD_LOCAL
+# warning The compiler does not allow thread-local variables. \
+  The library can be built, but will not be thread-safe.
 #endif
 
 /* Integer Shortnames
  * ------------------
  * These are not exposed on the public API, since many user-applications make
- * the same in their headers. */
+ * the same definitions in their headers. */
 
 typedef UA_Byte u8;
 typedef UA_SByte i8;
@@ -131,6 +120,13 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
 #define MIN(A,B) (A > B ? B : A)
 #define MAX(A,B) (A > B ? A : B)
+
+/* The typename string can be disabled to safe memory */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

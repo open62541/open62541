@@ -7,22 +7,8 @@
 #include <time.h>
 #include <stdio.h>
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_types_generated.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-#else
-# include "open62541.h"
-/* include guards to prevent double definitions with open62541.h */
-# define UA_TYPES_H_
-# define UA_NODES_H_
-# define UA_SERVER_H_
-# define UA_CONNECTION_H_
-# define UA_TYPES_GENERATED_H_
-# define UA_NAMESPACE_H_
-#endif
-
+#include "ua_server.h"
+#include "ua_config_standard.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
@@ -61,31 +47,33 @@ int main(int argc, char** argv) {
     retval |= UA_ByteString_allocBuffer(&request_msg, 1000);
     UA_ByteString response_msg;
     retval |= UA_ByteString_allocBuffer(&response_msg, 1000);
-    size_t offset = 0;
-    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], NULL, NULL, &request_msg, &offset);
 
-    clock_t begin, end;
+    UA_Byte *pos = request_msg.data;
+    const UA_Byte *end = &request_msg.data[request_msg.length];
+    retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
+
+    clock_t begin, finish;
     begin = clock();
 
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
     for(int i = 0; i < 1000000; i++) {
-        offset = 0;
+        size_t offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
 
         UA_ReadResponse_init(&rr);
         Service_Read(server, &adminSession, &rq, &rr);
 
-        offset = 0;
-        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], NULL, NULL, &response_msg, &offset);
+        pos = request_msg.data;
+        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &pos, &end, NULL, NULL);
 
         UA_ReadRequest_deleteMembers(&rq);
         UA_ReadResponse_deleteMembers(&rr);
     }
 
-    end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    finish = clock();
+    double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
     printf("retval is %i\n", retval);
 

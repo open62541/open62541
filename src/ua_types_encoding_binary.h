@@ -8,12 +8,12 @@
 #include "ua_types.h"
 #include "ua_namespace.h"
 
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_ByteString *buf, size_t offset);
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos, const UA_Byte **bufEnd);
 
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle,
-                UA_ByteString *dst, size_t *offset) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,

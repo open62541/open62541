@@ -5,18 +5,31 @@
 #include "ua_server_internal.h"
 #include "ua_nodes.h"
 
+void UA_Node_deleteReferences(UA_Node *node) {
+    for(size_t i = 0; i < node->referencesSize; ++i) {
+        UA_NodeReferenceKind *refs = &node->references[i];
+        for(size_t j = 0; j < refs->targetIdsSize; ++j)
+            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j]);
+        UA_free(refs->targetIds);
+        UA_NodeId_deleteMembers(&refs->referenceTypeId);
+    }
+    if(node->references)
+        UA_free(node->references);
+    node->references = NULL;
+    node->referencesSize = 0;
+}
+
 void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
-    /* delete standard content */
+    /* Delete standard content */
     UA_NodeId_deleteMembers(&node->nodeId);
     UA_QualifiedName_deleteMembers(&node->browseName);
     UA_LocalizedText_deleteMembers(&node->displayName);
     UA_LocalizedText_deleteMembers(&node->description);
-    UA_Array_delete(node->references, node->referencesSize,
-                    &UA_TYPES[UA_TYPES_REFERENCENODE]);
-    node->references = NULL;
-    node->referencesSize = 0;
 
-    /* delete unique content of the nodeclass */
+    /* Delete references */
+    UA_Node_deleteReferences(node);
+
+    /* Delete unique content of the nodeclass */
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         break;
@@ -138,7 +151,7 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     if(src->nodeClass != dst->nodeClass)
         return UA_STATUSCODE_BADINTERNALERROR;
     
-    /* copy standard content */
+    /* Copy standard content */
     UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
     dst->nodeClass = src->nodeClass;
     retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
@@ -149,16 +162,40 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
         UA_Node_deleteMembersAnyNodeClass(dst);
         return retval;
     }
-    retval |= UA_Array_copy(src->references, src->referencesSize,
-                            (void**)&dst->references,
-                            &UA_TYPES[UA_TYPES_REFERENCENODE]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Node_deleteMembersAnyNodeClass(dst);
-        return retval;
-    }
-    dst->referencesSize = src->referencesSize;
 
-    /* copy unique content of the nodeclass */
+    /* Copy the references */
+    dst->references = NULL;
+    if(src->referencesSize > 0) {
+        dst->references =
+            (UA_NodeReferenceKind*)UA_calloc(src->referencesSize,
+                                             sizeof(UA_NodeReferenceKind));
+        if(!dst->references) {
+            UA_Node_deleteMembersAnyNodeClass(dst);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        dst->referencesSize = src->referencesSize;
+
+        for(size_t i = 0; i < src->referencesSize; ++i) {
+            UA_NodeReferenceKind *srefs = &src->references[i];
+            UA_NodeReferenceKind *drefs = &dst->references[i];
+            drefs->isInverse = srefs->isInverse;
+            retval = UA_NodeId_copy(&srefs->referenceTypeId, &drefs->referenceTypeId);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+            retval = UA_Array_copy(srefs->targetIds, srefs->targetIdsSize,
+                                    (void**)&drefs->targetIds,
+                                    &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+            if(retval != UA_STATUSCODE_GOOD)
+                break;
+            drefs->targetIdsSize = srefs->targetIdsSize;
+        }
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Node_deleteMembersAnyNodeClass(dst);
+            return retval;
+        }
+    }
+
+    /* Copy unique content of the nodeclass */
     switch(src->nodeClass) {
     case UA_NODECLASS_OBJECT:
         retval = UA_ObjectNode_copy((const UA_ObjectNode*)src,

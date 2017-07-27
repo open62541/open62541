@@ -9,6 +9,12 @@
 #include "ua_config_standard.h"
 #include "check.h"
 
+#ifdef __clang__
+//required for ck_assert_ptr_eq and const casting
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
+#endif
+
 START_TEST(Server_addNamespace_ShallWork)
 {
     UA_ServerConfig config = UA_ServerConfig_standard;
@@ -38,9 +44,9 @@ START_TEST(Server_addNamespace_writeService)
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(namespaces.type == &UA_TYPES[UA_TYPES_STRING]);
 
-    namespaces.data = realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
+    namespaces.data = UA_realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
     ++namespaces.arrayLength;
-    UA_String *ns = namespaces.data;
+    UA_String *ns = (UA_String*)namespaces.data;
     ns[namespaces.arrayLength-1] = UA_STRING_ALLOC("test");
     size_t nsSize = namespaces.arrayLength;
 
@@ -86,4 +92,6 @@ int main(void) {
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif

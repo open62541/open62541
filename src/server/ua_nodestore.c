@@ -387,6 +387,6 @@ UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle , UA_NodestoreInterfa
 }
 
 void
-UA_NodeStore_release(void *handle, const UA_Node *node){};
+UA_NodeStore_release(void *handle, const UA_Node *node){}
 
 #endif /* UA_ENABLE_MULTITHREADING */

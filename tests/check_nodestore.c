@@ -39,10 +39,6 @@ static void checkZeroVisitor(void *visitorHandle, const UA_Node* node) {
     if (node == NULL) zeroCnt++;
 }
 
-static void printVisitor(const UA_Node* node) {
-    printf("%d\n", node->nodeId.identifier.numeric);
-}
-
 static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
     UA_Node *p = (UA_Node *)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE);
     p->nodeId.identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -216,7 +212,7 @@ static void *profileGetThread(void *arg) {
 #endif
 
 START_TEST(profileGetDelete) {
-#define N 1000000
+#define N 100 /* make bigger to test */
     for(UA_UInt32 i = 0; i < N; i++) {
         UA_Node *n = createNode(0,i);
         UA_NodeStore_insert(ns, n, NULL);
@@ -274,10 +270,10 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
     
-    /* TCase* tc_profile = tcase_create ("Profile"); */
-    /* tcase_add_checked_fixture(tc_profile, setup, teardown); */
-    /* tcase_add_test (tc_profile, profileGetDelete); */
-    /* suite_add_tcase (s, tc_profile); */
+    TCase* tc_profile = tcase_create ("Profile");
+    tcase_add_checked_fixture(tc_profile, setup, teardown);
+    tcase_add_test (tc_profile, profileGetDelete);
+    suite_add_tcase (s, tc_profile);
 
     return s;
 }

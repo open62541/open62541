@@ -10,7 +10,6 @@
 #include "server/ua_nodestore.h"
 #include "server/ua_services.h"
 #include "ua_client.h"
-#include "ua_nodeids.h"
 #include "ua_types.h"
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
@@ -244,7 +243,106 @@ START_TEST(DeleteObjectAndReferences) {
     UA_Server_delete(server);
 } END_TEST
 
-static Suite * testSuite_services_nodemanagement(void) {
+
+/* Example taken from tutorial_server_object.c */
+START_TEST(InstantiateObjectType) {
+    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+
+    /* Define the object type */
+    UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
+
+    UA_StatusCode retval;
+
+    /* Define the object type for "Device" */
+    UA_NodeId deviceTypeId; /* get the nodeid assigned by the server */
+    UA_ObjectTypeAttributes dtAttr;
+    UA_ObjectTypeAttributes_init(&dtAttr);
+    dtAttr.displayName = UA_LOCALIZEDTEXT("en_US", "DeviceType");
+    retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "DeviceType"), dtAttr,
+                                         NULL, &deviceTypeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes mnAttr;
+    UA_VariableAttributes_init(&mnAttr);
+    mnAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ManufacturerName");
+    UA_NodeId manufacturerNameId;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       UA_QUALIFIEDNAME(1, "ManufacturerName"),
+                                       UA_NODEID_NULL, mnAttr, NULL, &manufacturerNameId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    /* Make the manufacturer name mandatory */
+    retval = UA_Server_addReference(server, manufacturerNameId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes modelAttr;
+    UA_VariableAttributes_init(&modelAttr);
+    modelAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ModelName");
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       UA_QUALIFIEDNAME(1, "ModelName"),
+                                       UA_NODEID_NULL, modelAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Define the object type for "Pump" */
+    UA_ObjectTypeAttributes ptAttr;
+    UA_ObjectTypeAttributes_init(&ptAttr);
+    ptAttr.displayName = UA_LOCALIZEDTEXT("en_US", "PumpType");
+    retval = UA_Server_addObjectTypeNode(server, pumpTypeId,
+                                         deviceTypeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_QUALIFIEDNAME(1, "PumpType"), ptAttr,
+                                         NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes statusAttr;
+    UA_VariableAttributes_init(&statusAttr);
+    statusAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Status");
+    statusAttr.valueRank = -1;
+    UA_NodeId statusId;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       UA_QUALIFIEDNAME(1, "Status"),
+                                       UA_NODEID_NULL, statusAttr, NULL, &statusId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Make the status variable mandatory */
+    retval = UA_Server_addReference(server, statusId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                                    UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes rpmAttr;
+    UA_VariableAttributes_init(&rpmAttr);
+    rpmAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MotorRPM");
+    rpmAttr.valueRank = -1;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                       UA_QUALIFIEDNAME(1, "MotorRPMs"),
+                                       UA_NODEID_NULL, rpmAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Instantiate the variable */
+    UA_ObjectAttributes oAttr;
+    UA_ObjectAttributes_init(&oAttr);
+    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MyPump");
+    retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_QUALIFIEDNAME(1, "MyPump"),
+                                     pumpTypeId, /* this refers to the object type
+                                                    identifier */
+                                     oAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Server_delete(server);
+} END_TEST
+
+int main(void) {
     Suite *s = suite_create("services_nodemanagement");
 
     TCase *tc_addnodes = tcase_create("addnodes");
@@ -252,24 +350,19 @@ static Suite * testSuite_services_nodemanagement(void) {
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
+    tcase_add_test(tc_addnodes, InstantiateObjectType);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");
-    tcase_add_test(tc_addnodes, DeleteObjectWithDestructor);
-    tcase_add_test(tc_addnodes, DeleteObjectAndReferences);
+    tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
+    tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
 
     suite_add_tcase(s, tc_addnodes);
     suite_add_tcase(s, tc_deletenodes);
-    return s;
-}
 
-int main(void) {
-    int number_failed = 0;
-    Suite *s;
-    s = testSuite_services_nodemanagement();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
-    number_failed += srunner_ntests_failed(sr);
+    int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

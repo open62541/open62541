@@ -20,15 +20,15 @@ BadTooManyMonitoredItems,0x80DB0000,The request could not be processed because t
 BadDataTypeIdUnknown,0x80110000,The extension object cannot be (de)serialized because the data type id is not recognized.
 BadCertificateInvalid,0x80120000,The certificate provided as a parameter is not valid.
 BadSecurityChecksFailed,0x80130000,An error occurred verifying security.
-BadCertificateTimeInvalid,0x80140000,The Certificate has expired or is not yet valid.
-BadCertificateIssuerTimeInvalid,0x80150000,An Issuer Certificate has expired or is not yet valid.
-BadCertificateHostNameInvalid,0x80160000,The HostName used to connect to a Server does not match a HostName in the Certificate.
-BadCertificateUriInvalid,0x80170000,The URI specified in the ApplicationDescription does not match the URI in the Certificate.
-BadCertificateUseNotAllowed,0x80180000,The Certificate may not be used for the requested operation.
-BadCertificateIssuerUseNotAllowed,0x80190000,The Issuer Certificate may not be used for the requested operation.
-BadCertificateUntrusted,0x801A0000,The Certificate is not trusted.
-BadCertificateRevocationUnknown,0x801B0000,It was not possible to determine if the Certificate has been revoked.
-BadCertificateIssuerRevocationUnknown,0x801C0000,It was not possible to determine if the Issuer Certificate has been revoked.
+BadCertificateTimeInvalid,0x80140000,The certificate has expired or is not yet valid.
+BadCertificateIssuerTimeInvalid,0x80150000,An issuer certificate has expired or is not yet valid.
+BadCertificateHostNameInvalid,0x80160000,The HostName used to connect to a server does not match a HostName in the certificate.
+BadCertificateUriInvalid,0x80170000,The URI specified in the ApplicationDescription does not match the URI in the certificate.
+BadCertificateUseNotAllowed,0x80180000,The certificate may not be used for the requested operation.
+BadCertificateIssuerUseNotAllowed,0x80190000,The issuer certificate may not be used for the requested operation.
+BadCertificateUntrusted,0x801A0000,The certificate is not trusted.
+BadCertificateRevocationUnknown,0x801B0000,It was not possible to determine if the certificate has been revoked.
+BadCertificateIssuerRevocationUnknown,0x801C0000,It was not possible to determine if the issuer certificate has been revoked.
 BadCertificateRevoked,0x801D0000,The certificate has been revoked.
 BadCertificateIssuerRevoked,0x801E0000,The issuer certificate has been revoked.
 BadCertificateChainIncomplete,0x810D0000,The certificate chain is incomplete.
@@ -46,6 +46,9 @@ BadRequestHeaderInvalid,0x802A0000,The header for the request is missing or inva
 BadTimestampsToReturnInvalid,0x802B0000,The timestamps to return parameter is invalid.
 BadRequestCancelledByClient,0x802C0000,The request was cancelled by the client.
 BadTooManyArguments,0x80E50000,Too many arguments were provided.
+BadLicenseExpired,0x810E0000,The server requires a license to operate in general or to perform a service or operation, but existing license is expired.
+BadLicenseLimitsExceeded,0x810F0000,The server has limits on number of allowed operations / objects, based on installed licenses, and these limits where exceeded.
+BadLicenseNotAvailable,0x81100000,The server does not have a license which is required to operate in general or to perform a service or operation.
 GoodSubscriptionTransferred,0x002D0000,The subscription was transferred to another session.
 GoodCompletesAsynchronously,0x002E0000,The processing will complete asynchronously.
 GoodOverload,0x002F0000,Sampling has slowed down due to resource limitations.
@@ -90,13 +93,13 @@ BadServerNameMissing,0x80500000,No ServerName was specified.
 BadDiscoveryUrlMissing,0x80510000,No DiscoveryUrl was specified.
 BadSempahoreFileMissing,0x80520000,The semaphore file specified by the client is not valid.
 BadRequestTypeInvalid,0x80530000,The security token request type is not valid.
-BadSecurityModeRejected,0x80540000,The security mode does not meet the requirements set by the Server.
-BadSecurityPolicyRejected,0x80550000,The security policy does not meet the requirements set by the Server.
+BadSecurityModeRejected,0x80540000,The security mode does not meet the requirements set by the server.
+BadSecurityPolicyRejected,0x80550000,The security policy does not meet the requirements set by the server.
 BadTooManySessions,0x80560000,The server has reached its maximum number of sessions.
 BadUserSignatureInvalid,0x80570000,The user token signature is missing or invalid.
 BadApplicationSignatureInvalid,0x80580000,The signature generated with the client certificate is missing or invalid.
 BadNoValidCertificates,0x80590000,The client did not provide at least one software certificate that is valid and meets the profile requirements for the server.
-BadIdentityChangeNotSupported,0x80C60000,The Server does not support changing the user identity assigned to the session.
+BadIdentityChangeNotSupported,0x80C60000,The server does not support changing the user identity assigned to the session.
 BadRequestCancelledByRequest,0x805A0000,The request was cancelled by the client with the Cancel service.
 BadParentNodeIdInvalid,0x805B0000,The parent node id does not to refer to a valid node.
 BadReferenceNotAllowed,0x805C0000,The reference could not be created because it violates constraints imposed by the data model.
@@ -131,7 +134,7 @@ BadSecurityModeInsufficient,0x80E60000,The operation is not permitted over the c
 BadHistoryOperationInvalid,0x80710000,The history details parameter is not valid.
 BadHistoryOperationUnsupported,0x80720000,The server does not support the requested operation.
 BadInvalidTimestampArgument,0x80BD0000,The defined timestamp to return was invalid.
-BadWriteNotSupported,0x80730000,The server not does support writing the combination of value, status and timestamps provided.
+BadWriteNotSupported,0x80730000,The server does not support writing the combination of value, status and timestamps provided.
 BadTypeMismatch,0x80740000,The value supplied for the attribute is not of the same type as the attribute's value.
 BadMethodInvalid,0x80750000,The method id does not refer to a method for the specified object.
 BadArgumentsMissing,0x80760000,The client did not specify all of the input arguments for the method.
@@ -140,7 +143,7 @@ BadTooManyPublishRequests,0x80780000,The server has reached the maximum number o
 BadNoSubscription,0x80790000,There is no subscription available for this session.
 BadSequenceNumberUnknown,0x807A0000,The sequence number is unknown to the server.
 BadMessageNotAvailable,0x807B0000,The requested notification message is no longer available.
-BadInsufficientClientProfile,0x807C0000,The Client of the current Session does not support one or more Profiles that are necessary for the Subscription.
+BadInsufficientClientProfile,0x807C0000,The client of the current session does not support one or more Profiles that are necessary for the subscription.
 BadStateNotActive,0x80BF0000,The sub-state machine is not currently active.
 BadTcpServerTooBusy,0x807D0000,The server cannot process the request because it is too busy.
 BadTcpMessageTypeInvalid,0x807E0000,The type of the message specified in the header invalid.
@@ -148,7 +151,7 @@ BadTcpSecureChannelUnknown,0x807F0000,The SecureChannelId and/or TokenId are not
 BadTcpMessageTooLarge,0x80800000,The size of the message specified in the header is too large.
 BadTcpNotEnoughResources,0x80810000,There are not enough resources to process the request.
 BadTcpInternalError,0x80820000,An internal error occurred.
-BadTcpEndpointUrlInvalid,0x80830000,The Server does not recognize the QueryString specified.
+BadTcpEndpointUrlInvalid,0x80830000,The server does not recognize the QueryString specified.
 BadRequestInterrupted,0x80840000,The request could not be sent because of a network interruption.
 BadRequestTimeout,0x80850000,Timeout occurred while processing the request.
 BadSecureChannelClosed,0x80860000,The secure channel has been closed.

@@ -122,8 +122,9 @@ separateIncompleteChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT m
 }
 
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString * UA_RESTRICT message,
-                              UA_Boolean * UA_RESTRICT realloced) {
+UA_Connection_completeChunks(UA_Connection *connection,
+                             UA_ByteString * UA_RESTRICT message,
+                             UA_Boolean * UA_RESTRICT realloced) {
     /* If we have a stored an incomplete chunk, prefix to the received message.
      * After this block, connection->incompleteMessage is always empty. The
      * message and the buffer is released if allocating the memory fails. */
@@ -166,7 +167,7 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, UA_ByteString *ch
         retval = connection->recv(connection, chunks, timeout);
 
         /* Get complete chunks and return */
-        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+        retval |= UA_Connection_completeChunks(connection, chunks, realloced);
         if(retval != UA_STATUSCODE_GOOD || chunks->length > 0)
             break;
 

@@ -12,7 +12,6 @@ extern "C" {
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_timer.h"
-#include "ua_server_external_ns.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
@@ -60,38 +59,10 @@ extern "C" {
 # define UA_ASSERT_RCU_UNLOCKED()
 #endif
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-/* Mapping of namespace-id and url to an external nodestore. For namespaces that
- * have no mapping defined, the internal nodestore is used by default. */
-typedef struct UA_ExternalNamespace {
-    UA_UInt16 index;
-    UA_String url;
-    UA_ExternalNodeStore externalNodeStore;
-} UA_ExternalNamespace;
-#endif
-
 #ifdef UA_ENABLE_MULTITHREADING
-typedef struct {
-    UA_Server *server;
-    pthread_t thr;
-    UA_UInt32 counter;
-    volatile UA_Boolean running;
-    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
-                 sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
-} UA_Worker;
-
-struct MainLoopJob {
-    struct cds_lfs_node node;
-    UA_Job job;
-};
-
-void
-UA_Server_dispatchJob(UA_Server *server, const UA_Job *job);
-
+struct UA_Worker;
+typedef struct UA_Worker UA_Worker;
 #endif
-
-void
-UA_Server_processJob(UA_Server *server, UA_Job *job);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 /* Internally used context to a session 'context' of the current mehtod call */
@@ -142,7 +113,7 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
-    struct PeriodicServerRegisterJob *periodicServerRegisterJob;
+    struct PeriodicServerRegisterCallback *periodicServerRegisterCallback;
     UA_Server_registerServerCallback registerServerCallback;
     void* registerServerCallbackData;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -171,30 +142,24 @@ struct UA_Server {
     UA_Namespace *namespaces;
     UA_NodestoreInterface *nodestore_std;
 
-#ifdef UA_ENABLE_EXTERNAL_NAMESPACES
-    size_t externalNamespacesSize;
-    UA_ExternalNamespace *externalNamespaces;
-#endif
+    /* Callbacks with a repetition interval */
+    UA_Timer timer;
 
-    /* Jobs with a repetition interval */
-    UA_RepeatedJobsList repeatedJobs;
+    /* Delayed callbacks */
+    SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
 
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_HEAD(DelayedJobsList, UA_DelayedJob) delayedCallbacks;
-#else
+    /* Worker threads */
+#ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
     struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
-    struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
-                                          by worker threads */
-    struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
     pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
     /* Config is the last element so that MSVC allows the usernamePasswordLogins
-       field with zero-sized array */
+     * field with zero-sized array */
     UA_ServerConfig config;
 };
 
@@ -209,15 +174,17 @@ typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, 
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
-/********************/
-/* Event Processing */
-/********************/
+/*************/
+/* Callbacks */
+/*************/
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                                    const UA_ByteString *message);
+/* Delayed callbacks are executed when all previously dispatched callbacks are
+ * finished */
+UA_StatusCode
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
-UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
-UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
+void
+UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
 /*********************/
 /* Utility Functions */
@@ -238,14 +205,6 @@ getVariableNodeType(UA_Server *server, const UA_VariableNode *node);
 const UA_ObjectTypeNode *
 getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
 
-/* Returns an array with all subtype nodeids (including the root). Subtypes need
- * to have the same nodeClass as root and are (recursively) related with a
- * hasSubType reference. Since multi-inheritance is possible, we test for
- * duplicates and return evey nodeid at most once. */
-UA_StatusCode
-getTypeHierarchy(UA_Server* server, const UA_Node *rootRef, UA_Boolean inverse,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
-
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
 isNodeInTree(UA_Server* server, const UA_NodeId *leafNode,
@@ -256,6 +215,17 @@ isNodeInTree(UA_Server* server, const UA_NodeId *leafNode,
 /* Returns the nodeid of the node type, if none defined for the node or the node
  * class, typeId is set to UA_NODEID_NULL. */
 void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
+
+typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
+                                    const void *requestOperation, void *responseOperation);
+
+UA_StatusCode
+UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
+                                   UA_ServiceOperation operationCallback,
+                                   const size_t *requestOperations,
+                                   const UA_DataType *requestOperationsType,
+                                   size_t *responseOperations,
+                                   const UA_DataType *responseOperationsType);
 
 /***************************************/
 /* Check Information Model Consistency */
@@ -275,9 +245,6 @@ compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
-UA_Boolean
-compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
-                   const UA_NodeId *constraintDataType);
 
 UA_StatusCode
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
@@ -285,16 +252,10 @@ compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSiz
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType);
-
-UA_StatusCode
-compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_StatusCode
 writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
                         UA_Int32 valueRank, UA_Int32 constraintValueRank);
-
-UA_StatusCode
-compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 UA_StatusCode
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
@@ -311,15 +272,13 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
-void Service_Read_single(UA_Server *server, UA_Session *session,
-                         UA_TimestampsToReturn timestamps,
-                         const UA_ReadValueId *id, UA_DataValue *v);
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, UA_Session *session,
+                          const UA_ReadValueId *item,
+                          UA_TimestampsToReturn timestamps);
 
-void Service_Call_single(UA_Server *server, UA_Session *session,
-                         const UA_CallMethodRequest *request,
-                         UA_CallMethodResult *result);
-
-/* Periodic task to clean up the discovery registry */
+/* Checks if a registration timed out and removes that registration.
+ * Should be called periodically in main loop */
 void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -347,13 +306,15 @@ UA_StatusCode
 UA_Discovery_multicastQuery(UA_Server* server);
 
 UA_StatusCode
-UA_Discovery_addRecord(UA_Server* server, const char* servername, const char* hostname,
-                       unsigned short port, const char* path,
-                       const UA_DiscoveryProtocol protocol, UA_Boolean createTxt,
-                       const UA_String* capabilites, const size_t *capabilitiesSize);
+UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
+                       const UA_String *hostname, UA_UInt16 port,
+                       const UA_String *path, const UA_DiscoveryProtocol protocol,
+                       UA_Boolean createTxt, const UA_String* capabilites,
+                       size_t *capabilitiesSize);
 UA_StatusCode
-UA_Discovery_removeRecord(UA_Server* server, const char* servername, const char* hostname,
-                          unsigned short port, UA_Boolean removeTxt);
+UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
+                          const UA_String *hostname, UA_UInt16 port,
+                          UA_Boolean removeTxt);
 
 # endif
 

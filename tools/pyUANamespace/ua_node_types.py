@@ -1084,7 +1084,7 @@ class opcua_node_variable_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = (UA_Variant*)UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
 
@@ -1338,7 +1338,7 @@ class opcua_node_variableType_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = (UA_Variant*)UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
 

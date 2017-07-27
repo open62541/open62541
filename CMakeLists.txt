@@ -27,9 +27,9 @@ include(AssignSourceGroup)
 ###########
 
 set(OPEN62541_VER_MAJOR 0)
-set(OPEN62541_VER_MINOR 2)
+set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
+set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
@@ -43,9 +43,9 @@ if(NOT ${OPEN62541_VER_COMMIT} OR ${OPEN62541_VER_COMMIT} STREQUAL "")
     set(OPEN62541_VER_COMMIT "undefined")
 endif()
 
-############
-# Settings #
-############
+#################
+# Build Options #
+#################
 
 # Set default build type.
 if(NOT CMAKE_BUILD_TYPE)
@@ -101,9 +101,6 @@ mark_as_advanced(UA_ENABLE_LOAD_NAMESPACE0)
 option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load (if UA_ENABLE_LOAD_NAMESPACE0) UA XML Namespace 0 definition instead off bootstrapped, hard coded version during UA_Server_new (experimental)." OFF)
 mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
-option(UA_ENABLE_EXTERNAL_NAMESPACES "Enable namespace handling by an external component (experimental)" OFF)
-mark_as_advanced(UA_ENABLE_EXTERNAL_NAMESPACES)
-
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
 
@@ -119,6 +116,9 @@ endif()
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
+option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
+mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
@@ -142,16 +142,51 @@ mark_as_advanced(UA_COMPILE_AS_CXX)
 # Compiler Settings #
 #####################
 
-list(APPEND open62541_LIBRARIES "") # Collect libraries
+# Collect libraries
+list(APPEND open62541_LIBRARIES "")
+if(NOT WIN32)
+  if(QNXNTO)
+    list(APPEND open62541_LIBRARIES socket)
+    list(APPEND open62541_LIBRARIES c)
+    list(APPEND open62541_LIBRARIES stdc++)
+  else()
+    list(APPEND open62541_LIBRARIES pthread m)
+    if(NOT APPLE)
+      list(APPEND open62541_LIBRARIES rt)
+    endif()
+  endif()
+else()
+  list(APPEND open62541_LIBRARIES ws2_32)
+    if(UA_ENABLE_DISCOVERY_MULTICAST)
+        list(APPEND open62541_LIBRARIES iphlpapi)
+    endif()
+endif()
+if(UA_ENABLE_MULTITHREADING)
+  list(APPEND open62541_LIBRARIES urcu-cds urcu urcu-common)
+endif(UA_ENABLE_MULTITHREADING)
 
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
-    add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
-                    -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+    add_definitions(-std=c99 -pipe
+                    -Wall -Wextra -Werror -Wpedantic
+                    -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
+                    -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
+                    -Wno-unused-parameter # some methods may require unused arguments to cast to a method pointer
+                    -Wmissing-prototypes -Wstrict-prototypes -Wredundant-decls
+                    -Wformat -Wformat-security -Wformat-nonliteral
+                    -Wuninitialized -Winit-self
+                    -Wcast-qual
+                    -Wstrict-overflow
+                    -Wnested-externs
+                    -Wmultichar
+                    -Wundef
+                    -Wc++-compat)
      if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
+     endif()
+
+     if(UA_ENABLE_AMALGAMATION)
+         add_definitions(-Wno-unused-function)
      endif()
 
     # Linker
@@ -192,8 +227,14 @@ endif()
 
 if(MSVC)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /WX") # Compiler warnings, error on warning
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
+
+  if(NOT BUILD_SHARED_LIB)
+    set(CompilerFlags CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE CMAKE_C_FLAGS
+        CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE)
+    foreach(CompilerFlag ${CompilerFlags})
+      string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
+    endforeach()
+  endif()
 endif()
 
 #########################
@@ -209,18 +250,18 @@ if (UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 include_directories(${PROJECT_BINARY_DIR}/src_generated
                     ${PROJECT_SOURCE_DIR}/include
+                    ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the standard config
                     ${PROJECT_SOURCE_DIR}/deps)
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/ua_constants.h
                      ${PROJECT_SOURCE_DIR}/include/ua_types.h
-                     ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_connection.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_job.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_log.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/include/ua_nodestore_interface.h
                      ${PROJECT_SOURCE_DIR}/include/ua_namespace.h
@@ -231,8 +272,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h
-)
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
+
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -253,8 +294,9 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
-                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
-)
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+
+# TODO: make client optional
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -290,24 +332,23 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
                 # subscriptions
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
-                # plugins and dependencies
-                ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
-                ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_standard.c
+                # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
-                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
-)
-                ##TODO: make client stuff optional
+                ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
 
+set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_standard.c)
 if(UA_ENABLE_EMBEDDED_LIBC)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
 endif()
@@ -367,14 +408,6 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 
-# nodeids
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
-                   PRE_BUILD
-                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_nodeids.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_nodeids.py
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-
 # statuscode explanation
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
         PRE_BUILD
@@ -407,34 +440,17 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers}
-                           ${internal_headers})
+                           ${exported_headers} ${internal_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c ${internal_headers} ${lib_sources}
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                           ${internal_headers} ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
-ADD_CUSTOM_TARGET(open625451_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
-                                                  ${PROJECT_BINARY_DIR}/open62541.c)
-
-# example information model from nodeset xml
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-                  PRE_BUILD
-                  COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                                                -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                                                ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
-                                                ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
-                                                ${PROJECT_BINARY_DIR}/src_generated/nodeset
-                  DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-                          ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                          ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
+ADD_CUSTOM_TARGET(open62541_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
+                                                 ${PROJECT_BINARY_DIR}/open62541.c)
 
 #####################
 # Build the Library #
@@ -447,39 +463,50 @@ assign_source_group(${exported_headers})
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
+
+    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object 
+    # and thus may overwrite the amalgamation result during multiprocessor compilation
+    add_dependencies(open62541-object open62541_amalgamation)
+
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
+
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
     endif()
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/plugins)
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+
+    add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
+    target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
+    target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_COMPILE_AS_CXX)
         set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
+        set_source_files_properties(${default_plugin_sources} PROPERTIES LANGUAGE CXX)
     endif()
 endif()
-add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
-target_link_libraries(open62541 ${open62541_LIBRARIES})
 
+# Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-
 if (UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 
+# DLL requires linking to dependencies
+target_link_libraries(open62541 ${open62541_LIBRARIES})
+
+# Always generate the amalgamated header
+add_dependencies(open62541 open62541_amalgamation)
+
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
-
-if(WIN32)
-    target_link_libraries(open62541 ws2_32)
-    if (UA_ENABLE_DISCOVERY_MULTICAST)
-        target_link_libraries(open62541 iphlpapi) # for GetAdaptersAddresses
-        list(APPEND open62541_LIBRARIES iphlpapi)
-    endif()
-endif()
 
 ##########################
 # Build Selected Targets #
@@ -493,14 +520,19 @@ if(UA_BUILD_EXAMPLES)
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
-    target_compile_definitions(open62541-object PRIVATE UA_BUILD_UNIT_TESTS) # Export some internal functions
+    if(UA_ENABLE_AMALGAMATION)
+        # Cannot compile tests with amalgamation. Amalgamation uses the default plugins, not the testing plugins
+        message(FATAL_ERROR "Unit tests cannot be generated with source amalgamation enabled")
+    endif()
     enable_testing()
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  add_custom_target(generate_informationmodel ALL
-                    DEPENDS ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    # Force enable discovery, to also fuzzy-test this code
+    set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
+    add_subdirectory(tests/fuzz)
 endif()
 
 ############################

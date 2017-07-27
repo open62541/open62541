@@ -74,19 +74,24 @@ static UA_Boolean updateNodeNamespaceIndices(UA_Node * node, size_t* newNsIndice
         *nodeIdx = UA_NAMESPACE_UNDEFINED;
 
     /* Update References */
-    for(size_t i = 0 ; i < node->referencesSize ; ++i){
-        nodeIdx = &node->references[i].referenceTypeId.namespaceIndex;
-        if(*nodeIdx < (UA_UInt16) newNsIndicesSize)
-            *nodeIdx = (UA_UInt16) newNsIndices[(size_t)*nodeIdx];
-        //TODO Support expanded NodeIds. check if expanded nodeId in own server ?
-        /* Currently no expandednodeids are allowed */
-        if(node->references[i].targetId.namespaceUri.length == 0){
-            nodeIdx = &node->references[i].targetId.nodeId.namespaceIndex;
-            if(*nodeIdx < (UA_UInt16) newNsIndicesSize)
-                *nodeIdx = (UA_UInt16) newNsIndices[(size_t)*nodeIdx];
-            else
-                *nodeIdx = UA_NAMESPACE_UNDEFINED;
-        }
+    for(size_t i = 0 ; i < node->referencesSize ; ++i) {
+    	UA_NodeReferenceKind *refs = &node->references[i];
+    	//Update namespace index of reference type ids
+    	nodeIdx = &refs->referenceTypeId.namespaceIndex;
+    	if(*nodeIdx < (UA_UInt16) newNsIndicesSize)
+    		*nodeIdx = (UA_UInt16) newNsIndices[(size_t)*nodeIdx];
+    	//update namespace index of target ids
+    	for(size_t j = 0; j < refs->targetIdsSize; ++j) {
+    		//TODO Support expanded NodeIds. check if expanded nodeId in own server ?
+    		/* Currently no expandednodeids are allowed */
+    		if(refs->targetIds[j].namespaceUri.length == 0){
+    			nodeIdx = &refs->targetIds[j].nodeId.namespaceIndex;
+    			if(*nodeIdx < (UA_UInt16) newNsIndicesSize)
+    				*nodeIdx = (UA_UInt16) newNsIndices[(size_t)*nodeIdx];
+    			else
+    				*nodeIdx = UA_NAMESPACE_UNDEFINED;
+    		}
+    	}
     }
     return UA_TRUE;
 }

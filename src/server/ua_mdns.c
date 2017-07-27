@@ -111,6 +111,13 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     return listEntry;
 }
 
+#ifdef UA_ENABLE_MULTITHREADING
+static void
+delayedFree(UA_Server *server, void *data) {
+    UA_free(data);
+}
+#endif
+
 static void
 mdns_record_remove(UA_Server *server, const char *record,
                    struct serverOnNetwork_list_entry *entry) {
@@ -146,7 +153,7 @@ mdns_record_remove(UA_Server *server, const char *record,
     UA_free(entry);
 #else
     server->serverOnNetworkSize = uatomic_add_return(&server->serverOnNetworkSize, -1);
-    UA_Server_delayedFree(server, entry);
+    UA_Server_delayedCallback(server, delayedFree, entry);
 #endif
 }
 

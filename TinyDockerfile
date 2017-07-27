@@ -6,6 +6,6 @@ RUN apk add --no-cache cmake gcc g++ musl-dev python make && rm -rf /var/cache/a
           -DBUILD_SHARED_LIBS=true /tmp/open62541 && \
     make && \
     cp *.h /usr/include/ && \
-    cp *.so /usr/lib && \
+    cp bin/*.so /usr/lib && \
     make clean && \
     apk del cmake gcc g++ musl-dev python make

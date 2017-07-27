@@ -56,22 +56,34 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 UA_THREAD_LOCAL UA_Namespace* namespaces_local;
 UA_THREAD_LOCAL size_t namespacesSize_local;
 
+/* Pointers to the current position and the last position in the buffer */
+static UA_THREAD_LOCAL UA_Byte *pos;
+static UA_THREAD_LOCAL const UA_Byte *end;
 
-/* We give pointers to the current position and the last position in the buffer
- * instead of a string with an offset. */
-UA_THREAD_LOCAL UA_Byte * pos;
-UA_THREAD_LOCAL UA_Byte * end;
-
-/* The code UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is returned only when the end of the
- * buffer is reached. When this StatusCode is received, we try to send the current chunk,
- * replace the buffer and continue encoding. That way, memory-constrained servers need to
- * allocate only the memory for the current chunk. And we avoid needless copying. Note:
- * The only place where this is used from is UA_SecureChannel_sendBinaryMessage. */
+/* In UA_encodeBinaryInternal, we store a pointer to the last "good" position in
+ * the buffer. When encoding reaches the end of the buffer, send out a chunk
+ * until that position, replace the buffer and retry encoding after the last
+ * "checkpoint". The status code UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is used
+ * exclusively to indicate that the end of the buffer was reached.
+ *
+ * In order to prevent restoring to an old buffer position (where the buffer was
+ * exchanged within a call from UA_encodeBinaryInternal and is no longer
+ * valied), no methods must return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED after
+ * calling exchangeBuffer(). This needs to be ensured for the following methods:
+ *
+ * UA_encodeBinaryInternal
+ * Array_encodeBinary
+ * NodeId_encodeBinary
+ * ExpandedNodeId_encodeBinary
+ * LocalizedText_encodeBinary
+ * ExtensionObject_encodeBinary
+ * Variant_encodeBinary
+ * DataValue_encodeBinary
+ * DiagnosticInfo_encodeBinary */
 
 /* Thread-local buffers used for exchanging the buffer for chunking */
-UA_THREAD_LOCAL UA_ByteString *encodeBuf; /* the original buffer */
-UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
-UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
+static UA_THREAD_LOCAL UA_exchangeEncodeBuffer exchangeBufferCallback;
+static UA_THREAD_LOCAL void *exchangeBufferCallbackHandle;
 
 /* Send the current chunk and replace the buffer */
 static UA_StatusCode
@@ -79,24 +91,15 @@ exchangeBuffer(void) {
     if(!exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Store context variables since chunk-sending might call UA_encode itself */
-    UA_ByteString *store_encodeBuf = encodeBuf;
+    /* Store context variables since exchangeBuffer might call UA_encode itself */
     UA_exchangeEncodeBuffer store_exchangeBufferCallback = exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = exchangeBufferCallbackHandle;
 
-    size_t offset = ((uintptr_t)pos - (uintptr_t)encodeBuf->data) / sizeof(UA_Byte);
-    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, encodeBuf, offset);
+    UA_StatusCode retval = exchangeBufferCallback(exchangeBufferCallbackHandle, &pos, &end);
 
-    /* Restore context variables. This restores the pointer to the buffer, not the buffer
-     * itself. This is required so that a call to UA_encode can be made from within the
-     * exchangeBufferCallback. For example to encode the chunk header */
-    encodeBuf = store_encodeBuf;
+    /* Restore context variables */
     exchangeBufferCallback = store_exchangeBufferCallback;
     exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
-
-    /* Set pos and end in order to continue encoding */
-    pos = encodeBuf->data;
-    end = &encodeBuf->data[encodeBuf->length];
     return retval;
 }
 
@@ -212,11 +215,6 @@ UInt16_encodeBinary(UA_UInt16 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int16_encodeBinary(UA_Int16 const *src, const UA_DataType *_) {
-    return UInt16_encodeBinary((const UA_UInt16*)src, NULL);
-}
-
 static UA_StatusCode
 UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt16) > end)
@@ -228,11 +226,6 @@ UInt16_decodeBinary(UA_UInt16 *dst, const UA_DataType *_) {
 #endif
     pos += 2;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int16_decodeBinary(UA_Int16 *dst) {
-    return UInt16_decodeBinary((UA_UInt16*)dst, NULL);
 }
 
 /* UInt32 */
@@ -251,11 +244,6 @@ UInt32_encodeBinary(UA_UInt32 const *src, const UA_DataType *_) {
 
 static UA_INLINE UA_StatusCode
 Int32_encodeBinary(UA_Int32 const *src) {
-    return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-StatusCode_encodeBinary(UA_StatusCode const *src) {
     return UInt32_encodeBinary((const UA_UInt32*)src, NULL);
 }
 
@@ -296,16 +284,6 @@ UInt64_encodeBinary(UA_UInt64 const *src, const UA_DataType *_) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_INLINE UA_StatusCode
-Int64_encodeBinary(UA_Int64 const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
-static UA_INLINE UA_StatusCode
-DateTime_encodeBinary(UA_DateTime const *src) {
-    return UInt64_encodeBinary((const UA_UInt64*)src, NULL);
-}
-
 static UA_StatusCode
 UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
     if(pos + sizeof(UA_UInt64) > end)
@@ -317,11 +295,6 @@ UInt64_decodeBinary(UA_UInt64 *dst, const UA_DataType *_) {
 #endif
     pos += 8;
     return UA_STATUSCODE_GOOD;
-}
-
-static UA_INLINE UA_StatusCode
-Int64_decodeBinary(UA_Int64 *dst) {
-    return UInt64_decodeBinary((UA_UInt64*)dst, NULL);
 }
 
 static UA_INLINE UA_StatusCode
@@ -448,6 +421,26 @@ Double_decodeBinary(UA_Double *dst, const UA_DataType *_) {
 
 #endif
 
+/* If encoding fails, exchange the buffer and try again. It is assumed that
+ * encoding of numerical types never fails on a fresh buffer. */
+static UA_StatusCode
+encodeNumericWithExchangeBuffer(const void *ptr,
+                                UA_encodeBinarySignature encodeFunc) {
+    UA_StatusCode retval = encodeFunc(ptr, NULL);
+    if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
+        retval = exchangeBuffer();
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        encodeFunc(ptr, NULL);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* If the type is more complex, wrap encoding into the following method to
+ * ensure that the buffer is exchanged with intermediate checkpoints. */
+static UA_StatusCode
+UA_encodeBinaryInternal(const void *src, const UA_DataType *type);
+
 /******************/
 /* Array Handling */
 /******************/
@@ -496,6 +489,7 @@ Array_encodeBinaryComplex(uintptr_t ptr, size_t length, const UA_DataType *type)
                 ptr -= type->memSize; /* Undo to retry encoding the ith element */
                 --i;
             }
+            UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval; /* Unrecoverable fail */
         }
@@ -515,7 +509,11 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type) {
         signed_length = 0;
 
     /* Encode the array length */
-    UA_StatusCode retval = Int32_encodeBinary(&signed_length);
+    UA_StatusCode retval =
+        encodeNumericWithExchangeBuffer(&signed_length,
+                     (UA_encodeBinarySignature)UInt32_encodeBinary);
+
+    /* Quit early? */
     if(retval != UA_STATUSCODE_GOOD || length == 0)
         return retval;
 
@@ -637,11 +635,13 @@ Guid_decodeBinary(UA_Guid *dst, const UA_DataType *_) {
 #define UA_NODEIDTYPE_NUMERIC_FOURBYTE 1
 #define UA_NODEIDTYPE_NUMERIC_COMPLETE 2
 
-/* For ExpandedNodeId, we prefill the encoding mask */
+/* For ExpandedNodeId, we prefill the encoding mask. We can return
+ * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED before encoding the string, as the
+ * buffer is not replaced. */
 static UA_StatusCode
 NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, UA_Byte encoding) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    switch (src->identifierType) {
+    switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
         if(src->identifier.numeric > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
             encoding |= UA_NODEIDTYPE_NUMERIC_COMPLETE;
@@ -666,7 +666,9 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, UA_Byte encoding) {
         encoding |= UA_NODEIDTYPE_STRING;
         retval |= Byte_encodeBinary(&encoding, NULL);
         retval |= UInt16_encodeBinary(&src->namespaceIndex, NULL);
-        retval |= String_encodeBinary(&src->identifier.string, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = String_encodeBinary(&src->identifier.string, NULL);
         break;
     case UA_NODEIDTYPE_GUID:
         encoding |= UA_NODEIDTYPE_GUID;
@@ -678,7 +680,9 @@ NodeId_encodeBinaryWithEncodingMask(UA_NodeId const *src, UA_Byte encoding) {
         encoding |= UA_NODEIDTYPE_BYTESTRING;
         retval |= Byte_encodeBinary(&encoding, NULL);
         retval |= UInt16_encodeBinary(&src->namespaceIndex, NULL);
-        retval |= ByteString_encodeBinary(&src->identifier.byteString);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = ByteString_encodeBinary(&src->identifier.byteString);
         break;
     default:
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -752,12 +756,25 @@ ExpandedNodeId_encodeBinary(UA_ExpandedNodeId const *src, const UA_DataType *_) 
     if(src->serverIndex > 0)
         encoding |= UA_EXPANDEDNODEID_SERVERINDEX_FLAG;
 
-    /* Encode the content */
+    /* Encode the NodeId */
     UA_StatusCode retval = NodeId_encodeBinaryWithEncodingMask(&src->nodeId, encoding);
-    if((void*)src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL)
-        retval |= String_encodeBinary(&src->namespaceUri, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Encode the namespace. Do not return
+     * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED afterwards. */
+    if((void*)src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL) {
+        retval = String_encodeBinary(&src->namespaceUri, NULL);
+        UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Encode the serverIndex */
     if(src->serverIndex > 0)
-        retval |= UInt32_encodeBinary(&src->serverIndex, NULL);
+        retval = encodeNumericWithExchangeBuffer(&src->serverIndex,
+                              (UA_encodeBinarySignature)UInt32_encodeBinary);
+    UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return retval;
 }
 
@@ -798,12 +815,17 @@ LocalizedText_encodeBinary(UA_LocalizedText const *src, const UA_DataType *_) {
     if(src->text.data)
         encoding |= UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT;
 
-    /* Encode the content */
+    /* Encode the encoding byte */
     UA_StatusCode retval = Byte_encodeBinary(&encoding, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Encode the strings */
     if(encoding & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE)
         retval |= String_encodeBinary(&src->locale, NULL);
     if(encoding & UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT)
         retval |= String_encodeBinary(&src->text, NULL);
+    UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return retval;
 }
 
@@ -821,12 +843,19 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
     return retval;
 }
 
-static UA_StatusCode
-findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
-    const UA_DataType *types = NULL;
-    size_t typesSize;
+/* The binary encoding has a different nodeid from the data type. So it is not
+ * possible to reuse UA_findDataType */
+static UA_DataType *
+findDataTypeByBinary(const UA_NodeId *typeId) {
+    /* We only store a numeric identifier for the encoding nodeid of data types */
+    if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+
+    /* Custom or standard data type? */
+    UA_DataType *types = NULL;
+    size_t typesSize = 0;
     if(typeId->namespaceIndex != 0){
-        if(namespaces_local == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        if(namespaces_local == NULL) return NULL;//UA_STATUSCODE_BADNODEIDUNKNOWN;
         for(size_t i = 0; i < namespacesSize_local; ++i){
             if(namespaces_local[i].index == typeId->namespaceIndex){
                 types = namespaces_local[i].dataTypes;
@@ -838,15 +867,14 @@ findDataTypeByBinary(const UA_NodeId *typeId, const UA_DataType **findtype) {
         types = UA_TYPES;
         typesSize = UA_TYPES_COUNT;
     }
-    if(types == NULL) return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    /* Iterate over the array */
     for(size_t i = 0; i < typesSize; ++i) {
-        if(types[i].binaryEncodingId == typeId->identifier.numeric) {
-            // cppcheck-suppress autoVariables
-            *findtype = &types[i];
-            return UA_STATUSCODE_GOOD;
-        }
+        if(types[i].binaryEncodingId == typeId->identifier.numeric &&
+           types[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            return &types[i];
     }
-    return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    return NULL;
 }
 
 /* ExtensionObject */
@@ -854,16 +882,22 @@ static UA_StatusCode
 ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_) {
     UA_Byte encoding = src->encoding;
 
-    /* No content or already encoded content */
+    /* No content or already encoded content. Do not return
+     * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED after encoding the NodeId. */
     if(encoding <= UA_EXTENSIONOBJECT_ENCODED_XML) {
         UA_StatusCode retval = NodeId_encodeBinary(&src->content.encoded.typeId, NULL);
-        retval |= Byte_encodeBinary(&encoding, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = encodeNumericWithExchangeBuffer(&encoding,
+                              (UA_encodeBinarySignature)Byte_encodeBinary);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
         switch (src->encoding) {
         case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
             break;
         case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
         case UA_EXTENSIONOBJECT_ENCODED_XML:
-            retval |= ByteString_encodeBinary(&src->content.encoded.body);
+            retval = ByteString_encodeBinary(&src->content.encoded.body);
             break;
         default:
             retval = UA_STATUSCODE_BADINTERNALERROR;
@@ -875,7 +909,8 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
     if(!src->content.decoded.type || !src->content.decoded.data)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Write the NodeId for the binary encoded type */
+    /* Write the NodeId for the binary encoded type. The NodeId is always
+     * numeric, so no buffer replacement is taking place. */
     UA_NodeId typeId = src->content.decoded.type->typeId;
     if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -886,25 +921,28 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
     encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
     retval |= Byte_encodeBinary(&encoding, NULL);
 
-    /* Write the length of the following content */
+    /* Compute the content length */
     const UA_DataType *type = src->content.decoded.type;
     size_t len = UA_calcSizeBinary(src->content.decoded.data, type);
+
+    /* Encode the content length */
     if(len > UA_INT32_MAX)
         return UA_STATUSCODE_BADENCODINGERROR;
     UA_Int32 signed_len = (UA_Int32)len;
     retval |= Int32_encodeBinary(&signed_len);
 
+    /* Return early upon failures (no buffer exchange until here) */
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* Encode the content */
-    size_t encode_index = type->builtin ? type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    retval |= encodeBinaryJumpTable[encode_index](src->content.decoded.data, type);
-    return retval;
+    return UA_encodeBinaryInternal(src->content.decoded.data, type);
 }
 
 static UA_StatusCode
 ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *typeId) {
     /* Lookup the datatype */
-    const UA_DataType *type = NULL;
-    findDataTypeByBinary(typeId, &type);
+    const UA_DataType *type = findDataTypeByBinary(typeId);
 
     /* Unknown type, just take the binary content */
     if(!type) {
@@ -959,6 +997,8 @@ ExtensionObject_decodeBinary(UA_ExtensionObject *dst, const UA_DataType *_) {
 }
 
 /* Variant */
+
+/* Never returns UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED */
 static UA_StatusCode
 Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean isArray) {
     /* Default to 1 for a scalar. */
@@ -972,6 +1012,8 @@ Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean 
         length = src->arrayLength;
         UA_Int32 encodedLength = (UA_Int32)src->arrayLength;
         retval = Int32_encodeBinary(&encodedLength);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
     /* Set up the ExtensionObject */
@@ -984,18 +1026,9 @@ Variant_encodeBinaryWrapExtensionObject(const UA_Variant *src, const UA_Boolean 
 
     /* Iterate over the array */
     for(size_t i = 0; i < length && retval == UA_STATUSCODE_GOOD; ++i) {
-        UA_Byte *oldpos = pos;
         eo.content.decoded.data = (void*)ptr;
-        retval |= ExtensionObject_encodeBinary(&eo, NULL);
+        retval = UA_encodeBinaryInternal(&eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
         ptr += memSize;
-        if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
-            /* exchange/send with the current buffer with chunking */
-            pos = oldpos;
-            retval = exchangeBuffer();
-            /* encode the same element in the next iteration */
-            --i;
-            ptr -= memSize;
-        }
     }
     return retval;
 }
@@ -1029,25 +1062,30 @@ Variant_encodeBinary(const UA_Variant *src, const UA_DataType *_) {
             encoding |= UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
     }
 
-    /* Encode the content */
+    /* Encode the encoding byte */
     UA_StatusCode retval = Byte_encodeBinary(&encoding, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Encode the content */
     if(!isBuiltin)
-        retval |= Variant_encodeBinaryWrapExtensionObject(src, isArray);
+        retval = Variant_encodeBinaryWrapExtensionObject(src, isArray);
     else if(!isArray)
-        retval |= encodeBinaryJumpTable[src->type->typeIndex](src->data, src->type);
+        retval = UA_encodeBinaryInternal(src->data, src->type);
     else
-        retval |= Array_encodeBinary(src->data, src->arrayLength, src->type);
+        retval = Array_encodeBinary(src->data, src->arrayLength, src->type);
 
     /* Encode the array dimensions */
-    if(hasDimensions)
-        retval |= Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsSize,
-                                     &UA_TYPES[UA_TYPES_INT32]);
+    if(hasDimensions && retval == UA_STATUSCODE_GOOD)
+        retval = Array_encodeBinary(src->arrayDimensions, src->arrayDimensionsSize,
+                                    &UA_TYPES[UA_TYPES_INT32]);
     return retval;
 }
 
 static UA_StatusCode
 Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
-    /* Save the position in the ByteString */
+    /* Save the position in the ByteString. If unwrapping is not possible, start
+     * from here to decode a normal ExtensionObject. */
     UA_Byte *old_pos = pos;
 
     /* Decode the DataType */
@@ -1067,13 +1105,12 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
 
     /* Search for the datatype. Default to ExtensionObject. */
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       findDataTypeByBinary(&typeId, &dst->type) == UA_STATUSCODE_GOOD) {
+       (dst->type = findDataTypeByBinary(&typeId)) != NULL) {
         /* Jump over the length field (TODO: check if length matches) */
         pos += 4; 
     } else {
         /* Reset and decode as ExtensionObject */
-        UA_assert(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         pos = old_pos;
         UA_NodeId_deleteMembers(&typeId);
     }
@@ -1093,8 +1130,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
     return retval;
 }
 
-/* The resulting variant always has the storagetype UA_VARIANT_DATA. Currently,
- we only support ns0 types (todo: attach typedescriptions to datatypenodes) */
+/* The resulting variant always has the storagetype UA_VARIANT_DATA. */
 static UA_StatusCode
 Variant_decodeBinary(UA_Variant *dst, const UA_DataType *_) {
     /* Decode the encoding byte */
@@ -1141,27 +1177,43 @@ static UA_StatusCode
 DataValue_encodeBinary(UA_DataValue const *src, const UA_DataType *_) {
     /* Set up the encoding mask */
     UA_Byte encodingMask = (UA_Byte)
-        ((UA_Byte)src->hasValue |
-        ((UA_Byte)src->hasStatus << 1) |
-		((UA_Byte)src->hasSourceTimestamp << 2) |
-        ((UA_Byte)src->hasServerTimestamp << 3) |
-		((UA_Byte)src->hasSourcePicoseconds << 4) |
-        ((UA_Byte)src->hasServerPicoseconds << 5));
+        (((UA_Byte)src->hasValue) |
+         ((UA_Byte)src->hasStatus << 1) |
+         ((UA_Byte)src->hasSourceTimestamp << 2) |
+         ((UA_Byte)src->hasServerTimestamp << 3) |
+         ((UA_Byte)src->hasSourcePicoseconds << 4) |
+         ((UA_Byte)src->hasServerPicoseconds << 5));
 
-    /* Encode the content */
+    /* Encode the encoding byte */
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
-    if(src->hasValue)
-        retval |= Variant_encodeBinary(&src->value, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Encode the variant. Afterwards, do not return
+     * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED, as the buffer might have been
+     * exchanged during encoding of the variant. */
+    if(src->hasValue) {
+        retval = Variant_encodeBinary(&src->value, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
     if(src->hasStatus)
-        retval |= StatusCode_encodeBinary(&src->status);
+        retval |= encodeNumericWithExchangeBuffer(&src->status,
+                               (UA_encodeBinarySignature)UInt32_encodeBinary);
     if(src->hasSourceTimestamp)
-        retval |= DateTime_encodeBinary(&src->sourceTimestamp);
+        retval |= encodeNumericWithExchangeBuffer(&src->sourceTimestamp,
+                               (UA_encodeBinarySignature)UInt64_encodeBinary);
     if(src->hasSourcePicoseconds)
-        retval |= UInt16_encodeBinary(&src->sourcePicoseconds, NULL);
+        retval |= encodeNumericWithExchangeBuffer(&src->sourcePicoseconds,
+                               (UA_encodeBinarySignature)UInt16_encodeBinary);
     if(src->hasServerTimestamp)
-        retval |= DateTime_encodeBinary(&src->serverTimestamp);
+        retval |= encodeNumericWithExchangeBuffer(&src->serverTimestamp,
+                               (UA_encodeBinarySignature)UInt64_encodeBinary);
     if(src->hasServerPicoseconds)
-        retval |= UInt16_encodeBinary(&src->serverPicoseconds, NULL);
+        retval |= encodeNumericWithExchangeBuffer(&src->serverPicoseconds,
+                               (UA_encodeBinarySignature)UInt16_encodeBinary);
+    UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return retval;
 }
 
@@ -1216,7 +1268,7 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_) 
         ((UA_Byte)src->hasLocalizedText << 2) | ((UA_Byte)src->hasLocale << 3) |
         ((UA_Byte)src->hasAdditionalInfo << 4) | ((UA_Byte)src->hasInnerDiagnosticInfo << 5));
 
-    /* Encode the content */
+    /* Encode the numeric content */
     UA_StatusCode retval = Byte_encodeBinary(&encodingMask, NULL);
     if(src->hasSymbolicId)
         retval |= Int32_encodeBinary(&src->symbolicId);
@@ -1226,12 +1278,33 @@ DiagnosticInfo_encodeBinary(const UA_DiagnosticInfo *src, const UA_DataType *_) 
         retval |= Int32_encodeBinary(&src->localizedText);
     if(src->hasLocale)
         retval |= Int32_encodeBinary(&src->locale);
-    if(src->hasAdditionalInfo)
-        retval |= String_encodeBinary(&src->additionalInfo, NULL);
-    if(src->hasInnerStatusCode)
-        retval |= StatusCode_encodeBinary(&src->innerStatusCode);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Encode the additional info */
+    if(src->hasAdditionalInfo) {
+        retval = String_encodeBinary(&src->additionalInfo, NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* From here on, do not return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED, as
+     * the buffer might have been exchanged during encoding of the string. */
+
+    /* Encode the inner status code */
+    if(src->hasInnerStatusCode) {
+        retval = encodeNumericWithExchangeBuffer(&src->innerStatusCode,
+                              (UA_encodeBinarySignature)UInt32_encodeBinary);
+        UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    /* Encode the inner diagnostic info */
     if(src->hasInnerDiagnosticInfo)
-        retval |= DiagnosticInfo_encodeBinary(src->innerDiagnosticInfo, NULL);
+        retval = UA_encodeBinaryInternal(src->innerDiagnosticInfo, &UA_TYPES[UA_TYPES_DIAGNOSTICINFO]);
+
+    UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return retval;
 }
 
@@ -1284,9 +1357,6 @@ DiagnosticInfo_decodeBinary(UA_DiagnosticInfo *dst, const UA_DataType *_) {
 /********************/
 
 static UA_StatusCode
-UA_encodeBinaryInternal(const void *src, const UA_DataType *type);
-
-static UA_StatusCode
 UA_decodeBinaryInternal(void *dst, const UA_DataType *type);
 
 const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1] = {
@@ -1332,45 +1402,41 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
             size_t encode_index = membertype->builtin ? membertype->typeIndex : UA_BUILTIN_TYPES_COUNT;
             size_t memSize = membertype->memSize;
             UA_Byte *oldpos = pos;
-            retval |= encodeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
+            retval = encodeBinaryJumpTable[encode_index]((const void*)ptr, membertype);
             ptr += memSize;
             if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
-                /* exchange/send the buffer and try to encode the same type once more */
-                pos = oldpos;
+                pos = oldpos; /* exchange/send the buffer */
                 retval = exchangeBuffer();
-                /* re-encode the same member on the new buffer */
-                ptr -= member->padding + memSize;
+                ptr -= member->padding + memSize; /* encode the same member in the next iteration */
                 --i;
             }
         } else {
             ptr += member->padding;
             const size_t length = *((const size_t*)ptr);
             ptr += sizeof(size_t);
-            retval |= Array_encodeBinary(*(void *UA_RESTRICT const *)ptr, length, membertype);
+            retval = Array_encodeBinary(*(void *UA_RESTRICT const *)ptr, length, membertype);
             ptr += sizeof(void*);
         }
     }
+    UA_assert(retval != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     return retval;
 }
 
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle,
-                UA_ByteString *dst, size_t *offset) {
-    /* Set the (thread-local) position and end pointers to save function
-       arguments */
-    pos = &dst->data[*offset];
-    end = &dst->data[dst->length];
-
-    /* Set the (thread-local) exchangeBufferCallbacks where the buffer is exchanged and the
-       current chunk sent out */
-    encodeBuf = dst;
+                UA_Byte **bufPos, const UA_Byte **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) {
+    /* Set the (thread-local) pointers to save function arguments */
+    pos = *bufPos;
+    end = *bufEnd;
     exchangeBufferCallback = exchangeCallback;
     exchangeBufferCallbackHandle = exchangeHandle;
-
-    /* Encode and clean up */
     UA_StatusCode retval = UA_encodeBinaryInternal(src, type);
-    *offset = (size_t)(pos - dst->data) / sizeof(UA_Byte);
+
+    /* Set the current buffer position. Beware that the buffer might have been
+     * exchanged internally. */
+    *bufPos = pos;
+    *bufEnd = end;
     return retval;
 }
 
