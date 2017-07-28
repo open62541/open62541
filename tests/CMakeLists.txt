@@ -42,7 +42,7 @@ endif()
 # Unit Test Definition Macro
 # TODO: Re-enable all valgrind tests when travis uses a libc without the freeaddrinfo bug
 # Probably this: https://bugzilla.redhat.com/show_bug.cgi?id=754026
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full)
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_VALGRIND_UNIT_TESTS)
         add_test(${TEST_NAME} valgrind --error-exitcode=1 ${VALGRIND_FLAGS} ${ARGN})
