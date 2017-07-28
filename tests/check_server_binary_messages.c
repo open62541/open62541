@@ -24,7 +24,7 @@ static UA_ByteString readFile(char *filename) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         rewind(f);
-        buf.data = malloc(length);
+        buf.data = (UA_Byte*)UA_malloc(length);
         fread(buf.data, sizeof(char), length, f);
         buf.length = length;
         fclose(f);
@@ -41,7 +41,7 @@ START_TEST(processMessage) {
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
         UA_Boolean reallocated;
-        UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
+        UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
         if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
             UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);

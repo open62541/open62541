@@ -8,14 +8,14 @@
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    buf->data = malloc(length);
+    buf->data = (UA_Byte*)UA_malloc(length);
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    free(buf->data);
+    UA_free(buf->data);
 }
 
 static UA_StatusCode

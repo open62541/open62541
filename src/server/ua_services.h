@@ -69,10 +69,6 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response);
 
-/* Checks if a registration timed out and removes that registration.
- * Should be called periodically in main loop */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
-
 /* This Service allows a Server to register its DiscoveryUrls and capabilities
  * with a Discovery Server. It extends the registration information from
  * RegisterServer with information necessary for FindServersOnNetwork. */

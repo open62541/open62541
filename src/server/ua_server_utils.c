@@ -231,3 +231,117 @@ UA_Server_editNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 #endif
 }
+
+UA_StatusCode
+UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
+                                   UA_ServiceOperation operationCallback,
+                                   const size_t *requestOperations,
+                                   const UA_DataType *requestOperationsType,
+                                   size_t *responseOperations,
+                                   const UA_DataType *responseOperationsType) {
+    size_t ops = *requestOperations;
+    if(ops == 0)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
+    /* No padding after size_t */
+    void **respPos = (void**)((uintptr_t)responseOperations + sizeof(size_t));
+    *respPos = UA_Array_new(ops, responseOperationsType);
+    if(!(*respPos))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    *responseOperations = ops;
+    uintptr_t respOp = (uintptr_t)*respPos;
+    /* No padding after size_t */
+    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    for(size_t i = 0; i < ops; i++) {
+        operationCallback(server, session, (void*)reqOp, (void*)respOp);
+        reqOp += requestOperationsType->memSize;
+        respOp += responseOperationsType->memSize;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/*********************************/
+/* Default attribute definitions */
+/*********************************/
+
+const UA_ObjectAttributes UA_ObjectAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    0                       /* eventNotifier */
+};
+
+const UA_VariableAttributes UA_VariableAttributes_default = {
+    0,                           /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}},      /* displayName */
+    {{0, NULL}, {0, NULL}},      /* description */
+    0, 0,                        /* writeMask (userWriteMask) */
+    {NULL, UA_VARIANT_DATA,
+     0, NULL, 0, NULL},          /* value */
+    {0, UA_NODEIDTYPE_NUMERIC,
+     {UA_NS0ID_BASEDATATYPE}},   /* dataType */
+    -2,                          /* valueRank */
+    0, NULL,                     /* arrayDimensions */
+    UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
+    0.0,                         /* minimumSamplingInterval */
+    false                        /* historizing */
+};
+
+const UA_MethodAttributes UA_MethodAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    true, true              /* executable (userExecutable) */
+};
+
+const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    false                   /* isAbstract */
+};
+
+const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
+    0,                           /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}},      /* displayName */
+    {{0, NULL}, {0, NULL}},      /* description */
+    0, 0,                        /* writeMask (userWriteMask) */
+    {NULL, UA_VARIANT_DATA,
+     0, NULL, 0, NULL},          /* value */
+    {0, UA_NODEIDTYPE_NUMERIC,
+     {UA_NS0ID_BASEDATATYPE}},   /* dataType */
+    -2,                          /* valueRank */
+    0, NULL,                     /* arrayDimensions */
+    false                        /* isAbstract */
+};
+
+const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    false,                  /* isAbstract */
+    false,                  /* symmetric */
+    {{0, NULL}, {0, NULL}}  /* inverseName */
+};
+
+const UA_DataTypeAttributes UA_DataTypeAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    false                   /* isAbstract */
+};
+
+const UA_ViewAttributes UA_ViewAttributes_default = {
+    0,                      /* specifiedAttributes */
+    {{0, NULL}, {0, NULL}}, /* displayName */
+    {{0, NULL}, {0, NULL}}, /* description */
+    0, 0,                   /* writeMask (userWriteMask) */
+    false,                  /* containsNoLoops */
+    0                       /* eventNotifier */
+};

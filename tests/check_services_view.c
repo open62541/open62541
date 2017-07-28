@@ -157,7 +157,7 @@ START_TEST(Service_TranslateBrowsePathsToNodeIds) {
     UA_BrowsePath browsePath;
     UA_BrowsePath_init(&browsePath);
     browsePath.startingNode = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    browsePath.relativePath.elements = UA_Array_new(BROWSE_PATHS_SIZE, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
+    browsePath.relativePath.elements = (UA_RelativePathElement*)UA_Array_new(BROWSE_PATHS_SIZE, &UA_TYPES[UA_TYPES_RELATIVEPATHELEMENT]);
     browsePath.relativePath.elementsSize = BROWSE_PATHS_SIZE;
 
     for(size_t i = 0; i < BROWSE_PATHS_SIZE; i++) {

@@ -4,10 +4,12 @@
 #include <stdio.h>
 #include "open62541.h"
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
 }
+#endif
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {

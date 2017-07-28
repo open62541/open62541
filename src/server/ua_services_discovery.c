@@ -105,7 +105,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing FindServersRequest");
+                         "Processing FindServersRequest", NULL);
 
     size_t foundServersSize = 0;
     UA_ApplicationDescription *foundServers = NULL;
@@ -242,7 +242,7 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
                              UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(*endpointUrl));
     } else {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "Processing GetEndpointsRequest with an empty endpointUrl");
+                             "Processing GetEndpointsRequest with an empty endpointUrl", NULL);
     }
 
     /* test if the supported binary profile shall be returned */
@@ -316,10 +316,12 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
 freeEntry(UA_Server *server, void *entry) {
     UA_free(entry);
 }
+#endif
 
 static void
 process_RegisterServer(UA_Server *server, UA_Session *session,
@@ -384,8 +386,13 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        // todo: malloc may fail: return a statuscode
         char* filePath = (char *)UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        if (!filePath) {
+            UA_LOG_ERROR_SESSION(server->config.logger, session,
+                                   "Cannot allocate memory for semaphore path. Out of memory.", NULL);
+            responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
@@ -477,7 +484,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServerRequest", NULL);
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -485,7 +493,8 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServer2Request", NULL);
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
@@ -513,18 +522,22 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
             // todo: malloc may fail: return a statuscode
             char* filePath = (char *)UA_malloc(fpSize);
-            memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
-                   current->registeredServer.semaphoreFilePath.length );
-            filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+            if (filePath) {
+                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
+                       current->registeredServer.semaphoreFilePath.length );
+                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
-           FILE *fp = fopen(filePath,"rb");
-           semaphoreDeleted = (fp==NULL);
-           if(fp)
-             fclose(fp);
+                FILE *fp = fopen(filePath,"rb");
+                semaphoreDeleted = (fp==NULL);
+                if(fp)
+                    fclose(fp);
 #else
-           semaphoreDeleted = access( filePath, 0 ) == -1;
+                semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
-           UA_free(filePath);
+                UA_free(filePath);
+            } else {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot check registration semaphore. Out of memory");
+            }
         }
 #endif
 

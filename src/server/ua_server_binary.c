@@ -220,9 +220,13 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 /*************************/
 
 /* HEL -> Open up the connection */
-static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
+static void
+processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
     UA_TcpHelloMessage helloMessage;
     if(UA_TcpHelloMessage_decodeBinary(msg, offset, &helloMessage) != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not decode the HEL message. Closing the connection.",
+                    connection->sockfd);
         connection->close(connection);
         return;
     }
@@ -299,6 +303,9 @@ processOPN(UA_Server *server,
     if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
         UA_NodeId_deleteMembers(&requestType);
         UA_OpenSecureChannelRequest_deleteMembers(&openSecureChannelRequest);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not decode the OPN message. Closing the connection.",
+                    connection->sockfd);
         connection->close(connection);
         return;
     }
@@ -313,6 +320,9 @@ processOPN(UA_Server *server,
     UA_SecureChannel *channel = connection->channel;
     if(!channel) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not open a SecureChannel. "
+                    "Closing the connection.", connection->sockfd);
         connection->close(connection);
         return;
     }
@@ -330,6 +340,9 @@ processOPN(UA_Server *server,
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not obtain a buffer to answer the OPN message. "
+                    "Closing the connection.", connection->sockfd);
         connection->close(connection);
         return;
     }
@@ -342,6 +355,9 @@ processOPN(UA_Server *server,
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not encode the OPN message. "
+                    "Closing the connection.", connection->sockfd);
         connection->close(connection);
         return;
     }
@@ -381,7 +397,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         if(requestTypeId.identifier.numeric == 787) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Client requested a subscription, " \
-                                "but those are not enabled in the build");
+                                "but those are not enabled in the build", NULL);
         } else {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Unknown request with type identifier %i",
@@ -406,7 +422,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                              server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Could not decode the request");
+                             "Could not decode the request", NULL);
         sendError(channel, msg, requestPos, responseType, requestId, retval);
         return;
     }
@@ -434,7 +450,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         if(!session) {
             UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
                                  "Trying to activate a session that is " \
-                                 "not known in the server");
+                                 "not known in the server", NULL);
             sendError(channel, msg, requestPos, responseType,
                       requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
             UA_deleteMembers(request, requestType);
@@ -480,7 +496,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* The session is bound to another channel */
     if(session->channel != channel) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Client tries to use an obsolete securechannel");
+                             "Client tries to use an obsolete securechannel", NULL);
         sendError(channel, msg, requestPos, responseType,
                   requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
         UA_deleteMembers(request, requestType);
@@ -523,14 +539,20 @@ send_response:
 /* ERR -> Error from the remote connection */
 static void processERR(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
     UA_TcpErrorMessage errorMessage;
-    if(UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
+    if (UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Could not decide the ERR message. "
+                    "Closing the connection.", connection->sockfd);
         connection->close(connection);
         return;
     }
 
     UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Client replied with an error message: %s %.*s",
-                 UA_StatusCode_name(errorMessage.error), errorMessage.reason.length, errorMessage.reason.data);
+                 "Connection %i | Client replied with an error message: %s %.*s",
+                 connection->sockfd, UA_StatusCode_name(errorMessage.error),
+                 errorMessage.reason.length, errorMessage.reason.data);
+
+    UA_TcpErrorMessage_deleteMembers(&errorMessage);
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
@@ -550,26 +572,24 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     }
     case UA_MESSAGETYPE_HEL:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Cannot process a HEL on an open channel");
+                             "Cannot process a HEL on an open channel", NULL);
         break;
     case UA_MESSAGETYPE_OPN:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process an OPN on an open channel");
+                             "Process an OPN on an open channel", NULL);
         processOPN(server, channel->connection, channel->securityToken.channelId, requestId, message, channel);
         break;
     case UA_MESSAGETYPE_MSG:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a MSG", channel->connection->sockfd);
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a MSG", NULL);
         processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
-        UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Process a CLO", channel->connection->sockfd);
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Process a CLO", NULL);
         Service_CloseSecureChannel(server, channel);
         break;
     default:
         UA_LOG_TRACE_CHANNEL(server->config.logger, channel,
-                             "Unknown message type");
+                             "Unknown message type", NULL);
     }
 }
 
@@ -577,16 +597,31 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
 static void
 processBinaryMessage(UA_Server *server, UA_Connection *connection,
                      UA_ByteString *message) {
+    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Connection %i | Received a packet.", connection->sockfd);
     UA_Boolean realloced = UA_FALSE;
-    UA_StatusCode retval = UA_Connection_completeMessages(connection, message, &realloced);
+    UA_StatusCode retval = UA_Connection_completeChunks(connection, message, &realloced);
+
+    /* No failure, but no chunk ready */
+    if(message->length == 0) {
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Connection %i | Not a complete chunk yet.", connection->sockfd);
+        return;
+    }
+
+    /* Failed to complete a chunk */
     if(retval != UA_STATUSCODE_GOOD) {
         if(!realloced)
             connection->releaseRecvBuffer(connection, message);
         else
             UA_ByteString_deleteMembers(message);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Failed to complete a chunk. "
+                    "Closing the connection.", connection->sockfd);
+        connection->close(connection);
         return;
     }
-    
+
     UA_SecureChannel *channel = connection->channel;
     if(channel) {
         /* Assemble chunks in the securechannel and process complete messages */
@@ -597,10 +632,16 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                  "resulted in error code %s", UA_StatusCode_name(retval));
     } else {
         /* Process messages without a channel and no chunking */
+        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                     "Connection %i | No channel attached to the connection. "
+                     "Process the chunk directly", connection->sockfd);
         size_t offset = 0;
         UA_TcpMessageHeader tcpMessageHeader;
         retval = UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
         if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Could not decode the TCP message header. "
+                        "Closing the connection.", connection->sockfd);
             connection->close(connection);
             return;
         }
@@ -615,7 +656,7 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
         case UA_MESSAGETYPE_HEL:
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                          "Connection %i | Process HEL message", connection->sockfd);
-            processHEL(connection, message, &offset);
+            processHEL(server, connection, message, &offset);
             break;
         case UA_MESSAGETYPE_OPN: {
             UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
@@ -695,7 +736,7 @@ void
 UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                UA_ByteString *message) {
     /* Allocate the memory for the callback data */
-    ConnectionMessage *cm = UA_malloc(sizeof(ConnectionMessage));
+    ConnectionMessage *cm = (ConnectionMessage*)UA_malloc(sizeof(ConnectionMessage));
 
     /* If malloc failed, execute immediately */
     if(!cm) {

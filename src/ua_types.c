@@ -78,7 +78,7 @@ UA_String_fromChars(char const src[]) {
     return str;
 }
 
-bool
+UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     if(s1->length != s2->length)
         return false;
@@ -153,7 +153,7 @@ UA_DateTime_toString(UA_DateTime t) {
 }
 
 /* Guid */
-bool
+UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
         return true;
@@ -230,7 +230,7 @@ NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
     return retval;
 }
 
-bool
+UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
         return false;
@@ -255,7 +255,7 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     return (p->identifier.string.length == 0);
 }
 
-bool
+UA_Boolean
 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1->namespaceIndex != n2->namespaceIndex ||
        n1->identifierType!=n2->identifierType)
@@ -460,8 +460,8 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
 static UA_StatusCode
 computeStrides(const UA_Variant *v, const UA_NumericRange range,
                size_t *total, size_t *block, size_t *stride, size_t *first) {
-    /* Test for max array size */
-#if(MAX_SIZE > 0xffffffff) /* 64bit only */
+    /* Test for max array size (64bit only) */
+#if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif

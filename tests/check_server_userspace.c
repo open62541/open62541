@@ -51,9 +51,9 @@ START_TEST(Server_addNamespace_writeService)
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_ptr_eq(namespaces.type, &UA_TYPES[UA_TYPES_STRING]);
 
-    namespaces.data = realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
+    namespaces.data = UA_realloc(namespaces.data, (namespaces.arrayLength + 1) * sizeof(UA_String));
     ++namespaces.arrayLength;
-    UA_String *ns = namespaces.data;
+    UA_String *ns = (UA_String*)namespaces.data;
     ns[namespaces.arrayLength-1] = UA_STRING_ALLOC("test");
     size_t nsSize = namespaces.arrayLength;
 
