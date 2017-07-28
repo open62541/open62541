@@ -390,7 +390,8 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    getaddrinfo(NULL, portno, &hints, &res);
+    if(getaddrinfo(NULL, portno, &hints, &res) != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* There might be serveral addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
