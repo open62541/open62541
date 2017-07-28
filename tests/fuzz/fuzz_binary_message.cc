@@ -16,14 +16,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     UA_Connection c = createDummyConnection();
     UA_ServerConfig *config = UA_ServerConfig_standard_new();
-    config.logger = UA_Log_Stdout;
-    UA_Server *server = UA_Server_new(config);
+    UA_Server *server = UA_Server_new(*config);
     UA_ByteString msg = {
 			size, //length
 			const_cast<UA_Byte*>(data) //data
 	};
-
-    config.logger = UA_Log_Stdout;
     UA_Boolean reallocated = UA_FALSE;
     UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
     if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
