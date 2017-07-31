@@ -178,8 +178,8 @@ int main(void) {
             myIntegerName, UA_NODEID_NULL, myVar, NULL, NULL);
         UA_Variant_deleteMembers(&myVar.value);
     }
-//    //Add a namespace to test the add/delete namespace function
-//    UA_Server_addNamespace(server, "TestAddDeleteNamespace");
+    //Add a namespace to test the add/delete namespace function
+    UA_Server_addNamespace(server, "TestAddDeleteNamespace");
 
     //Add the example nodestore
     UA_NodestoreInterface nsi2 = Nodestore_Example_new();
@@ -212,10 +212,11 @@ int main(void) {
     }
 
     //Delete the namespace for the test of add/delete namespace function
-//    UA_Server_deleteNamespace(server, "TestAddDeleteNamespace");
-//    if(UA_Server_addNamespace_full(server,namespace3) == UA_STATUSCODE_GOOD){
-//        nsIdx = namespace3->index;
-//    }
+    UA_Server_deleteNamespace(server, "TestAddDeleteNamespace");
+    //Try to add same namespace again.
+    if(UA_Server_addNamespace_full(server,namespace3) == UA_STATUSCODE_GOOD){
+        nsIdx = namespace3->index;
+    }
 
     //Run and stop the server
     UA_Server_run(server, &running);

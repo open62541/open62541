@@ -688,7 +688,7 @@ UA_INLINE UA_StatusCode {0}(UA_Server *server){{
 UA_INLINE UA_StatusCode {0}_returnNamespaces(
         UA_Server *server, UA_UInt16 *namespacesSize, UA_Namespace **namespaces) {{
   UA_StatusCode retval = UA_STATUSCODE_GOOD;
-  UA_Namespace* nsArray = UA_malloc({1} * sizeof(UA_Namespace));
+  UA_Namespace* nsArray = (UA_Namespace*) UA_malloc({1} * sizeof(UA_Namespace));
   UA_String tempNsUri;
 '''.format(outfilename,len(self.namespaceIdentifiers)))
     namespacesCount = 0
