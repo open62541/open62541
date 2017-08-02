@@ -18,16 +18,17 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_ServerConfig config = UA_ServerConfig_standard;
     config.logger = UA_Log_Stdout;
     UA_Server *server = UA_Server_new(config);
-    UA_ByteString msg = {
-			size, //length
-			const_cast<UA_Byte*>(data) //data
-	};
 
-    config.logger = UA_Log_Stdout;
-    UA_Boolean reallocated = UA_FALSE;
-    UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
-    if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
-        UA_Server_processBinaryMessage(server, &c, &msg);
+    // we need to copy the message because it will be freed in the processing function
+    UA_ByteString msg = UA_ByteString();
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, size);
+    if(retval != UA_STATUSCODE_GOOD)
+        return (int)retval;
+    memcpy(msg.data, data, size);
+
+    UA_Server_processBinaryMessage(server, &c, &msg);
+	// if we got an invalid chunk, the message is not deleted, so delete it here
+    UA_ByteString_deleteMembers(&msg);
     UA_Server_delete(server);
     UA_Connection_deleteMembers(&c);
     return 0;
