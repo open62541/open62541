@@ -647,11 +647,12 @@ copyCommonVariableAttributes(UA_Server *server, UA_VariableNode *node,
     /* Use the default value from the vt if none is defined */
     if(!value.value.type) {
         retval = readValueAttribute(server, (const UA_VariableNode*)vt, &value);
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Could not read the value of the variable type "
-                    "with error code %s", UA_StatusCode_name(retval));
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                        "Could not read the value of the variable type "
+                        "with error code %s", UA_StatusCode_name(retval));
             return retval;
+        }
     }
 
     /* Write the value to the node */
