@@ -22,17 +22,21 @@ extern "C" {
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 
+#ifdef UA_ENABLE_MULTITHREADING
 /* Thread Local Storage */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#elif defined(_MSC_VER)
-# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-#else
-# define UA_THREAD_LOCAL
-# warning The compiler does not allow thread-local variables. \
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 */
+# elif defined(__GNUC__)
+#  define UA_THREAD_LOCAL __thread /* GNU extension */
+# elif defined(_MSC_VER)
+#  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+# else
+#  define UA_THREAD_LOCAL
+#  warning The compiler does not allow thread-local variables. \
   The library can be built, but will not be thread-safe.
+# endif
+#else
+#  define UA_THREAD_LOCAL
 #endif
 
 /* Integer Shortnames
