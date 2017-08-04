@@ -26,6 +26,12 @@ typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 
 struct UA_Policy_SecurityContext;
 typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
+
+struct UA_TrustedCertificate;
+typedef struct UA_TrustedCertificate UA_TrustedCertificate;
+
+struct UA_RevokedCertificate;
+typedef struct UA_RevokedCertificate UA_RevokedCertificate;
 /////////////////////////////////
 // End of forward declarations //
 /////////////////////////////////
@@ -178,15 +184,39 @@ typedef struct
 } UA_SecurityPolicySymmetricModule;
 
 /**
+ * This struct contains a single certificate of the certificate trust list
+ * and points to another certificate, that follows in the certificate trust list.
+ *
+ * If this is the last certificate, the nextCertificate pointer must be NULL.
+ */
+struct UA_TrustedCertificate {
+    const UA_ByteString trustedCertificate;
+    const UA_TrustedCertificate *nextCertificate;
+};
+
+/**
+ * This struct contains a single certificate of the certificate revocation list
+ * and points to another certificate, that follows in the certificate trust list.
+ *
+ * If this is the last certificate, the nextCertificate pointer must be NULL.
+ */
+struct UA_RevokedCertificate {
+    const UA_ByteString revokedCertificate;
+    const UA_RevokedCertificate *nextCertificate;
+};
+
+/**
  * This struct defines initialization Data that is potentially needed by every security policy.
  * Some of these, like the revocation list for example, may be omitted (empty ByteString).
+ *
+ * Implementations of security policies must copy the supplied data, so that it can be freed
+ * by the user application any time after the init function was called.
  */
-typedef struct
-{
+typedef struct {
     const UA_ByteString *localPrivateKey;
     const UA_ByteString *localCertificate;
-    const UA_ByteString *certificateTrustList;
-    const UA_ByteString *certificateRevocationList;
+    const UA_TrustedCertificate *certificateTrustList;
+    const UA_RevokedCertificate *certificateRevocationList;
 } UA_Policy_SecurityContext_RequiredInitData;
 
 struct UA_Policy_SecurityContext {
@@ -203,6 +233,9 @@ struct UA_Policy_SecurityContext {
                                       const void *optInitData,
                                       void **pp_contextData);
 
+    /**
+     * \brief Deletes the supplied policy context.
+     */
     UA_StatusCode (*const deleteContext)(void *policyContext);
 
     /**
