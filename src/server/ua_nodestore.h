@@ -86,7 +86,7 @@ void UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle, UA_NodestoreInt
  * ^^^^^^^^
  * Only used in nodestore_concurrent. Indicates that a node is no longer referenced by the caller.
  */
-void UA_NodeStore_release(void *handle, const UA_Node *node);
+void UA_NodeStore_release(UA_NodeStore *ns, const UA_Node *node);
 
 #ifdef __cplusplus
 } // extern "C"

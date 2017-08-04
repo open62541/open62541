@@ -711,7 +711,7 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
     if(retval == UA_STATUSCODE_GOOD) {
         client->connection.state = UA_CONNECTION_ESTABLISHED;
         client->state = UA_CLIENTSTATE_CONNECTED;
-        retval = UpdateNamespaceIndices(client);
+        if(createSession) retval = UpdateNamespaceIndices(client);
     } else {
         goto cleanup;
     }

@@ -13,6 +13,8 @@
 
 typedef struct UA_NodeStoreEntry {
     struct UA_NodeStoreEntry *orig; // the version this is a copy from (or NULL)
+    UA_UInt16 refCount; //Counts how much pointer reference the node in this entry.
+    UA_Boolean deleted; //Node was marked as deleted and can be deleted as soon, as refCount == 0
     UA_Node node;
 } UA_NodeStoreEntry;
 
@@ -94,8 +96,11 @@ instantiateEntry(UA_NodeClass nodeClass) {
 
 static void
 deleteEntry(UA_NodeStoreEntry *entry) {
-    UA_Node_deleteMembersAnyNodeClass(&entry->node);
-    UA_free(entry);
+    entry->deleted = UA_TRUE;
+    if(entry->refCount == 0){
+        UA_Node_deleteMembersAnyNodeClass(&entry->node);
+        UA_free(entry);
+    }
 }
 
 /* returns slot of a valid node or null */
@@ -111,7 +116,8 @@ findNode(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
         if(!e)
             return NULL;
         if(e > UA_NODESTORE_TOMBSTONE &&
-           UA_NodeId_equal(&e->node.nodeId, nodeid))
+                !e->deleted &&
+                UA_NodeId_equal(&e->node.nodeId, nodeid))
             return &ns->entries[idx];
         idx += hash2;
         if(idx >= size)
@@ -132,7 +138,7 @@ findSlot(const UA_NodeStore *ns, const UA_NodeId *nodeid) {
 
     while(true) {
         UA_NodeStoreEntry *e = ns->entries[idx];
-        if(e > UA_NODESTORE_TOMBSTONE &&
+        if(e > UA_NODESTORE_TOMBSTONE && !e->deleted &&
            UA_NodeId_equal(&e->node.nodeId, nodeid))
             return NULL;
         if(ns->entries[idx] <= UA_NODESTORE_TOMBSTONE)
@@ -344,6 +350,7 @@ UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_NodeStoreEntry **entry = findNode(ns, nodeid);
     if(!entry)
         return NULL;
+    ++(*entry)->refCount;
     return (const UA_Node*)&(*entry)->node;
 }
 
@@ -387,6 +394,14 @@ UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle , UA_NodestoreInterfa
 }
 
 void
-UA_NodeStore_release(void *handle, const UA_Node *node){}
+UA_NodeStore_release(UA_NodeStore *ns, const UA_Node *node){
+    UA_NodeStoreEntry *entry = container_of(node, UA_NodeStoreEntry, node);
+    UA_assert(&entry->node == node);
+    UA_assert(entry->refCount > 0);
+    --entry->refCount;
+    if(entry->deleted){
+        deleteEntry(entry);
+    }
+}
 
 #endif /* UA_ENABLE_MULTITHREADING */

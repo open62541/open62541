@@ -471,7 +471,7 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
 
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BYTE] == resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, 0);
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ);
     UA_DataValue_deleteMembers(&resp);
     UA_Server_delete(server);
 } END_TEST

@@ -256,12 +256,12 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Re-read the node to get the changes */
-    UA_NodestoreSwitch_releaseNode(server, (const UA_Node*)node);
-    node = (const UA_VariableNode*)UA_NodestoreSwitch_getNode(server, &node->nodeId);
+    const UA_Node * nodeUpdate = UA_NodestoreSwitch_getNode(server, &node->nodeId);
 
-    retval = typeCheckVariableNodeWithValue(server, session, node, vt, &value);
+    retval = typeCheckVariableNodeWithValue(server, session, (const UA_VariableNode*)nodeUpdate, vt, &value);
     UA_DataValue_deleteMembers(&value);
     UA_NodestoreSwitch_releaseNode(server,(const UA_Node *)vt);
+    UA_NodestoreSwitch_releaseNode(server, nodeUpdate);
     return retval;
 }
 
@@ -488,12 +488,13 @@ copyChildNode(UA_Server *server, UA_Session *session,
 
         /* Call addnode_finish, this recursively adds members, the type definition and so on */
         if(retval == UA_STATUSCODE_GOOD)
-            retval = Service_AddNode_finish(server, session, &node->nodeId,
+            retval = Service_AddNode_finish(server, session, &addedNodeId,
                                             destinationNodeId, &rd->referenceTypeId,
                                             &typeId, instantiationCallback);
 
         /* Clean up */
         UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_deleteMembers(&addedNodeId);
     }
     return retval;
 }
@@ -803,15 +804,8 @@ Service_AddNode_begin(UA_Server *server, UA_Session *session,
                             "nodestore with error code %s",
                             UA_StatusCode_name(result->statusCode));
         deleteNode(server, &adminSession, &result->addedNodeId, true);
+        UA_NodeId_deleteMembers(&result->addedNodeId);
         return;
-    }
-
-    /* Copy the nodeid of the new node */
-    result->statusCode = UA_NodeId_copy(&node->nodeId, &result->addedNodeId);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Could not copy the nodeid", NULL);
-        deleteNode(server, &adminSession, &node->nodeId, true);
     }
 }
 
@@ -914,7 +908,6 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: Adding reference to parent failed", NULL);
             deleteNode(server, &adminSession, nodeId, true);
-            UA_NodestoreSwitch_releaseNode(server,node);
             return retval;
         }
     }
