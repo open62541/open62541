@@ -615,6 +615,11 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                      UA_ByteString *message) {
     UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                  "Connection %i | Received a packet.", connection->sockfd);
+
+    #ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(message->data, message->length);
+    #endif
+
     UA_Boolean realloced = UA_FALSE;
     UA_StatusCode retval = UA_Connection_completeChunks(connection, message, &realloced);
 

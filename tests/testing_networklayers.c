@@ -15,7 +15,7 @@ dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf)
 
 static void
 dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_free(buf->data);
+    UA_ByteString_delete(buf);
 }
 
 static UA_StatusCode
@@ -26,7 +26,7 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    return;
+    UA_ByteString_deleteMembers(buf);
 }
 
 static void

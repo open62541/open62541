@@ -24,4 +24,13 @@ header_hel_chunk="HELC"
 header_ack_chunk="ACKC"
 header_clo_chunk="CLOC"
 
+# Message header for message abort (see Spec Part 6, Table 26)
+
+header_msg_abort="MSGA"
+header_err_abort="ERRA"
+header_opn_abort="OPNA"
+header_hel_abort="HELA"
+header_ack_abort="ACKA"
+header_clo_abort="CLOA"
+
 # TODO add dict for Security Header and Sequence Header

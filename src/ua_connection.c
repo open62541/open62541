@@ -58,6 +58,12 @@ completeChunksUntil(UA_Connection *connection, UA_ByteString * UA_RESTRICT messa
             break;
         }
 
+        UA_Byte isFinal = message->data[complete_until+3];
+        if (isFinal != 'C' && isFinal != 'F' && isFinal != 'A') {
+            *garbage_end = true; /* the message type is not recognized */
+            break;
+        }
+
         /* Decoding failed or the message size is not allowed. The remaining
          * message is garbage. */
         UA_UInt32 chunk_length = 0;
@@ -125,7 +131,7 @@ UA_StatusCode
 UA_Connection_completeChunks(UA_Connection *connection,
                              UA_ByteString * UA_RESTRICT message,
                              UA_Boolean * UA_RESTRICT realloced) {
-    /* If we have a stored an incomplete chunk, prefix to the received message.
+    /* If we have stored an incomplete chunk, prefix to the received message.
      * After this block, connection->incompleteMessage is always empty. The
      * message and the buffer is released if allocating the memory fails. */
     if(connection->incompleteMessage.length > 0) {
