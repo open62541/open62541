@@ -10,8 +10,8 @@
 /************************/
 
 static UA_StatusCode
-copyChildNodes(UA_Server *server, UA_Session *session, 
-               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, 
+copyChildNodes(UA_Server *server, UA_Session *session,
+               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
                UA_InstantiationCallback *instantiationCallback);
 
 static UA_StatusCode
@@ -402,7 +402,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childN
 
 static UA_StatusCode
 copyChildNode(UA_Server *server, UA_Session *session,
-              const UA_NodeId *destinationNodeId, 
+              const UA_NodeId *destinationNodeId,
               const UA_ReferenceDescription *rd,
               UA_InstantiationCallback *instantiationCallback) {
     UA_NodeId existingChild = UA_NODEID_NULL;
@@ -411,7 +411,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
                                           &rd->browseName, &existingChild);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-        
+
     /* Have a child with that browseName. Try to deep-copy missing members. */
     if(!UA_NodeId_isNull(&existingChild)) {
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
@@ -457,7 +457,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
          * addnode_finish. That way, we can call addnode_finish also on children that were
          * manually added by the user during addnode_begin and addnode_finish. */
         UA_Node_deleteReferences(node);
-                
+
         /* Add the node to the nodestore */
         retval = UA_NodeStore_insert(server->nodestore, node);
 
@@ -475,8 +475,8 @@ copyChildNode(UA_Server *server, UA_Session *session,
 
 /* Copy any children of Node sourceNodeId to another node destinationNodeId. */
 static UA_StatusCode
-copyChildNodes(UA_Server *server, UA_Session *session, 
-               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, 
+copyChildNodes(UA_Server *server, UA_Session *session,
+               const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId,
                UA_InstantiationCallback *instantiationCallback) {
     /* Browse to get all children of the source */
     UA_BrowseDescription bd;
@@ -494,12 +494,12 @@ copyChildNodes(UA_Server *server, UA_Session *session,
     Service_Browse_single(server, session, NULL, &bd, 0, &br);
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
-  
+
     /* Copy all children from source to destination */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        retval |= copyChildNode(server, session, destinationNodeId, 
+        retval |= copyChildNode(server, session, destinationNodeId,
                                 rd, instantiationCallback);
     }
     UA_BrowseResult_deleteMembers(&br);
@@ -514,7 +514,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     if(nodeClass != UA_NODECLASS_VARIABLE &&
        nodeClass != UA_NODECLASS_OBJECT)
         return UA_STATUSCODE_GOOD;
-        
+
     /* Get the type node */
     UA_ASSERT_RCU_LOCKED();
     const UA_Node *typenode = UA_NodeStore_get(server->nodestore, typeId);
@@ -539,7 +539,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                             &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    
+
     /* Copy members of the type and supertypes */
     for(size_t i = 0; i < hierarchySize; ++i)
         retval |= copyChildNodes(server, session, &hierarchy[i],
@@ -834,7 +834,7 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
         deleteNode(server, &adminSession, nodeId, true);
         return retval;
     }
-    
+
     if(node->nodeClass == UA_NODECLASS_VARIABLE ||
        node->nodeClass == UA_NODECLASS_VARIABLETYPE) {
         /* Type check node */
@@ -1100,7 +1100,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_VARIABLE;
     bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
-    
+
     UA_BrowseResult br;
     UA_BrowseResult_init(&br);
     UA_RCU_LOCK();
@@ -1185,7 +1185,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method, void *handle,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         UA_NodeId *outNewNodeId) {
     UA_NodeId newId;
@@ -1225,16 +1225,18 @@ addOneWayTarget(UA_NodeReferenceKind *refs, const UA_ExpandedNodeId *target) {
                                         sizeof(UA_ExpandedNodeId) * (refs->targetIdsSize+1));
     if(!targets)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    refs->targetIds = targets;
 
-    UA_StatusCode retval = UA_ExpandedNodeId_copy(target, &refs->targetIds[refs->targetIdsSize]);
-    if(retval != UA_STATUSCODE_GOOD && refs->targetIds == 0) {
+    refs->targetIds = targets;
+    UA_StatusCode retval =
+        UA_ExpandedNodeId_copy(target, &refs->targetIds[refs->targetIdsSize]);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        refs->targetIdsSize++;
+    } else if(refs->targetIdsSize == 0) {
+        /* We had zero references before (realloc was a malloc) */
         UA_free(refs->targetIds);
         refs->targetIds = NULL;
-        return retval;
     }
-
-    refs->targetIdsSize++;
     return retval;
 }
 
@@ -1334,7 +1336,7 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
                            UA_AddReferencesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing AddReferencesRequest");
-    response->responseHeader.serviceResult = 
+    response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation) addReference,
                                            &request->referencesToAddSize,
