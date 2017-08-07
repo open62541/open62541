@@ -62,6 +62,8 @@ option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open6254
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 
+set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
+
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -176,13 +178,18 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wmultichar
                     -Wundef
                     -Wc++-compat)
-     if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
+    if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
-     endif()
+    endif()
 
-     if(UA_ENABLE_AMALGAMATION)
-         add_definitions(-Wno-unused-function)
-     endif()
+    if(UA_ENABLE_AMALGAMATION)
+        add_definitions(-Wno-unused-function)
+    endif()
+
+    if(UA_VXWORKS_WRS_KERNEL)
+        remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
+        add_definitions(-D_WRS_KERNEL)
+    endif()
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default

@@ -1107,7 +1107,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
        (dst->type = UA_findDataTypeByBinary(&typeId)) != NULL) {
         /* Jump over the length field (TODO: check if length matches) */
-        g_pos += 4; 
+        g_pos += 4;
     } else {
         /* Reset and decode as ExtensionObject */
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
