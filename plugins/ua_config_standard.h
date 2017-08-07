@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include "ua_server.h"
+#include "ua_server_config.h"
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
 

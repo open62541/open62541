@@ -91,8 +91,7 @@ START_TEST(Node_Add) {
 
     // Create custom reference type 'HasSubSubType' as child of HasSubtype
     {
-        UA_ReferenceTypeAttributes attr;
-        UA_ReferenceTypeAttributes_init(&attr);
+        UA_ReferenceTypeAttributes attr = UA_ReferenceTypeAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Some HasSubSubType");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "HasSubSubType");
         retval = UA_Client_addReferenceTypeNode(client, UA_NODEID_NULL,
@@ -105,8 +104,7 @@ START_TEST(Node_Add) {
 
     // Create TestObjectType SubType within BaseObjectType
     {
-        UA_ObjectTypeAttributes attr;
-        UA_ObjectTypeAttributes_init(&attr);
+        UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Some TestObjectType");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "TestObjectType");
         retval = UA_Client_addObjectTypeNode(client, UA_NODEID_NULL,
@@ -119,8 +117,7 @@ START_TEST(Node_Add) {
 
     // Create Int128 DataType within Integer Datatype
     {
-        UA_DataTypeAttributes attr;
-        UA_DataTypeAttributes_init(&attr);
+        UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Some Int128");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int128");
         retval = UA_Client_addDataTypeNode(client, UA_NODEID_NULL,
@@ -133,8 +130,7 @@ START_TEST(Node_Add) {
 
     // Create PointType VariableType within BaseDataVariableType
     {
-        UA_VariableTypeAttributes attr;
-        UA_VariableTypeAttributes_init(&attr);
+        UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
         attr.valueRank = 1; /* array with one dimension */
         UA_UInt32 arrayDims[1] = {2};
@@ -154,8 +150,7 @@ START_TEST(Node_Add) {
 
     // create Coordinates Object within ObjectsFolder
     {
-        UA_ObjectAttributes attr;
-        UA_ObjectAttributes_init(&attr);
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Some Coordinates");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Coordinates");
         retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
@@ -169,8 +164,7 @@ START_TEST(Node_Add) {
 
     // create Variable 'Top' within Coordinates Object
     {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Top Coordinate");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Top");
         UA_Int32 values[2] = {10, 20};
@@ -188,12 +182,9 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-    // create Method 'Dummy' within Coordinates Object. Fails with BADNODECLASSINVALID
+    // create Method 'Dummy' within Coordinates Object.
     {
-        // creating a method from a client does not yet make much sense since the corresponding
-        // action code can not be set from the client side
-        UA_MethodAttributes attr;
-        UA_MethodAttributes_init(&attr);
+        UA_MethodAttributes attr = UA_MethodAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Dummy method");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Dummy");
         attr.executable = true;
@@ -203,13 +194,12 @@ START_TEST(Node_Add) {
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &newMethodId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
     // create View 'AllTopCoordinates' whithin Views Folder
     {
-        UA_ViewAttributes attr;
-        UA_ViewAttributes_init(&attr);
+        UA_ViewAttributes attr = UA_ViewAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "List of all top coordinates");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "AllTopCoordinates");
         retval = UA_Client_addViewNode(client, UA_NODEID_NULL,
@@ -219,7 +209,6 @@ START_TEST(Node_Add) {
                                        attr, &newViewId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
-
 
     // Add 'Top' to view
     retval = UA_Client_addReference(client, newViewId, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -268,8 +257,7 @@ START_TEST(Node_ReadWrite) {
 
     // create Coordinates Object within ObjectsFolder
     {
-        UA_ObjectAttributes attr;
-        UA_ObjectAttributes_init(&attr);
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "UnitTest");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "UnitTest");
         retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
@@ -282,8 +270,7 @@ START_TEST(Node_ReadWrite) {
 
     // create Variable 'Top' within UnitTest Object
     {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Array");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Array");
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -310,8 +297,7 @@ START_TEST(Node_ReadWrite) {
 
     // create Variable 'Bottom' within UnitTest Object
     {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.description = UA_LOCALIZEDTEXT("en_US", "Int");
         attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int");
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;

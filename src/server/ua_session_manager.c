@@ -68,7 +68,7 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
 }
 
 UA_Session *
-UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
+UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         /* Token does not match */
@@ -90,6 +90,32 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
                 "Try to use Session with token " UA_PRINTF_GUID_FORMAT " but is not found",
                 UA_PRINTF_GUID_DATA(token->identifier.guid));
+    return NULL;
+}
+
+UA_Session *
+UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId) {
+    session_list_entry *current = NULL;
+    LIST_FOREACH(current, &sm->sessions, pointers) {
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.sessionId, sessionId))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
+        }
+
+        /* Ok, return */
+        return &current->session;
+    }
+
+    /* Session not found */
+    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                "Try to use Session with identifier " UA_PRINTF_GUID_FORMAT " but is not found",
+                UA_PRINTF_GUID_DATA(sessionId->identifier.guid));
     return NULL;
 }
 

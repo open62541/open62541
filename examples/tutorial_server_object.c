@@ -256,11 +256,11 @@ addPumpObjectInstance(UA_Server *server, char *name) {
  * pump status to on.
  */
 
-UA_Server *s = NULL; /* required to get the server pointer into the constructor
-                        function (will change for v0.3) */
-
-static void *
-pumpTypeConstructor(const UA_NodeId instance) {
+static UA_StatusCode
+pumpTypeConstructor(UA_Server *server,
+                    const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *typeId, void *typeContext,
+                    const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "New pump created");
 
     /* Find the NodeId of the status child variable */
@@ -273,33 +273,34 @@ pumpTypeConstructor(const UA_NodeId instance) {
     
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
-    bp.startingNode = instance;
+    bp.startingNode = *nodeId;
     bp.relativePath.elementsSize = 1;
     bp.relativePath.elements = &rpe;
     
     UA_BrowsePathResult bpr =
-        UA_Server_translateBrowsePathToNodeIds(s, &bp);
+        UA_Server_translateBrowsePathToNodeIds(server, &bp);
     if(bpr.statusCode != UA_STATUSCODE_GOOD ||
        bpr.targetsSize < 1)
-        return NULL;
+        return bpr.statusCode;
 
     /* Set the status value */
     UA_Boolean status = true;
     UA_Variant value;
     UA_Variant_setScalar(&value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    UA_Server_writeValue(s, bpr.targets[0].targetId.nodeId, value);
+    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
     UA_BrowsePathResult_deleteMembers(&bpr);
 
-    /* The return pointer of the constructor is attached to the ObjectNode */
-    return NULL;
+    /* At this point we could replace the node context .. */
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 addPumpTypeConstructor(UA_Server *server) {
-    UA_ObjectLifecycleManagement olm;
-    olm.constructor = pumpTypeConstructor;
-    olm.destructor = NULL;
-    UA_Server_setObjectTypeNode_lifecycleManagement(server, pumpTypeId, olm);
+    UA_NodeTypeLifecycle lifecycle;
+    lifecycle.constructor = pumpTypeConstructor;
+    lifecycle.destructor = NULL;
+    UA_Server_setNodeTypeLifecycle(server, pumpTypeId, lifecycle);
 }
 
 /** It follows the main server code, making use of the above definitions. */
@@ -316,7 +317,6 @@ int main(void) {
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
-    s = server; /* required for the constructor */
 
     manuallyDefinePump(server);
     defineObjectTypes(server);

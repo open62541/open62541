@@ -279,6 +279,7 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - UserExecutable
  *
  * Historizing is currently unsupported */
+
 /* Overwrite an attribute of a node. The specialized functions below provide a
  * more concise syntax.
  *
@@ -532,23 +533,35 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
- * Information Model
- * -----------------
+ * Information Model Callbacks
+ * ---------------------------
  *
- * Every node has a context pointer. Initially, the node context is set to
- * user-defined data (can be NULL). During instantiation, when all mandatory
- * node children have been created, constructor callbacks are executed on the
- * node that may replace the context pointer. When the ``AddNodes`` service is
- * used over the network, the context pointer of the new node is initially set
- * to NULL.
+ * There are three places where a callback from an information model to
+ * user-defined code can happen.
  *
- * The server-wide global constructor and destructor callbacks are executed on
- * all created and deleted nodes. The node-type constructors and destructors are
- * only defined for ObjectTypes and VariableTypes. In the hierarchy of
- * ObjectTypes and VariableTypes, only the lowest type constructor is executed.
- * Every Object and Variable can have only one type with a ``isTypeOf``
- * reference. Issues of multiple inheritance need to be solved by the user in
- * the constructor/destructor.
+ * - Custom node constructors and destructors
+ * - Linking VariableNodes with an external data source
+ * - MethodNode callbacks
+ *
+ * .. _node-lifecycle:
+ *
+ * Node Lifecycle: Constructors, Destructors and Node Contexts
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * To finalize the instantiation of a node, a (user-defined) constructor
+ * callback is executed. There can be both a global constructor for all nodes
+ * and node-type constructor specific to the TypeDefinition of the new node
+ * (attached to an ObjectTypeNode or VariableTypeNode).
+ *
+ * In the hierarchy of ObjectTypes and VariableTypes, only the constructor of
+ * the (lowest) type defined for the new node is executed. Note that every
+ * Object and Variable can have only one ``isTypeOf`` reference. But type-nodes
+ * can technically have several ``hasSubType`` references to implement multiple
+ * inheritance. Issues of (multiple) inheritance in the constructor need to be
+ * solved by the user.
+ *
+ * When a node is destroyed, the node-type destructor is called before the
+ * global destructor. So the overall node lifecycle is as follows:
  *
  * 1. Global Constructor (set in the server config)
  * 2. Node-Type Constructor (for VariableType or ObjectTypes)
@@ -556,31 +569,43 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
  * 4. Node-Type Destructor
  * 5. Global Destructor
  *
- * The constructor and destructor callbacks can be set to NULL and are not used
- * in that case. If the node-type constructor fails, the global destructor will
- * be called on the node before removing it. The destructors are assumed to
- * never fail. */
+ * The constructor and destructor callbacks can be set to ``NULL`` and are not
+ * used in that case. If the node-type constructor fails, the global destructor
+ * will be called before removing the node. The destructors are assumed to never
+ * fail.
+ *
+ * Every node carries a user-context and a constructor-context pointer. The
+ * user-context is used to attach custom data to a node. But the (user-defined)
+ * constructors and destructors may replace the user-context pointer if they
+ * wish to do so. The initial value for the constructor-context is ``NULL``.
+ * When the ``AddNodes`` service is used over the network, the user-context
+ * pointer of the new node is also initially set to ``NULL``. */
 
 /* To be set in the server config. */
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
-    UA_StatusCode (*constructor)(UA_Server *server, void *userSessionContext,
+    UA_StatusCode (*constructor)(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void **nodeContext);
 
-    /* Can be NULL. */
-    void (*destructor)(UA_Server *server, const UA_NodeId *nodeId,
-                       void *nodeContext);
+    /* Can be NULL. The context cannot be replaced since the node is destroyed
+     * immediately afterwards anyway. */
+    void (*destructor)(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext);
 } UA_GlobalNodeLifecycle;
 
 typedef struct {
     /* Can be NULL. May replace the nodeContext */
-    UA_StatusCode (*constructor)(UA_Server *server, void *userSessionContext,
-                                 const UA_NodeId *typeId, void *typeContext,
+    UA_StatusCode (*constructor)(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *typeNodeId, void *typeNodeContext,
                                  const UA_NodeId *nodeId, void **nodeContext);
 
     /* Can be NULL. May replace the nodeContext. */
     void (*destructor)(UA_Server *server,
-                       const UA_NodeId *typeId, void *typeContext,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *typeNodeId, void *typeNodeContext,
                        const UA_NodeId *nodeId, void **nodeContext);
 } UA_NodeTypeLifecycle;
 
@@ -589,25 +614,19 @@ UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
 
 UA_StatusCode UA_EXPORT
-UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId, void **context);
+UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
+                         void **nodeContext);
 
-/* Careful! The context pointer might have been replaced by a constructor.
- * The user has to ensure that the destructor callbacks still work. */
+/* Careful! The user has to ensure that the destructor callbacks still work. */
 UA_StatusCode UA_EXPORT
-UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId, void *context);
+UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
+                         void *nodeContext);
 
 /**
- * Variable Value Storage
- * ^^^^^^^^^^^^^^^^^^^^^^
- * - Datasources for variable nodes, where the variable content is managed
- *   externally
- * - Value-callbacks for variable nodes, where userspace is notified when a
- *   read/write occurs
- *
  * .. _datasource:
  *
  * Data Source Callback
- * ~~~~~~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^^^^^^
  *
  * The server has a unique way of dealing with the content of variables. Instead
  * of storing a variant attached to the variable node, the node can point to a
@@ -635,8 +654,9 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
      *         then no releasing of the value is done. */
-    UA_StatusCode (*read)(const UA_NodeId *nodeId, void *nodeContext,
-                          UA_Boolean includeSourceTimeStamp,
+    UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, UA_Boolean includeSourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *value);
 
     /* Write into a data source. The write member of UA_DataSource can be empty
@@ -649,8 +669,10 @@ typedef struct {
      * @param range An optional data range. If the data source is scalar or does
      *        not support writing of ranges, then an error code is returned.
      * @return Returns a status code that is returned to the user */
-    UA_StatusCode (*write)(const UA_NodeId *nodeId, void *nodeContext,
-                           const UA_Variant *data, const UA_NumericRange *range);
+    UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
+                           void *sessionContext, const UA_NodeId *nodeId,
+                           void *nodeContext, const UA_NumericRange *range,
+                           const UA_DataValue *value);
 } UA_DataSource;
 
 UA_StatusCode UA_EXPORT
@@ -661,9 +683,9 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
  * .. _value-callback:
  *
  * Value Callback
- * ~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^
  * Value Callbacks can be attached to variable and variable type nodes. If
- * not-null, they are called before reading and after writing respectively. */
+ * not ``NULL``, they are called before reading and after writing respectively. */
 typedef struct {
     /* Called before the value attribute is read. It is possible to write into the
      * value attribute during onRead (using the write service). The node is
@@ -675,19 +697,29 @@ typedef struct {
      * @param data Points to the current node value.
      * @param range Points to the numeric range the client wants to read from
      *        (or NULL). */
-    void (*onRead)(const UA_NodeId *nodeid, void *nodeContext, 
-                   const UA_Variant *data, const UA_NumericRange *range);
+    void (*onRead)(UA_Server *server, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *nodeid,
+                   void *nodeContext, const UA_NumericRange *range,
+                   const UA_DataValue *value);
 
     /* Called after writing the value attribute. The node is re-opened after
      * writing so that the new value is visible in the callback.
      *
-     * @param handle Points to user-provided data for the callback.
+     * @param server The server executing the callback
+     * @sessionId The identifier of the session
+     * @sessionContext Additional data attached to the session
+     *                 in the access control layer
      * @param nodeid The identifier of the node.
-     * @param data Points to the current node value (after writing).
+     * @param nodeUserContext Additional data attached to the node by
+     *        the user.
+     * @param nodeConstructorContext Additional data attached to the node
+     *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
      *        NULL). */
-    void (*onWrite)(const UA_NodeId *nodeId, void *nodeContext,
-                    const UA_Variant *data, const UA_NumericRange *range);
+    void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId,
+                    void *nodeContext, const UA_NumericRange *range,
+                    const UA_DataValue *data);
 } UA_ValueCallback;
 
 UA_StatusCode UA_EXPORT
@@ -697,13 +729,19 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
 
 /**
  * Method Callbacks
- * ~~~~~~~~~~~~~~~~ */
+ * ^^^^^^^^^^^^^^^^
+ * Method callbacks are set to `NULL` (not executable) when a method node is added
+ * over the network. In theory, it is possible to add a callback via
+ * ``UA_Server_setMethodNode_callback`` within the global constructor when adding
+ * methods over the network is really wanted. */
+
 typedef UA_StatusCode
-(*UA_MethodCallback)(const UA_NodeId *methodId, void *methodContext,
-                     const UA_NodeId *objectId, void *objectContext,
-                     const UA_NodeId *sessionId, void *sessionContext,
-                     size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output);
+(*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *methodId,
+                     void *methodContext, const UA_NodeId *objectId,
+                     void *objectContext, size_t inputSize,
+                     const UA_Variant *input, size_t outputSize,
+                     UA_Variant *output);
 
 #ifdef UA_ENABLE_METHODCALLS
 
@@ -720,25 +758,26 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * .. _addnodes:
  *
  * Node Addition and Deletion
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^
+ * --------------------------
  * When creating dynamic node instances at runtime, chances are that you will
  * not care about the specific NodeId of the new node, as long as you can
  * reference it later. When passing numeric NodeIds with a numeric identifier 0,
  * the stack evaluates this as "select a random unassigned numeric NodeId in
  * that namespace". To find out which NodeId was actually assigned to the new
  * node, you may pass a pointer `outNewNodeId`, which will (after a successfull
- * node insertion) contain the nodeId of the new node. You may also pass NULL
- * pointer if this result is not relevant. The namespace index for nodes you
- * create should never be 0, as that index is reserved for OPC UA's
- * self-description (namespace * 0).
+ * node insertion) contain the nodeId of the new node. You may also pass a
+ * ``NULL`` pointer if this result is not needed.
+ *
+ * See the Section :ref:`node-lifecycle` on constructors and on attaching
+ * user-defined data to nodes.
  *
  * The methods for node addition and deletion take mostly const arguments that
  * are not modified. When creating a node, a deep copy of the node identifier,
  * node attributes, etc. is created. Therefore, it is possible to call for
- * example `UA_Server_addVariablenode` with a value attribute (a :ref:`variant`)
- * pointing to a memory location on the stack. If you need changes to a variable
- * value to manifest at a specific memory location, please use a
- * :ref:`datasource` or a :ref:`value-callback`. */
+ * example ``UA_Server_addVariablenode`` with a value attribute (a
+ * :ref:`variant`) pointing to a memory location on the stack. If you need
+ * changes to a variable value to manifest at a specific memory location, please
+ * use a :ref:`datasource` or a :ref:`value-callback`. */
 
 /* Protect against redundant definitions for server/client */
 #ifndef UA_DEFAULT_ATTRIBUTES_DEFINED
@@ -756,15 +795,6 @@ UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_def
 UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
 UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
 #endif
-
-/* The instantiation callback is used to track the addition of new nodes. It is
- * also called for all sub-nodes contained in an object or variable type node
- * that is instantiated. */
-typedef struct {
-  UA_StatusCode (*method)(const UA_NodeId objectId,
-                          const UA_NodeId typeDefinitionId, void *handle);
-  void *handle;
-} UA_InstantiationCallback;
 
 /* Don't use this function. There are typed versions as inline functions. */
 UA_StatusCode UA_EXPORT

@@ -46,7 +46,7 @@ struct UA_ServerConfig {
 
     /* Custom DataTypes */
     size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
+    UA_DataType *customDataTypes;
 
     /* Networking */
     size_t networkLayersSize;

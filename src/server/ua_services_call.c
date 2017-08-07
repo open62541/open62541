@@ -91,7 +91,8 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     if(session != &adminSession)
         executable = executable &&
             server->config.accessControl.getUserExecutableOnObject(&session->sessionId,
-                                 session->sessionHandle, &request->objectId, &request->methodId);
+                           session->sessionHandle, &request->methodId, methodCalled->context,
+                           &request->objectId, object->context);
     if(!executable) {
         result->statusCode = UA_STATUSCODE_BADNOTWRITABLE; // There is no NOTEXECUTABLE?
         return;
@@ -153,19 +154,12 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     }
 
     /* Call the method */
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    methodCallSession = session;
-#endif
     result->statusCode =
-        methodCalled->method(&methodCalled->nodeId, (void*)(uintptr_t)methodCalled->context,
+        methodCalled->method(server, &session->sessionId, session->sessionHandle,
+                             &methodCalled->nodeId, (void*)(uintptr_t)methodCalled->context,
                              &object->nodeId, (void*)(uintptr_t)&object->context,
-                             &session->sessionId, session->sessionHandle,
                              request->inputArgumentsSize, request->inputArguments,
                              result->outputArgumentsSize, result->outputArguments);
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    methodCallSession = NULL;
-#endif
-
     /* TODO: Verify Output matches the argument definition */
 }
 

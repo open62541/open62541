@@ -21,27 +21,39 @@ static void stopHandler(int sign) {
 }
 
 static UA_StatusCode
-readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-            const UA_NumericRange *range, UA_DataValue *dataValue) {
-    dataValue->hasValue = true;
-    UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32 *) handle, &UA_TYPES[UA_TYPES_INT32]);
+readInteger(UA_Server *server, const UA_NodeId *sessionId,
+            void *sessionContext, const UA_NodeId *nodeId,
+            void *nodeContext, UA_Boolean includeSourceTimeStamp,
+            const UA_NumericRange *range, UA_DataValue *value) {
+    UA_Int32 *myInteger = (UA_Int32*)nodeContext;
+    value->hasValue = true;
+    UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
+
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
-                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32 *) handle);
+                (int)nodeId->identifier.string.length,
+                nodeId->identifier.string.data);
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+                "read value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-writeInteger(void *handle, const UA_NodeId nodeid,
-             const UA_Variant *data, const UA_NumericRange *range) {
-    if (UA_Variant_isScalar(data) && data->type == &UA_TYPES[UA_TYPES_INT32] && data->data) {
-        *(UA_UInt32 *) handle = *(UA_UInt32 *) data->data;
-    }
+writeInteger(UA_Server *server, const UA_NodeId *sessionId,
+             void *sessionContext, const UA_NodeId *nodeId,
+             void *nodeContext, const UA_NumericRange *range,
+             const UA_DataValue *value) {
+    UA_Int32 *myInteger = (UA_Int32*)nodeContext;
+    if(value->hasValue && UA_Variant_isScalar(&value->value) &&
+       value->value.type == &UA_TYPES[UA_TYPES_INT32] && value->value.data)
+        *myInteger = *(UA_Int32 *)value->value.data;
+
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
-                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "written value %i", *(UA_UInt32 *) handle);
+                (int)nodeId->identifier.string.length,
+                nodeId->identifier.string.data);
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND,
+                "written value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -105,7 +117,6 @@ int main(int argc, char **argv) {
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_DataSource dateDataSource;
-    dateDataSource.handle = &myInteger;
     dateDataSource.read = readInteger;
     dateDataSource.write = writeInteger;
     UA_VariableAttributes attr;
@@ -116,7 +127,8 @@ int main(int argc, char **argv) {
     UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource, NULL);
+                                        myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
+                                        &myInteger, NULL);
 
     // callback which is called when a new server is detected through mDNS
     UA_Server_setServerOnNetworkCallback(server, serverOnNetworkCallback, NULL);

@@ -57,13 +57,6 @@ typedef struct {
     UA_ExpandedNodeId *targetIds;
 } UA_NodeReferenceKind;
 
-/* Which constructors were run on the node? */
-typedef enum {
-    UA_NODELIFECYCLE_FRESH,
-    UA_NODELIFECYCLE_CONSTRUCTOR_GLOBAL,
-    UA_NODELIFECYCLE_CONSTRUCTOR_NODETYPE
-} UA_NodeLifecycleState;
-
 #define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -76,7 +69,7 @@ typedef enum {
                                                 \
     /* Members specific to open62541 */         \
     void *context;                              \
-    UA_NodeLifecycleState lifecycleState;
+    UA_Boolean constructed; /* don't run the constructors twice on a node */
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
