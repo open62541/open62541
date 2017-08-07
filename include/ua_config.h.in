@@ -83,13 +83,12 @@ typedef uint8_t bool;
 #define false 0 */
 #endif
 
-#include <stdlib.h>
-
 /**
  * Memory Management
  * ---------------
  * The default malloc implementation from ``stdlib.h`` is used internally.
  * Override if required. */
+#include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
 #endif
