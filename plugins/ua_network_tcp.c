@@ -37,7 +37,12 @@
 # define UA_sleep_ms(X) usleep(X * 1000)
 # include <arpa/inet.h>
 # include <netinet/in.h>
-# include <sys/select.h>
+# ifndef _WRS_KERNEL
+#  include <sys/select.h>
+# else
+#  include <hostLib.h>
+#  include <selectLib.h>
+# endif
 # include <sys/ioctl.h>
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
@@ -198,6 +203,10 @@ socket_set_nonblocking(SOCKET sockfd) {
     u_long iMode = 1;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
         return UA_STATUSCODE_BADINTERNALERROR;
+#elif defined(_WRS_KERNEL)
+    int on = TRUE;
+    if(ioctl(sockfd, FIONBIO, &on) < 0)
+      return UA_STATUSCODE_BADINTERNALERROR;
 #else
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts|O_NONBLOCK) < 0)
