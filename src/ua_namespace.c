@@ -52,22 +52,19 @@ void UA_Namespace_updateDataTypes(UA_Namespace * namespaceToUpdate,
     }
 }
 
-static UA_Boolean updateNodeNamespaceIndices(UA_Node * node, size_t* newNsIndices, size_t newNsIndicesSize) {
-    /* Update NodeId */
-    UA_UInt16* nodeIdx = &node->nodeId.namespaceIndex;
-    //if(*nodeIdx == 0 && &node->nodeId.identifierType == UA_NODEIDTYPE_NUMERIC && &node->nodeId.identifier.numeric == 2255)
-    //return UA_FALSE;
-    if(*nodeIdx < (UA_UInt16) newNsIndicesSize){
-        UA_UInt16 newNodeIdx = (UA_UInt16)newNsIndices[(size_t)*nodeIdx];
-        if(newNodeIdx == UA_NAMESPACE_UNDEFINED)
-            return UA_FALSE;
-        *nodeIdx = newNodeIdx;
-    }
+static UA_UInt16 checkUpdateNodeNeccessary(UA_UInt16 nodeIdx, size_t* newNsIndices, size_t newNsIndicesSize) {
+    if(nodeIdx < (UA_UInt16) newNsIndicesSize)
+        return (UA_UInt16)newNsIndices[(size_t)nodeIdx];
     else
-        return UA_FALSE;
+        return UA_NAMESPACE_UNDEFINED;
+}
+
+static void updateNodeNamespaceIndices(UA_Node * node, UA_UInt16 newNodeIdx, size_t* newNsIndices, size_t newNsIndicesSize) {
+    /* Update NodeId */
+	node->nodeId.namespaceIndex = newNodeIdx;
 
     /* Update Qualified name */
-    nodeIdx = &node->browseName.namespaceIndex;
+    UA_UInt16* nodeIdx = &node->browseName.namespaceIndex;
     if(*nodeIdx < (UA_UInt16) newNsIndicesSize)
         *nodeIdx =(UA_UInt16) newNsIndices[(size_t)*nodeIdx];
     else
@@ -93,7 +90,6 @@ static UA_Boolean updateNodeNamespaceIndices(UA_Node * node, size_t* newNsIndice
     		}
     	}
     }
-    return UA_TRUE;
 }
 
 struct nodeListEntry{
@@ -141,20 +137,35 @@ static void updateNodestoreNamespaceIndex(UA_NodestoreInterface* nodestore,
                        (UA_NodestoreInterface_nodeVisitor)updateNodeNamespaceIndexCallback);
     while(nodeEntry) {
         if(nodeEntry->node){
-            UA_Node* copy = nodestore->getNodeCopy(nodestore->handle, &nodeEntry->node->nodeId);
-            nodestore->removeNode(nodestore->handle, &nodeEntry->node->nodeId);
-            nodestore->releaseNode(nodestore->handle, nodeEntry->node);
-            if(copy){
-                if(updateNodeNamespaceIndices(copy, newNsIndices, newNsIndicesSize) == UA_TRUE){
-                    //printf("insertnode: ns=%i, i=%i, name=%.*s\n",copy->nodeId.namespaceIndex, copy->nodeId.identifier.numeric,
-                    //        (int)copy->browseName.name.length, copy->browseName.name.data);
-                    if(nodestore->insertNode(nodestore->handle, copy, NULL) != UA_STATUSCODE_GOOD){
-                        nodestore->deleteNode(copy);
-                    }
-                }else{
-                    nodestore->deleteNode(copy);
-                }
-            }
+        	UA_NodeId nodeId;
+        	UA_NodeId_copy(&nodeEntry->node->nodeId, &nodeId);
+        	nodestore->releaseNode(nodestore->handle, nodeEntry->node);
+
+        	UA_UInt16 newNsIdxNode = checkUpdateNodeNeccessary(nodeId.namespaceIndex, newNsIndices, newNsIndicesSize);
+        	if(newNsIdxNode != UA_NAMESPACE_UNDEFINED){
+        		UA_Node* copy = nodestore->getNodeCopy(nodestore->handle, &nodeId);
+        		updateNodeNamespaceIndices(copy ,newNsIdxNode, newNsIndices, newNsIndicesSize);
+
+        		/* Check if updating or remove and insert*/
+        		if(UA_NodeId_equal(&nodeId, &copy->nodeId)){
+        			if(nodestore->replaceNode(nodestore->handle, copy) != UA_STATUSCODE_GOOD){
+        				nodestore->deleteNode(copy);
+            			nodestore->removeNode(nodestore->handle, &nodeId);
+        			}
+        		}else{
+        			nodestore->removeNode(nodestore->handle, &nodeId);
+        			if(nodestore->insertNode(nodestore->handle, copy, &nodeId) == UA_STATUSCODE_GOOD){
+        				if(UA_NodeId_equal(&nodeId, &copy->nodeId)){
+        					//TODO Error? Update all references ? --> Define a strategy to handle this
+        				}
+        			}else{
+        				nodestore->deleteNode(copy);
+        			}
+        		}
+        	}else{
+    			nodestore->removeNode(nodestore->handle, &nodeId);
+        	}
+    		UA_NodeId_deleteMembers(&nodeId);
         }
         struct nodeListEntry * next = nodeEntry->next;
         UA_free(nodeEntry);
@@ -166,17 +177,24 @@ void UA_Namespace_changeNodestore(UA_Namespace * namespacesToUpdate,
                                   UA_Namespace * namespaceNewNodestore,
                                   UA_NodestoreInterface * defaultNodestore,
                                   UA_UInt16 newIdx){
-    /* Delete existing nodestore and set new nodestore */
+    /* Delete existing nodestore and set new nodestore if needed*/
     if(namespaceNewNodestore && namespaceNewNodestore->nodestore){
-       if(namespacesToUpdate->nodestore){
-           namespacesToUpdate->nodestore->deleteNodestore(
-                namespacesToUpdate->nodestore->handle, namespacesToUpdate->index);
-       }
-       namespacesToUpdate->nodestore = namespaceNewNodestore->nodestore;
-       namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
+    	/* Is there already a nodestore in this namespace ?*/
+    	if(namespacesToUpdate->nodestore){
+    		/* Is the nodestore in this namespace not the same as the one we are trying to assign?*/
+    		if (namespacesToUpdate->nodestore != namespaceNewNodestore->nodestore) {
+    			namespacesToUpdate->nodestore->deleteNodestore(
+    					namespacesToUpdate->nodestore->handle, namespacesToUpdate->index);
+    			namespacesToUpdate->nodestore = namespaceNewNodestore->nodestore;
+    			namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
+    		}
+    	}else{
+    		namespacesToUpdate->nodestore = namespaceNewNodestore->nodestore;
+    		namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
+    	}
     }
     if(!namespacesToUpdate->nodestore){
-        //Set default nodestore if not already set
+        //Set default nodestore if no nodestore is present in the namespace
         namespacesToUpdate->nodestore = defaultNodestore;
         namespacesToUpdate->nodestore->linkNamespace(namespacesToUpdate->nodestore->handle, newIdx);
     }
@@ -203,7 +221,7 @@ void UA_Namespace_updateNodestores(UA_Namespace * namespacesToUpdate, size_t nam
                 updateNodestoreNamespaceIndex(ns,
                     oldNsIdxToNewNsIdx,oldNsIdxToNewNsIdxSize);
             }
-            //If Index changed link and unlink
+            //If Index changed link and unlink nodestores
             if((UA_UInt16)oldNsIdxToNewNsIdx[(size_t)namespacesToUpdate->index] != namespacesToUpdate->index){
                 ns->linkNamespace(ns->handle, (UA_UInt16)oldNsIdxToNewNsIdx[(size_t)namespacesToUpdate->index]);
                 ns->unlinkNamespace(ns->handle, namespacesToUpdate->index);

@@ -25,6 +25,7 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define MANUFACTURER_NAME "open62541"
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define PRODUCT_URI "http://open62541.org"
+#define PRODUCT_NAMESPACE_URI "http://opcfoundation.org/UA/"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
 
@@ -33,6 +34,22 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
+
+#define UA_NAMESPACE_DEFAULT_NS0 { 	\
+		0,    /* index --> is overwritten during addNamespace*/ \
+		UA_STRING_STATIC(PRODUCT_NAMESPACE_URI), /* URI*/ \
+		NULL, /* Nodestore. NULL = let server choose default */ \
+		UA_TYPES, /* DataTypes */ \
+		UA_TYPES_COUNT     /* DataTypes count */ \
+}
+
+#define UA_NAMESPACE_DEFAULT_NS1 { 	\
+		1,    /* index --> is overwritten during addNamespace*/ \
+		UA_STRING_STATIC(APPLICATION_URI), /* URI*/ \
+		NULL, /* Nodestore. NULL = let server choose default */ \
+		NULL, /* DataTypes */ \
+		0     /* DataTypes count */ \
+}
 
 const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     1, /* .nThreads */
@@ -65,8 +82,8 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     NULL, /* .networkLayers */
 
     /* NS0 and NS1 */
-    0, /* namespacesSize */
-    NULL, /* namespaces */
+    2, /* namespacesSize */
+	(UA_Namespace[2]){UA_NAMESPACE_DEFAULT_NS0,UA_NAMESPACE_DEFAULT_NS1}, /* namespaces */
 
     /* Access Control */
     {true, true,

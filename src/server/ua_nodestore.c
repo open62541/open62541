@@ -251,7 +251,7 @@ UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex){
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UInt16 * newLinkedNs = (UA_UInt16*)UA_malloc(sizeof(UA_UInt16) * (lNsLength -1));
     if(!newLinkedNs)
-        return UA_STATUSCODE_BADNOTFOUND;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     size_t j = 0;
     for(size_t i = 0; i < lNsLength ; ++i) {
         if(namespaceIndex != ns->linkedNamespaces[i]){
@@ -324,7 +324,7 @@ UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
     ++ns->count;
     UA_assert(&(*entry)->node == node);
 
-    if(addedNodeId)
+    if(addedNodeId) //TODO delete node if copying failed
         return UA_NodeId_copy(&node->nodeId, addedNodeId);
     return UA_STATUSCODE_GOOD;
 }

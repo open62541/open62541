@@ -95,6 +95,7 @@ replaceNamespaceArray_server(UA_Server * server,
     for(size_t newIdx = 0 ; newIdx < newNsSize ; ++newIdx){
         UA_Namespace_updateDataTypes(&newNsArray[newIdx], NULL, (UA_UInt16)newIdx);
         newNsArray[newIdx].index = (UA_UInt16)newIdx;
+        //TODO check if unneccessary, because already handled in updateNodestores
         if(!newNsArray[newIdx].nodestore){
             newNsArray[newIdx].nodestore = server->nodestore_std;
             newNsArray[newIdx].nodestore->linkNamespace(newNsArray[newIdx].nodestore->handle, (UA_UInt16)newIdx);
@@ -167,7 +168,9 @@ UA_StatusCode UA_Server_deleteNamespace_full(UA_Server *server, UA_Namespace * n
             newNsUris[j++] = server->namespaces[i].uri;
         }
     }
-    return replaceNamespaceArray_server(server, newNsUris, j);
+    UA_StatusCode result =  replaceNamespaceArray_server(server, newNsUris, j);
+    UA_free(newNsUris);
+    return result;
 }
 
 UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri){
@@ -375,18 +378,6 @@ UA_Server_new(const UA_ServerConfig config) {
     server->nodestore_std = (UA_NodestoreInterface*)UA_malloc(sizeof(UA_NodestoreInterface));
     *server->nodestore_std = UA_Nodestore_standard();
     /* Namespace0 and Namespace1 initialization */
-    //TODO move to UA_ServerConfig_standard as namespace array of size2
-    UA_Namespace *ns0 = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
-    ns0->dataTypes = UA_TYPES;
-    ns0->dataTypesSize = UA_TYPES_COUNT;
-    UA_Server_addNamespace_full(server, ns0);
-    UA_Namespace_deleteMembers(ns0);
-    UA_free(ns0);
-
-    UA_Namespace *ns1 = UA_Namespace_new(&config.applicationDescription.applicationUri);
-    UA_Server_addNamespace_full(server, ns1);
-    UA_Namespace_deleteMembers(ns1);
-    UA_free(ns1);
     /* Custom configuration of Namespaces at beginning overrides defaults.*/
     for(size_t i = 0 ; i < config.namespacesSize ; ++i){
         UA_Server_addNamespace_full(server, &config.namespaces[i]);
