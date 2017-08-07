@@ -932,7 +932,7 @@ Operation_Read(UA_Server *server, UA_Session *session,
 void Service_Read(UA_Server *server, UA_Session *session,
                   const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing ReadRequest", NULL);
+                         "Processing ReadRequest");
 
     /* Check if the timestampstoreturn is valid */
     op_timestampsToReturn = request->timestampsToReturn;
@@ -1252,7 +1252,7 @@ Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing WriteRequest", NULL);
+                         "Processing WriteRequest");
 
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,

@@ -61,7 +61,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
     if(!newSubscription) {
         UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "Processing CreateSubscriptionRequest failed", NULL);
+                             "Processing CreateSubscriptionRequest failed");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
@@ -92,7 +92,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing ModifySubscriptionRequest", NULL);
+                         "Processing ModifySubscriptionRequest");
 
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!sub) {
@@ -134,7 +134,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing SetPublishingModeRequest", NULL);
+                         "Processing SetPublishingModeRequest");
 
     op_publishingEnabled = request->publishingEnabled;
     response->responseHeader.serviceResult = 
@@ -273,7 +273,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing CreateMonitoredItemsRequest", NULL);
+                         "Processing CreateMonitoredItemsRequest");
 
     /* Check if the timestampstoreturn is valid */
     op_timestampsToReturn2 = request->timestampsToReturn;
@@ -321,7 +321,7 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_ModifyMonitoredItemsRequest *request,
                                   UA_ModifyMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing ModifyMonitoredItemsRequest", NULL);
+                         "Processing ModifyMonitoredItemsRequest");
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -374,7 +374,7 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                                const UA_SetMonitoringModeRequest *request,
                                UA_SetMonitoringModeResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing SetMonitoringMode", NULL);
+                         "Processing SetMonitoringMode");
 
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
@@ -411,7 +411,7 @@ void
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing PublishRequest", NULL);
+                         "Processing PublishRequest");
 
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
@@ -466,16 +466,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Queue the publish response */
     SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message",
-                         session->authenticationToken.identifier.numeric);
+    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message");
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
     LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
         if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
             UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
-                                 "Response on a late subscription", immediate->subscriptionID,
-                                 session->authenticationToken.identifier.numeric);
+                                 "Response on a late subscription", immediate->subscriptionID);
             UA_Subscription_publishCallback(server, immediate);
             break;
         }
@@ -502,7 +500,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             const UA_DeleteSubscriptionsRequest *request,
                             UA_DeleteSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing DeleteSubscriptionsRequest", NULL);
+                         "Processing DeleteSubscriptionsRequest");
 
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
@@ -532,7 +530,7 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   const UA_DeleteMonitoredItemsRequest *request,
                                   UA_DeleteMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing DeleteMonitoredItemsRequest", NULL);
+                         "Processing DeleteMonitoredItemsRequest");
 
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
@@ -555,7 +553,7 @@ void Service_Republish(UA_Server *server, UA_Session *session,
                        const UA_RepublishRequest *request,
                        UA_RepublishResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                         "Processing RepublishRequest", NULL);
+                         "Processing RepublishRequest");
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);

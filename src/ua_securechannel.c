@@ -372,7 +372,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             if(retval != UA_STATUSCODE_GOOD)
                 break;
 
-            // dirty cast to pass errorMessage
+            /* TODO: fix dirty cast to pass errorMessage */
             UA_UInt32 val = 0;
             callback(application, (UA_SecureChannel *)channel, (UA_MessageType)UA_MESSAGETYPE_ERR,
                      val, (const UA_ByteString*)&errorMessage);

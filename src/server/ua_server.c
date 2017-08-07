@@ -41,7 +41,7 @@ replaceNamespaceArray_server(UA_Server * server,
         UA_String * newNsUris, size_t newNsSize){
 
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-            "Changing the servers namespace array with new length: %i.", newNsSize);
+            "Changing the servers namespace array with new length: %i.", (int)newNsSize);
     /* Check if new namespace uris are unique */
     for(size_t i = 0 ; i < newNsSize-1 ; ++i){
         for(size_t j = i+1 ; j < newNsSize ; ++j){

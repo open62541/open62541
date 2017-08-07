@@ -18,6 +18,9 @@ extern "C" {
 /* BSD Queue Macros */
 #include "queue.h"
 
+/* Macro-Expand for MSVC workarounds */
+#define UA_MACRO_EXPAND(x) x
+
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
@@ -130,6 +133,10 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 # define UA_TYPENAME(name) name,
 #else
 # define UA_TYPENAME(name)
+#endif
+
+#ifdef UA_DEBUG_DUMP_PKGS
+void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
 #ifdef __cplusplus
