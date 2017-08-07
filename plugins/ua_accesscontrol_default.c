@@ -28,7 +28,7 @@ UA_UsernamePasswordLogin usernamePasswords[2] = {
 UA_StatusCode
 activateSession_default(const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
-                        void **sessionHandle) {
+                        void **sessionContext) {
     /* Could the token be decoded? */
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -47,7 +47,7 @@ activateSession_default(const UA_NodeId *sessionId,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         /* No userdata atm */
-        *sessionHandle = NULL;
+        *sessionContext = NULL;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -78,7 +78,7 @@ activateSession_default(const UA_NodeId *sessionId,
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
         /* No userdata atm */
-        *sessionHandle = NULL;
+        *sessionContext = NULL;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -87,64 +87,55 @@ activateSession_default(const UA_NodeId *sessionId,
 }
 
 void
-closeSession_default(const UA_NodeId *sessionId,
-                     void *sessionHandle) {
-    /* no handle to clean up */
+closeSession_default(const UA_NodeId *sessionId, void *sessionContext) {
+    /* no context to clean up */
 }
 
 UA_UInt32
-getUserRightsMask_default(const UA_NodeId *sessionId,
-                          void *sessionHandle,
-                          const UA_NodeId *nodeId) {
+getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *nodeId, void *nodeContext) {
     return 0xFFFFFFFF;
 }
 
 UA_Byte
-getUserAccessLevel_default(const UA_NodeId *sessionId,
-                           void *sessionHandle,
-                           const UA_NodeId *nodeId) {
+getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionContext,
+                           const UA_NodeId *nodeId, void *nodeContext) {
     return 0xFF;
 }
 
 UA_Boolean
-getUserExecutable_default(const UA_NodeId *sessionId,
-                          void *sessionHandle,
-                          const UA_NodeId *nodeId) {
+getUserExecutable_default(const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *methodId, void *methodContext) {
     return true;
 }
 
 UA_Boolean
-getUserExecutableOnObject_default(const UA_NodeId *sessionId,
-                                  void *sessionHandle,
-                                  const UA_NodeId *methodId,
-                                  const UA_NodeId *objectId) {
+getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext) {
     return true;
 }
 
 UA_Boolean
-allowAddNode_default(const UA_NodeId *sessionId,
-                     void *sessionHandle,
+allowAddNode_default(const UA_NodeId *sessionId, void *sessionContext,
                      const UA_AddNodesItem *item) {
     return true;
 }
 
 UA_Boolean
-allowAddReference_default(const UA_NodeId *sessionId,
-                          void *sessionHandle,
+allowAddReference_default(const UA_NodeId *sessionId, void *sessionContext,
                           const UA_AddReferencesItem *item) {
     return true;
 }
 
 UA_Boolean
-allowDeleteNode_default(const UA_NodeId *sessionId,
-                        void *sessionHandle,
+allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item) {
     return true;
 }
       
 UA_Boolean
-allowDeleteReference_default(const UA_NodeId *sessionId,
-                             void *sessionHandle,
+allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item) {
     return true;
 }

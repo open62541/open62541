@@ -142,6 +142,10 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
+    /* Global Node Lifecycle */
+    conf->nodeLifecycle.constructor = NULL;
+    conf->nodeLifecycle.destructor = NULL;
+
     /* Access Control */
     conf->accessControl.enableAnonymousLogin = true;
     conf->accessControl.enableUsernamePasswordLogin = true;

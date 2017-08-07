@@ -475,8 +475,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Find the matching session */
     session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
     if(!session)
-        session = UA_SessionManager_getSession(&server->sessionManager,
-                                               &requestHeader->authenticationToken);
+        session = UA_SessionManager_getSessionByToken(&server->sessionManager,
+                                                      &requestHeader->authenticationToken);
 
     if(requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST]) {
         if(!session) {

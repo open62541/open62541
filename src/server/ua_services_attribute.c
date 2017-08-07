@@ -24,9 +24,8 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     return node->writeMask &
-        server->config.accessControl.getUserRightsMask(&session->sessionId,
-                                                       session->sessionHandle,
-                                                       &node->nodeId);
+        server->config.accessControl.getUserRightsMask(&session->sessionId, session->sessionHandle,
+                                                       &node->nodeId, node->context);
 }
 
 static UA_Byte
@@ -35,9 +34,8 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return 0xFF; /* the local admin user has all rights */
     return node->accessLevel &
-        server->config.accessControl.getUserAccessLevel(&session->sessionId,
-                                                        session->sessionHandle,
-                                                        &node->nodeId);
+        server->config.accessControl.getUserAccessLevel(&session->sessionId, session->sessionHandle,
+                                                        &node->nodeId, node->context);
 }
 
 static UA_Boolean
@@ -46,9 +44,8 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
     if(session == &adminSession)
         return true; /* the local admin user has all rights */
     return node->executable &
-        server->config.accessControl.getUserExecutable(&session->sessionId,
-                                                       session->sessionHandle,
-                                                       &node->nodeId);
+        server->config.accessControl.getUserExecutable(&session->sessionId, session->sessionHandle,
+                                                       &node->nodeId, node->context);
 }
 
 /*****************/
@@ -297,8 +294,8 @@ readArrayDimensionsAttribute(const UA_VariableNode *vn, UA_DataValue *v) {
 }
 
 static UA_StatusCode
-writeArrayDimensionsAttribute(UA_Server *server, UA_VariableNode *node,
-                              size_t arrayDimensionsSize,
+writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
+                              UA_VariableNode *node, size_t arrayDimensionsSize,
                               UA_UInt32 *arrayDimensions) {
     /* If this is a variabletype, there must be no instances or subtypes of it
      * when we do the change */
@@ -335,7 +332,7 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_VariableNode *node,
     /* Check if the current value is compatible with the array dimensions */
     UA_DataValue value;
     UA_DataValue_init(&value);
-    retval = readValueAttribute(server, node, &value);
+    retval = readValueAttribute(server, session, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
@@ -367,17 +364,19 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_VariableNode *node,
 /***********************/
 
 static UA_StatusCode
-writeValueRankAttributeWithVT(UA_Server *server, UA_VariableNode *node,
-                              UA_Int32 valueRank) {
+writeValueRankAttributeWithVT(UA_Server *server, UA_Session *session,
+                              UA_VariableNode *node, UA_Int32 valueRank) {
     const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return writeValueRankAttribute(server, node, valueRank, vt->valueRank);
+    return writeValueRankAttribute(server, session, node,
+                                   valueRank, vt->valueRank);
 }
 
 UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
-                        UA_Int32 valueRank, UA_Int32 constraintValueRank) {
+writeValueRankAttribute(UA_Server *server, UA_Session *session,
+                        UA_VariableNode *node, UA_Int32 valueRank,
+                        UA_Int32 constraintValueRank) {
     /* If this is a variabletype, there must be no instances or subtypes of it
        when we do the change */
     if(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
@@ -397,7 +396,7 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
            dimensions zero indicate a scalar for compatibleValueRankArrayDimensions. */
         UA_DataValue value;
         UA_DataValue_init(&value);
-        retval = readValueAttribute(server, node, &value);
+        retval = readValueAttribute(server, session, node, &value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(!value.hasValue || !value.value.type) {
@@ -423,8 +422,8 @@ writeValueRankAttribute(UA_Server *server, UA_VariableNode *node,
 /**********************/
 
 static UA_StatusCode
-writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType,
+writeDataTypeAttribute(UA_Server *server, UA_Session *session,
+                       UA_VariableNode *node, const UA_NodeId *dataType,
                        const UA_NodeId *constraintDataType) {
     /* If this is a variabletype, there must be no instances or subtypes of it
        when we do the change */
@@ -439,7 +438,7 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
     /* Check if the current value would match the new type */
     UA_DataValue value;
     UA_DataValue_init(&value);
-    UA_StatusCode retval = readValueAttribute(server, node, &value);
+    UA_StatusCode retval = readValueAttribute(server, session, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
@@ -466,12 +465,12 @@ writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
 }
 
 static UA_StatusCode
-writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
-                             const UA_NodeId *dataType) {
+writeDataTypeAttributeWithVT(UA_Server *server, UA_Session *session,
+                             UA_VariableNode *node, const UA_NodeId *dataType) {
     const UA_VariableTypeNode *vt = getVariableNodeType(server, node);
     if(!vt)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return writeDataTypeAttribute(server, node, dataType, &vt->dataType);
+    return writeDataTypeAttribute(server, session, node, dataType, &vt->dataType);
 }
 
 /*******************/
@@ -479,12 +478,14 @@ writeDataTypeAttributeWithVT(UA_Server *server, UA_VariableNode *node,
 /*******************/
 
 static UA_StatusCode
-readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn,
-                           UA_DataValue *v, UA_NumericRange *rangeptr) {
+readValueAttributeFromNode(UA_Server *server, UA_Session *session,
+                           const UA_VariableNode *vn, UA_DataValue *v,
+                           UA_NumericRange *rangeptr) {
     if(vn->value.data.callback.onRead) {
         UA_RCU_UNLOCK();
-        vn->value.data.callback.onRead(&vn->nodeId, vn->context,
-                                       &vn->value.data.value.value, rangeptr);
+        vn->value.data.callback.onRead(server, &session->sessionId,
+                                       session->sessionHandle, &vn->nodeId,
+                                       vn->context, rangeptr, &vn->value.data.value);
         UA_RCU_LOCK();
 #ifdef UA_ENABLE_MULTITHREADING
         /* Reopen the node to see the changes (multithreading only) */
@@ -499,7 +500,8 @@ readValueAttributeFromNode(UA_Server *server, const UA_VariableNode *vn,
 }
 
 static UA_StatusCode
-readValueAttributeFromDataSource(const UA_VariableNode *vn, UA_DataValue *v,
+readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
+                                 const UA_VariableNode *vn, UA_DataValue *v,
                                  UA_TimestampsToReturn timestamps,
                                  UA_NumericRange *rangeptr) {
     if(!vn->value.dataSource.read)
@@ -508,17 +510,16 @@ readValueAttributeFromDataSource(const UA_VariableNode *vn, UA_DataValue *v,
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_RCU_UNLOCK();
     UA_StatusCode retval =
-        vn->value.dataSource.read(&vn->nodeId, vn->context,
-                                  sourceTimeStamp, rangeptr, v);
+        vn->value.dataSource.read(server, &session->sessionId, session->sessionHandle,
+                                  &vn->nodeId, vn->context, sourceTimeStamp, rangeptr, v);
     UA_RCU_LOCK();
     return retval;
 }
 
 static UA_StatusCode
-readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
-                           UA_TimestampsToReturn timestamps,
-                           const UA_String *indexRange,
-                           UA_DataValue *v) {
+readValueAttributeComplete(UA_Server *server, UA_Session *session,
+                           const UA_VariableNode *vn, UA_TimestampsToReturn timestamps,
+                           const UA_String *indexRange, UA_DataValue *v) {
     /* Compute the index range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
@@ -532,9 +533,9 @@ readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
 
     /* Read the value */
     if(vn->valueSource == UA_VALUESOURCE_DATA)
-        retval = readValueAttributeFromNode(server, vn, v, rangeptr);
+        retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
     else
-        retval = readValueAttributeFromDataSource(vn, v, timestamps, rangeptr);
+        retval = readValueAttributeFromDataSource(server, session, vn, v, timestamps, rangeptr);
 
     /* Clean up */
     if(rangeptr)
@@ -543,10 +544,10 @@ readValueAttributeComplete(UA_Server *server, const UA_VariableNode *vn,
 }
 
 UA_StatusCode
-readValueAttribute(UA_Server *server, const UA_VariableNode *vn,
-                   UA_DataValue *v) {
-    return readValueAttributeComplete(server, vn, UA_TIMESTAMPSTORETURN_NEITHER,
-                                      NULL, v);
+readValueAttribute(UA_Server *server, UA_Session *session,
+                   const UA_VariableNode *vn, UA_DataValue *v) {
+    return readValueAttributeComplete(server, session, vn,
+                                      UA_TIMESTAMPSTORETURN_NEITHER, NULL, v);
 }
 
 static UA_StatusCode
@@ -594,7 +595,7 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
 }
 
 static UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_VariableNode *node,
+writeValueAttribute(UA_Server *server, UA_Session *session, UA_VariableNode *node,
                     const UA_DataValue *value, const UA_String *indexRange) {
     /* Parse the range */
     UA_NumericRange range;
@@ -649,15 +650,18 @@ writeValueAttribute(UA_Server *server, UA_VariableNode *node,
                                    change with the nodestore plugin approach) */
 #endif
             UA_RCU_UNLOCK();
-            writtenNode->value.data.callback.onWrite(&writtenNode->nodeId, writtenNode->context,
-                                                     &writtenNode->value.data.value.value, rangeptr);
+            writtenNode->value.data.callback.onWrite(server, &session->sessionId,
+                                                     session->sessionHandle, &writtenNode->nodeId,
+                                                     writtenNode->context, rangeptr,
+                                                     &writtenNode->value.data.value);
             UA_RCU_LOCK();
         }
     } else {
         if(node->value.dataSource.write) {
             UA_RCU_UNLOCK();
-            retval = node->value.dataSource.write(&node->nodeId, node->context,
-                                                  &editableValue.value, rangeptr);
+            retval = node->value.dataSource.write(server, &session->sessionId,
+                                                  session->sessionHandle, &node->nodeId,
+                                                  node->context, rangeptr, &editableValue);
             UA_RCU_LOCK();
         } else {
             retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -819,7 +823,7 @@ Operation_Read(UA_Server *server, UA_Session *session,
             retval = UA_STATUSCODE_BADUSERACCESSDENIED;
             break;
         }
-        retval = readValueAttributeComplete(server, (const UA_VariableNode*)node,
+        retval = readValueAttributeComplete(server, session, (const UA_VariableNode*)node,
                                             op_timestampsToReturn, &id->indexRange, v);
         break;
     }
@@ -1153,28 +1157,28 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         } else { /* UA_NODECLASS_VARIABLETYPE */
             CHECK_USERWRITEMASK(UA_WRITEMASK_VALUEFORVARIABLETYPE);
         }
-        retval = writeValueAttribute(server, (UA_VariableNode*)node,
+        retval = writeValueAttribute(server, session, (UA_VariableNode*)node,
                                      &wvalue->value, &wvalue->indexRange);
         break;
     case UA_ATTRIBUTEID_DATATYPE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_DATATYPE);
         CHECK_DATATYPE_SCALAR(NODEID);
-        retval = writeDataTypeAttributeWithVT(server, (UA_VariableNode*)node,
+        retval = writeDataTypeAttributeWithVT(server, session, (UA_VariableNode*)node,
                                               (const UA_NodeId*)value);
         break;
     case UA_ATTRIBUTEID_VALUERANK:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_VALUERANK);
         CHECK_DATATYPE_SCALAR(INT32);
-        retval = writeValueRankAttributeWithVT(server, (UA_VariableNode*)node,
+        retval = writeValueRankAttributeWithVT(server, session, (UA_VariableNode*)node,
                                                *(const UA_Int32*)value);
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_ARRRAYDIMENSIONS);
         CHECK_DATATYPE_ARRAY(UINT32);
-        retval = writeArrayDimensionsAttribute(server, (UA_VariableNode*)node,
+        retval = writeArrayDimensionsAttribute(server, session, (UA_VariableNode*)node,
                                                wvalue->value.value.arrayLength,
                                                (UA_UInt32 *)wvalue->value.value.data);
         break;
