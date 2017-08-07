@@ -570,7 +570,8 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst,
         for(size_t i = 0; i < length; ++i) {
             retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_Array_delete(*dst, i, type);
+                // +1 because last element is also already initialized
+                UA_Array_delete(*dst, i+1, type);
                 *dst = NULL;
                 return retval;
             }
@@ -1466,7 +1467,7 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < membersSize; ++i) {
+    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
