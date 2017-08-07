@@ -12,10 +12,12 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
-#include "ua_plugin_log.h"
-#include "ua_plugin_network.h"
-#include "ua_plugin_access_control.h"
-#include "ua_plugin_securitypolicy.h"
+
+struct UA_ServerConfig;
+typedef struct UA_ServerConfig UA_ServerConfig;
+
+struct UA_Server;
+typedef struct UA_Server UA_Server;
 
 /**
  * .. _server:
@@ -23,83 +25,11 @@ extern "C" {
  * Server
  * ======
  *
- * Server Configuration
- * --------------------
- * The configuration structure is passed to the server during initialization. */
-
-typedef struct {
-    UA_UInt32 min;
-    UA_UInt32 max;
-} UA_UInt32Range;
-
-typedef struct {
-    UA_Double min;
-    UA_Double max;
-} UA_DoubleRange;
-
-typedef struct {
-    UA_UInt16 nThreads; /* only if multithreading is enabled */
-    UA_Logger logger;
-
-    /* Server Description */
-    UA_BuildInfo buildInfo;
-    UA_ApplicationDescription applicationDescription;
-#ifdef UA_ENABLE_DISCOVERY
-    UA_String mdnsServerName;
-    size_t serverCapabilitiesSize;
-    UA_String *serverCapabilities;
-#endif
-
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    UA_DataType *customDataTypes;
-
-    /* Networking */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-
-    /* Available endpoints */
-    UA_Endpoints endpoints;
-
-    /* Access Control */
-    UA_AccessControl accessControl;
-
-    /* Limits for SecureChannels */
-    UA_UInt16 maxSecureChannels;
-    UA_UInt32 maxSecurityTokenLifetime; /* in ms */
-
-    /* Limits for Sessions */
-    UA_UInt16 maxSessions;
-    UA_Double maxSessionTimeout; /* in ms */
-
-    /* Limits for Subscriptions */
-    UA_DoubleRange publishingIntervalLimits;
-    UA_UInt32Range lifeTimeCountLimits;
-    UA_UInt32Range keepAliveCountLimits;
-    UA_UInt32 maxNotificationsPerPublish;
-    UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
-
-    /* Limits for MonitoredItems */
-    UA_DoubleRange samplingIntervalLimits;
-    UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
-
-    /* Discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    /* Timeout in seconds when to automatically remove a registered server from
-     * the list, if it doesn't re-register within the given time frame. A value
-     * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
-     * bigger than 10 seconds, because cleanup is only triggered approximately
-     * ervery 10 seconds. The server will still be removed depending on the
-     * state of the semaphore file. */
-    UA_UInt32 discoveryCleanupTimeout;
-#endif
-} UA_ServerConfig;
-
-/**
  * .. _server-lifecycle:
  *
  * Server Lifecycle
  * ---------------- */
+
 UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig *config);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
@@ -115,7 +45,8 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running);
 
 /* The prologue part of UA_Server_run (no need to use if you call
  * UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_startup(UA_Server *server);
+UA_StatusCode UA_EXPORT
+UA_Server_run_startup(UA_Server *server);
 
 /* Executes a single iteration of the server's main loop.
  *
@@ -130,7 +61,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
  * UA_Server_run) */
-UA_StatusCode UA_EXPORT UA_Server_run_shutdown(UA_Server *server);
+UA_StatusCode UA_EXPORT
+UA_Server_run_shutdown(UA_Server *server);
 
 /**
  * Repeated Callbacks
@@ -600,79 +532,67 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
- * Method Call
- * ----------- */
-#ifdef UA_ENABLE_METHODCALLS
-UA_CallMethodResult UA_EXPORT
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
-#endif
-
-/**
- * Node Lifecycle
- * --------------
+ * Information Model
+ * -----------------
  *
- * Every node has a context pointer with user-defined data (or NULL). The
- * user-defined data is assigned before the first constructor is called. The
- * constructors and destructors can can change (reallocate or free) the context
- * pointer.
+ * Every node has a context pointer. Initially, the node context is set to
+ * user-defined data (can be NULL). During instantiation, when all mandatory
+ * node children have been created, constructor callbacks are executed on the
+ * node that may replace the context pointer. When the ``AddNodes`` service is
+ * used over the network, the context pointer of the new node is initially set
+ * to NULL.
  *
- * There are two layers of lifecycle management: global and for the specific
- * node-type (for VariableTypes and ObjectTypes only). The lifecycle is as
- * follows:
+ * The server-wide global constructor and destructor callbacks are executed on
+ * all created and deleted nodes. The node-type constructors and destructors are
+ * only defined for ObjectTypes and VariableTypes. In the hierarchy of
+ * ObjectTypes and VariableTypes, only the lowest type constructor is executed.
+ * Every Object and Variable can have only one type with a ``isTypeOf``
+ * reference. Issues of multiple inheritance need to be solved by the user in
+ * the constructor/destructor.
  *
- * 1. Global Constructor
- * 2. Node-Type Constructor (for Variables and Objects)
+ * 1. Global Constructor (set in the server config)
+ * 2. Node-Type Constructor (for VariableType or ObjectTypes)
  * 3. (Usage-period of the Node)
  * 4. Node-Type Destructor
  * 5. Global Destructor
  *
- * The constructor callbacks can be set to NULL and are not used in that case.
- * When the AddNodes service is used over the network, the context pointer is
- * initially set to NULL.
- *
- * If the node-type constructor fails, the global destructor is called before
- * the node is removed.
- *
- * Global Node Lifecycle
- * ^^^^^^^^^^^^^^^^^^^^^ */
+ * The constructor and destructor callbacks can be set to NULL and are not used
+ * in that case. If the node-type constructor fails, the global destructor will
+ * be called on the node before removing it. The destructors are assumed to
+ * never fail. */
+
+/* To be set in the server config. */
+typedef struct {
+    /* Can be NULL. May replace the nodeContext */
+    UA_StatusCode (*constructor)(UA_Server *server, void *userSessionContext,
+                                 const UA_NodeId *nodeId, void **nodeContext);
+
+    /* Can be NULL. */
+    void (*destructor)(UA_Server *server, const UA_NodeId *nodeId,
+                       void *nodeContext);
+} UA_GlobalNodeLifecycle;
 
 typedef struct {
-    /* Can be NULL. */
-    UA_StatusCode (*constructor)(const UA_NodeId *nodeId, void **nodeContext);
+    /* Can be NULL. May replace the nodeContext */
+    UA_StatusCode (*constructor)(UA_Server *server, void *userSessionContext,
+                                 const UA_NodeId *typeId, void *typeContext,
+                                 const UA_NodeId *nodeId, void **nodeContext);
 
-    /* Can be NULL. The global destructor cannot set a new context pointer. The
-     * node memory is freed directly afterwards anyway. */
-    void (*destructor)(const UA_NodeId *nodeId, void *nodeContext);
-} UA_NodeLifecycle;
-
-void UA_EXPORT
-UA_Server_setNodeLifecycle(UA_Server *server, UA_NodeLifecycle lifecycle);
-
-/**
- * Node Type Lifecycle
- * ^^^^^^^^^^^^^^^^^^^ */
-
-typedef struct {
-    /* Can be NULL. */
-    UA_StatusCode (*constructor)(const UA_NodeId *typeId, void *typeContext,
-                                 const UA_NodeId *instanceId, void **instanceContext);
-
-    /* Can be NULL. */
-    void (*destructor)(const UA_NodeId *typeId, void *typeContext,
-                       const UA_NodeId *instanceId, void **instanceContext);
+    /* Can be NULL. May replace the nodeContext. */
+    void (*destructor)(UA_Server *server,
+                       const UA_NodeId *typeId, void *typeContext,
+                       const UA_NodeId *nodeId, void **nodeContext);
 } UA_NodeTypeLifecycle;
 
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
 
-/**
- * Interacting with the Node Context
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
 UA_StatusCode UA_EXPORT
 UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId, void **context);
 
+/* Careful! The context pointer might have been replaced by a constructor.
+ * The user has to ensure that the destructor callbacks still work. */
 UA_StatusCode UA_EXPORT
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId, void *context);
 
@@ -785,10 +705,16 @@ typedef UA_StatusCode
                      size_t inputSize, const UA_Variant *input,
                      size_t outputSize, UA_Variant *output);
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_StatusCode UA_EXPORT
 UA_Server_setMethodNode_callback(UA_Server *server,
                                  const UA_NodeId methodNodeId,
                                  UA_MethodCallback methodCallback);
+UA_CallMethodResult UA_EXPORT
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
+
+#endif
 
 /**
  * .. _addnodes:

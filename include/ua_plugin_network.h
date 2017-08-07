@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "ua_types.h"
+#include "ua_server.h"
 
 /* Forward declarations */
 struct UA_Connection;
@@ -17,9 +17,6 @@ typedef struct UA_Connection UA_Connection;
 
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
 
 struct UA_ServerNetworkLayer;
 typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
