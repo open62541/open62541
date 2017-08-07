@@ -297,6 +297,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-types DEPENDS
+        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
 
 # transport data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -312,6 +318,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-transport DEPENDS
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_handling.h
+        ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h)
 
 # nodeids
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_nodeids.h
@@ -329,6 +341,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_desc
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
         ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.StatusCodes.csv)
 list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
+# we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
+add_custom_target(open62541-generator-statuscode DEPENDS
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c)
+
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
@@ -362,8 +378,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
-ADD_CUSTOM_TARGET(open625451_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.h
-                                                  ${PROJECT_BINARY_DIR}/open62541.c)
+add_custom_target(open62541_amalgamation_source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
+add_custom_target(open62541_amalgamation_header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
+
+add_dependencies(open62541_amalgamation_source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
+add_dependencies(open62541_amalgamation_header open62541-generator-types)
 
 #####################
 # Build the Library #
@@ -372,6 +391,11 @@ ADD_CUSTOM_TARGET(open625451_amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open6254
 if(UA_ENABLE_AMALGAMATION)
     include_directories(${PROJECT_BINARY_DIR}) # contains open62541.h
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
+    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
+    # and thus may overwrite the amalgamation result during multiprocessor compilation
+    # the header is already a dependency of open62541 target itself
+    add_dependencies(open62541-object open62541_amalgamation_source)
+
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
     if(UA_COMPILE_AS_CXX)
@@ -380,9 +404,11 @@ if(UA_ENABLE_AMALGAMATION)
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
+    add_dependencies(open62541-object open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
+    add_dependencies(open62541-plugins open62541-generator-types)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -395,6 +421,13 @@ else()
     endif()
 endif()
 
+if(UA_ENABLE_GENERATE_NAMESPACE0)
+    add_dependencies(open62541_amalgamation_source open62541-generator-namespace)
+    if(NOT UA_ENABLE_AMALGAMATION)
+        add_dependencies(open62541-object open62541-generator-namespace)
+    endif()
+endif()
+
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
@@ -403,7 +436,7 @@ target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
 # Always generate the amalgamated header
-add_dependencies(open62541 open625451_amalgamation)
+add_dependencies(open62541 open62541_amalgamation_header)
 
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
