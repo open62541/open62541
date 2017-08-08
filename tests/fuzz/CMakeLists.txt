@@ -58,6 +58,7 @@ endmacro()
 
 # Add new fuzzers here
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
+add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 
 add_custom_target(
         run_fuzzer
