@@ -1487,6 +1487,9 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
             ptr += sizeof(void*);
         }
     }
+    if (retval != UA_STATUSCODE_GOOD) {
+        UA_deleteMembers(dst, type);
+    }
     return retval;
 }
 
