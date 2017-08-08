@@ -15,7 +15,8 @@ extern "C" {
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
-#include "ua_nodestore.h"
+#include "ua_nodes.h"
+#include "ua_nodestore_switch.h"
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 #include "mdnsd/libmdnsd/mdnsd.h"
@@ -107,8 +108,6 @@ struct UA_Server {
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
-    /* Address Space */
-    UA_NodeStore *nodestore;
 
 #ifdef UA_ENABLE_DISCOVERY
     /* Discovery */
@@ -140,7 +139,8 @@ struct UA_Server {
 #endif
 
     size_t namespacesSize;
-    UA_String *namespaces;
+    UA_Namespace *namespaces;
+    UA_NodestoreInterface *nodestore_std;
 
     /* Callbacks with a repetition interval */
     UA_Timer timer;
@@ -167,13 +167,10 @@ struct UA_Server {
 /* Node Handling */
 /*****************/
 
-void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
-void UA_Node_deleteReferences(UA_Node *node);
-UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 
 /* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
    the nodestore. */
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
 UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                                  UA_EditNodeCallback callback, const void *data);
 
@@ -196,7 +193,8 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *da
 UA_StatusCode
 UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
 
-UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
+UA_StatusCode
+addNamespace(UA_Server *server, UA_Namespace * newNs);
 
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
@@ -209,7 +207,7 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
 
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
+isNodeInTree(UA_Server* server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
@@ -440,6 +438,14 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
 void UA_Server_createNS0(UA_Server *server);
 #endif
+
+/**********************/
+/* Namespace Handling */
+/**********************/
+
+UA_StatusCode
+replaceNamespaceArray_server(UA_Server * server,
+        					 UA_String * newNsUris, size_t newNsSize);
 
 #ifdef __cplusplus
 } // extern "C"

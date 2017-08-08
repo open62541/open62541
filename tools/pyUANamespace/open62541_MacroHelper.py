@@ -37,9 +37,9 @@ class open62541_MacroHelper():
 
   def getCreateExpandedNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_EXPANDEDNODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
+      return "UA_EXPANDEDNODEID_NUMERIC(nsIdx_"+ str(node.id().ns) + ", " + str(node.id().i) + ")"
     elif node.id().s != None:
-      return "UA_EXPANDEDNODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
+      return "UA_EXPANDEDNODEID_STRING(nsIdx_"  + str(node.id().ns) + ", " + node.id().s + ")"
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -93,9 +93,9 @@ class open62541_MacroHelper():
 
   def getCreateNodeIDMacro(self, node):
     if node.id().i != None:
-      return "UA_NODEID_NUMERIC(" + str(node.id().ns) + ", " + str(node.id().i) + ")"
+      return "UA_NODEID_NUMERIC(nsIdx_" + str(node.id().ns) + ", " + str(node.id().i) + ")"
     elif node.id().s != None:
-      return "UA_NODEID_STRING("  + str(node.id().ns) + ", " + node.id().s + ")"
+      return "UA_NODEID_STRING(nsIdx_"  + str(node.id().ns) + ", " + node.id().s + ")"
     elif node.id().b != None:
       logger.debug("NodeID Generation macro for bytestrings has not been implemented.")
       return ""
@@ -206,7 +206,7 @@ class open62541_MacroHelper():
     
     if nodetype == "Variable":
       code.append("attr.accessLevel = %s;"     % str(node.accessLevel()))
-      code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
+    #  code.append("attr.userAccessLevel = %s;" % str(node.userAccessLevel()))
     if nodetype in ["Variable", "VariableType"]:
       code.append("attr.valueRank = %s;"       % str(node.valueRank()))
       
@@ -215,8 +215,8 @@ class open62541_MacroHelper():
     elif nodetype == "Method":
       if node.executable():
         code.append("attr.executable = true;")
-      if node.userExecutable():
-        code.append("attr.userExecutable = true;")
+    #  if node.userExecutable():
+    #m    code.append("attr.userExecutable = true;")
 
     code.append("UA_NodeId nodeId = " + str(self.getCreateNodeIDMacro(node)) + ";")
     if nodetype in ["Object", "Variable", "VariableType"]:
@@ -233,7 +233,7 @@ class open62541_MacroHelper():
     code.append("UA_NodeId parentReferenceNodeId = " + str(self.getCreateNodeIDMacro(parentReference.referenceType())) + ";")
     extrNs = node.browseName().split(":")
     if len(extrNs) > 1:
-      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(" +  str(extrNs[0]) + ", \"" + extrNs[1] + "\");")
+      code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(nsIdx_" +  str(node.id().ns) + ", \"" + extrNs[1] + "\");") #str(extrNs[0])
     else:
       code.append("UA_QualifiedName nodeName = UA_QUALIFIEDNAME(0, \"" + str(node.browseName()) + "\");")
 
@@ -283,7 +283,7 @@ class open62541_MacroHelper():
       code.append("/* undefined nodeclass */")
       return;
 
-    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_NodeStore_new" + nodetype + "Node();")
+    code.append("UA_" + nodetype + "Node *" + node.getCodePrintableID() + " = UA_Nodestore_new" + nodetype + "Node();")
     if not "browsename" in self.supressGenerationOfAttribute:
       extrNs = node.browseName().split(":")
       if len(extrNs) > 1:
@@ -298,12 +298,12 @@ class open62541_MacroHelper():
     if not "writemask" in self.supressGenerationOfAttribute:
         if node.__node_writeMask__ != 0:
           code.append(node.getCodePrintableID() + "->writeMask = (UA_Int32) " +  str(node.__node_writeMask__) + ";")
-    if not "userwritemask" in self.supressGenerationOfAttribute:
-        if node.__node_userWriteMask__ != 0:
-          code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
+    #if not "userwritemask" in self.supressGenerationOfAttribute:
+    #    if node.__node_userWriteMask__ != 0:
+    #      code.append(node.getCodePrintableID() + "->userWriteMask = (UA_Int32) " + str(node.__node_userWriteMask__) + ";")
     if not "nodeid" in self.supressGenerationOfAttribute:
       if node.id().ns != 0:
-        code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = " + str(node.id().ns) + ";")
+        code.append(node.getCodePrintableID() + "->nodeId.namespaceIndex = nsIdx_" + str(node.id().ns) + ";")
       if node.id().i != None:
         code.append(node.getCodePrintableID() + "->nodeId.identifier.numeric = " + str(node.id().i) + ";")
       elif node.id().b != None:

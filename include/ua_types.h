@@ -13,6 +13,9 @@ extern "C" {
 #include "ua_constants.h"
 
 #define UA_BUILTIN_TYPES_COUNT 25U
+/* Forward declaration. See UA_Namespace.h for full definition */
+struct UA_Namespace;
+typedef struct UA_Namespace UA_Namespace;
 
 /**
  * .. _types:
@@ -776,8 +779,9 @@ struct UA_DataType {
  * following method to retrieve the data type description. */
 /* Returns the data type description for the type's identifier or NULL if no
  * matching data type was found. */
+
 const UA_DataType UA_EXPORT *
-UA_findDataType(const UA_NodeId *typeId);
+UA_findDataType(const UA_NodeId *typeId, const UA_Namespace* namespaces, const size_t namespacesSize);
 
 /** The following functions are used for generic handling of data types. */
 

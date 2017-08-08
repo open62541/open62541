@@ -95,7 +95,10 @@ mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
+option(UA_ENABLE_LOAD_NAMESPACE0 "Load namespace 0 to nodestore 0 during UA_Server_new(...) for non-persistenst nodestores." ON)
+mark_as_advanced(UA_ENABLE_LOAD_NAMESPACE0)
+
+option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load (if UA_ENABLE_LOAD_NAMESPACE0) UA XML Namespace 0 definition instead off bootstrapped, hard coded version during UA_Server_new (experimental)." OFF)
 mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
@@ -261,9 +264,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_nodestore_interface.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_namespace.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_standard.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
@@ -280,11 +287,11 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_switch.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
@@ -300,6 +307,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_session.c
+                ${PROJECT_SOURCE_DIR}/src/ua_namespace.c
                 ${PROJECT_SOURCE_DIR}/src/ua_timer.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
@@ -313,6 +321,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # nodestores
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_switch.c
                 # services
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
@@ -340,7 +349,8 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_standard.c)
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
 endif()
@@ -356,9 +366,6 @@ if(UA_ENABLE_GENERATE_NAMESPACE0)
   list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
 endif()
 
-if(UA_ENABLE_EXTERNAL_NAMESPACES)
-    list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/include/ua_server_external_ns.h)
-endif()
 if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
 endif()

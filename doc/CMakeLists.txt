@@ -28,7 +28,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/pl
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)

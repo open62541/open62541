@@ -98,6 +98,10 @@ struct UA_Client {
     LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
 #endif
+    
+    /* Namespace Config */
+    size_t namespacesSize;
+    UA_Namespace *namespaces;
 };
 
 /* Connect to the selected server.

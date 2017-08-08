@@ -9,6 +9,7 @@
 extern "C" {
 #endif
 
+#include "ua_nodestore_interface.h"
 #include "ua_nodes.h"
 
 /**
@@ -27,7 +28,12 @@ UA_NodeStore * UA_NodeStore_new(void);
 
 /* Delete the nodestore and all nodes in it. Do not call from a read-side
    critical section (multithreading). */
-void UA_NodeStore_delete(UA_NodeStore *ns);
+void UA_NodeStore_delete(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
+
+/* Link a namespace index to this nodestore*/
+UA_StatusCode UA_NodeStore_linkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
+
+UA_StatusCode UA_NodeStore_unlinkNamespace(UA_NodeStore *ns, UA_UInt16 namespaceIndex);
 
 /**
  * Node Lifecycle
@@ -39,22 +45,6 @@ void UA_NodeStore_delete(UA_NodeStore *ns);
  * added to the nodestore.) */
 /* Create an editable node of the given NodeClass. */
 UA_Node * UA_NodeStore_newNode(UA_NodeClass nodeClass);
-#define UA_NodeStore_newObjectNode() \
-    (UA_ObjectNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECT)
-#define UA_NodeStore_newVariableNode() \
-    (UA_VariableNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLE)
-#define UA_NodeStore_newMethodNode() \
-    (UA_MethodNode*)UA_NodeStore_newNode(UA_NODECLASS_METHOD)
-#define UA_NodeStore_newObjectTypeNode() \
-    (UA_ObjectTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_OBJECTTYPE)
-#define UA_NodeStore_newVariableTypeNode() \
-    (UA_VariableTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_VARIABLETYPE)
-#define UA_NodeStore_newReferenceTypeNode() \
-    (UA_ReferenceTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_REFERENCETYPE)
-#define UA_NodeStore_newDataTypeNode() \
-    (UA_DataTypeNode*)UA_NodeStore_newNode(UA_NODECLASS_DATATYPE)
-#define UA_NodeStore_newViewNode() \
-    (UA_ViewNode*)UA_NodeStore_newNode(UA_NODECLASS_VIEW)
 
 /* Delete an editable node. */
 void UA_NodeStore_deleteNode(UA_Node *node);
@@ -65,7 +55,7 @@ void UA_NodeStore_deleteNode(UA_Node *node);
 /* Inserts a new node into the nodestore. If the nodeid is zero, then a fresh
  * numeric nodeid from namespace 1 is assigned. If insertion fails, the node is
  * deleted. */
-UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node);
+UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node, UA_NodeId *addedNodeId);
 
 /* The returned node is immutable. */
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid);
@@ -89,8 +79,14 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid);
  * ^^^^^^^^^
  * The following definitions are used to call a callback for every node in the
  * nodestore. */
-typedef void (*UA_NodeStore_nodeVisitor)(const UA_Node *node);
-void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor);
+void UA_NodeStore_iterate(UA_NodeStore *ns, void *visitorHandle, UA_NodestoreInterface_nodeVisitor visitor);
+
+/**
+ * Release
+ * ^^^^^^^^
+ * Only used in nodestore_concurrent. Indicates that a node is no longer referenced by the caller.
+ */
+void UA_NodeStore_release(UA_NodeStore *ns, const UA_Node *node);
 
 #ifdef __cplusplus
 } // extern "C"
