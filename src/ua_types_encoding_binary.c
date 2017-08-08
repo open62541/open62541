@@ -789,7 +789,10 @@ ExpandedNodeId_decodeBinary(UA_ExpandedNodeId *dst, const UA_DataType *_) {
     /* Mask out the encoding byte on the stream to decode the NodeId only */
     *pos = encoding & (UA_Byte)~(UA_EXPANDEDNODEID_NAMESPACEURI_FLAG |
                                  UA_EXPANDEDNODEID_SERVERINDEX_FLAG);
+    UA_Byte *oldPos = pos;
     UA_StatusCode retval = NodeId_decodeBinary(&dst->nodeId, NULL);
+    // revert the changes since pos is const
+    *oldPos = encoding;
 
     /* Decode the NamespaceUri */
     if(encoding & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG) {
