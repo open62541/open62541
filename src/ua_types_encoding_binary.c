@@ -41,7 +41,10 @@
 # pragma GCC diagnostic pop
 #endif
 
-/* Jumptables for de-/encoding and computing the buffer length */
+/* Jumptables for de-/encoding and computing the buffer length. The methods in
+ * the decoding jumptable do not all clean up their allocated memory when an
+ * error occurs. So a final _deleteMembers needs to be called before returning
+ * to the user. */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);
 extern const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
@@ -636,6 +639,9 @@ Guid_decodeBinary(UA_Guid *dst, const UA_DataType *_) {
 #define UA_NODEIDTYPE_NUMERIC_FOURBYTE 1
 #define UA_NODEIDTYPE_NUMERIC_COMPLETE 2
 
+#define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
+#define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
+
 /* For ExpandedNodeId, we prefill the encoding mask. We can return
  * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED before encoding the string, as the
  * buffer is not replaced. */
@@ -700,9 +706,17 @@ static UA_StatusCode
 NodeId_decodeBinary(UA_NodeId *dst, const UA_DataType *_) {
     UA_Byte dstByte = 0, encodingByte = 0;
     UA_UInt16 dstUInt16 = 0;
+
+    /* Decode the encoding bitfield */
     UA_StatusCode retval = Byte_decodeBinary(&encodingByte, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Filter out the bits used only for ExpandedNodeIds */
+    encodingByte &= (UA_Byte)~(UA_EXPANDEDNODEID_SERVERINDEX_FLAG |
+                               UA_EXPANDEDNODEID_NAMESPACEURI_FLAG);
+
+    /* Decode the namespace and identifier */
     switch (encodingByte) {
     case UA_NODEIDTYPE_NUMERIC_TWOBYTE:
         dst->identifierType = UA_NODEIDTYPE_NUMERIC;
@@ -745,9 +759,6 @@ NodeId_decodeBinary(UA_NodeId *dst, const UA_DataType *_) {
 }
 
 /* ExpandedNodeId */
-#define UA_EXPANDEDNODEID_NAMESPACEURI_FLAG 0x80
-#define UA_EXPANDEDNODEID_SERVERINDEX_FLAG 0x40
-
 static UA_StatusCode
 ExpandedNodeId_encodeBinary(UA_ExpandedNodeId const *src, const UA_DataType *_) {
     /* Set up the encoding mask */
@@ -786,13 +797,8 @@ ExpandedNodeId_decodeBinary(UA_ExpandedNodeId *dst, const UA_DataType *_) {
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_Byte encoding = *pos;
 
-    /* Mask out the encoding byte on the stream to decode the NodeId only */
-    *pos = encoding & (UA_Byte)~(UA_EXPANDEDNODEID_NAMESPACEURI_FLAG |
-                                 UA_EXPANDEDNODEID_SERVERINDEX_FLAG);
-    UA_Byte *oldPos = pos;
+    /* Decode the NodeId */
     UA_StatusCode retval = NodeId_decodeBinary(&dst->nodeId, NULL);
-    // revert the changes since pos is const
-    *oldPos = encoding;
 
     /* Decode the NamespaceUri */
     if(encoding & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG) {
@@ -1117,12 +1123,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
 
     /* Decode the content */
     size_t decode_index = dst->type->builtin ? dst->type->typeIndex : UA_BUILTIN_TYPES_COUNT;
-    retval = decodeBinaryJumpTable[decode_index](dst->data, dst->type);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(dst->data);
-        dst->data = NULL;
-    }
-    return retval;
+    return decodeBinaryJumpTable[decode_index](dst->data, dst->type);
 }
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. */
@@ -1486,9 +1487,6 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
             retval |= Array_decodeBinary((void *UA_RESTRICT *UA_RESTRICT)ptr, length, membertype);
             ptr += sizeof(void*);
         }
-    }
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_deleteMembers(dst, type);
     }
     return retval;
 }
