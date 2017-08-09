@@ -14,18 +14,23 @@ void UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen) {
         if (i == 0)
             printf("%08zx ", i);
         else if (i%16 == 0)
-            printf("|%s|\n%08zx ", ascii, i);
+            printf(" |%s|\n%08zx ", ascii, i);
         if (isprint((int)(buffer[i])))
             ascii[i%16] = (char)buffer[i];
         else
             ascii[i%16] = '.';
+        if (i%8==0)
+            printf(" ");
         printf("%02X ", (unsigned char)buffer[i]);
+
     }
     size_t fillPos = bufferLen %16;
     ascii[fillPos] = 0;
     for (size_t i=fillPos; i<16; i++) {
+        if (i%8==0)
+            printf(" ");
         printf("   ");
     }
-    printf("|%s|\n%08zx\n", ascii, bufferLen);
+    printf(" |%s|\n%08zx\n", ascii, bufferLen);
     printf("--------------- HEX Package END ---------------\n");
 }
