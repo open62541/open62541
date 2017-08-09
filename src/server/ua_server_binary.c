@@ -243,6 +243,14 @@ processHEL(UA_Server *server, UA_Connection *connection, const UA_ByteString *ms
     connection->state = UA_CONNECTION_ESTABLISHED;
     UA_TcpHelloMessage_deleteMembers(&helloMessage);
 
+    if (connection->remoteConf.recvBufferSize == 0) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Remote end indicated a receive buffer size of 0. Not able to send any messages.",
+                    connection->sockfd);
+        connection->close(connection);
+        return;
+    }
+
     /* Build acknowledge response */
     UA_TcpAcknowledgeMessage ackMessage;
     ackMessage.protocolVersion = connection->localConf.protocolVersion;
@@ -328,6 +336,17 @@ processOPN(UA_Server *server, UA_Connection *connection,
         return;
     }
 
+    // every message contains secureconversationmessageheader. Thus its size has to be
+    // the minimum buffer size
+    if (connection->localConf.sendBufferSize <= 12) {
+        UA_OpenSecureChannelResponse_deleteMembers(&p);
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Response too large for client configuration. %s", connection->sockfd, UA_StatusCode_name(UA_STATUSCODE_BADRESPONSETOOLARGE));
+        connection->close(connection);
+        return;
+    }
+
     /* Set the starting sequence number */
     channel->receiveSequenceNumber = seqHeader.sequenceNumber;
 
@@ -358,7 +377,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Could not encode the OPN message. "
-                    "Closing the connection.", connection->sockfd);
+                    "Closing the connection. %s", connection->sockfd, UA_StatusCode_name(retval));
         connection->releaseSendBuffer(connection, &resp_msg);
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);

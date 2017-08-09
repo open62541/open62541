@@ -1404,6 +1404,10 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
                 pos = oldpos; /* exchange/send the buffer */
                 retval = exchangeBuffer();
                 ptr -= member->padding + memSize; /* encode the same member in the next iteration */
+                if (retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED || pos + memSize > end) {
+                    // the send buffer is too small to encode the member, even after exchangeBuffer
+                    return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+                }
                 --i;
             }
         } else {
