@@ -61,11 +61,16 @@ readNamespaces(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimestamp,
         return UA_STATUSCODE_GOOD;
     }
     UA_Server *server = (UA_Server*)handle;
-    UA_StatusCode retval;
-    retval = UA_Variant_setArrayCopy(&value->value, server->namespaces,
-                                     server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    //Copy namespace array in UA_String array
+    UA_String* namespacesArray = (UA_String*)UA_malloc(sizeof(UA_String) *server->namespacesSize);
+    if(!namespacesArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    for(size_t i = 0; i < server->namespacesSize; ++i){
+        namespacesArray[i] = server->namespaces[i].uri;
+    }
+    UA_Variant_setArrayCopy(&value->value, namespacesArray,
+            server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_free(namespacesArray);
     value->hasValue = true;
     if(sourceTimestamp) {
         value->hasSourceTimestamp = true;
@@ -89,25 +94,15 @@ writeNamespaces(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
 
     /* TODO: Writing with a range is not implemented */
     if(range)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    UA_String *newNamespaces = (UA_String*)data->data;
-    size_t newNamespacesSize = data->arrayLength;
+    /* Reorder and replace the namespaces with all consequences */
+    UA_StatusCode retval = replaceNamespaceArray_server(server,
+            (UA_String *)data->data, (size_t)data->arrayLength);
 
-    /* Test if we append to the existing namespaces */
-    if(newNamespacesSize <= server->namespacesSize)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Test if the existing namespaces are unchanged */
-    for(size_t i = 0; i < server->namespacesSize; ++i) {
-        if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Add namespaces */
-    for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
-        addNamespace(server, newNamespaces[i]);
-    return UA_STATUSCODE_GOOD;
+    if(retval == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOODEDITED; //Don't return good, as namespace array could be moved
+    return retval;
 }
 
 static UA_StatusCode

@@ -6,6 +6,7 @@
 #include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_util.h"
+#include "ua_namespace.h"
 #include "check.h"
 
 #ifdef __clang__
@@ -57,7 +58,7 @@ static UA_DataTypeMember members[3] = {
     }
 };
 
-static const UA_DataType PointType = {
+static UA_DataType PointType = {
     UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     sizeof(Point),                   /* .memSize */
@@ -71,6 +72,12 @@ static const UA_DataType PointType = {
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
     members
+};
+
+static UA_Namespace namespace1 = {
+    .index = 1,
+    .dataTypes = &PointType,
+    .dataTypesSize = 1
 };
 
 START_TEST(parseCustomScalar) {
@@ -96,9 +103,9 @@ START_TEST(parseCustomScalar) {
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT],1, &namespace1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(var2.type, &PointType);
+    ck_assert(var2.type == &PointType);
 
     Point *p2 = (Point*)var2.data;
     ck_assert(p.x == p2->x);
@@ -132,7 +139,7 @@ START_TEST(parseCustomScalarExtensionObject) {
 
     UA_ExtensionObject eo2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &eo2, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], 1, &namespace1);
     ck_assert_int_eq(offset, (uintptr_t)(bufPos - buf.data));
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -171,15 +178,15 @@ START_TEST(parseCustomArray) {
 
     UA_Variant var2;
     size_t offset = 0;
-    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &PointType);
+    retval = UA_decodeBinary(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], 1, &namespace1);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_eq(var2.type, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     ck_assert_int_eq(var2.arrayLength, 10);
 
     for (size_t i = 0; i < 10; i++) {
         UA_ExtensionObject *eo = &((UA_ExtensionObject*)var2.data)[i];
         ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
-        ck_assert_ptr_eq(eo->content.decoded.type, &PointType);
+        ck_assert(eo->content.decoded.type == &PointType);
         Point *p2 = (Point*)eo->content.decoded.data;
 
         // we need to cast floats to int to avoid comparison of floats

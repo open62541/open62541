@@ -56,8 +56,8 @@ extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES
 
 /* Pointer to custom datatypes in the server or client. Set inside
  * UA_decodeBinary */
-static UA_THREAD_LOCAL size_t customTypesArraySize;
-static UA_THREAD_LOCAL const UA_DataType *customTypesArray;
+UA_THREAD_LOCAL UA_Namespace* namespaces_local;
+UA_THREAD_LOCAL size_t namespacesSize_local;
 
 /* Pointers to the current position and the last position in the buffer */
 static UA_THREAD_LOCAL UA_Byte *pos;
@@ -573,8 +573,7 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst,
         for(size_t i = 0; i < length; ++i) {
             retval = decodeBinaryJumpTable[decode_index]((void*)ptr, type);
             if(retval != UA_STATUSCODE_GOOD) {
-                // +1 because last element is also already initialized
-                UA_Array_delete(*dst, i+1, type);
+                UA_Array_delete(*dst, i, type);
                 *dst = NULL;
                 return retval;
             }
@@ -855,18 +854,27 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 /* The binary encoding has a different nodeid from the data type. So it is not
  * possible to reuse UA_findDataType */
-static const UA_DataType *
+static UA_DataType *
 findDataTypeByBinary(const UA_NodeId *typeId) {
     /* We only store a numeric identifier for the encoding nodeid of data types */
     if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
 
     /* Custom or standard data type? */
-    const UA_DataType *types = UA_TYPES;
-    size_t typesSize = UA_TYPES_COUNT;
-    if(typeId->namespaceIndex != 0) {
-        types = customTypesArray;
-        typesSize = customTypesArraySize;
+    UA_DataType *types = NULL;
+    size_t typesSize = 0;
+    if(typeId->namespaceIndex != 0){
+        if(namespaces_local == NULL) return NULL;//UA_STATUSCODE_BADNODEIDUNKNOWN;
+        for(size_t i = 0; i < namespacesSize_local; ++i){
+            if(namespaces_local[i].index == typeId->namespaceIndex){
+                types = namespaces_local[i].dataTypes;
+                typesSize = namespaces_local[i].dataTypesSize;
+                break;
+            }
+        }
+    }else{
+        types = UA_TYPES;
+        typesSize = UA_TYPES_COUNT;
     }
 
     /* Iterate over the array */
@@ -1471,7 +1479,7 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Byte membersSize = type->membersSize;
     const UA_DataType *typelists[2] = { UA_TYPES, &type[-type->typeIndex] };
-    for(size_t i = 0; i < membersSize && retval == UA_STATUSCODE_GOOD; ++i) {
+    for(size_t i = 0; i < membersSize; ++i) {
         const UA_DataTypeMember *member = &type->members[i];
         const UA_DataType *membertype = &typelists[!member->namespaceZero][member->memberTypeIndex];
         if(!member->isArray) {
@@ -1493,15 +1501,15 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) {
+                const UA_DataType *type,
+                size_t newNamespacesSize, UA_Namespace *newNamespaces) {
     /* Initialize the destination */
     memset(dst, 0, type->memSize);
 
     /* Store the pointers to the custom datatypes. They might be needed during
      * decoding of variants. */
-    customTypesArraySize = customTypesSize;
-    customTypesArray = customTypes;
+    namespaces_local = newNamespaces;
+    namespacesSize_local = newNamespacesSize;
 
     /* Set the (thread-local) position and end pointers to save function
      * arguments */

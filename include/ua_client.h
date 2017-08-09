@@ -9,11 +9,13 @@
 extern "C" {
 #endif
 
+#include "ua_config.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_log.h"
+#include "ua_namespace.h"
 
 /**
  * .. _client:
@@ -43,9 +45,9 @@ typedef struct UA_ClientConfig {
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
 
-    /* Custom DataTypes */
-    size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
+    /* Supported namespaces */
+    size_t namespacesSize;
+    UA_Namespace * namespaces;
 } UA_ClientConfig;
 
 /**
@@ -183,6 +185,16 @@ UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
 
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
+
+/* Add or Change a supported Namespace.
+ * In order to determine the namespaceindex for the namespace URI,the Client tries to
+ * connected and read the namespace array first.
+ * returns UA_STATUSCODE_BADOUTOFMEMORY if client has no memory for the namespace entry.
+ * A reconnect (updates the index automatically) is necessary,
+ * if the namespace array in the server is changed.
+*/
+UA_StatusCode UA_EXPORT
+UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespacePtr);
 
 /**
  * .. _client-services:

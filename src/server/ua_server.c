@@ -8,6 +8,7 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
+#include "ua_nodestore_standard.h"
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
@@ -21,43 +22,171 @@ UA_THREAD_LOCAL bool rcu_locked = false;
 /* Namespace Handling */
 /**********************/
 
-UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
-    /* Check if the namespace already exists in the server's namespace array */
-    for(UA_UInt16 i = 0; i < server->namespacesSize; ++i) {
-        if(UA_String_equal(&name, &server->namespaces[i]))
-            return i;
+static void
+changeNamespace_server(UA_Server * server, UA_Namespace* newNs,  size_t newNsIdx){
+    //change Nodestore
+    UA_Namespace_changeNodestore(&server->namespaces[newNsIdx], newNs, server->nodestore_std,
+            (UA_UInt16) newNsIdx);
+
+    //Change and update DataTypes
+    UA_Namespace_updateDataTypes(&server->namespaces[newNsIdx], newNs, (UA_UInt16)newNsIdx);
+
+    //Update indices in namespaces
+    newNs->index = (UA_UInt16)newNsIdx;
+    server->namespaces[newNsIdx].index = (UA_UInt16)newNsIdx;
+}
+
+UA_StatusCode
+replaceNamespaceArray_server(UA_Server * server,
+        UA_String * newNsUris, size_t newNsSize){
+
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+            "Changing the servers namespace array with new length: %i.", (int)newNsSize);
+    /* Check if new namespace uris are unique */
+    for(size_t i = 0 ; i < newNsSize-1 ; ++i){
+        for(size_t j = i+1 ; j < newNsSize ; ++j){
+            if(UA_String_equal(&newNsUris[i], &newNsUris[j])){
+                return UA_STATUSCODE_BADINVALIDARGUMENT;
+            }
+        }
     }
 
-    /* Make the array bigger */
-    UA_String *newNS = (UA_String*)UA_realloc(server->namespaces,
-                                  sizeof(UA_String) * (server->namespacesSize + 1));
-    if(!newNS)
-        return 0;
-    server->namespaces = newNS;
+    /* Announce changing process */
+    //TODO set lock flag
+    size_t oldNsSize = server->namespacesSize;
+    server->namespacesSize = 0;
 
-    /* Copy the namespace string */
-    UA_StatusCode retval = UA_String_copy(&name, &server->namespaces[server->namespacesSize]);
-    if(retval != UA_STATUSCODE_GOOD)
-        return 0;
+    /* Alloc new NS Array  */
+    UA_Namespace * newNsArray = (UA_Namespace*)UA_malloc(newNsSize * sizeof(UA_Namespace));
+    if(!newNsArray)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    /* Alloc new index mapping array. Old ns index --> new ns index */
+    size_t* oldNsIdxToNewNsIdx = (size_t*)UA_malloc(oldNsSize * sizeof(size_t));
+    if(!oldNsIdxToNewNsIdx){
+        UA_free(newNsArray);
+        server->namespacesSize = oldNsSize;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    //Fill oldNsIdxToNewNsIdx with default values
+    for(size_t i = 0 ; i < oldNsSize ; ++i){
+        oldNsIdxToNewNsIdx[i] = (size_t)UA_NAMESPACE_UNDEFINED;
+    }
+
+    /* Search for old ns and copy it. If not found add a new namespace with default values. */
+    //TODO forbid change of namespace 0?
+    for(size_t newIdx = 0 ; newIdx < newNsSize ; ++newIdx){
+        UA_Boolean nsExists = UA_FALSE;
+        for(size_t oldIdx = 0 ; oldIdx < oldNsSize ; ++oldIdx){
+            if(UA_String_equal(&newNsUris[newIdx], &server->namespaces[oldIdx].uri)){
+                nsExists = UA_TRUE;
+                newNsArray[newIdx] = server->namespaces[oldIdx];
+                oldNsIdxToNewNsIdx[oldIdx] = newIdx; //Mark as already copied
+                break;
+            }
+        }
+        if(nsExists == UA_FALSE){
+            UA_Namespace_init(&newNsArray[newIdx], &newNsUris[newIdx]);
+        }
+    }
+
+    /* Update the namespace indices in data types, new namespaces and nodestores. Set default nodestores */
+    UA_Namespace_updateNodestores(newNsArray,newNsSize,
+                                  oldNsIdxToNewNsIdx, oldNsSize);
+    for(size_t newIdx = 0 ; newIdx < newNsSize ; ++newIdx){
+        UA_Namespace_updateDataTypes(&newNsArray[newIdx], NULL, (UA_UInt16)newIdx);
+        newNsArray[newIdx].index = (UA_UInt16)newIdx;
+        //TODO check if unneccessary, because already handled in updateNodestores
+        if(!newNsArray[newIdx].nodestore){
+            newNsArray[newIdx].nodestore = server->nodestore_std;
+            newNsArray[newIdx].nodestore->linkNamespace(newNsArray[newIdx].nodestore->handle, (UA_UInt16)newIdx);
+        }
+    }
+
+    /* Delete old unused namespaces */
+    for(size_t i = 0; i<oldNsSize; ++i){
+        if(oldNsIdxToNewNsIdx[i] == (size_t)UA_NAMESPACE_UNDEFINED)
+            UA_Namespace_deleteMembers(&server->namespaces[i]);
+    }
+
+    /* Cleanup, copy new namespace array to server and make visible */
+    UA_free(oldNsIdxToNewNsIdx);
+    UA_free(server->namespaces);
+    server->namespaces = newNsArray;
+    server->namespacesSize = newNsSize;
+    //TODO make multithreading save and do at last step --> add real namespace array size as parameter or lock namespacearray?
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addNamespace_full(UA_Server *server, UA_Namespace* namespacePtr){
+    /* Check if the namespace already exists in the server's namespace array */
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
+        if(UA_String_equal(&namespacePtr->uri, &server->namespaces[i].uri)){
+            changeNamespace_server(server, namespacePtr, i);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    /* Namespace doesn't exist alloc space in namespaces array */
+    UA_Namespace *newNsArray = (UA_Namespace*)UA_realloc(server->namespaces,
+            sizeof(UA_Namespace) * (server->namespacesSize + 1));
+    if(!newNsArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    server->namespaces = newNsArray;
+
+    /* Fill new namespace with values */
+    UA_Namespace_init(&server->namespaces[server->namespacesSize], &namespacePtr->uri);
+    changeNamespace_server(server, namespacePtr, server->namespacesSize);
 
     /* Announce the change (otherwise, the array appears unchanged) */
     ++server->namespacesSize;
-    return (UA_UInt16)(server->namespacesSize - 1);
+    return UA_STATUSCODE_GOOD;
 }
 
-UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
-    /* Override const attribute to get string (dirty hack) */
-    UA_String nameString;
-    nameString.length = strlen(name);
-    nameString.data = (UA_Byte*)(uintptr_t)name;
-    return addNamespace(server, nameString);
+UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* namespaceUri){
+    UA_Namespace * ns = UA_Namespace_newFromChar(namespaceUri);
+    UA_Server_addNamespace_full(server, ns);
+    UA_UInt16 retIndex = ns->index;
+    UA_Namespace_deleteMembers(ns);
+    UA_free(ns);
+    return retIndex;
 }
+
+UA_StatusCode UA_Server_deleteNamespace_full(UA_Server *server, UA_Namespace * namespacePtr){
+    UA_String * newNsUris = (UA_String*)UA_malloc((server->namespacesSize-1) * sizeof(UA_String));
+    if(!newNsUris)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Check if the namespace already exists in the server's namespace array */
+    size_t j = 0;
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
+        if(!UA_String_equal(&namespacePtr->uri, &server->namespaces[i].uri)){
+            if(j == server->namespacesSize){
+                UA_free(newNsUris);
+                return UA_STATUSCODE_BADNOTFOUND;
+            }
+            newNsUris[j++] = server->namespaces[i].uri;
+        }
+    }
+    UA_StatusCode result =  replaceNamespaceArray_server(server, newNsUris, j);
+    UA_free(newNsUris);
+    return result;
+}
+
+UA_StatusCode UA_Server_deleteNamespace(UA_Server *server, const char* namespaceUri){
+    UA_Namespace * ns = UA_Namespace_newFromChar(namespaceUri);
+    UA_StatusCode retVal = UA_Server_deleteNamespace_full(server, ns);
+    UA_Namespace_deleteMembers(ns);
+    UA_free(ns);
+    return retVal;
+}
+
 
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_RCU_LOCK();
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
+    const UA_Node *parent = UA_NodestoreSwitch_getNode(server, &parentNodeId);
     if(!parent) {
         UA_RCU_UNLOCK();
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -81,6 +210,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
+    UA_NodestoreSwitch_releaseNode(server, parent);
     UA_RCU_UNLOCK();
 
     UA_Array_delete(refs, refssize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
@@ -97,9 +227,15 @@ void UA_Server_delete(UA_Server *server) {
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
     UA_RCU_LOCK();
-    UA_NodeStore_delete(server->nodestore);
+    //delete all namespaces and nodestores
+    for(size_t i = 0; i<server->namespacesSize; ++i){
+        UA_Namespace_deleteMembers(&server->namespaces[i]);
+    }
+    UA_free(server->namespaces);
+    //Delete the standard nodestore
+    UA_Nodestore_standard_delete(server->nodestore_std);
     UA_RCU_UNLOCK();
-    UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    UA_free(server->nodestore_std);
     UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
@@ -218,7 +354,6 @@ UA_Server_new(const UA_ServerConfig config) {
 
     server->config = config;
     server->startTime = UA_DateTime_now();
-    server->nodestore = UA_NodeStore_new();
 
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
@@ -239,11 +374,14 @@ UA_Server_new(const UA_ServerConfig config) {
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
 #endif
 
-    /* Create Namespaces 0 and 1 */
-    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
-    server->namespacesSize = 2;
+    /* Initialize a default nodestoreInterface for namespaces */
+    server->nodestore_std = (UA_NodestoreInterface*)UA_malloc(sizeof(UA_NodestoreInterface));
+    *server->nodestore_std = UA_Nodestore_standard();
+    /* Namespace0 and Namespace1 initialization */
+    /* Custom configuration of Namespaces at beginning overrides defaults.*/
+    for(size_t i = 0 ; i < config.namespacesSize ; ++i){
+        UA_Server_addNamespace_full(server, &config.namespaces[i]);
+    }
 
     /* Create Endpoint Definitions */
     addEndpointDefinitions(server);
@@ -285,11 +423,13 @@ UA_Server_new(const UA_ServerConfig config) {
 #endif
 
     /* Initialize Namespace 0 */
+#ifdef UA_ENABLE_LOAD_NAMESPACE0
 #ifndef UA_ENABLE_GENERATE_NAMESPACE0
     UA_Server_createNS0(server);
 #else
     ua_namespaceinit_generated(server);
 #endif
+#endif //UA_ENABLE_LOAD_NAMESPACE0
 
     return server;
 }
