@@ -17,12 +17,25 @@ for F in $fuzzerFiles; do
 		subDirs=$(find $SRC/open62541/tests/fuzz/${fuzzerName}_corpus -maxdepth 1 -mindepth 1 -type d)
 		for dirPath in $subDirs; do
 			dir=$(basename $dirPath)
-			outPath=$SRC/open62541/tests/fuzz/${fuzzerName}_corpus/$dir.bin
-			if [ -f $outPath ]; then
-				rm $outPath;
+			dirPathTmp=$SRC/open62541/tests/fuzz/${fuzzerName}_corpus/${dir}_tmp
+			if [ -d  $dirPathTmp ]; then
+				rm -r $dirPathTmp
 			fi
-			echo "Combining content of $dir into $outPath"
+			mkdir $dirPathTmp
+			# copy the files to get unique names
+			binFiles=$(find $dirPath -name "*.bin")
+			for binFile in $binFiles; do
+				binFileName=$(basename $binFile .bin)
+				cp $binFile $dirPathTmp/${dir}_${binFileName}.bin
+			done
+
+			outPath=$dirPathTmp/$dir.bin
 			cat $dirPath/*.bin > $outPath
+
+			zip -j $OUT/${fuzzerName}_seed_corpus.zip $dirPathTmp/*
+
+			rm -r $dirPathTmp
+
 		done
 
 		zip -j $OUT/${fuzzerName}_seed_corpus.zip $SRC/open62541/tests/fuzz/${fuzzerName}_corpus/*
