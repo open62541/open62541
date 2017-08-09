@@ -3,8 +3,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client.h"
+#include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
 #include "ua_connection_internal.h"
+#include "ua_types_generated.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_transport_generated.h"
@@ -20,6 +22,22 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     memset(client, 0, sizeof(UA_Client));
     client->channel.connection = &client->connection;
     client->config = config;
+    //delete old namespaces
+    for(size_t i = 0; i<client->namespacesSize; ++i){
+        UA_Namespace_deleteMembers(&client->namespaces[i]);
+    }
+    UA_free(client->namespaces);
+    //Add namespace 0, because it is always supported
+    client->namespaces = UA_Namespace_newFromChar("http://opcfoundation.org/UA/");
+    //TODO Namespace_0 as define/std config in ua_namespace? (Watchout will overwrite index with undefined value)
+    client->namespaces->dataTypes = UA_TYPES;
+    client->namespaces->dataTypesSize = UA_TYPES_COUNT;
+    client->namespaces->index = 0;
+    client->namespacesSize = 1;
+    //Add other supported namespaces from config
+    for(size_t i = 0; i < config.namespacesSize; ++i){
+        UA_Client_addNamespace(client, &config.namespaces[i]);
+    }
 }
 
 UA_Client * UA_Client_new(UA_ClientConfig config) {
@@ -49,6 +67,11 @@ static void UA_Client_deleteMembers(UA_Client* client) {
         LIST_REMOVE(ac, pointers);
         UA_free(ac);
     }
+    /* Delete supported namespaces */
+    for(size_t i = 0 ; i < client->namespacesSize ; i++){
+        UA_Namespace_deleteMembers(&client->namespaces[i]);
+    }
+    UA_free(client->namespaces);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -377,6 +400,34 @@ ActivateSession(UA_Client *client) {
     return retval;
 }
 
+static UA_StatusCode UpdateNamespaceIndices(UA_Client* client){
+    if(client->state != UA_CLIENTSTATE_CONNECTED){
+        return UA_STATUSCODE_BADNOTCONNECTED;
+    }
+
+    UA_Variant value;
+    UA_Variant_init(&value);
+
+    UA_StatusCode retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), &value);
+    if(retval != UA_STATUSCODE_GOOD){
+        return retval;
+    }
+    for(size_t i = 0; i < client->namespacesSize; i++){
+        client->namespaces[i].index = UA_NAMESPACE_UNDEFINED;
+        //Search if namespace is in Server
+        for(size_t newIdx = 0; newIdx< value.arrayLength; newIdx++){
+            if(UA_String_equal(&client->namespaces[i].uri,&(((UA_String*)value.data)[newIdx]))){
+                // Update index of supported namespace
+                client->namespaces[i].index = (UA_UInt16)i;
+                break;
+            }
+        }
+        UA_Namespace_updateDataTypes(&client->namespaces[i], NULL, (UA_UInt16)i);
+    }
+    UA_Variant_deleteMembers(&value);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
 UA_StatusCode
 __UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
@@ -578,6 +629,43 @@ CloseSecureChannel(UA_Client *client) {
     return retval;
 }
 
+static void changeNamespace_client(UA_Client *client, UA_Namespace* namespacePtr, size_t nsArrayIdx){
+    UA_UInt16 newNsIdx = UA_NAMESPACE_UNDEFINED;
+    //update namespace array indices
+    if(UpdateNamespaceIndices(client) == UA_STATUSCODE_GOOD){
+        newNsIdx = client->namespaces[nsArrayIdx].index;
+    }
+    //Overwrite values from given namespace
+    UA_Namespace_updateDataTypes(&client->namespaces[nsArrayIdx], namespacePtr, newNsIdx);
+    namespacePtr->index = newNsIdx;
+    client->namespaces[nsArrayIdx].index = newNsIdx;
+}
+
+UA_StatusCode
+UA_Client_addNamespace(UA_Client* client, UA_Namespace * namespacePtr){
+    /* Check if the namespace already exists in the server's namespace array */
+    for(size_t i = 0; i < client->namespacesSize; ++i) {
+        if(UA_String_equal(&namespacePtr->uri, &client->namespaces[i].uri)){
+            changeNamespace_client(client, namespacePtr, i);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    /* Namespace doesn't exist alloc space in namespaces array */
+    UA_Namespace *newNsArray = (UA_Namespace*)UA_realloc(client->namespaces,
+                                      sizeof(UA_Namespace) * (client->namespacesSize + 1));
+    if(!newNsArray)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    client->namespaces = newNsArray;
+
+    /* Fill new namespace with values */
+    UA_Namespace_init(&client->namespaces[client->namespacesSize], &namespacePtr->uri);
+    changeNamespace_client(client, namespacePtr, client->namespacesSize);
+
+    /* Announce the change (otherwise, the array appears unchanged) */
+    client->namespacesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password){
@@ -623,6 +711,7 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
     if(retval == UA_STATUSCODE_GOOD) {
         client->connection.state = UA_CONNECTION_ESTABLISHED;
         client->state = UA_CLIENTSTATE_CONNECTED;
+        if(createSession) retval = UpdateNamespaceIndices(client);
     } else {
         goto cleanup;
     }
@@ -810,8 +899,8 @@ processServiceResponse(SyncResponseDescription *rd, UA_SecureChannel *channel,
 
     /* Decode the response */
     retval = UA_decodeBinary(message, &offset, rd->response, rd->responseType,
-                             rd->client->config.customDataTypesSize,
-                             rd->client->config.customDataTypes);
+                             rd->client->namespacesSize,
+                             rd->client->namespaces);
 
  finish:
     UA_NodeId_deleteMembers(&responseId);

@@ -65,6 +65,8 @@ add_example(server_repeated_job server_repeated_job.c)
 
 add_example(server_inheritance server_inheritance.c)
 
+add_example(server_nodestore server_nodestore.c)
+
 if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
   if(BUILD_SHARED_LIBS)
     message(FATAL_ERROR "The nodeset compiler currently requires static linking to access internal API")

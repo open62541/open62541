@@ -86,12 +86,12 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /********************************/
 
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTree(UA_Server* server, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
 
-    const UA_Node *node = UA_NodeStore_get(ns, leafNode);
+    const UA_Node *node = UA_NodestoreSwitch_getNode(server ,leafNode);
     if(!node)
         return false;
 
@@ -114,11 +114,14 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
         /* Match the targets or recurse */
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
-                            referenceTypeIds, referenceTypeIdsSize))
+            if(isNodeInTree(server, &refs->targetIds[j].nodeId, nodeToFind,
+                            referenceTypeIds, referenceTypeIdsSize)){
+                UA_NodestoreSwitch_releaseNode(server, node);
                 return true;
+            }
         }
     }
+    UA_NodestoreSwitch_releaseNode(server, node);
     return false;
 }
 
@@ -160,8 +163,9 @@ getVariableNodeType(UA_Server *server, const UA_VariableNode *node) {
     UA_NodeId vtId;
     getNodeType(server, (const UA_Node*)node, &vtId);
 
-    const UA_Node *vt = UA_NodeStore_get(server->nodestore, &vtId);
+    const UA_Node *vt = UA_NodestoreSwitch_getNode(server, &vtId);
     if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE) {
+        UA_NodestoreSwitch_releaseNode(server, vt);
         vt = NULL;
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No VariableType for the node found");
@@ -174,8 +178,9 @@ getObjectNodeType(UA_Server *server, const UA_ObjectNode *node) {
     UA_NodeId otId;
     getNodeType(server, (const UA_Node*)node, &otId);
 
-    const UA_Node *ot = UA_NodeStore_get(server->nodestore, &otId);
+    const UA_Node *ot = UA_NodestoreSwitch_getNode(server, &otId);
     if(!ot || ot->nodeClass != UA_NODECLASS_OBJECTTYPE) {
+        UA_NodestoreSwitch_releaseNode(server, ot);        
         ot = NULL;
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No ObjectType for the node found");
@@ -198,38 +203,22 @@ UA_Node_hasSubTypeOrInstances(const UA_Node *node) {
     return false;
 }
 
-/* For mulithreading: make a copy of the node, edit and replace.
- * For singletrheading: edit the original */
+/* Make a copy of the node, edit and replace. */
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
                    const void *data) {
-#ifndef UA_ENABLE_MULTITHREADING
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_Node *editNode = (UA_Node*)(uintptr_t)node; // dirty cast
-    return callback(server, session, editNode, data);
-#else
     UA_StatusCode retval;
-    do {
-        UA_RCU_LOCK();
-        UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
-        if(!copy) {
-            UA_RCU_UNLOCK();
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        retval = callback(server, session, copy, data);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_NodeStore_deleteNode(copy);
-            UA_RCU_UNLOCK();
-            return retval;
-        }
-        retval = UA_NodeStore_replace(server->nodestore, copy);
-        UA_RCU_UNLOCK();
-    } while(retval != UA_STATUSCODE_GOOD);
-    return UA_STATUSCODE_GOOD;
-#endif
+    UA_Node *copy = UA_NodestoreSwitch_getNodeCopy(server, nodeId);
+    if(!copy)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    retval = callback(server, session, copy, data);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_NodestoreSwitch_deleteNode(server, copy);
+        return retval;
+    }
+    retval = UA_NodestoreSwitch_replaceNode(server, copy);
+    return retval;
 }
 
 UA_StatusCode
