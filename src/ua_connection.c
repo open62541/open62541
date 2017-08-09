@@ -108,7 +108,6 @@ separateIncompleteChunk(UA_Connection *connection, UA_ByteString * UA_RESTRICT m
                 return retval;
             memcpy(connection->incompleteMessage.data, message->data, message->length);
             connection->releaseRecvBuffer(connection, message);
-            *realloced = true;
         } else {
             connection->incompleteMessage = *message;
             *message = UA_BYTESTRING_NULL;
