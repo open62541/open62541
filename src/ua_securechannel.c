@@ -199,6 +199,10 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    // Minimum required size
+    if (connection->localConf.sendBufferSize <= UA_SECURE_MESSAGE_HEADER_LENGTH)
+        return UA_STATUSCODE_BADRESPONSETOOLARGE;
+
     /* Create the chunking info structure */
     UA_ChunkInfo ci;
     ci.channel = channel;
@@ -208,6 +212,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     ci.final = false;
     ci.messageType = UA_MESSAGETYPE_MSG;
     ci.errorCode = UA_STATUSCODE_GOOD;
+
 
     /* Allocate the message buffer */
     UA_StatusCode retval =
