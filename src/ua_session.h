@@ -100,7 +100,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_TRACE_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SESSION,                        \
@@ -110,7 +110,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_DEBUG_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SESSION,                        \
@@ -120,7 +120,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_INFO_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SESSION,                        \
@@ -130,7 +130,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_WARNING_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SESSION,                        \
@@ -140,7 +140,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_ERROR_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #define UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, MSG, ...)        \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SESSION,                        \
@@ -150,7 +150,7 @@ UA_Session_getUniqueSubscriptionID(UA_Session *session);
                  UA_PRINTF_GUID_DATA((SESSION)->sessionId.identifier.guid), __VA_ARGS__)
 
 #define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_FATAL_SESSION_INTERNAL(LOGGER, SESSION, __VA_ARGS__, ""))
 
 #ifdef __cplusplus
 } // extern "C"
