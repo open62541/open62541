@@ -102,7 +102,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
@@ -111,7 +111,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
     UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
@@ -120,7 +120,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
     UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
@@ -129,7 +129,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
@@ -138,7 +138,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
     UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
@@ -147,7 +147,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
                  (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
 #define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
-    UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, (const char*)0x01))
+    UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #ifdef __cplusplus
 } // extern "C"
