@@ -26,12 +26,10 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
 }
 
 static void
 dummyClose(UA_Connection *connection) {
-    return;
 }
 
 UA_Connection createDummyConnection(void) {
