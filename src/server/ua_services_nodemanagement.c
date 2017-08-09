@@ -176,8 +176,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_NodeId *typeDef) {
     /* Get the variable type */
-    const UA_VariableTypeNode *vt =
-        (const UA_VariableTypeNode*)UA_NodeStore_get(server->nodestore, typeDef);
+    const UA_VariableTypeNode *vt = (const UA_VariableTypeNode*)
+        UA_NodeStore_get(server->nodestore, typeDef);
     if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE)
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     if(node->nodeClass == UA_NODECLASS_VARIABLE && vt->isAbstract)
@@ -248,87 +248,6 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 /* Instantiate Node */
 /********************/
 
-/* Returns an array with all subtype nodeids (including the root). Supertypes
- * need to have the same nodeClass as root and are (recursively) related with a
- * hasSubType reference. Since multi-inheritance is possible, we test for
- * duplicates and return evey nodeid at most once. */
-static UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    size_t results_size = 20; // probably too big, but saves mallocs
-    UA_NodeId *results = (UA_NodeId*)UA_malloc(sizeof(UA_NodeId) * results_size);
-    if(!results)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode retval = UA_NodeId_copy(&rootRef->nodeId, &results[0]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(results);
-        return retval;
-    }
-
-    const UA_Node *node = rootRef;
-    size_t idx = 0; /* Current index (contains NodeId of node) */
-    size_t last = 0; /* Index of the last element in the array */
-    const UA_NodeId hasSubtypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    while(true) {
-        for(size_t i = 0; i < node->referencesSize; ++i) {
-            UA_NodeReferenceKind *refs = &node->references[i];
-            /* Are the references relevant? */
-            if(!refs->isInverse)
-                continue;
-            if(!UA_NodeId_equal(&hasSubtypeNodeId, &refs->referenceTypeId))
-                continue;
-
-            for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-                UA_NodeId *targetId = &refs->targetIds[j].nodeId;
-
-                /* Is the target already considered? (multi-inheritance) */
-                UA_Boolean duplicate = false;
-                for(size_t k = 0; k <= last; ++k) {
-                    if(UA_NodeId_equal(targetId, &results[k])) {
-                        duplicate = true;
-                        break;
-                    }
-                }
-                if(duplicate)
-                    continue;
-
-                /* Increase array length if necessary */
-                if(last + 1 >= results_size) {
-                    UA_NodeId *new_results =
-                        (UA_NodeId*)UA_realloc(results, sizeof(UA_NodeId) * results_size * 2);
-                    if(!new_results) {
-                        UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
-                        return UA_STATUSCODE_BADOUTOFMEMORY;
-                    }
-                    results = new_results;
-                    results_size *= 2;
-                }
-
-                /* Copy new nodeid to the end of the list */
-                retval = UA_NodeId_copy(targetId, &results[++last]);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_Array_delete(results, last, &UA_TYPES[UA_TYPES_NODEID]);
-                    return retval;
-                }
-            }
-        }
-
-        /* Get the next node */
-    next:
-        ++idx;
-        if(idx > last || retval != UA_STATUSCODE_GOOD)
-            break;
-        node = UA_NodeStore_get(ns, &results[idx]);
-        if(!node || node->nodeClass != rootRef->nodeClass)
-            goto next;
-    }
-
-    *typeHierarchy = results;
-    *typeHierarchySize = last + 1;
-    return UA_STATUSCODE_GOOD;
-}
-
 static UA_StatusCode
 setObjectInstanceHandle(UA_Server *server, UA_Session *session, UA_ObjectNode* node,
                         void * (*constructor)(const UA_NodeId instance)) {
@@ -375,11 +294,13 @@ instanceFindAggregateByBrowsename(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+const UA_NodeId mandatoryId =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_MODELLINGRULE_MANDATORY}};
+const UA_NodeId hasModellingRuleId =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASMODELLINGRULE}};
+
 static UA_Boolean
 isMandatoryChild(UA_Server *server, UA_Session *session, const UA_NodeId *childNodeId) {
-    const UA_NodeId mandatoryId = UA_NODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY);
-    const UA_NodeId hasModellingRuleId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE);
-
     /* Get the child */
     const UA_Node *child = UA_NodeStore_get(server->nodestore, childNodeId);
     if(!child)
@@ -439,36 +360,37 @@ copyChildNode(UA_Server *server, UA_Session *session,
         addReference(server, session, &newItem, &retval);
     } else if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
               rd->nodeClass == UA_NODECLASS_OBJECT) {
-        /* Copy the node */
-        UA_Node *node = UA_NodeStore_getCopy(server->nodestore, &rd->nodeId.nodeId);
+        /* Get the original node */
+        const UA_Node *node = UA_NodeStore_get(server->nodestore, &rd->nodeId.nodeId);
         if(!node)
             return UA_STATUSCODE_BADNODEIDINVALID;
 
         /* Get the type */
-        UA_NodeId typeId;
-        getNodeType(server, node, &typeId);
+        const UA_NodeId *typeId = getNodeType(server, node);
+
+        /* Copy the node */
+        UA_Node *node_copy = UA_NodeStore_getCopy(server->nodestore, &rd->nodeId.nodeId);
+        if(!node_copy)
+            return UA_STATUSCODE_BADNODEIDINVALID;
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
-        UA_NodeId_deleteMembers(&node->nodeId);
-        node->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
+        UA_NodeId_deleteMembers(&node_copy->nodeId);
+        node_copy->nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
         /* Remove references, they are re-created from scratch in addnode_finish */
         /* TODO: Be more clever in removing references that are re-added during
          * addnode_finish. That way, we can call addnode_finish also on children that were
          * manually added by the user during addnode_begin and addnode_finish. */
-        UA_Node_deleteReferences(node);
+        UA_Node_deleteReferences(node_copy);
 
         /* Add the node to the nodestore */
-        retval = UA_NodeStore_insert(server->nodestore, node);
+        retval = UA_NodeStore_insert(server->nodestore, node_copy);
 
         /* Call addnode_finish, this recursively adds members, the type definition and so on */
         if(retval == UA_STATUSCODE_GOOD)
-            retval = Service_AddNode_finish(server, session, &node->nodeId,
+            retval = Service_AddNode_finish(server, session, &node_copy->nodeId,
                                             destinationNodeId, &rd->referenceTypeId,
-                                            &typeId, instantiationCallback);
-
-        /* Clean up */
-        UA_NodeId_deleteMembers(&typeId);
+                                            typeId, instantiationCallback);
     }
     return retval;
 }
@@ -535,7 +457,7 @@ instantiateNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getTypeHierarchy(server->nodestore, typenode,
+    UA_StatusCode retval = getTypeHierarchy(server->nodestore, typeId,
                                             &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;

@@ -24,9 +24,8 @@ fillReferenceDescription(UA_Server *server, const UA_Node *curr,
     if(mask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         if(curr->nodeClass == UA_NODECLASS_OBJECT ||
            curr->nodeClass == UA_NODECLASS_VARIABLE) {
-            UA_NodeId type;
-            getNodeType(server, curr , &type);
-            retval |= UA_NodeId_copy(&type, &descr->typeDefinition.nodeId);
+            retval |= UA_NodeId_copy(getNodeType(server, curr),
+                                     &descr->typeDefinition.nodeId);
         }
     }
     return retval;
