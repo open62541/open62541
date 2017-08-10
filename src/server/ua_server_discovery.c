@@ -20,7 +20,7 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     if(!client)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

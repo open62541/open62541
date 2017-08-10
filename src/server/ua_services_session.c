@@ -16,20 +16,28 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Copy the server's endpoint into the response */
-    response->responseHeader.serviceResult =
-        UA_Array_copy(server->endpointDescriptions,
-                      server->endpointDescriptionsSize,
-                      (void**)&response->serverEndpoints,
-                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    /* Allocate the response */
+    response->serverEndpoints = (UA_EndpointDescription*)
+        UA_Array_new(server->config.endpoints.count,
+                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    if(!response->serverEndpoints) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
-    response->serverEndpointsSize = server->endpointDescriptionsSize;
+    }
+    response->serverEndpointsSize = server->config.endpoints.count;
+
+    /* Copy the server's endpointdescriptions into the response */
+    for(size_t i = 0; i < server->config.endpoints.count; ++i)
+        response->responseHeader.serviceResult |=
+            UA_EndpointDescription_copy(&server->config.endpoints.endpoints[0].endpointDescription,
+                                        &response->serverEndpoints[i]);
 
     /* Mirror back the endpointUrl */
-    for(size_t i = 0; i < response->serverEndpointsSize; ++i)
+    for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
+        UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
         UA_String_copy(&request->endpointUrl,
                        &response->serverEndpoints[i].endpointUrl);
+    }
 
     UA_Session *newSession;
     response->responseHeader.serviceResult =
@@ -55,9 +63,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpointDescriptionsSize > 0)
+    if(server->config.endpoints.count > 0)
         response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+            UA_ByteString_copy(&server->config.endpoints.endpoints[0].endpointDescription.serverCertificate,
                                &response->serverCertificate);
 
     /* Failure -> remove the session */

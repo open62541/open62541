@@ -37,8 +37,8 @@ dummyClose(UA_Connection *connection) {
 UA_Connection createDummyConnection(void) {
     UA_Connection c;
     c.state = UA_CONNECTION_ESTABLISHED;
-    c.localConf = UA_ConnectionConfig_standard;
-    c.remoteConf = UA_ConnectionConfig_standard;
+    c.localConf = UA_ConnectionConfig_default;
+    c.remoteConf = UA_ConnectionConfig_default;
     c.channel = NULL;
     c.sockfd = 0;
     c.handle = NULL;

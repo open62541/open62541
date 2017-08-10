@@ -11,16 +11,19 @@
 #include "check.h"
 #include "testing_clock.h"
 
-UA_Server *server = NULL;
+static UA_Server *server = NULL;
+static UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    server = UA_Server_new(UA_ServerConfig_standard);
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 
 UA_UInt32 subscriptionId;
