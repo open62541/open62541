@@ -19,16 +19,17 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config.applicationDescription.applicationUri =
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    config->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
+    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
             UA_String_fromChars("urn:open62541.example.local_discovery_server");
-    config.mdnsServerName = UA_String_fromChars("LDS");
+    config->mdnsServerName = UA_String_fromChars("LDS");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
-    config.serverCapabilitiesSize = 1;
+    config->serverCapabilitiesSize = 1;
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
-    config.serverCapabilities = caps;
+    config->serverCapabilities = caps;
     /* timeout in seconds when to automatically remove a registered server from
      * the list, if it doesn't re-register within the given time frame. A value
      * of 0 disables automatic removal. Default is 60 Minutes (60*60). Must be
@@ -36,16 +37,10 @@ int main(void) {
      * ervery 10 seconds. The server will still be removed depending on the
      * state of the semaphore file. */
     // config.discoveryCleanupTimeout = 60*60;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
     UA_StatusCode retval = UA_Server_run(server, &running);
-    UA_String_deleteMembers(&config.applicationDescription.applicationUri);
-    UA_Array_delete(config.serverCapabilities, config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
-    UA_String_deleteMembers(&config.mdnsServerName);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-    return (int) retval;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }

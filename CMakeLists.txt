@@ -256,6 +256,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
@@ -328,7 +329,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
-
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
@@ -338,6 +338,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c)
+
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
 endif()
@@ -677,5 +678,5 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
-set_target_properties(open62541_amalgamation_header PROPERTIES FOLDER "open62541/lib")
-set_target_properties(open62541_amalgamation_source PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")

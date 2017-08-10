@@ -15,9 +15,8 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #endif
 
-START_TEST(Server_addNamespace_ShallWork)
-{
-    UA_ServerConfig config = UA_ServerConfig_standard;
+START_TEST(Server_addNamespace_ShallWork) {
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
@@ -29,12 +28,12 @@ START_TEST(Server_addNamespace_ShallWork)
     ck_assert_uint_ne(a,c);
 
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 
-START_TEST(Server_addNamespace_writeService)
-{
-    UA_ServerConfig config = UA_ServerConfig_standard;
+START_TEST(Server_addNamespace_writeService) {
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     UA_Variant namespaces;
@@ -63,6 +62,7 @@ START_TEST(Server_addNamespace_writeService)
 
     UA_Variant_deleteMembers(&namespaces);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 

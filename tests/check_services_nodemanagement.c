@@ -19,14 +19,25 @@
 #include <urcu.h>
 #endif
 
+static UA_Server *server = NULL;
+static UA_ServerConfig *config = NULL;
+
+static void setup(void) {
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
+}
+
+static void teardown(void) {
+    UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
+}
+
 static UA_StatusCode
 instantiationMethod(UA_NodeId newNodeId, UA_NodeId templateId, void *handle ) {
   *((UA_Int32 *) handle) += 1;
   return UA_STATUSCODE_GOOD;
 }
 START_TEST(AddVariableNode) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
@@ -41,12 +52,9 @@ START_TEST(AddVariableNode) {
     UA_StatusCode res = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
                                                   myIntegerName, UA_NODEID_NULL, attr, NULL, NULL);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
-    UA_Server_delete(server);
 } END_TEST
 
 START_TEST(AddComplexTypeWithInheritance) {
-  UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-  
   /* add a variable node to the address space */
   UA_ObjectAttributes attr;
   UA_ObjectAttributes_init(&attr);
@@ -61,15 +69,13 @@ START_TEST(AddComplexTypeWithInheritance) {
   UA_InstantiationCallback iCallback = {.method=instantiationMethod, .handle = (void *) &handleCalled};
     
   UA_StatusCode res = UA_Server_addObjectNode(server, myObjectNodeId, parentNodeId, parentReferenceNodeId,
-                                                myObjectName, UA_NODEID_NUMERIC(0, 2004), attr, &iCallback, NULL);
+                                              myObjectName, UA_NODEID_NUMERIC(0, 2004),
+                                              attr, &iCallback, NULL);
   ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
   ck_assert_int_gt(handleCalled, 0); // Should be 58, but may depend on NS0 XML detail
-  UA_Server_delete(server);
 } END_TEST
 
 START_TEST(AddNodeTwiceGivesError) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
@@ -87,7 +93,6 @@ START_TEST(AddNodeTwiceGivesError) {
     res = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
                                     myIntegerName, UA_NODEID_NULL, attr, NULL, NULL);
     ck_assert_int_eq(res, UA_STATUSCODE_BADNODEIDEXISTS);
-    UA_Server_delete(server);
 } END_TEST
 
 static UA_Boolean constructorCalled = false;
@@ -98,8 +103,6 @@ static void * objectConstructor(const UA_NodeId instance) {
 }
 
 START_TEST(AddObjectWithConstructor) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
     UA_ObjectTypeAttributes attr;
@@ -127,8 +130,6 @@ START_TEST(AddObjectWithConstructor) {
 
     /* Verify that the constructor was called */
     ck_assert_int_eq(constructorCalled, true);
-
-    UA_Server_delete(server);
 } END_TEST
 
 static UA_Boolean destructorCalled = false;
@@ -138,8 +139,6 @@ static void objectDestructor(const UA_NodeId instance, void *handle) {
 }
 
 START_TEST(DeleteObjectWithDestructor) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
     UA_ObjectTypeAttributes attr;
@@ -171,13 +170,9 @@ START_TEST(DeleteObjectWithDestructor) {
 
     /* Verify that the destructor was called */
     ck_assert_int_eq(destructorCalled, true);
-
-    UA_Server_delete(server);
 } END_TEST
 
 START_TEST(DeleteObjectAndReferences) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* Add an object of the type */
     UA_ObjectAttributes attr;
     UA_ObjectAttributes_init(&attr);
@@ -239,15 +234,11 @@ START_TEST(DeleteObjectAndReferences) {
     }
     ck_assert_int_eq(refCount, 1);
     UA_BrowseResult_deleteMembers(&br);
-
-    UA_Server_delete(server);
 } END_TEST
 
 
 /* Example taken from tutorial_server_object.c */
 START_TEST(InstantiateObjectType) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
-
     /* Define the object type */
     UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 
@@ -338,14 +329,13 @@ START_TEST(InstantiateObjectType) {
                                                     identifier */
                                      oAttr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_Server_delete(server);
 } END_TEST
 
 int main(void) {
     Suite *s = suite_create("services_nodemanagement");
 
     TCase *tc_addnodes = tcase_create("addnodes");
+    tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
@@ -353,6 +343,7 @@ int main(void) {
     tcase_add_test(tc_addnodes, InstantiateObjectType);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");
+    tcase_add_checked_fixture(tc_deletenodes, setup, teardown);
     tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
 

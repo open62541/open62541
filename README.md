@@ -81,11 +81,8 @@ int main(int argc, char** argv)
 {
     signal(SIGINT, signalHandler); /* catch ctrl-c */
 
-    /* Create a server with one network layer listening on port 4840 */
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    /* Create a server listening on port 4840 */
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     /* Add a variable node */
@@ -109,7 +106,7 @@ int main(int argc, char** argv)
     /* Run the server loop */
     UA_StatusCode status = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return status;
 }
 ```
@@ -122,7 +119,7 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* Create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

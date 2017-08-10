@@ -246,19 +246,19 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
     }
 
     /* test if the supported binary profile shall be returned */
-    size_t reSize = sizeof(UA_Boolean) * server->endpointDescriptionsSize;
+    size_t reSize = sizeof(UA_Boolean) * server->config.endpoints.count;
     UA_Boolean *relevant_endpoints = (UA_Boolean *)UA_alloca(reSize);
-    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
+    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->config.endpoints.count);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j)
+        for(size_t j = 0; j < server->config.endpoints.count; ++j)
             relevant_endpoints[j] = true;
-        relevant_count = server->endpointDescriptionsSize;
+        relevant_count = server->config.endpoints.count;
     } else {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+        for(size_t j = 0; j < server->config.endpoints.count; ++j) {
             for(size_t i = 0; i < request->profileUrisSize; ++i) {
                 if(!UA_String_equal(&request->profileUris[i],
-                                    &server->endpointDescriptions[j].transportProfileUri))
+                                    &server->config.endpoints.endpoints[j].endpointDescription.transportProfileUri))
                     continue;
                 relevant_endpoints[j] = true;
                 ++relevant_count;
@@ -294,10 +294,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < clone_times; ++i) {
         if(nl_endpointurl)
             endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+        for(size_t j = 0; j < server->config.endpoints.count; ++j) {
             if(!relevant_endpoints[j])
                 continue;
-            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j],
+            retval |= UA_EndpointDescription_copy(&server->config.endpoints.endpoints[j].endpointDescription,
                                                   &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
             ++k;

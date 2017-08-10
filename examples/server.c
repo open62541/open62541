@@ -107,14 +107,10 @@ outargMethod(void *methodHandle, const UA_NodeId *objectId,
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
-
-    /* load certificate */
-    config.serverCertificate = loadCertificate();
-
+    UA_ByteString certificate = loadCertificate();
+    UA_ServerConfig *config =
+        UA_ServerConfig_new_minimal(4840, &certificate);
+    UA_ByteString_deleteMembers(&certificate);
     UA_Server *server = UA_Server_new(config);
 
     /* add a static variable node to the server */
@@ -391,12 +387,8 @@ int main(int argc, char** argv) {
 #endif
 
     /* run server */
-    UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
-
-    /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&config.serverCertificate);
-
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return (int)retval;
 }

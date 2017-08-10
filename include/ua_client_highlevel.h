@@ -575,7 +575,7 @@ typedef struct {
     UA_Byte priority;
 } UA_SubscriptionSettings;
 
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_standard;
+extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
