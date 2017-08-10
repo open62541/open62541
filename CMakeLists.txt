@@ -328,6 +328,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
+
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
@@ -482,6 +483,7 @@ add_custom_target(open62541-generator-namespace DEPENDS
 assign_source_group(${lib_sources})
 assign_source_group(${internal_headers})
 assign_source_group(${exported_headers})
+assign_source_group(${default_plugin_sources})
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -514,6 +516,7 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+    set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
@@ -674,3 +677,5 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
+set_target_properties(open62541_amalgamation_header PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541_amalgamation_source PROPERTIES FOLDER "open62541/lib")
