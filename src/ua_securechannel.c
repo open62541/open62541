@@ -381,6 +381,7 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             UA_UInt32 val = 0;
             callback(application, (UA_SecureChannel *)channel, (UA_MessageType)UA_MESSAGETYPE_ERR,
                      val, (const UA_ByteString*)&errorMessage);
+            UA_TcpErrorMessage_deleteMembers(&errorMessage);
             continue;
         }
 
