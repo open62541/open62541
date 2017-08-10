@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
@@ -335,7 +335,7 @@ class opcua_value_t():
   def printOpen62541CCode_SubType(self, asIndirect=True):
     return ""
 
-  def printOpen62541CCode(self, bootstrapping = True):
+  def printOpen62541CCode(self, bootstrapping = True, cleanupCode=[]):
     codegen = open62541_MacroHelper()
     code = []
     valueName = self.parent.getCodePrintableID() + "_variant_DataContents"
@@ -370,7 +370,7 @@ class opcua_value_t():
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           for v in self.value:
             logger.debug("Building extObj array index " + str(self.value.index(v)))
-            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v))
+            code = code + v.printOpen62541CCode_SubType_build(arrayIndex=self.value.index(v), cleanupCode=cleanupCode)
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         code.append("UA_" + self.value[0].stringRepresentation + " " + valueName + "[" + str(len(self.value)) + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
@@ -380,7 +380,7 @@ class opcua_value_t():
             code.append("UA_free(" + v.printOpen62541CCode_SubType() + ");")
         else:
           for v in self.value:
-            code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType() + ";")
+            code.append(valueName + "[" + str(self.value.index(v)) + "] = " + v.printOpen62541CCode_SubType(asIndirect=False) + ";")
         code.append("UA_Variant_setArray( &attr.value, &" + valueName +
                     ", (UA_Int32) " + str(len(self.value)) + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
     else:
@@ -396,7 +396,7 @@ class opcua_value_t():
       else:
         # The following strategy applies to all other types, in particular strings and numerics.
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
-          code = code + self.value[0].printOpen62541CCode_SubType_build()
+          code = code + self.value[0].printOpen62541CCode_SubType_build(cleanupCode=cleanupCode)
         #code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "];")
         if self.value[0].__binTypeId__ == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
           code.append("UA_" + self.value[0].stringRepresentation + " *" + valueName + " = " + self.value[0].printOpen62541CCode_SubType() + ";")
@@ -413,7 +413,7 @@ class opcua_value_t():
             code.append("UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
           else:
             code.append("UA_Variant_setScalar( "+self.parent.getCodePrintableID()+"_variant, " + valueName + ", &UA_TYPES[UA_TYPES_" + self.value[0].stringRepresentation.upper() + "]);")
-          #code.append("UA_" + self.value[0].stringRepresentation + "_deleteMembers(" + valueName + ");")
+          cleanupCode.append("UA_" + self.value[0].stringRepresentation + "_delete(" + valueName + ");")
     return code
 
 
@@ -443,9 +443,10 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     self.__codeInstanceName__ = self.parent.getCodePrintableID() + "_" + str(self.alias()) + "_" + str(arrayIndex) + "_" + str(recursionDepth)
     return self.__codeInstanceName__
 
-  def printOpen62541CCode_SubType_build(self, recursionDepth=0, arrayIndex=0):
+  def printOpen62541CCode_SubType_build(self, recursionDepth=0, arrayIndex=0, cleanupCode=[]):
     code = [""]
-    codegen = open62541_MacroHelper();
+    localCleanupCode = []
+    codegen = open62541_MacroHelper()
 
     logger.debug("Building extensionObject for " + str(self.parent.id()))
     logger.debug("Value    " + str(self.value))
@@ -492,10 +493,12 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
             logger.debug("  " + str(subvix) + " " + str(subvv))
             code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "] = " + subvv.printOpen62541CCode_SubType(asIndirect=True) + ";")
           code.append("}")
+          localCleanupCode.append("UA_free(" + self.getCodeInstanceName()+"_struct."+subv.alias()+");")
         else:
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "Size = 1;")
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias()+" = (UA_" + subv.stringRepresentation + " *) UA_malloc(sizeof(UA_" + subv.stringRepresentation + "));")
           code.append(self.getCodeInstanceName()+"_struct."+subv.alias() + "[0]  = " + subv.printOpen62541CCode_SubType(asIndirect=True) + ";")
+          localCleanupCode.append("UA_free(" + self.getCodeInstanceName()+"_struct."+subv.alias() + ");")
 
 
     # Allocate some memory
@@ -506,10 +509,10 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
 
     # Encode each value as a bytestring seperately.
     code.append("size_t " + self.getCodeInstanceName() + "_encOffset = 0;" )
-    encFieldIdx = 0;
+    encFieldIdx = 0
     for subv in self.value:
       encField = self.getEncodingRule()[encFieldIdx]
-      encFieldIdx = encFieldIdx + 1;
+      encFieldIdx = encFieldIdx + 1
       if encField[2] == 0:
         #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
         code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + ", &UA_TYPES[UA_TYPES_" + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
@@ -519,7 +522,8 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
             #code.append("UA_" + subv.stringRepresentation + "_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
             code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[" + str(subvidx) + "], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
         else:
-          code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+            code.append("retval |= UA_encodeBinary(&" + self.getCodeInstanceName()+"_struct."+subv.alias() + "[0], &UA_TYPES[UA_TYPES_"  + subv.stringRepresentation.upper() + "], NULL, NULL, &" + self.getCodeInstanceName() + "->content.encoded.body, &" + self.getCodeInstanceName() + "_encOffset);" )
+    code = code + localCleanupCode
 
     # Reallocate the memory by swapping the 65k Bytestring for a new one
     code.append(self.getCodeInstanceName() + "->content.encoded.body.length = " + self.getCodeInstanceName() + "_encOffset;");
@@ -529,6 +533,7 @@ class opcua_BuiltinType_extensionObject_t(opcua_value_t):
     code.append(self.getCodeInstanceName() + "->content.encoded.body.data = " +self.getCodeInstanceName() + "_newBody;")
     code.append("UA_free(" + self.getCodeInstanceName() + "_oldBody);")
     code.append("")
+    cleanupCode.append("UA_free("+ self.getCodeInstanceName() + "_newBody);")
     return code
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
@@ -761,7 +766,10 @@ class opcua_BuiltinType_qualifiedname_t(opcua_value_t):
         self.value.append(unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_QUALIFIEDNAME_ALLOC(" + str(self.value[0]) + ", \"" + self.value[1].encode('utf-8') + "\")"
+      if asIndirect==True:
+        code = "UA_QUALIFIEDNAME_ALLOC(" + str(self.value[0]) + ", \"" + str(self.value[1].encode('utf-8')) + "\")"
+      else:
+        code = "UA_QUALIFIEDNAME(" + str(self.value[0]) + ", \"" + str(self.value[1].encode('utf-8')) + "\")"
       return code
 
 class opcua_BuiltinType_statuscode_t(opcua_value_t):
@@ -1237,8 +1245,11 @@ class opcua_BuiltinType_string_t(opcua_value_t):
       self.value = str(unicode(xmlvalue.firstChild.data))
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_STRING_ALLOC(\"" + self.value.encode('utf-8') + "\")"
-      return code
+    if asIndirect==True:
+      code = "UA_STRING_ALLOC(\"" + str(self.value.encode('utf-8')) + "\")"
+    else:
+      code = "UA_STRING(\"" + str(self.value.encode('utf-8')) + "\")"
+    return code
 
 class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
   def setStringReprentation(self):
@@ -1248,8 +1259,11 @@ class opcua_BuiltinType_xmlelement_t(opcua_BuiltinType_string_t):
     self.__binTypeId__ = BUILTINTYPE_TYPEID_XMLELEMENT
 
   def printOpen62541CCode_SubType(self, asIndirect=True):
-      code = "UA_XMLELEMENT_ALLOC(\"" + self.value.encode('utf-8') + "\")"
-      return code
+    if asIndirect==True:
+      code = "UA_XMLELEMENT_ALLOC(\"" + str(self.value.encode('utf-8')) + "\")"
+    else:
+      code = "UA_XMLELEMENT(\"" + str(self.value.encode('utf-8')) + "\")"
+    return code
 
 class opcua_BuiltinType_bytestring_t(opcua_value_t):
   def setStringReprentation(self):
@@ -1289,5 +1303,8 @@ class opcua_BuiltinType_bytestring_t(opcua_value_t):
 #      outs = ""
 #      for s in bs:
 #        outs = outs + hex(ord(s)).upper().replace("0X", "\\x")
-      code = "UA_STRING_ALLOC(\"" + outs + "\")"
+      if asIndirect==True:
+        code = "UA_STRING_ALLOC(\"" + outs + "\")"
+      else:
+        code = "UA_STRING(\"" + outs + "\")"
       return code

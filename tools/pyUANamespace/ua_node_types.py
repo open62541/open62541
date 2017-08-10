@@ -434,7 +434,9 @@ class opcua_node_t:
     """
     if data != None:
       self.__node_displayName__ = data
-    return self.__node_displayName__.encode('utf-8')
+    if sys.version_info[0] < 3:
+      return self.__node_displayName__.encode('utf-8')
+    return self.__node_displayName__
 
   def description(self, data=None):
     """ Sets the description attribute if data is passed.
@@ -442,7 +444,9 @@ class opcua_node_t:
     """
     if data != None:
       self.__node_description__ = data
-    return self.__node_description__.encode('utf-8')
+    if sys.version_info[0] < 3:
+      return self.__node_description__.encode('utf-8')
+    return self.__node_description__
 
   def writeMask(self, data=None):
     """ Sets the write mask attribute if data is passed.
@@ -639,7 +643,7 @@ class opcua_node_t:
   def printXML(self):
     pass
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     """ printOpen62541CCode_SubtypeEarly
 
         Initiate code segments for the nodes instantiotion that preceed
@@ -1073,7 +1077,7 @@ class opcua_node_variable_t(opcua_node_t):
         else:
           logger.info( "Unprocessable XML Element: " + x.tagName)
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     code = []
     # If we have an encodable value, try to encode that
     if self.dataType() != None and isinstance(self.dataType().target(), opcua_node_dataType_t):
@@ -1081,7 +1085,7 @@ class opcua_node_variable_t(opcua_node_t):
       # determined a valid encoding
       if self.dataType().target().isEncodable():
         if self.value() != None:
-          code = code + self.value().printOpen62541CCode(bootstrapping)
+          code = code + self.value().printOpen62541CCode(bootstrapping, cleanupCode)
           return code
     if(bootstrapping):
       code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
@@ -1330,7 +1334,7 @@ class opcua_node_variableType_t(opcua_node_t):
         else:
           logger.info( "Unprocessable XML Element: " + x.tagName)
 
-  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True):
+  def printOpen62541CCode_SubtypeEarly(self, bootstrapping = True, cleanupCode=[]):
     code = []
     # If we have an encodable value, try to encode that
     if self.dataType() != None and isinstance(self.dataType().target(), opcua_node_dataType_t):

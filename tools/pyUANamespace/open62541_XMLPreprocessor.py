@@ -208,6 +208,8 @@ class preProcessDocument:
 
         returns: nothing
     """
+    if currentNsId == newNsId:
+        return
     for refNd in self.referencedNodes:
       if refNd[0].ns == currentNsId:
         refNd[1].firstChild.data = refNd[1].firstChild.data.replace("ns="+str(currentNsId), "ns="+str(newNsId))
@@ -239,6 +241,8 @@ class preProcessDocument:
             refNd[0].ns = newNsId
             refNd[0].toString()
         nd[1].setAttribute(u'NodeId', nd[1].getAttribute(u'NodeId').replace("ns="+str(currentNsId), "ns="+str(newNsId)))
+        if nd[1].getAttribute(u'BrowseName') != "":
+          nd[1].setAttribute(u'BrowseName', nd[1].getAttribute(u'BrowseName').replace(str(currentNsId)+":", str(newNsId)+":"))
         nd[0].ns = newNsId
         nd[0].toString()
 
@@ -370,7 +374,7 @@ class open62541_XMLPreprocessor:
         if m[0] > best[0]:
           best = m
       if best[1] != None:
-        logger.warn("Best match (" + str(best[1]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
+        logger.warn("Best match (" + str(best[0]*100) + "%) for what " + os.path.basename(doc.originXML) + " refers to as ns="+str(d)+" was " + os.path.basename(best[1].originXML))
         doc.reassignReferencedNamespaceId(d, best[1].getNamespaceId())
       else:
         logger.error("Failed to find a match for what " +  os.path.basename(doc.originXML) + " refers to as ns=" + str(d))

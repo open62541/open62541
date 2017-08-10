@@ -52,7 +52,7 @@ int main(void) {
     vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This mamals Age in months");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Age");
     UA_UInt32 ageVar = 0;
-    UA_Variant_setScalarCopy(&vAttr.value, &ageVar, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&vAttr.value, &ageVar, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001), 
                               UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                               UA_QUALIFIEDNAME(1, "Age"), UA_NODEID_NULL, vAttr, NULL, NULL);
@@ -68,7 +68,7 @@ int main(void) {
     vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This mamals Age in months");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Name");
     UA_String defaultName = UA_STRING("unnamed dog");
-    UA_Variant_setScalarCopy(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10003), 
                               UA_NODEID_NUMERIC(1, 10002), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                               UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NULL, vAttr, NULL, NULL);

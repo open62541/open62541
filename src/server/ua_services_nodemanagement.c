@@ -40,7 +40,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Parent node not found");
+                            "AddNodes: Parent node %d not found", parentNodeId->identifier.numeric);
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
@@ -49,7 +49,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         (const UA_ReferenceTypeNode*)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "AddNodes: Reference type to the parent not found");
+                            "AddNodes: Reference type %d to the parent not found", referenceTypeId->identifier.numeric);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
@@ -503,7 +503,8 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         retval = UA_NodeId_copy(&node->nodeId, addedNodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "AddNodes: Could not copy the nodeid");
+                                "AddNodes: Could not copy the nodeid with "
+                                "error code %s", UA_StatusCode_name(retval));
             goto remove_node;
         }
     }
