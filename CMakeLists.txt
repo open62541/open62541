@@ -5,8 +5,7 @@ project(open62541)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
-
-set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
+include(AssignSourceGroup)
 
 #############################
 # Compiled binaries folders #
@@ -15,12 +14,6 @@ set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORC
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-#################
-# Cmake modules #
-#################
-
-include(AssignSourceGroup)
 
 ###########
 # Version #
@@ -244,9 +237,11 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
 
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
+    set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
+
 include_directories(${PROJECT_BINARY_DIR}/src_generated
                     ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the standard config
@@ -364,11 +359,21 @@ if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
 endif()
 
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
-    set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers} )
+    set(internal_headers ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
+                         ${internal_headers} )
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
-    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+                    ${lib_sources})
 endif()
 
 #########################
