@@ -12,6 +12,7 @@
 #include "ua_transport_generated_handling.h"
 #include "ua_transport_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
+#include "ua_securitypolicy_none.h"
 
  /********************/
  /* Helper Functions */
@@ -537,9 +538,10 @@ send_response:
 }
 
 /* ERR -> Error from the remote connection */
-static void processERR(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
+static void
+processERR(UA_Server *server, UA_Connection *connection, const UA_ByteString *msg, size_t *offset) {
     UA_TcpErrorMessage errorMessage;
-    if (UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
+    if(UA_TcpErrorMessage_decodeBinary(msg, offset, &errorMessage) != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Could not decide the ERR message. "
                     "Closing the connection.", connection->sockfd);
@@ -553,6 +555,50 @@ static void processERR(UA_Server *server, UA_Connection *connection, const UA_By
                  errorMessage.reason.length, errorMessage.reason.data);
 
     UA_TcpErrorMessage_deleteMembers(&errorMessage);
+}
+
+static void
+sendOPNError(UA_Server *server,
+                UA_Connection *connection,
+                const UA_StatusCode error) {
+    // TODO: Do auditing here?
+
+    UA_TcpErrorMessage errorMessage;
+    UA_TcpErrorMessage_init(&errorMessage);
+
+    // Hide error codes from client according to the standard
+    switch(error) {
+    case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+        errorMessage.error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        break;
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+        errorMessage.error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        break;
+    default:
+        errorMessage.error = error;
+        break;
+    }
+
+    UA_TcpMessageHeader header;
+    header.messageTypeAndChunkType = UA_MESSAGETYPE_ERR + UA_CHUNKTYPE_FINAL;
+    // Header + ErrorMessage (error + reasonLength_field + length)
+    header.messageSize = 8 + (4 + 4 + errorMessage.reason.length);
+
+    /* Get the send buffer from the network layer */
+    UA_ByteString msg;
+    UA_ByteString_init(&msg);
+    UA_StatusCode retval =
+        connection->getSendBuffer(connection, connection->localConf.sendBufferSize, &msg);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Encode and send the response */
+    UA_Byte *bufPos = msg.data;
+    const UA_Byte *bufEnd = &msg.data[msg.length];
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, &bufEnd);
+    UA_TcpErrorMessage_encodeBinary(&errorMessage, &bufPos, &bufEnd);
+    msg.length = header.messageSize;
+    connection->send(connection, &msg);
 }
 
 /* Takes decoded messages starting at the nodeid of the content type. */
@@ -626,7 +672,7 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
     if(channel) {
         /* Assemble chunks in the securechannel and process complete messages */
         retval = UA_SecureChannel_processChunks(channel, message,
-                      (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
+            (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
         if(retval != UA_STATUSCODE_GOOD)
             UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
                                  "resulted in error code %s", UA_StatusCode_name(retval));
@@ -678,7 +724,7 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                                                     (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage,
                                                     server);
             if(retval != UA_STATUSCODE_GOOD) {
-                // TODO: Maybe send error message?
+                sendOPNError(server, connection, retval);
                 UA_SecureChannelManager_close_temporary(&server->secureChannelManager, tmpChannel);
                 connection->close(connection);
                 UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,

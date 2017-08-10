@@ -57,6 +57,7 @@ activateSession_default(const UA_NodeId *sessionId,
        &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *token =
             (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+        // TODO: Accesscontrol needs to be extended to support encryption.
         if(!UA_String_equal(&token->policyId, &username_policy) || token->encryptionAlgorithm.length > 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 

@@ -30,6 +30,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    ////////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
+
     /* Copy the server's endpoints into the response */
     response->serverEndpoints =
         (UA_EndpointDescription*)UA_Array_new(server->config.endpoints.count,
@@ -181,6 +183,8 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
         retval |= UA_ByteString_allocBuffer(&dataToVerify, localCertificate->length + session->serverNonce.length);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to allocate buffer for signature verification! %#10x", retval);
             return;
         }
 
@@ -193,6 +197,8 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
                                                                         &request->clientSignature.signature);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to verify the client signature! %#10x", retval);
             UA_ByteString_deleteMembers(&dataToVerify);
             return;
         }
@@ -200,6 +206,8 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
         retval |= UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to generate a new nonce! %#10x", retval);
             UA_ByteString_deleteMembers(&dataToVerify);
             return;
         }

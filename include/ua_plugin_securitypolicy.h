@@ -27,11 +27,8 @@ typedef struct UA_Channel_SecurityContext UA_Channel_SecurityContext;
 struct UA_Policy_SecurityContext;
 typedef struct UA_Policy_SecurityContext UA_Policy_SecurityContext;
 
-struct UA_TrustedCertificate;
-typedef struct UA_TrustedCertificate UA_TrustedCertificate;
-
-struct UA_RevokedCertificate;
-typedef struct UA_RevokedCertificate UA_RevokedCertificate;
+struct UA_CertificateList;
+typedef struct UA_CertificateList UA_CertificateList;
 /////////////////////////////////
 // End of forward declarations //
 /////////////////////////////////
@@ -184,25 +181,14 @@ typedef struct
 } UA_SecurityPolicySymmetricModule;
 
 /**
- * This struct contains a single certificate of the certificate trust list
- * and points to another certificate, that follows in the certificate trust list.
+ * This struct contains a single certificate of a certificate list
+ * and points to another element, that follows in the list.
  *
- * If this is the last certificate, the nextCertificate pointer must be NULL.
+ * If this is the last element, the next pointer must be NULL.
  */
-struct UA_TrustedCertificate {
-    const UA_ByteString trustedCertificate;
-    const UA_TrustedCertificate *nextCertificate;
-};
-
-/**
- * This struct contains a single certificate of the certificate revocation list
- * and points to another certificate, that follows in the certificate trust list.
- *
- * If this is the last certificate, the nextCertificate pointer must be NULL.
- */
-struct UA_RevokedCertificate {
-    const UA_ByteString revokedCertificate;
-    const UA_RevokedCertificate *nextCertificate;
+struct UA_CertificateList {
+    UA_ByteString *certificate;
+    UA_CertificateList *next;
 };
 
 /**
@@ -215,8 +201,8 @@ struct UA_RevokedCertificate {
 typedef struct {
     const UA_ByteString *localPrivateKey;
     const UA_ByteString *localCertificate;
-    const UA_TrustedCertificate *certificateTrustList;
-    const UA_RevokedCertificate *certificateRevocationList;
+    const UA_CertificateList *certificateTrustList;
+    const UA_CertificateList *certificateRevocationList;
 } UA_Policy_SecurityContext_RequiredInitData;
 
 struct UA_Policy_SecurityContext {
@@ -402,6 +388,29 @@ typedef struct {
     size_t count;
     UA_Endpoint *endpoints;
 } UA_Endpoints;
+
+/**
+ * \brief Creates a new certificate list with one element.
+ *
+ * \param certificate The first certificate to be stored in the list. (will be copied)
+ * \return returns a pointer to the first list element.
+ */
+UA_CertificateList *UA_CertificateList_new(const UA_ByteString *certificate);
+
+/**
+ * \brief Prepends a certificate to the list.
+ *
+ * \param list a pointer to the first list element pointer. Will be modified, since we are prepending.
+ * \param certificate the certificate to store in the list. (will be copied)
+ */
+UA_StatusCode UA_CertificateList_prepend(UA_CertificateList **list, const UA_ByteString *certificate);
+
+/**
+ * \brief Deletes the supplied certificate list. This frees all elements and the contained data.
+ *
+ * \param list the list to delete
+ */
+void UA_CertificateList_delete(UA_CertificateList *list);
 
 #ifdef __cplusplus
 }

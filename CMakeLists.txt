@@ -310,6 +310,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
+                ${PROJECT_SOURCE_DIR}/src/ua_securitypolicy.c
                 # nodestores
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
