@@ -532,7 +532,7 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: could not remove record. "
                        "PTR Record not found for domain: %s", fullServiceDomain);
-        return UA_STATUSCODE_BADNOTFOUND;
+        return UA_STATUSCODE_BADNOTHINGTODO;
     }
     mdnsd_done(server->mdnsDaemon, r);
 
@@ -544,7 +544,7 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
                        "Multicast DNS: could not remove record. Record not "
                        "found for domain: %s", fullServiceDomain);
-        return UA_STATUSCODE_BADNOTFOUND;
+        return UA_STATUSCODE_BADNOTHINGTODO;
     }
 
     while(r2) {

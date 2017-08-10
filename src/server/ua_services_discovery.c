@@ -429,7 +429,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             UA_LOG_WARNING_SESSION(server->config.logger, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
-            responseHeader->serviceResult = UA_STATUSCODE_BADNOTFOUND;
+            responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
             return;
         }
 
