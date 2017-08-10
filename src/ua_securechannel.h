@@ -13,6 +13,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"
+#include "ua_util.h"
 
 struct UA_Session;
 typedef struct UA_Session UA_Session;
@@ -84,36 +85,69 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
 
 /**
  * Log Helper
- * ---------- */
-#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
-    UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                 ((CHANNEL)->connection ? CHANNEL->connection->sockfd : 0), \
-                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+ * ----------
+ * C99 requires at least one element for the variadic argument. If the log
+ * statement has no variable arguments, supply an additional NULL. It will be
+ * ignored by printf.
+ *
+ * We have to jump through some hoops to enable the use of format strings
+ * without arguments since (pedantic) C99 does not allow variadic macros with
+ * zero arguments. So we add a dummy argument that is not printed (%.0s is
+ * string of length zero). */
 
-#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
-    UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
+#define UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
+    UA_LOG_TRACE(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
-                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, MSG, ...)                   \
-    UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
-                (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+#define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_TRACE_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
-#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, MSG, ...)               \
-    UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
-                   ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
-                   (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
-
-#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
-    UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
+#define UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
+    UA_LOG_DEBUG(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
-                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
 
-#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, MSG, ...)                 \
-    UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL, "Connection %i | SecureChannel %i | " MSG, \
+#define UA_LOG_DEBUG_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_DEBUG_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
+
+#define UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)               \
+    UA_LOG_INFO(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                         \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
                  ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
-                 (CHANNEL)->securityToken.channelId, ##__VA_ARGS__);
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
+
+#define UA_LOG_INFO_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_INFO_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
+
+#define UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)            \
+    UA_LOG_WARNING(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                      \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
+
+#define UA_LOG_WARNING_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_WARNING_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
+
+#define UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
+    UA_LOG_ERROR(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
+
+#define UA_LOG_ERROR_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_ERROR_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
+
+#define UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, MSG, ...)              \
+    UA_LOG_FATAL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,                        \
+                 "Connection %i | SecureChannel %i | " MSG "%.0s",            \
+                 ((CHANNEL)->connection ? (CHANNEL)->connection->sockfd : 0), \
+                 (CHANNEL)->securityToken.channelId, __VA_ARGS__)
+
+#define UA_LOG_FATAL_CHANNEL(LOGGER, CHANNEL, ...)        \
+    UA_MACRO_EXPAND(UA_LOG_FATAL_CHANNEL_INTERNAL(LOGGER, CHANNEL, __VA_ARGS__, ""))
 
 #ifdef __cplusplus
 } // extern "C"

@@ -27,7 +27,7 @@ readInteger(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     UA_Variant_setScalarCopy(&dataValue->value, (UA_UInt32 *) handle, &UA_TYPES[UA_TYPES_INT32]);
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
-                nodeid.identifier.string.length, nodeid.identifier.string.data);
+                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "read value %i", *(UA_UInt32 *) handle);
     return UA_STATUSCODE_GOOD;
 }
@@ -40,7 +40,7 @@ writeInteger(void *handle, const UA_NodeId nodeid,
     }
     // we know the nodeid is a string
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
-                nodeid.identifier.string.length, nodeid.identifier.string.data);
+                (int)nodeid.identifier.string.length, nodeid.identifier.string.data);
     UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "written value %i", *(UA_UInt32 *) handle);
     return UA_STATUSCODE_GOOD;
 }
@@ -73,11 +73,11 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
     // the serverOnNetwork to make sure you are registering with the correct
     // LDS. We will ignore this for now
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Another server announced itself on %.*s",
-                serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
+                (int)serverOnNetwork->discoveryUrl.length, serverOnNetwork->discoveryUrl.data);
 
     if (discovery_url != NULL)
-        free(discovery_url);
-    discovery_url = malloc(serverOnNetwork->discoveryUrl.length + 1);
+        UA_free(discovery_url);
+    discovery_url = (char*)UA_malloc(serverOnNetwork->discoveryUrl.length + 1);
     memcpy(discovery_url, serverOnNetwork->discoveryUrl.data, serverOnNetwork->discoveryUrl.length);
     discovery_url[serverOnNetwork->discoveryUrl.length] = 0;
 }
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
@@ -143,14 +143,14 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "LDS-ME server found on %s", discovery_url);
 
     // periodic server register after 10 Minutes, delay first register for 500ms
-    retval = UA_Server_addPeriodicServerRegisterJob(server, discovery_url,
-                                                    10 * 60 * 1000, 500, NULL);
+    retval = UA_Server_addPeriodicServerRegisterCallback(server, discovery_url,
+                                                         10 * 60 * 1000, 500, NULL);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
@@ -158,7 +158,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return 1;
     }
 
@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
         UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
         nl.deleteMembers(&nl);
-        free(discovery_url);
+        UA_free(discovery_url);
         return (int) retval;
     }
 
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
     //UA_Array_delete(config.serverCapabilities, config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
-    free(discovery_url);
+    UA_free(discovery_url);
 
     return (int) retval;
 }

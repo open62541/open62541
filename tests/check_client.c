@@ -23,7 +23,7 @@ addVariable(size_t size) {
     /* Define the attribute of the myInteger variable node */
     UA_VariableAttributes attr;
     UA_VariableAttributes_init(&attr);
-    UA_Int32* array = malloc(size * sizeof(UA_Int32));
+    UA_Int32* array = (UA_Int32*)UA_malloc(size * sizeof(UA_Int32));
     memset(array, 0, size * sizeof(UA_Int32));
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
 
@@ -41,7 +41,7 @@ addVariable(size_t size) {
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NULL, attr, NULL, NULL);
 
-    free(array);
+    UA_free(array);
 }
 
 static void * serverloop(void *_) {

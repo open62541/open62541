@@ -16,6 +16,7 @@
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
+
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
                                               UA_ApplicationDescription *target,
@@ -174,7 +175,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         }
 
         if(addSelf) {
-            response->responseHeader.serviceResult = setApplicationDescriptionFromServer(&foundServers[0], server);
+            response->responseHeader.serviceResult =
+                setApplicationDescriptionFromServer(&foundServers[0], server);
             if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
                 UA_free(foundServers);
                 if (foundServerFilteredPointer)
@@ -314,6 +316,13 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_MULTITHREADING
+static void
+freeEntry(UA_Server *server, void *entry) {
+    UA_free(entry);
+}
+#endif
+
 static void
 process_RegisterServer(UA_Server *server, UA_Session *session,
                        const UA_RequestHeader* requestHeader,
@@ -377,8 +386,14 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        // todo: malloc may fail: return a statuscode
-        char* filePath = (char *)UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        char* filePath = (char*)
+            UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        if (!filePath) {
+            UA_LOG_ERROR_SESSION(server->config.logger, session,
+                                   "Cannot allocate memory for semaphore path. Out of memory.");
+            responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
@@ -429,7 +444,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         server->registeredServersSize--;
 #else
         server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
-        UA_Server_delayedFree(server, registeredServer_entry);
+        UA_Server_delayedCallback(server, freeEntry, registeredServer_entry);
 #endif
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
@@ -470,7 +485,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServerRequest");
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -478,7 +494,8 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServer2Request");
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
@@ -506,18 +523,22 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
             // todo: malloc may fail: return a statuscode
             char* filePath = (char *)UA_malloc(fpSize);
-            memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
-                   current->registeredServer.semaphoreFilePath.length );
-            filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+            if (filePath) {
+                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
+                       current->registeredServer.semaphoreFilePath.length );
+                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
-           FILE *fp = fopen(filePath,"rb");
-           semaphoreDeleted = (fp==NULL);
-           if(fp)
-             fclose(fp);
+                FILE *fp = fopen(filePath,"rb");
+                semaphoreDeleted = (fp==NULL);
+                if(fp)
+                    fclose(fp);
 #else
-           semaphoreDeleted = access( filePath, 0 ) == -1;
+                semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
-           UA_free(filePath);
+                UA_free(filePath);
+            } else {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot check registration semaphore. Out of memory");
+            }
         }
 #endif
 
@@ -545,21 +566,21 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             server->registeredServersSize--;
 #else
             server->registeredServersSize = uatomic_add_return(&server->registeredServersSize, -1);
-            UA_Server_delayedFree(server, current);
+            UA_Server_delayedCallback(server, freeEntry, current);
 #endif
         }
     }
 }
 
-struct PeriodicServerRegisterJob {
-    UA_UInt32 default_interval;
-    UA_Guid job_id;
-    UA_Job *job;
+struct PeriodicServerRegisterCallback {
+    UA_UInt64 id;
     UA_UInt32 this_interval;
+    UA_UInt32 default_interval;
+    UA_Boolean registered;
     const char* discovery_server_url;
 };
 
-/* Called by the UA_Server job. The OPC UA specification says:
+/* Called by the UA_Server callback. The OPC UA specification says:
  *
  * > If an error occurs during registration (e.g. the Discovery Server is not running) then the Server
  * > must periodically re-attempt registration. The frequency of these attempts should start at 1 second
@@ -570,144 +591,123 @@ struct PeriodicServerRegisterJob {
  * if the next interval is default or if it is a repeaded call. */
 static void
 periodicServerRegister(UA_Server *server, void *data) {
-    if(!data) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Data parameter must be not NULL for periodic server register");
-        return;
-    }
+    UA_assert(data != NULL);
 
-    struct PeriodicServerRegisterJob *retryJob = (struct PeriodicServerRegisterJob *)data;
-    if(retryJob->job != NULL) {
-        // remove the retry job because we don't want to fire it again.
-        UA_Server_removeRepeatedJob(server, retryJob->job_id);
-    }
+    struct PeriodicServerRegisterCallback *cb = (struct PeriodicServerRegisterCallback *)data;
 
-    // fixme: remove magic urls
+    /* Which URL to register on */
+    // fixme: remove magic url
     const char * server_url;
-    if(retryJob->discovery_server_url != NULL)
-        server_url = retryJob->discovery_server_url;
+    if(cb->discovery_server_url != NULL)
+        server_url = cb->discovery_server_url;
     else
         server_url = "opc.tcp://localhost:4840";
+
+    /* Register
+       You can also use a semaphore file. That file must exist. When the file is
+       deleted, the server is automatically unregistered. The semaphore file has
+       to be accessible by the discovery server
+    
+       UA_StatusCode retval = UA_Server_register_discovery(server,
+       "opc.tcp://localhost:4840", "/path/to/some/file");
+    */
     UA_StatusCode retval = UA_Server_register_discovery(server, server_url, NULL);
 
-    // You can also use a semaphore file. That file must exist. When the file is
-    // deleted, the server is automatically unregistered. The semaphore file has
-    // to be accessible by the discovery server
-    //
-    // UA_StatusCode retval = UA_Server_register_discovery(server,
-    // "opc.tcp://localhost:4840", "/path/to/some/file");
+    /* Registering failed */
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not register server with discovery server. "
-                     "Is the discovery server started? StatusCode %s", UA_StatusCode_name(retval));
+                     "Is the discovery server started? StatusCode %s",
+                     UA_StatusCode_name(retval));
 
-        // first retry in 1 second
-        UA_UInt32 nextInterval = 1;
+        /* If the server was previously registered, retry in one second,
+         * else, double the previous interval */
+        UA_UInt32 nextInterval = 1000;
+        if(!cb->registered)
+            nextInterval = cb->this_interval * 2;
 
-        if (retryJob->job != NULL)
-            // double the interval for the next retry
-            nextInterval = retryJob->this_interval*2;
+        /* The interval should be smaller than the default interval */
+        if(nextInterval > cb->default_interval)
+            nextInterval = cb->default_interval;
 
-        // as long as next retry is smaller than default interval, retry
-        if (nextInterval < retryJob->default_interval) {
-            UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                        "Retrying registration in %d seconds", nextInterval);
-            // todo: malloc may fail: return a statuscode
-            struct PeriodicServerRegisterJob *newRetryJob =
-                (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-            newRetryJob->job = (UA_Job *)UA_malloc(sizeof(UA_Job));
-            newRetryJob->default_interval = retryJob->default_interval;
-            newRetryJob->this_interval = nextInterval;
-            newRetryJob->discovery_server_url = retryJob->discovery_server_url;
-
-            newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
-            newRetryJob->job->job.methodCall.method = periodicServerRegister;
-            newRetryJob->job->job.methodCall.data = newRetryJob;
-
-            UA_Server_addRepeatedJob(server, *newRetryJob->job,
-                                     nextInterval*1000, &newRetryJob->job_id);
-        }
-    } else {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Server successfully registered. Next periodical register will be in %d seconds",
-                    (int)(retryJob->default_interval/1000));
+        cb->this_interval = nextInterval;
+        UA_Server_changeRepeatedCallbackInterval(server, cb->id, nextInterval);
+        return;
     }
 
-    if(retryJob->job) {
-        UA_free(retryJob->job);
-        UA_free(retryJob);
-    }
+    /* Registering succeeded */
+    UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                 "Server successfully registered. Next periodical register will be in %d seconds",
+                 (int)(cb->default_interval/1000));
 
+    if(!cb->registered) {
+        retval = UA_Server_changeRepeatedCallbackInterval(server, cb->id, cb->default_interval);
+        /* If changing the interval fails, try again after the next registering */
+        if(retval == UA_STATUSCODE_GOOD)
+            cb->registered = true;
+    }
 }
 
 UA_StatusCode
-UA_Server_addPeriodicServerRegisterJob(UA_Server *server,
-                                       const char* discoveryServerUrl,
-                                       const UA_UInt32 intervalMs,
-                                       const UA_UInt32 delayFirstRegisterMs,
-                                       UA_Guid* periodicJobId) {
-    if(server->periodicServerRegisterJob != NULL)
+UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
+                                            const char* discoveryServerUrl,
+                                            UA_UInt32 intervalMs,
+                                            UA_UInt32 delayFirstRegisterMs,
+                                            UA_UInt64 *periodicCallbackId) {
+    /* There can be only one callback atm */
+    if(server->periodicServerRegisterCallback) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "There is already a register callback in place");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    // registering the server should be done periodically. Approx. every 10
-    // minutes. The first call will be in 10 Minutes.
-    UA_Job job;
-    job.type = UA_JOBTYPE_METHODCALL;
-    job.job.methodCall.method = periodicServerRegister;
-    job.job.methodCall.data = NULL;
+    /* No valid server URL */
+    if(!discoveryServerUrl) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "No discovery server URL provided");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    server->periodicServerRegisterJob =
-        (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-    server->periodicServerRegisterJob->job = NULL;
-    server->periodicServerRegisterJob->this_interval = 0;
-    server->periodicServerRegisterJob->default_interval = intervalMs;
-    server->periodicServerRegisterJob->discovery_server_url = discoveryServerUrl;
-    job.job.methodCall.data = server->periodicServerRegisterJob;
+    /* Allocate and initialize */
+    struct PeriodicServerRegisterCallback* cb =
+        (struct PeriodicServerRegisterCallback*)
+        UA_malloc(sizeof(struct PeriodicServerRegisterCallback));
+    if(!cb)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    server->periodicServerRegisterCallback = cb;
 
+    /* Start repeating a failed register after 1s, then increase the delay. Set
+     * to 500ms, as the delay is doubled before changing the callback
+     * interval.*/
+    cb->this_interval = 500;
+    cb->default_interval = intervalMs;
+    cb->registered = false;
+    cb->discovery_server_url = discoveryServerUrl;
+
+    /* Add the callback */
     UA_StatusCode retval =
-        UA_Server_addRepeatedJob(server, job,
-                                 intervalMs, &server->periodicServerRegisterJob->job_id);
+        UA_Server_addRepeatedCallback(server, periodicServerRegister,
+                                      cb, delayFirstRegisterMs, &cb->id);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. "
                      "StatusCode %s", UA_StatusCode_name(retval));
+        UA_free(server->periodicServerRegisterCallback);
+        server->periodicServerRegisterCallback = NULL;
         return retval;
     }
 
-    if(periodicJobId)
-        UA_Guid_copy(&server->periodicServerRegisterJob->job_id, periodicJobId);
-
-    if(delayFirstRegisterMs > 0) {
-        // Register the server with the discovery server.
-        // Delay this first registration until the server is fully initialized
-        // will be freed in the callback
-        // todo: malloc may fail: return a statuscode
-        struct PeriodicServerRegisterJob *newRetryJob =
-            (struct PeriodicServerRegisterJob *)UA_malloc(sizeof(struct PeriodicServerRegisterJob));
-        newRetryJob->job = (UA_Job*)UA_malloc(sizeof(UA_Job));
-        newRetryJob->this_interval = 1;
-        newRetryJob->default_interval = intervalMs;
-        newRetryJob->job->type = UA_JOBTYPE_METHODCALL;
-        newRetryJob->job->job.methodCall.method = periodicServerRegister;
-        newRetryJob->job->job.methodCall.data = newRetryJob;
-        newRetryJob->discovery_server_url = discoveryServerUrl;
-        retval = UA_Server_addRepeatedJob(server, *newRetryJob->job,
-                                          delayFirstRegisterMs, &newRetryJob->job_id);
-        if (retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Could not create first job for server register. "
-                         "StatusCode %s", UA_StatusCode_name(retval));
-            return retval;
-        }
-    }
+    if(periodicCallbackId)
+        *periodicCallbackId = cb->id;
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_Server_setRegisterServerCallback(UA_Server *server, UA_Server_registerServerCallback cb,
+UA_Server_setRegisterServerCallback(UA_Server *server,
+                                    UA_Server_registerServerCallback cb,
                                     void* data) {
     server->registerServerCallback = cb;
     server->registerServerCallbackData = data;
 }
 
-#endif // UA_ENABLE_DISCOVERY
+#endif /* UA_ENABLE_DISCOVERY */

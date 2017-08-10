@@ -96,8 +96,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
                                                &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                       "Server url is invalid: %.*s" ,
-                       nl->discoveryUrl.length, nl->discoveryUrl.data);
+                       "Server url is invalid: %.*s",
+                       (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
         return retval;
     }
     UA_Discovery_addRecord(server, appName, &hostname, port,
@@ -215,7 +215,7 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
                        "Server url invalid: %.*s",
-                       discoveryUrl->length, discoveryUrl->data);
+                       (int)discoveryUrl->length, discoveryUrl->data);
         return;
     }
 
@@ -225,8 +225,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                           port, updateTxt);
         if(removeRetval != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Could not remove mDNS record for hostname %s.",
-                           serverName);
+                           "Could not remove mDNS record for hostname %.*s.",
+                           (int)serverName->length, serverName->data);
         return;
     }
     
@@ -243,7 +243,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                capabilities, &capabilitiesSize);
     if(addRetval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Could not add mDNS record for hostname %s.", serverName);
+                       "Could not add mDNS record for hostname %.*s.",
+                       (int)serverName->length, serverName->data);
 }
 
 void
@@ -350,18 +351,18 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
     }
 
     /* Copy into outServiceDomain */
-    size_t pos = 0;
-    memcpy(&outServiceDomain[pos], servername->data, servernameLen);
-    pos += servernameLen;
+    size_t offset = 0;
+    memcpy(&outServiceDomain[offset], servername->data, servernameLen);
+    offset += servernameLen;
     if(hostnameLen > 0) {
-        memcpy(&outServiceDomain[pos], "-", 1);
-        ++pos;
-        memcpy(&outServiceDomain[pos], hostname->data, hostnameLen);
-        pos += hostnameLen;
+        memcpy(&outServiceDomain[offset], "-", 1);
+        ++offset;
+        memcpy(&outServiceDomain[offset], hostname->data, hostnameLen);
+        offset += hostnameLen;
     }
-    memcpy(&outServiceDomain[pos], "._opcua-tcp._tcp.local.", 23);
-    pos += 23;
-    outServiceDomain[pos] = 0;
+    memcpy(&outServiceDomain[offset], "._opcua-tcp._tcp.local.", 23);
+    offset += 23;
+    outServiceDomain[offset] = 0;
 }
 
 /* Check if mDNS already has an entry for given hostname and port combination */
@@ -490,7 +491,7 @@ UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
 
     // TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
     if(createTxt) {
-        char *pathChars = UA_alloca(path->length + 1);
+        char *pathChars = (char *)UA_alloca(path->length + 1);
         memcpy(pathChars, path->data, path->length);
         pathChars[path->length] = 0;
         mdns_create_txt(server, fullServiceDomain, pathChars, capabilites,

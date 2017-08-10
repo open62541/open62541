@@ -23,8 +23,9 @@ generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${DOC_SRC_DIR}/log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${DOC_SRC_DIR}/connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin_log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/plugin_network.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
@@ -43,7 +44,8 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
+          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
           ${DOC_SRC_DIR}/protocol.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
@@ -69,7 +71,8 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
+          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
           ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
           ${DOC_SRC_DIR}/protocol.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst

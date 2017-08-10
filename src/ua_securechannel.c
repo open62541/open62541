@@ -199,6 +199,10 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    // Minimum required size
+    if (connection->localConf.sendBufferSize <= UA_SECURE_MESSAGE_HEADER_LENGTH)
+        return UA_STATUSCODE_BADRESPONSETOOLARGE;
+
     /* Create the chunking info structure */
     UA_ChunkInfo ci;
     ci.channel = channel;
@@ -208,6 +212,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_UInt32 requestI
     ci.final = false;
     ci.messageType = UA_MESSAGETYPE_MSG;
     ci.errorCode = UA_STATUSCODE_GOOD;
+
 
     /* Allocate the message buffer */
     UA_StatusCode retval =
@@ -372,10 +377,11 @@ UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *c
             if(retval != UA_STATUSCODE_GOOD)
                 break;
 
-            // dirty cast to pass errorMessage
+            /* TODO: fix dirty cast to pass errorMessage */
             UA_UInt32 val = 0;
             callback(application, (UA_SecureChannel *)channel, (UA_MessageType)UA_MESSAGETYPE_ERR,
                      val, (const UA_ByteString*)&errorMessage);
+            UA_TcpErrorMessage_deleteMembers(&errorMessage);
             continue;
         }
 

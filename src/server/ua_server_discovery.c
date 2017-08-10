@@ -13,10 +13,11 @@ register_server_with_discovery_server(UA_Server *server,
                                       const char* discoveryServerUrl,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath) {
-    /* Use a fallback URL */
-    const char *url = "opc.tcp://localhost:4840";
-    if(discoveryServerUrl)
-        url = discoveryServerUrl;
+    if(!discoveryServerUrl) {
+        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "No discovery server url provided");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Create the client */
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
@@ -24,10 +25,10 @@ register_server_with_discovery_server(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Connect the client */
-    UA_StatusCode retval = UA_Client_connect(client, url);
+    UA_StatusCode retval = UA_Client_connect(client, discoveryServerUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Connecting to client failed with statuscode %s",
+                     "Connecting to the discovery server failed with statuscode %s",
                      UA_StatusCode_name(retval));
         UA_Client_delete(client);
         return retval;
@@ -79,7 +80,6 @@ register_server_with_discovery_server(UA_Server *server,
     UA_MdnsDiscoveryConfiguration mdnsConfig;
     UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
 
-    request.discoveryConfigurationSize = 0;
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);

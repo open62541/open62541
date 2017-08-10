@@ -18,34 +18,34 @@ extern "C" {
 /* BSD Queue Macros */
 #include "queue.h"
 
-/* C++ Access to datatypes defined inside structs (for queue.h) */
-#ifdef __cplusplus
-# define memberstruct(container,member) container::member
-#else
-# define memberstruct(container,member) member
-#endif
+/* Macro-Expand for MSVC workarounds */
+#define UA_MACRO_EXPAND(x) x
 
 /* container_of */
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 
+#ifdef UA_ENABLE_MULTITHREADING
 /* Thread Local Storage */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-# define UA_THREAD_LOCAL _Thread_local /* C11 */
-#elif defined(__GNUC__)
-# define UA_THREAD_LOCAL __thread /* GNU extension */
-#elif defined(_MSC_VER)
-# define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
-#else
-# define UA_THREAD_LOCAL
-# warning The compiler does not allow thread-local variables. \
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 */
+# elif defined(__GNUC__)
+#  define UA_THREAD_LOCAL __thread /* GNU extension */
+# elif defined(_MSC_VER)
+#  define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */
+# else
+#  define UA_THREAD_LOCAL
+#  warning The compiler does not allow thread-local variables. \
   The library can be built, but will not be thread-safe.
+# endif
+#else
+#  define UA_THREAD_LOCAL
 #endif
 
 /* Integer Shortnames
  * ------------------
  * These are not exposed on the public API, since many user-applications make
- * the same in their headers. */
+ * the same definitions in their headers. */
 
 typedef UA_Byte u8;
 typedef UA_SByte i8;
@@ -133,6 +133,10 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 # define UA_TYPENAME(name) name,
 #else
 # define UA_TYPENAME(name)
+#endif
+
+#ifdef UA_DEBUG_DUMP_PKGS
+void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
 #ifdef __cplusplus

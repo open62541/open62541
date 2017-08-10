@@ -10,7 +10,6 @@
 #include "server/ua_nodestore.h"
 #include "server/ua_services.h"
 #include "ua_client.h"
-#include "ua_nodeids.h"
 #include "ua_types.h"
 #include "ua_config_standard.h"
 #include "server/ua_server_internal.h"
@@ -646,11 +645,11 @@ START_TEST(WriteSingleAttributeNodeclass) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeClass class;
-    UA_NodeClass_init(&class);
+    UA_NodeClass nc;
+    UA_NodeClass_init(&nc);
     wValue.attributeId = UA_ATTRIBUTEID_NODECLASS;
     wValue.value.hasValue = true;
-    UA_Variant_setScalar(&wValue.value.value, &class, &UA_TYPES[UA_TYPES_NODECLASS]);
+    UA_Variant_setScalar(&wValue.value.value, &nc, &UA_TYPES[UA_TYPES_NODECLASS]);
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
     UA_Server_delete(server);

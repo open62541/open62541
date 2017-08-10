@@ -9,27 +9,27 @@
 extern "C" {
 #endif
 
-#include "ua_connection.h"
+#include "ua_plugin_network.h"
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. Furthermore, the networklayer may operate on ringbuffers or
  * statically assigned memory.
  *
- * If an entire message is received, it is forwarded directly. But the memory
+ * If an entire chunk is received, it is forwarded directly. But the memory
  * needs to be freed with the networklayer-specific mechanism. If a half message
  * is received, we copy it into a local buffer. Then, the stack-specific free
  * needs to be used.
  *
  * @param connection The connection
- * @param message The received message. The content may be overwritten when a
- *        previsouly received buffer is completed.
+ * @param message The received packet. The content may be replaced when a chunk
+ *        is completed with previously received packets.
  * @param realloced The Boolean value is set to true if the outgoing message has
  *        been reallocated from the network layer.
  * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
  *         the ingoing message and the current buffer in the connection are
  *         freed. */
 UA_StatusCode
-UA_Connection_completeMessages(UA_Connection *connection,
+UA_Connection_completeChunks(UA_Connection *connection,
                                UA_ByteString * UA_RESTRICT message,
                                UA_Boolean * UA_RESTRICT realloced);
 

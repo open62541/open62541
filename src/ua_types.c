@@ -78,7 +78,7 @@ UA_String_fromChars(char const src[]) {
     return str;
 }
 
-bool
+UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     if(s1->length != s2->length)
         return false;
@@ -153,7 +153,7 @@ UA_DateTime_toString(UA_DateTime t) {
 }
 
 /* Guid */
-bool
+UA_Boolean
 UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     if(memcmp(g1, g2, sizeof(UA_Guid)) == 0)
         return true;
@@ -230,7 +230,7 @@ NodeId_copy(UA_NodeId const *src, UA_NodeId *dst, const UA_DataType *_) {
     return retval;
 }
 
-bool
+UA_Boolean
 UA_NodeId_isNull(const UA_NodeId *p) {
     if(p->namespaceIndex != 0)
         return false;
@@ -255,7 +255,7 @@ UA_NodeId_isNull(const UA_NodeId *p) {
     return (p->identifier.string.length == 0);
 }
 
-bool
+UA_Boolean
 UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2) {
     if(n1->namespaceIndex != n2->namespaceIndex ||
        n1->identifierType!=n2->identifierType)
@@ -460,14 +460,14 @@ UA_Variant_setArrayCopy(UA_Variant *v, const void *array,
 static UA_StatusCode
 computeStrides(const UA_Variant *v, const UA_NumericRange range,
                size_t *total, size_t *block, size_t *stride, size_t *first) {
-    /* Test for max array size */
-#if(MAX_SIZE > 0xffffffff) /* 64bit only */
+    /* Test for max array size (64bit only) */
+#if (SIZE_MAX > 0xffffffff)
     if(v->arrayLength > UA_UINT32_MAX)
         return UA_STATUSCODE_BADINTERNALERROR;
 #endif
 
     /* Test the integrity of the source variant dimensions, make dimensions
-       vector of one dimension if none defined */
+     * vector of one dimension if none defined */
     u32 arrayLength = (u32)v->arrayLength;
     const u32 *dims = &arrayLength;
     size_t dims_count = 1;
@@ -480,18 +480,32 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
         if(elements != v->arrayLength)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
+    UA_assert(dims_count > 0);
 
-    /* Test the integrity of the range */
+    /* Test the integrity of the range and compute the max index used for every
+     * dimension. The standard says in Part 4, Section 7.22:
+     *
+     * When reading a value, the indexes may not specify a range that is within
+     * the bounds of the array. The Server shall return a partial result if some
+     * elements exist within the range. */
     size_t count = 1;
+    UA_UInt32 *realmax = (UA_UInt32*)UA_alloca(sizeof(UA_UInt32) * dims_count);
     if(range.dimensionsSize != dims_count)
         return UA_STATUSCODE_BADINDEXRANGENODATA;
     for(size_t i = 0; i < dims_count; ++i) {
         if(range.dimensions[i].min > range.dimensions[i].max)
             return UA_STATUSCODE_BADINDEXRANGEINVALID;
-        if(range.dimensions[i].max >= dims[i])
+        if(range.dimensions[i].min >= dims[i])
             return UA_STATUSCODE_BADINDEXRANGENODATA;
-        count *= (range.dimensions[i].max - range.dimensions[i].min) + 1;
+
+        if(range.dimensions[i].max < dims[i])
+            realmax[i] = range.dimensions[i].max;
+        else
+            realmax[i] = dims[i] - 1;
+
+        count *= (realmax[i] - range.dimensions[i].min) + 1;
     }
+
     *total = count;
 
     /* Compute the stride length and the position of the first element */
@@ -502,7 +516,7 @@ computeStrides(const UA_Variant *v, const UA_NumericRange range,
     bool found_contiguous = false;
     for(size_t k = dims_count; k > 0;) {
         --k;
-        size_t dimrange = 1 + range.dimensions[k].max - range.dimensions[k].min;
+        size_t dimrange = 1 + realmax[k] - range.dimensions[k].min;
         if(!found_contiguous && dimrange != dims[k]) {
             /* Found the maximum block that can be copied contiguously */
             found_contiguous = true;
@@ -525,15 +539,21 @@ isStringLike(const UA_DataType *type) {
     return false;
 }
 
+/* Returns the part of the string that lies within the rangedimension */
 static UA_StatusCode
 copySubString(const UA_String *src, UA_String *dst,
               const UA_NumericRangeDimension *dim) {
     if(dim->min > dim->max)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
-    if(dim->max >= src->length)
+    if(dim->min >= src->length)
         return UA_STATUSCODE_BADINDEXRANGENODATA;
 
-    size_t length = dim->max - dim->min + 1;
+    size_t length;
+    if(dim->max < src->length)
+       length = dim->max - dim->min + 1;
+    else
+        length = src->length - dim->min;
+
     UA_StatusCode retval = UA_ByteString_allocBuffer(dst, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -585,13 +605,13 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
 
     /* Allocate the array */
     UA_Variant_init(dst);
-    size_t elem_size = src->type->memSize;
-    dst->data = UA_malloc(elem_size * count);
+    dst->data = UA_Array_new(count, src->type);
     if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Copy the range */
     size_t block_count = count / block;
+    size_t elem_size = src->type->memSize;
     uintptr_t nextdst = (uintptr_t)dst->data;
     uintptr_t nextsrc = (uintptr_t)src->data + (elem_size * first);
     if(nextrange.dimensionsSize == 0) {

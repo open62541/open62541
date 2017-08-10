@@ -2,7 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include "ua_network_udp.h"
-#include <stdlib.h> // malloc, free
 #include <stdio.h>
 #include <string.h> // memset
 
@@ -121,20 +120,22 @@ static void setFDSet(ServerNetworkLayerUDP *layer) {
 }
 
 static void closeConnectionUDP(UA_Connection *handle) {
-    free(handle);
+    UA_free(handle);
 }
 
 static UA_StatusCode ServerNetworkLayerUDP_start(UA_ServerNetworkLayer *nl, UA_Logger logger) {
     ServerNetworkLayerUDP *layer = nl->handle;
     layer->logger = logger;
-    layer->serversockfd = socket(PF_INET, SOCK_DGRAM, 0);
+    layer->serversockfd = socket(AF_INET6, SOCK_DGRAM, 0);
     if(layer->serversockfd < 0) {
         UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "Error opening socket");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    const struct sockaddr_in serv_addr =
-        {.sin_family = AF_INET, .sin_addr.s_addr = INADDR_ANY,
-         .sin_port = htons(layer->port), .sin_zero = {0}};
+    struct sockaddr_in6 serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin6_family = AF_INET6;
+    serv_addr.sin6_port = htons(layer->port);
+    serv_addr.sin6_addr = in6addr_any;
     int optval = 1;
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
                   SO_REUSEADDR, (const char *)&optval, sizeof(optval)) == -1) {
@@ -164,12 +165,12 @@ static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **
         *jobs = items;
         return 0;
     }
-    items = malloc(sizeof(UA_Job)*(unsigned long)resultsize);
+    items = UA_malloc(sizeof(UA_Job)*(unsigned long)resultsize);
     // read from established sockets
     size_t j = 0;
     UA_ByteString buf = {0, NULL};
     if(!buf.data) {
-        buf.data = malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
+        buf.data = UA_malloc(sizeof(UA_Byte) * layer->conf.recvBufferSize);
         if(!buf.data)
             UA_LOG_WARNING(layer->logger, UA_LOGCATEGORY_NETWORK, "malloc failed");
     }
@@ -179,9 +180,9 @@ static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **
     ssize_t rec_result = recvfrom(layer->serversockfd, buf.data, layer->conf.recvBufferSize, 0, &sender, &sendsize);
     if (rec_result > 0) {
         buf.length = (size_t)rec_result;
-        UDPConnection *c = malloc(sizeof(UDPConnection));
+        UDPConnection *c = UA_malloc(sizeof(UDPConnection));
         if(!c){
-                free(items);
+                UA_free(items);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         UA_Connection_init(&c->connection);
@@ -204,11 +205,11 @@ static size_t ServerNetworkLayerUDP_getJobs(UA_ServerNetworkLayer *nl, UA_Job **
         j++;
         *jobs = items;
     } else {
-        free(items);
+        UA_free(items);
         *jobs = NULL;
     }
     if(buf.data)
-        free(buf.data);
+        UA_free(buf.data);
     return j;
 }
 
@@ -222,7 +223,7 @@ static size_t ServerNetworkLayerUDP_stop(UA_ServerNetworkLayer *nl, UA_Job **job
 
 static void ServerNetworkLayerUDP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ServerNetworkLayerUDP *layer = nl->handle;
-    free(layer);
+    UA_free(layer);
     UA_String_deleteMembers(&nl->discoveryUrl);
 }
 
@@ -231,7 +232,7 @@ UA_ServerNetworkLayerUDP(UA_ConnectionConfig conf, UA_UInt16 port) {
     UA_ServerNetworkLayer nl;
     memset(&nl, 0, sizeof(UA_ServerNetworkLayer));
 
-    ServerNetworkLayerUDP *layer = malloc(sizeof(ServerNetworkLayerUDP));
+    ServerNetworkLayerUDP *layer = UA_malloc(sizeof(ServerNetworkLayerUDP));
     if(!layer)
         return nl;
     memset(layer, 0, sizeof(ServerNetworkLayerUDP));
