@@ -208,10 +208,17 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
+/* Returns an array with the hierarchy of type nodes. The returned array starts
+ * at the leaf and continues "upwards" in the hierarchy based on the
+ * ``hasSubType`` references. Since multiple-inheritance is possible in general,
+ * duplicate entries are avoided. */
+UA_StatusCode
+getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *leafType,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
 
-/* Returns the nodeid of the node type, if none defined for the node or the node
- * class, typeId is set to UA_NODEID_NULL. */
-void getNodeType(UA_Server *server, const UA_Node *node, UA_NodeId *typeId);
+/* Returns a pointer to the nodeid of the node type in the node's references. If
+ * no type is defined, a pointer to UA_NODEID_NULL is returned */
+const UA_NodeId * getNodeType(UA_Server *server, const UA_Node *node);
 
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     const void *requestOperation, void *responseOperation);

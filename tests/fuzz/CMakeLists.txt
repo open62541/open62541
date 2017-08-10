@@ -20,8 +20,8 @@ if (NOT UA_BUILD_OSS_FUZZ)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
     endif()
     set(LIBS Fuzzer)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -29,7 +29,7 @@ else()
     set(LIBS $ENV{LIB_FUZZING_ENGINE})
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $ENV{OUT})
 endif()
-list(APPEND $LIBS ${open62541_LIBRARIES})
+list(APPEND LIBS "${open62541_LIBRARIES}")
 
 
 # Use different plugins for testing
@@ -47,9 +47,19 @@ add_dependencies(open62541-fuzzplugins open62541)
 # the fuzzer test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
-add_executable(fuzz_binary_message fuzz_binary_message.cc $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-fuzzplugins>)
-target_include_directories(fuzz_binary_message PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
-target_link_libraries(fuzz_binary_message ${LIBS})
+set(FUZZER_TARGETS)
+
+macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
+    add_executable(${FUZZER_NAME} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-fuzzplugins> ${FUZZER_SOURCE} ${ARGN})
+    target_link_libraries(${FUZZER_NAME} ${LIBS})
+    target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
+    assign_source_group(${FUZZER_SOURCE})
+    list(APPEND FUZZER_TARGETS ${FUZZER_NAME})
+endmacro()
+
+# Add new fuzzers here
+add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
+add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 
 add_custom_target(
         run_fuzzer
@@ -60,5 +70,5 @@ add_custom_target(
         COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Read.bin
         COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Write.bin
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        DEPENDS fuzz_binary_message
+        DEPENDS ${FUZZER_TARGETS}
         ${MAYBE_USES_TERMINAL})

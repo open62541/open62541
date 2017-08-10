@@ -64,7 +64,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
             (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_MSEC_TO_DATETIME);
         if(timeout < nowMonotonic || !entry->channel.connection) {
             UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
-                                "SecureChannel has timed out", NULL);
+                                "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
         }
         else if(entry->channel.nextSecurityToken.tokenId > 0) {
@@ -80,7 +80,7 @@ static UA_Boolean purgeFirstChannelWithoutSession(UA_SecureChannelManager* cm) {
         if(LIST_EMPTY(&(entry->channel.sessions)) && !entry->channel.temporary) {
             UA_LOG_DEBUG_CHANNEL(cm->server->config.logger, &entry->channel,
                                  "Channel was purged since maxSecureChannels was "
-                                 "reached and channel had no session attached", NULL);
+                                 "reached and channel had no session attached");
             removeSecureChannel(cm, entry);
             UA_assert(entry != LIST_FIRST(&cm->channels));
             return true;

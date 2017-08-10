@@ -1,15 +1,6 @@
 language: c
 
-compiler:
-- gcc
-- clang
-
-os:
-- linux
-- osx
-
 # use new build environment (docker)
-dist: trusty
 sudo: required
 
 env:
@@ -18,34 +9,40 @@ env:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
     # COVERITY_SCAN_TOKEN:
     - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
-  matrix:
-    # Do both, compile with static code analysis and without
-    - ANALYZE=false
-    - ANALYZE=true
-    - DOCKER=true
-    - FUZZER=true
+
+
+dist: trusty
 
 matrix:
-  exclude:
-  # This excludes OSX GCC builds.
-    - os: osx
+  fast_finish: true
+  include:
+    - os: linux
       compiler: gcc
-    - os: osx
+      env: ANALYZE=false
+    - os: linux
+      compiler: gcc
       env: ANALYZE=true
-    - os: osx
+    - os: linux
+      compiler: gcc
       env: DOCKER=true
-    - os: osx
-      env: FUZZER=true
+      services:
+        - docker
     - os: linux
       compiler: clang
-      env: DOCKER=true
+      env: ANALYZE=false
     - os: linux
-      compiler: gcc
+      compiler: clang
+      env: ANALYZE=true
+    - os: linux
+      compiler: clang
       env: FUZZER=true
-
-# Required for docker build test
-services:
-  - docker
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
 
 addons:
   apt:
@@ -86,6 +83,7 @@ cache:
   apt: true
   directories:
     - $HOME/install
+    - $HOME/.cache/pip
 
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |

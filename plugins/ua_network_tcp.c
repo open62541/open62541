@@ -51,7 +51,7 @@
 #endif
 
 /* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using 
+/* Additionally if GNU_LIBRARY is not defined, it may be using
  * musl libc (e.g. Docker Alpine) */
 #if defined(_WIN32) || defined(__OpenBSD__) || \
     (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
@@ -257,12 +257,12 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
     if(res == 0) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New connection over TCP from %s",
-                    newsockfd, remote_name);
+                    (int)newsockfd, remote_name);
     } else {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Connection %i | New connection over TCP, "
                        "getnameinfo failed with errno %i",
-                       newsockfd, errno__);
+                       (int)newsockfd, errno__);
     }
 
     /* Allocate and initialize the connection */
@@ -404,7 +404,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                 "TCP network layer listening on %.*s",
-                nl->discoveryUrl.length, nl->discoveryUrl.data);
+                (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -462,7 +462,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
         UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | New TCP connection on server socket %i",
-                    newsockfd, layer->serverSockets[i]);
+                    (int)newsockfd, layer->serverSockets[i]);
 
         ServerNetworkLayerTCP_add(layer, (UA_Int32)newsockfd, &remote);
     }

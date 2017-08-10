@@ -97,8 +97,8 @@ addMdnsRecordForNetworkLayer(UA_Server *server, const UA_String *appName,
                                                &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                       "Server url is invalid: %.*s" ,
-                       nl->discoveryUrl.length, nl->discoveryUrl.data);
+                       "Server url is invalid: %.*s",
+                       (int)nl->discoveryUrl.length, nl->discoveryUrl.data);
         return retval;
     }
     UA_Discovery_addRecord(server, appName, &hostname, port,
@@ -216,7 +216,7 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_NETWORK,
                        "Server url invalid: %.*s",
-                       discoveryUrl->length, discoveryUrl->data);
+                       (int)discoveryUrl->length, discoveryUrl->data);
         return;
     }
 
@@ -226,8 +226,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                           port, updateTxt);
         if(removeRetval != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Could not remove mDNS record for hostname %s.",
-                           serverName);
+                           "Could not remove mDNS record for hostname %.*s.",
+                           (int)serverName->length, serverName->data);
         return;
     }
     
@@ -244,7 +244,8 @@ UA_Discovery_update_MdnsForDiscoveryUrl(UA_Server *server, const UA_String *serv
                                capabilities, &capabilitiesSize);
     if(addRetval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "Could not add mDNS record for hostname %s.", serverName);
+                       "Could not add mDNS record for hostname %.*s.",
+                       (int)serverName->length, serverName->data);
 }
 
 void

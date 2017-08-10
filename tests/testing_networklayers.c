@@ -8,14 +8,14 @@
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    buf->data = (UA_Byte*)UA_malloc(length);
+    buf->data = length == 0 ? NULL : (UA_Byte*)UA_malloc(length);
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_free(buf->data);
+    UA_ByteString_deleteMembers(buf);
 }
 
 static UA_StatusCode
@@ -26,7 +26,7 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    return;
+    UA_ByteString_deleteMembers(buf);
 }
 
 static void

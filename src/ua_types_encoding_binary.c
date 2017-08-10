@@ -41,7 +41,10 @@
 # pragma GCC diagnostic pop
 #endif
 
-/* Jumptables for de-/encoding and computing the buffer length */
+/* Jumptables for de-/encoding and computing the buffer length. The methods in
+ * the decoding jumptable do not all clean up their allocated memory when an
+ * error occurs. So a final _deleteMembers needs to be called before returning
+ * to the user. */
 typedef UA_StatusCode (*UA_encodeBinarySignature)(const void *UA_RESTRICT src, const UA_DataType *type);
 extern const UA_encodeBinarySignature encodeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 

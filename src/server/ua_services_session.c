@@ -19,7 +19,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
     if(channel->securityToken.channelId == 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
     }
 
@@ -54,20 +55,23 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Mirror back the endpointUrl */
     for(size_t i = 0; i < response->serverEndpointsSize; ++i)
-        UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
+        UA_String_copy(&request->endpointUrl,
+                       &response->serverEndpoints[i].endpointUrl);
 
     UA_Session *newSession;
     response->responseHeader.serviceResult =
-        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
+        UA_SessionManager_createSession(&server->sessionManager,
+                                        channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Processing CreateSessionRequest failed", NULL);
+                             "Processing CreateSessionRequest failed");
         return;
     }
 
     /* Fill the session with more information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
-    newSession->maxRequestMessageSize = channel->connection->localConf.maxMessageSize;
+    newSession->maxRequestMessageSize =
+        channel->connection->localConf.maxMessageSize;
     response->responseHeader.serviceResult |=
         UA_ApplicationDescription_copy(&request->clientDescription,
                                        &newSession->clientDescription);
@@ -78,6 +82,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
+
     if(server->config.endpoints.count > 0)
         response->responseHeader.serviceResult |=
         UA_ByteString_copy(&channel->endpoint->endpointDescription.serverCertificate,
@@ -160,8 +165,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " UA_PRINTF_GUID_FORMAT " created",
-                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+           "Session " UA_PRINTF_GUID_FORMAT " created",
+           UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
 }
 
 static void
@@ -217,13 +223,17 @@ Service_ActivateSession_checkSignature(const UA_Server *const server,
 }
 
 void
-Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        UA_Session *session, const UA_ActivateSessionRequest *request,
+Service_ActivateSession(UA_Server *server,
+                        UA_SecureChannel *channel, UA_Session *session,
+                        const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session has timed out", channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: SecureChannel %i wants "
+                            "to activate, but the session has timed out",
+                            channel->securityToken.channelId);
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
     }
 
@@ -237,7 +247,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Callback into userland access control */
     response->responseHeader.serviceResult =
-        server->config.accessControl.activateSession(&session->sessionId, &request->userIdentityToken,
+        server->config.accessControl.activateSession(&session->sessionId,
+                                                     &request->userIdentityToken,
                                                      &session->sessionHandle);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
@@ -245,7 +256,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Detach the old SecureChannel */
     if(session->channel && session->channel != channel) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "ActivateSession: Detach from old channel", NULL);
+                            "ActivateSession: Detach from old channel");
         UA_SecureChannel_detachSession(session->channel, session);
     }
 
@@ -254,16 +265,19 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     session->activated = true;
     UA_Session_updateLifetime(session);
     UA_LOG_INFO_SESSION(server->config.logger, session,
-                        "ActivateSession: Session activated", NULL);
+                        "ActivateSession: Session activated");
 }
 
 void
-Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
+Service_CloseSession(UA_Server *server, UA_Session *session,
+                     const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
-    UA_LOG_INFO_SESSION(server->config.logger, session,
-                        "CloseSession", NULL);
+    UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
+
     /* Callback into userland access control */
-    server->config.accessControl.closeSession(&session->sessionId, session->sessionHandle);
+    server->config.accessControl.closeSession(&session->sessionId,
+                                              session->sessionHandle);
     response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &session->authenticationToken);
 }

@@ -709,6 +709,11 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
     if(!connection)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    // Minimum required size
+    if (connection->localConf.sendBufferSize <= UA_SECURE_MESSAGE_HEADER_LENGTH)
+        return UA_STATUSCODE_BADRESPONSETOOLARGE;
+
+    /* Create the chunking info structure */
     UA_ChunkInfo ci;
     ci.channel = channel;
     ci.requestId = requestId;
@@ -724,6 +729,7 @@ UA_SecureChannel_sendBinaryMessage(UA_SecureChannel* channel, UA_UInt32 requestI
     else if(contentType->binaryEncodingId == UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST].binaryEncodingId ||
             contentType->binaryEncodingId == UA_TYPES[UA_TYPES_CLOSESECURECHANNELRESPONSE].binaryEncodingId)
         ci.messageType = UA_MESSAGETYPE_CLO;
+
 
     /* Allocate the message buffer */
     UA_StatusCode retval =
