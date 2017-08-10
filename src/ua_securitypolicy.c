@@ -3,7 +3,7 @@
 
 
 UA_CertificateList *UA_CertificateList_new(const UA_ByteString *certificate) {
-    UA_CertificateList *ret = UA_calloc(1, sizeof(UA_CertificateList));
+    UA_CertificateList *ret = (UA_CertificateList *)UA_calloc(1, sizeof(UA_CertificateList));
     if(ret == NULL)
         return NULL;
 
