@@ -590,7 +590,7 @@ sendOPNError(UA_Server *server,
     UA_TcpMessageHeader header;
     header.messageTypeAndChunkType = UA_MESSAGETYPE_ERR + UA_CHUNKTYPE_FINAL;
     // Header + ErrorMessage (error + reasonLength_field + length)
-    header.messageSize = 8 + (4 + 4 + errorMessage.reason.length);
+    header.messageSize = (UA_UInt32)(8 + (4 + 4 + errorMessage.reason.length));
 
     /* Get the send buffer from the network layer */
     UA_ByteString msg;
