@@ -598,7 +598,7 @@ __UA_Client_connect(UA_Client *client, const char *endpointUrl,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
-        client->config.connectionFunc(client->config.localConnectionConfig, endpointUrl);
+        client->config.connectionFunc(client->config.localConnectionConfig, endpointUrl, client->config.timeout);
     if(client->connection.state != UA_CONNECTION_OPENING) {
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
         goto cleanup;

@@ -36,7 +36,7 @@ extern "C" {
  * -------------------- */
 
 typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout */
+    UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
