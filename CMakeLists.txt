@@ -443,11 +443,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
-add_custom_target(open62541_amalgamation_source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
-add_custom_target(open62541_amalgamation_header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
+add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
+add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
 
-add_dependencies(open62541_amalgamation_source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
-add_dependencies(open62541_amalgamation_header open62541-generator-types)
+add_dependencies(open62541-amalgamation-source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
+add_dependencies(open62541-amalgamation-header open62541-generator-types)
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
@@ -485,7 +485,7 @@ if(UA_ENABLE_AMALGAMATION)
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
     # the header is already a dependency of open62541 target itself
-    add_dependencies(open62541-object open62541_amalgamation_source)
+    add_dependencies(open62541-object open62541-amalgamation-source)
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
@@ -513,7 +513,7 @@ else()
 endif()
 
 if(UA_ENABLE_GENERATE_NAMESPACE0)
-    add_dependencies(open62541_amalgamation_source open62541-generator-namespace)
+    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
     if(NOT UA_ENABLE_AMALGAMATION)
         add_dependencies(open62541-object open62541-generator-namespace)
     endif()
@@ -531,7 +531,7 @@ endif()
 target_link_libraries(open62541 ${open62541_LIBRARIES})
 
 # Always generate the amalgamated header
-add_dependencies(open62541 open62541_amalgamation_header)
+add_dependencies(open62541 open62541-amalgamation-header)
 
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
