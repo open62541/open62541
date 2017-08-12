@@ -320,7 +320,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             request.subscriptionAcknowledgements =
                 (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
-                return UA_STATUSCODE_GOOD;
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
         int i = 0;
