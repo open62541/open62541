@@ -49,7 +49,7 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Client_Subscription *findSubscription(UA_Client *client, UA_UInt32 subscriptionId)
+static UA_Client_Subscription *findSubscription(const UA_Client *client, UA_UInt32 subscriptionId)
 {
     UA_Client_Subscription *sub = NULL;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
