@@ -15,19 +15,18 @@
 #include "testing_clock.h"
 
 UA_Server *server;
-UA_Boolean *running;
+UA_Boolean running;
 UA_ServerNetworkLayer nl;
 pthread_t server_thread;
 
 static void * serverloop(void *_) {
-    while(*running)
+    while(running)
         UA_Server_run_iterate(server, true);
     return NULL;
 }
 
 static void setup(void) {
-    running = UA_Boolean_new();
-    *running = true;
+    running = true;
     UA_ServerConfig config = UA_ServerConfig_standard;
     nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
     config.networkLayers = &nl;
@@ -38,10 +37,9 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    *running = false;
+    running = false;
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     nl.deleteMembers(&nl);
 }
