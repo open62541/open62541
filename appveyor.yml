@@ -16,28 +16,28 @@ environment:
     matrix:
         - CC_NAME: MinGW Makefiles
           CC_SHORTNAME: mingw
-          MAKE: mingw32-make
+          MAKE: mingw32-make -j
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin
           OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
           # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
-          MAKE: msbuild /m:1 /p:BuildInParallel=false open62541.sln
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: ON
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
-          MAKE: msbuild /m:1 /p:BuildInParallel=false open62541.sln
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013 Win64
           CC_SHORTNAME: vs2013-x64
           # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
-          MAKE: msbuild /m:1 /p:BuildInParallel=false open62541.sln
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
@@ -95,7 +95,7 @@ build_script:
   # now start build
   - md build
   - cd build
-  - echo "Building Documentation on %CC_NAME%"
+  - echo. && echo "##### Building Documentation on %CC_NAME% #####" && echo.
   - cmake -DMIKTEX_BINARY_PATH=c:\miktex\texmfs\install\miktex\bin -DCMAKE_BUILD_TYPE=Release -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DUA_BUILD_EXAMPLES:BOOL=OFF -G"%CC_NAME%" ..
   - cmake --build . --target doc_latex & cmake --build . --target doc_pdf
   - move "%APPVEYOR_BUILD_FOLDER%\build\doc_latex\open62541.pdf" %APPVEYOR_BUILD_FOLDER%\pack\
@@ -103,14 +103,14 @@ build_script:
   - rd /s /q build
   - md build
   - cd build
-  - echo "Testing %CC_NAME%"
+  - echo. && echo "##### Testing %CC_NAME% #####" && echo.
   - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
   - '%MAKE%'
   - cd ..
   - rd /s /q build
   - md build
   - cd build
-  - echo "Testing %CC_NAME% with amalgamation"
+  - echo. && echo "##### Testing %CC_NAME% with amalgamation #####" && echo.
   - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=OFF -G"%CC_NAME%" ..
   - '%MAKE%'
   - md %APPVEYOR_BUILD_FOLDER%\pack_tmp
@@ -126,7 +126,7 @@ build_script:
   - rd /s /q build
   - md build
   - cd build
-  - echo "Testing %CC_NAME% with amalgamation and .dll"
+  - echo. && echo "##### Testing %CC_NAME% with amalgamation and .dll #####" && echo.
   - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=ON -G"%CC_NAME%" ..
   - '%MAKE%'
   - md %APPVEYOR_BUILD_FOLDER%\pack_tmp
