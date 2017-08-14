@@ -10,12 +10,12 @@ handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
 }
 static
 void valueWritten(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, const void *response){
+                                 UA_UInt32 requestId, void *response){
     printf("value written \n");
 }
 static
 void valueRead(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, const void *response){
+                                 UA_UInt32 requestId, void *response){
 
     printf("value Read \n");
 }
@@ -42,8 +42,9 @@ int main(int argc, char *argv[]) {
 //    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
 //                                                 &endpointArraySize, &endpointArray);
 
-    UA_StatusCode retval = UA_Client_getEndpoints_async(client, "opc.tcp://localhost:16664",
-                                                      &endpointArraySize, &endpointArray);
+//    UA_StatusCode retval = UA_Client_getEndpoints_async(client, "opc.tcp://localhost:16664",
+//                                                      &endpointArraySize, &endpointArray);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
