@@ -109,27 +109,27 @@ typedef struct Endpoints{
 
 static void
 responseEndpoints(UA_Client *client, endpoints *userdata,
-        UA_UInt32 requestId, const void *response0) {
+        UA_UInt32 requestId, void *response0) {
     UA_EndpointDescription* endpointArray = NULL; //description
     size_t endpointArraySize = 0;//descriptionsSize
-    UA_GetEndpointsResponse response;
-    UA_GetEndpointsResponse_init(&response);
+    UA_GetEndpointsResponse *response = (UA_GetEndpointsResponse*)response0;
 
-    UA_Client_run_iterate(client, true);
 
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_StatusCode retval = response.responseHeader.serviceResult;
+    //UA_Client_run_iterate(client, true);
+
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_StatusCode retval = response->responseHeader.serviceResult;
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
                      UA_StatusCode_name(retval));
-        UA_GetEndpointsResponse_deleteMembers(&response);
+        UA_GetEndpointsResponse_deleteMembers(response);
        // return retval;
     }
-    endpointArray = response.endpoints;
-    endpointArraySize = response.endpointsSize;
-    response.endpoints = NULL;
-    response.endpointsSize = 0;
-    UA_GetEndpointsResponse_deleteMembers(&response);
+    endpointArray = response->endpoints;
+    endpointArraySize = response->endpointsSize;
+    response->endpoints = NULL;
+    response->endpointsSize = 0;
+    UA_GetEndpointsResponse_deleteMembers(response);
     UA_Boolean endpointFound = false;
     UA_Boolean tokenFound = false;
     UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
