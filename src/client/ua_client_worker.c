@@ -215,7 +215,7 @@ UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
 
 /* Called from the worker loop */
 static void
-processDelayedCallback(UA_Client *client, WorkerCallback *dc) {
+processDelayedCallback(A_Client *client, WorkerCallback *dc) {
     /* Set the worker counters */
     if(!dc->countersSampled) {
         for(size_t i = 0; i < client->config.nThreads; ++i)

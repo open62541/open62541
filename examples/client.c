@@ -31,12 +31,6 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
     return UA_STATUSCODE_GOOD;
 }
 
-static
-void waitingToConnect(void){
-
-    printf("waiting to be connected \n");
-}
-
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
@@ -45,8 +39,12 @@ int main(int argc, char *argv[]) {
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
-                                                  &endpointArraySize, &endpointArray);
+//    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
+//                                                 &endpointArraySize, &endpointArray);
+
+    UA_StatusCode retval = UA_Client_getEndpoints_async(client, "opc.tcp://localhost:16664",
+                                                      &endpointArraySize, &endpointArray);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
@@ -64,11 +62,8 @@ int main(int argc, char *argv[]) {
     /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664"); */
     //retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
 
-	while (UA_Client_getState(client) != UA_CLIENTSTATE_CONNECTED){
-		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
-		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
-		retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
-	}
+
+	retval = UA_Client_connect_async(client, "opc.tcp://localhost:16664");
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

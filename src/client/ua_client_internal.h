@@ -20,11 +20,10 @@
 /**********/
 typedef enum ConnectState{
 	NO_ACK,
+	HEL_SENT,
 	HEL_ACK,
 	SECURECHANNEL_ACK,
-	ENDPOINTS_ACK,
 	SESSION_ACK,
-	ACTIVATE_ACK
 }ConnectState;
 
 
@@ -49,6 +48,7 @@ typedef enum {
 
 
 struct UA_Client {
+	/*to dsynchronize hello & opening secure channel*/
 	ConnectState connectState;
 	ConnectState lastConnectState;
 
@@ -113,11 +113,14 @@ UA_Boolean endpointsHandshake, UA_Boolean createSession);
 
 UA_StatusCode
 __UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
-                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs,UA_Boolean *waiting);
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs);
 
 UA_StatusCode
 __UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
                          UA_EndpointDescription** endpointDescriptions);
+UA_StatusCode
+__UA_Client_getEndpoints_async(UA_Client *client, size_t *requestId, size_t* endpointDescriptionsSize,
+		UA_EndpointDescription** endpointDescriptions);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 

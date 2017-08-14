@@ -106,6 +106,11 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions);
 
+UA_StatusCode UA_EXPORT
+UA_Client_getEndpoints_async(UA_Client *client, const char *serverUrl,
+                       size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions);
+
 /* Gets a list of all registered servers at the given server.
  *
  * You can pass an optional filter for serverUris. If the given server is not registered,
@@ -180,7 +185,7 @@ UA_Client_connect_async(UA_Client *client, const char *endpointUrl);
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password, UA_Boolean *waiting, UA_Boolean *connected);
+                           const char *username, const char *password);
 
 /* Close a connection to the selected server */
 UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
