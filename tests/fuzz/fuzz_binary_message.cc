@@ -15,8 +15,7 @@
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     UA_Connection c = createDummyConnection();
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = UA_Log_Stdout;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     // we need to copy the message because it will be freed in the processing function
@@ -30,6 +29,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	// if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_deleteMembers(&msg);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);
     return 0;
 }

@@ -87,3 +87,4 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
 add_dependencies(doc open62541)
 
 set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+set_target_properties(doc doc_latex doc_pdf PROPERTIES FOLDER "open62541/doc")

@@ -1,7 +1,25 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2017-08-13 Infinity95 <mark.giraud at student.kit.edu>
 
+ * New/Delete methods for the server configuration
+
+   The default server configuration is no longer a constant global variable.
+   Instead, it is now handled with a pair of new/delete methods. This enables
+   the use of malloced members of the server configuration. With this change,
+   the endpoint descriptions are no longer generated in the server but are
+   created as part of the server configuration. See the example server
+   implementations on how to use the configuration generation. The change is a
+   precursor to the encryption implementation that ties into the generation of
+   endpoint descriptions in the server config.
+
+   The generation of the default server configuration is implemented as a
+   "plugin". So it comes with CC0 licensing and can be freely adjusted by users.
+
+   The TCP port in the default configuration is 4840. This is the recommended
+   port for OPC UA and now used throughout all examples.
+   
 2017-07-04 jpfr <julius.pfrommer at web.de>
 
  * Return partially overlapping ranges

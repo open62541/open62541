@@ -8,6 +8,8 @@
 #include "ua_session_manager.h"
 #include "ua_util.h"
 #include "ua_services.h"
+#include "ua_types_generated.h"
+#include "ua_types_generated_handling.h"
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
@@ -30,7 +32,7 @@ UA_UInt16 addNamespace(UA_Server *server, const UA_String name) {
 
     /* Make the array bigger */
     UA_String *newNS = (UA_String*)UA_realloc(server->namespaces,
-                                  sizeof(UA_String) * (server->namespacesSize + 1));
+                                              sizeof(UA_String) * (server->namespacesSize + 1));
     if(!newNS)
         return 0;
     server->namespaces = newNS;
@@ -70,14 +72,14 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_ReferenceNode *refs = NULL;
     size_t refssize = parent->referencesSize;
     UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
-                                         (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
+        (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_RCU_UNLOCK();
         return retval;
     }
 
     for(size_t i = parent->referencesSize; i > 0; --i) {
-        UA_ReferenceNode *ref = &refs[i-1];
+        UA_ReferenceNode *ref = &refs[i - 1];
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
@@ -100,8 +102,6 @@ void UA_Server_delete(UA_Server *server) {
     UA_NodeStore_delete(server->nodestore);
     UA_RCU_UNLOCK();
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Array_delete(server->endpointDescriptions, server->endpointDescriptionsSize,
-                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
 #ifdef UA_ENABLE_DISCOVERY
     registeredServer_list_entry *rs, *rs_tmp;
@@ -161,62 +161,21 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 #endif
 }
 
-/* Create endpoints w/o endpointurl. It is added from the networklayers at startup */
-static void
-addEndpointDefinitions(UA_Server *server) {
-    server->endpointDescriptions =
-        (UA_EndpointDescription*)UA_Array_new(server->config.networkLayersSize,
-                                              &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    server->endpointDescriptionsSize = server->config.networkLayersSize;
-
-    for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
-        UA_EndpointDescription *endpoint = &server->endpointDescriptions[i];
-        endpoint->securityMode = UA_MESSAGESECURITYMODE_NONE;
-        endpoint->securityPolicyUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
-        endpoint->transportProfileUri =
-            UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-
-        size_t policies = 0;
-        if(server->config.accessControl.enableAnonymousLogin)
-            ++policies;
-        if(server->config.accessControl.enableUsernamePasswordLogin)
-            ++policies;
-        endpoint->userIdentityTokensSize = policies;
-        endpoint->userIdentityTokens =
-            (UA_UserTokenPolicy*)UA_Array_new(policies, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-
-        size_t currentIndex = 0;
-        if(server->config.accessControl.enableAnonymousLogin) {
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
-            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
-            ++currentIndex;
-        }
-        if(server->config.accessControl.enableUsernamePasswordLogin) {
-            UA_UserTokenPolicy_init(&endpoint->userIdentityTokens[currentIndex]);
-            endpoint->userIdentityTokens[currentIndex].tokenType = UA_USERTOKENTYPE_USERNAME;
-            endpoint->userIdentityTokens[currentIndex].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
-        }
-
-        /* The standard says "the HostName specified in the Server Certificate is the
-           same as the HostName contained in the endpointUrl provided in the
-           EndpointDescription */
-        UA_String_copy(&server->config.serverCertificate, &endpoint->serverCertificate);
-        UA_ApplicationDescription_copy(&server->config.applicationDescription, &endpoint->server);
-
-        /* copy the discovery url only once the networlayer has been started */
-        // UA_String_copy(&server->config.networkLayers[i].discoveryUrl, &endpoint->endpointUrl);
-    }
-}
-
 UA_Server *
-UA_Server_new(const UA_ServerConfig config) {
+UA_Server_new(const UA_ServerConfig *config) {
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    server->config = config;
+    if(config->endpoints.count == 0) {
+        UA_LOG_FATAL(config->logger,
+                     UA_LOGCATEGORY_SERVER,
+                     "There has to be at least one endpoint.");
+        UA_free(server);
+        return NULL;
+    }
+
+    server->config = *config;
     server->startTime = UA_DateTime_now();
     server->nodestore = UA_NodeStore_new();
 
@@ -244,9 +203,6 @@ UA_Server_new(const UA_ServerConfig config) {
     server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     UA_String_copy(&server->config.applicationDescription.applicationUri, &server->namespaces[1]);
     server->namespacesSize = 2;
-
-    /* Create Endpoint Definitions */
-    addEndpointDefinitions(server);
 
     /* Initialized SecureChannel and Session managers */
     UA_SecureChannelManager_init(&server->secureChannelManager, server);
