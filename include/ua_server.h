@@ -15,6 +15,7 @@ extern "C" {
 #include "ua_plugin_log.h"
 #include "ua_plugin_network.h"
 #include "ua_plugin_access_control.h"
+#include "ua_plugin_securitypolicy.h"
 
 /**
  * .. _server:
@@ -43,7 +44,6 @@ typedef struct {
     /* Server Description */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
-    UA_ByteString serverCertificate;
 #ifdef UA_ENABLE_DISCOVERY
     UA_String mdnsServerName;
     size_t serverCapabilitiesSize;
@@ -52,11 +52,14 @@ typedef struct {
 
     /* Custom DataTypes */
     size_t customDataTypesSize;
-    const UA_DataType *customDataTypes;
+    UA_DataType *customDataTypes;
 
     /* Networking */
     size_t networkLayersSize;
     UA_ServerNetworkLayer *networkLayers;
+
+    /* Available endpoints */
+    UA_Endpoints endpoints;
 
     /* Access Control */
     UA_AccessControl accessControl;
@@ -97,7 +100,7 @@ typedef struct {
  *
  * Server Lifecycle
  * ---------------- */
-UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig config);
+UA_Server UA_EXPORT * UA_Server_new(const UA_ServerConfig *config);
 void UA_EXPORT UA_Server_delete(UA_Server *server);
 
 /* Runs the main loop of the server. In each iteration, this calls into the

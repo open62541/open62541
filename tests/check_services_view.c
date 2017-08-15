@@ -13,8 +13,8 @@
 #include "ua_network_tcp.h"
 
 UA_Server *server_translate_browse;
+UA_ServerConfig *server_translate_config;
 UA_Boolean *running_translate_browse;
-UA_ServerNetworkLayer nl_translate_browse;
 pthread_t server_thread_translate_browse;
 
 static void *serverloop_register(void *_) {
@@ -27,12 +27,11 @@ static void setup_server(void) {
     // start server
     running_translate_browse = UA_Boolean_new();
     *running_translate_browse = true;
-    UA_ServerConfig config_register = UA_ServerConfig_standard;
-    config_register.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.test.server_translate_browse");
-    nl_translate_browse = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config_register.networkLayers = &nl_translate_browse;
-    config_register.networkLayersSize = 1;
-    server_translate_browse = UA_Server_new(config_register);
+    server_translate_config = UA_ServerConfig_new_default();
+    UA_String_deleteMembers(&server_translate_config->applicationDescription.applicationUri);
+    server_translate_config->applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.test.server_translate_browse");
+    server_translate_browse = UA_Server_new(server_translate_config);
     UA_Server_run_startup(server_translate_browse);
     pthread_create(&server_thread_translate_browse, NULL, serverloop_register, NULL);
 }
@@ -42,9 +41,8 @@ static void teardown_server(void) {
     pthread_join(server_thread_translate_browse, NULL);
     UA_Server_run_shutdown(server_translate_browse);
     UA_Boolean_delete(running_translate_browse);
-    UA_String_deleteMembers(&server_translate_browse->config.applicationDescription.applicationUri);
     UA_Server_delete(server_translate_browse);
-    nl_translate_browse.deleteMembers(&nl_translate_browse);
+    UA_ServerConfig_delete(server_translate_config);
 }
 
 static size_t
@@ -77,7 +75,8 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
 }
 
 START_TEST(Service_Browse_WithMaxResults) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -99,11 +98,13 @@ START_TEST(Service_Browse_WithMaxResults) {
     }
     
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 
 START_TEST(Service_Browse_WithBrowseName) {
-    UA_Server *server = UA_Server_new(UA_ServerConfig_standard);
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -120,13 +121,14 @@ START_TEST(Service_Browse_WithBrowseName) {
 
     UA_BrowseResult_deleteMembers(&br);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 
 START_TEST(Service_TranslateBrowsePathsToNodeIds) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
-    UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     // Just for testing we want to translate the following path to its corresponding node id

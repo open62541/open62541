@@ -21,12 +21,10 @@ static void stopHandler(int sign) {
    can be for example the event-loop used in GUI toolkits, such as Qt or GTK. */
 
 int main(int argc, char** argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGINT, stopHandler);
+    signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     /* Should the server networklayer block (with a timeout) until a message
@@ -59,6 +57,6 @@ int main(int argc, char** argv) {
 
  cleanup:
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return (int)retval;
 }

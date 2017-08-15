@@ -11,16 +11,19 @@
 #include "check.h"
 #include "testing_clock.h"
 
-UA_Server *server = NULL;
+static UA_Server *server = NULL;
+static UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    server = UA_Server_new(UA_ServerConfig_standard);
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 
 UA_UInt32 subscriptionId;
@@ -53,7 +56,6 @@ START_TEST(Server_modifySubscription) {
     request.requestedMaxKeepAliveCount = 1000;
     request.maxNotificationsPerPublish = 1;
     request.priority = 10;
-        
 
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
@@ -97,7 +99,6 @@ START_TEST(Server_republish) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
 
     UA_RepublishResponse_deleteMembers(&response);
-
 }
 END_TEST
 
@@ -115,7 +116,6 @@ START_TEST(Server_republish_invalid) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     UA_RepublishResponse_deleteMembers(&response);
-
 }
 END_TEST
 
@@ -194,7 +194,6 @@ START_TEST(Server_publishCallback) {
 END_TEST
 
 START_TEST(Server_createMonitoredItems) {
-
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -214,7 +213,6 @@ START_TEST(Server_createMonitoredItems) {
     request.itemsToCreateSize = 1;
     request.itemsToCreate = &item;
 
-
     UA_CreateMonitoredItemsResponse response;
     UA_CreateMonitoredItemsResponse_init(&response);
 
@@ -226,7 +224,6 @@ START_TEST(Server_createMonitoredItems) {
     monitoredItemId = response.results[0].monitoredItemId;
 
     UA_MonitoredItemCreateRequest_deleteMembers(&item);
-
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
 }
 END_TEST
@@ -250,7 +247,6 @@ START_TEST(Server_modifyMonitoredItems) {
     request.itemsToModifySize = 1;
     request.itemsToModify = &item;
 
-
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
@@ -260,7 +256,6 @@ START_TEST(Server_modifyMonitoredItems) {
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
 
     UA_MonitoredItemModifyRequest_deleteMembers(&item);
-
     UA_ModifyMonitoredItemsResponse_deleteMembers(&response);
 }
 END_TEST
@@ -281,7 +276,6 @@ START_TEST(Server_setMonitoringMode) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-
     UA_SetMonitoringModeResponse_deleteMembers(&response);
 }
 END_TEST
@@ -300,7 +294,6 @@ START_TEST(Server_deleteMonitoredItems) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
-
 
     UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
 

@@ -49,14 +49,20 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     return UA_STATUSCODE_GOOD;
 }
 
-/* remove the subscription remotely */
-UA_StatusCode
-UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
-    UA_Client_Subscription *sub;
+static UA_Client_Subscription *findSubscription(const UA_Client *client, UA_UInt32 subscriptionId)
+{
+    UA_Client_Subscription *sub = NULL;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->subscriptionID == subscriptionId)
             break;
     }
+    return sub;
+}
+
+/* remove the subscription remotely */
+UA_StatusCode
+UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -110,11 +116,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_MonitoredItemHandlingFunction hf,
                                          void *hfContext, UA_UInt32 *newMonitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -179,11 +181,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 UA_StatusCode
 UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                             UA_UInt32 monitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -227,12 +225,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
-    /* Find the subscription */
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == response->subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         return;
 
@@ -320,7 +313,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             request.subscriptionAcknowledgements =
                 (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
-                return UA_STATUSCODE_GOOD;
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
         int i = 0;

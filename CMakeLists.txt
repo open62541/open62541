@@ -5,8 +5,7 @@ project(open62541)
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(PythonInterp REQUIRED)
 find_package(Git)
-
-set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
+include(AssignSourceGroup)
 
 #############################
 # Compiled binaries folders #
@@ -15,12 +14,6 @@ set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORC
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
-#################
-# Cmake modules #
-#################
-
-include(AssignSourceGroup)
 
 ###########
 # Version #
@@ -244,9 +237,11 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file("include/ua_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/ua_config.h")
 configure_file("include/open62541.pc.in" "${PROJECT_BINARY_DIR}/src_generated/open62541.pc" @ONLY)
 
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
+    set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
+
 include_directories(${PROJECT_BINARY_DIR}/src_generated
                     ${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the standard config
@@ -261,6 +256,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
@@ -342,6 +338,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c)
+
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
 endif()
@@ -364,11 +361,21 @@ if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
 endif()
 
-if (UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST)
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
-    set(internal_headers "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h" ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h  ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h ${internal_headers} )
+    set(internal_headers ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
+                         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h
+                         ${internal_headers} )
     list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_mdns_internal.h)
-    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c ${lib_sources})
+    set(lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_mdns.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+                    ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+                    ${lib_sources})
 endif()
 
 #########################
@@ -443,11 +450,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
 
-add_custom_target(open62541_amalgamation_source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
-add_custom_target(open62541_amalgamation_header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
+add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
+add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
 
-add_dependencies(open62541_amalgamation_source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
-add_dependencies(open62541_amalgamation_header open62541-generator-types)
+add_dependencies(open62541-amalgamation-source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
+add_dependencies(open62541-amalgamation-header open62541-generator-types)
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
@@ -477,6 +484,7 @@ add_custom_target(open62541-generator-namespace DEPENDS
 assign_source_group(${lib_sources})
 assign_source_group(${internal_headers})
 assign_source_group(${exported_headers})
+assign_source_group(${default_plugin_sources})
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -485,7 +493,9 @@ if(UA_ENABLE_AMALGAMATION)
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
     # the header is already a dependency of open62541 target itself
-    add_dependencies(open62541-object open62541_amalgamation_source)
+    add_dependencies(open62541-object
+            open62541-amalgamation-header
+            open62541-amalgamation-source)
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
@@ -495,7 +505,11 @@ if(UA_ENABLE_AMALGAMATION)
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    add_dependencies(open62541-object open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
+    add_dependencies(open62541-object
+            open62541-amalgamation-header
+            open62541-generator-types
+            open62541-generator-transport
+            open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
@@ -503,6 +517,7 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+    set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
@@ -513,7 +528,7 @@ else()
 endif()
 
 if(UA_ENABLE_GENERATE_NAMESPACE0)
-    add_dependencies(open62541_amalgamation_source open62541-generator-namespace)
+    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
     if(NOT UA_ENABLE_AMALGAMATION)
         add_dependencies(open62541-object open62541-generator-namespace)
     endif()
@@ -529,9 +544,6 @@ endif()
 
 # DLL requires linking to dependencies
 target_link_libraries(open62541 ${open62541_LIBRARIES})
-
-# Always generate the amalgamated header
-add_dependencies(open62541 open62541_amalgamation_header)
 
 # Generate properly versioned shared library links on Linux
 SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION 0 VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
@@ -666,3 +678,5 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(lint PROPERTIES FOLDER "CodeAnalysis")
+set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")

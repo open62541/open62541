@@ -50,16 +50,16 @@ int main(int argc, char **argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.applicationDescription.applicationUri = UA_String_fromChars("urn:open62541.example.server_register");
-    config.mdnsServerName = UA_String_fromChars("Sample Server");
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_String_deleteMembers(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.example.server_register");
+    config->mdnsServerName = UA_String_fromChars("Sample Server");
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     //config.serverCapabilitiesSize = 1;
     //UA_String caps = UA_String_fromChars("LDS");
     //config.serverCapabilities = &caps;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+
     UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
@@ -91,10 +91,9 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
-        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-        return (int) retval;
+        UA_ServerConfig_delete(config);
+        return (int)retval;
     }
 
     retval = UA_Server_run(server, &running);
@@ -102,30 +101,20 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not start the server. StatusCode %s",
                      UA_StatusCode_name(retval));
-        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
         UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-        return (int) retval;
+        UA_ServerConfig_delete(config);
+        return (int)retval;
     }
 
     // UNregister the server from the discovery server.
     retval = UA_Server_unregister_discovery(server, DISCOVERY_SERVER_ENDPOINT);
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
-        UA_String_deleteMembers(&config.applicationDescription.applicationUri);
-        UA_Server_delete(server);
-        nl.deleteMembers(&nl);
-        return (int) retval;
-    }
 
-    UA_String_deleteMembers(&config.applicationDescription.applicationUri);
-    UA_String_deleteMembers(&config.mdnsServerName);
-    //UA_Array_delete(config.serverCapabilities, config.serverCapabilitiesSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-
-    return (int) retval;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }

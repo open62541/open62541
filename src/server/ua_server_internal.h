@@ -21,9 +21,6 @@ extern "C" {
 #include "mdnsd/libmdnsd/mdnsd.h"
 #endif
 
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define USERNAME_POLICY "open62541-username-policy"
-
 /* The general idea of RCU is to delay freeing nodes (or any callback invoked
  * with call_rcu) until all threads have left their critical section. Thus we
  * can delete nodes safely in concurrent operations. The macros UA_RCU_LOCK and
@@ -100,8 +97,6 @@ typedef struct serverOnNetwork_hash_entry {
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
-    size_t endpointDescriptionsSize;
-    UA_EndpointDescription *endpointDescriptions;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;

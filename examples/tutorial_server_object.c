@@ -314,11 +314,7 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl =
-        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
     s = server; /* required for the constructor */
 
@@ -330,8 +326,8 @@ int main(void) {
     addPumpObjectInstance(server, "pump4");
     addPumpObjectInstance(server, "pump5");
 
-    UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-    return 0;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }

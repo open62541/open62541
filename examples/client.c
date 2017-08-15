@@ -24,12 +24,12 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
+    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -45,8 +45,8 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     /* Connect to a server */
-    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664"); */
-    retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
+    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+    retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_UInt32 subId = 0;
-    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     /* Add a MonitoredItem */
