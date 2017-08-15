@@ -15,7 +15,7 @@
 
 UA_Server *server;
 UA_ServerConfig *config;
-UA_Boolean *running;
+UA_Boolean running;
 UA_ServerNetworkLayer nl;
 pthread_t server_thread;
 
@@ -25,14 +25,13 @@ UA_Client *client;
 #define CUSTOM_NS_UPPER "http://open62541.org/ns/Test"
 
 static void *serverloop(void *_) {
-    while (*running)
+    while (running)
         UA_Server_run_iterate(server, true);
     return NULL;
 }
 
 static void setup(void) {
-    running = UA_Boolean_new();
-    *running = true;
+    running = true;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
 
@@ -49,10 +48,9 @@ static void setup(void) {
 static void teardown(void) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    *running = false;
+    running = false;
     pthread_join(server_thread, NULL);
     UA_Server_run_shutdown(server);
-    UA_Boolean_delete(running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }
