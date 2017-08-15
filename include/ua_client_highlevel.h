@@ -587,6 +587,22 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
+typedef void (*UA_MonitoredEventHandlingFunction)(UA_UInt32 monId,
+                                                  size_t nEventFields,
+                                                  UA_Variant *eventFields,
+                                                  void *context);
+
+UA_StatusCode
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
+                                          UA_NodeId nodeId, UA_UInt32 attributeID,
+                                          UA_SimpleAttributeOperand *selectClause,
+                                          size_t nSelectClauses,
+                                          UA_MonitoredEventHandlingFunction hf,
+                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
+
+// FIXME: do not forget about removeMonitoredEvent!
+
+
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
                                                  UA_DataValue *value,
                                                  void *context);

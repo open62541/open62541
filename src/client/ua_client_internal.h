@@ -31,6 +31,8 @@ typedef struct UA_Client_MonitoredItem {
     UA_Boolean discardOldest;
     void (*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
     void *handlerContext;
+    void (*handlerEvents)(UA_UInt32 monId, size_t nEventFields, UA_Variant *eventFields, void *context);
+    void *handlerEventsContext;
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription {
