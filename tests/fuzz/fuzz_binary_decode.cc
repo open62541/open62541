@@ -4,7 +4,7 @@
 
 #include <ua_types.h>
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_types_encoding_binary.h"
 

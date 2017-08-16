@@ -242,7 +242,7 @@ endif()
 
 include_directories(${PROJECT_BINARY_DIR}/src_generated
                     ${PROJECT_SOURCE_DIR}/include
-                    ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the standard config
+                    ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the default config
                     ${PROJECT_SOURCE_DIR}/deps)
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
@@ -262,7 +262,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                      ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.h)
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -336,7 +336,7 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c)
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
@@ -378,12 +378,13 @@ endif()
 # Generate source files #
 #########################
 
-if (UA_DATATYPES_FILE STREQUAL "")
-    set(SELECTED_TYPES_TMP "")
+if(UA_DATATYPES_FILE STREQUAL "")
+  set(SELECTED_TYPES_TMP "")
 else()
-    set(SELECTED_TYPES_TMP "--selected-types=${UA_DATATYPES_FILE}")
+  set(SELECTED_TYPES_TMP "--selected-types=${UA_DATATYPES_FILE}")
 endif()
 
+# standard-defined data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h

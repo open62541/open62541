@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 #include "ua_server.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 

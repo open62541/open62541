@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_plugin_log.h"
 #include "testing_networklayers.h"

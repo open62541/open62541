@@ -4,7 +4,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 

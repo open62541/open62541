@@ -6,7 +6,7 @@
 #include <stdlib.h>
 
 #include "ua_types.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "check.h"
 
 #ifdef __clang__

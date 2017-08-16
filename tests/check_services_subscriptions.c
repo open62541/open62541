@@ -6,7 +6,7 @@
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
 #include "server/ua_subscription.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #include "check.h"
 #include "testing_clock.h"
