@@ -246,7 +246,7 @@ class open62541_MacroHelper():
     if nodetype != "Method":
       code.append("       , attr, NULL, NULL);")
     else:
-      code.append("       , attr, (UA_MethodCallback) NULL, NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL);")
+      code.append("       , attr, (UA_MethodCallback) NULL, " + str(len(inArgVal)) + ", inputArguments,  " + str(len(outArgVal)) + ", outputArguments, NULL, NULL);")
       
     #Adding a Node with typeDefinition = UA_NODEID_NULL will create a HasTypeDefinition reference to BaseDataType - remove it since 
     #a real Reference will be add in a later step (a single HasTypeDefinition reference is assumed here)

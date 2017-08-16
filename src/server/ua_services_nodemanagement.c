@@ -250,7 +250,7 @@ fillVariableNodeAttributes(UA_Server *server, UA_Session *session,
     }
 
     UA_DataValue_deleteMembers(&value);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
