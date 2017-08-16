@@ -98,14 +98,8 @@ mark_as_advanced(UA_DATATYPES_FILE)
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
 
-option(UA_ENABLE_NONSTANDARD_STATELESS "Enable stateless extension (non-standard)" OFF)
-mark_as_advanced(UA_ENABLE_NONSTANDARD_STATELESS)
-
 option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
-if(UA_ENABLE_NONSTANDARD_UDP)
-  set(UA_ENABLE_NONSTANDARD_STATELESS ON)
-endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
