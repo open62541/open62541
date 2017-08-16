@@ -187,10 +187,14 @@ struct UA_ServerNetworkLayer {
  * Client Network Layer
  * --------------------
  * The client has only a single connection. The connection is used for both
- * sending and receiving binary messages. */
+ * sending and receiving binary messages.
+ * @param localConf the connection config for this client
+ * @param endpointUrl to where to connect
+ * @param timeout in ms until the connection try times out if remote not reachable
+ * */
 
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl, const UA_UInt32 timeout);
 
 /**
  * Endpoint URL Parser
