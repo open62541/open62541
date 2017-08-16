@@ -7,17 +7,11 @@
 #include <time.h>
 
 #include "check.h"
-#include "server/ua_nodestore.h"
 #include "server/ua_services.h"
 #include "ua_client.h"
 #include "ua_types.h"
 #include "ua_config_default.h"
 #include "server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_MULTITHREADING
-#include <pthread.h>
-#include <urcu.h>
-#endif
 
 static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;

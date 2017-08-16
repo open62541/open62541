@@ -5,8 +5,7 @@
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
-#include "ua_types_generated.h"
-#include "ua_types.h"
+#include "ua_nodestore_default.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -26,9 +25,9 @@ UA_DURATIONRANGE(UA_Double min, UA_Double max) {
     return range;
 }
 
- /*******************************/
- /* Default Connection Settings */
- /*******************************/
+/*******************************/
+/* Default Connection Settings */
+/*******************************/
 
 const UA_ConnectionConfig UA_ConnectionConfig_default = {
     0, /* .protocolVersion */
@@ -185,11 +184,17 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
 
     /* --> Finish setting the default static config <-- */
 
+    UA_StatusCode retval = UA_Nodestore_default_new(&conf->nodestore);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_delete(conf);
+        return NULL;
+    }
+
     /* Add a network layer */
     conf->networkLayers = (UA_ServerNetworkLayer*)
         UA_malloc(sizeof(UA_ServerNetworkLayer));
     if(!conf->networkLayers) {
-        UA_free(conf);
+        UA_ServerConfig_delete(conf);
         return NULL;
     }
     conf->networkLayers[0] =
@@ -199,22 +204,16 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     /* Allocate the endpoint */
     conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint));
     if(!conf->endpoints.endpoints) {
-        conf->networkLayers[0].deleteMembers(&conf->networkLayers[0]);
-        UA_free(conf->networkLayers);
-        UA_free(conf);
+        UA_ServerConfig_delete(conf);
         return NULL;
     }
     conf->endpoints.count = 1;
 
     /* Populate the endpoint */
-    UA_StatusCode retval =
-        createSecurityPolicyNoneEndpoint(conf, &conf->endpoints.endpoints[0],
-                                         certificate);
+    retval = createSecurityPolicyNoneEndpoint(conf, &conf->endpoints.endpoints[0],
+                                              certificate);
     if(retval != UA_STATUSCODE_GOOD) {
-        conf->networkLayers[0].deleteMembers(&conf->networkLayers[0]);
-        UA_free(conf->networkLayers);
-        UA_free(conf->endpoints.endpoints);
-        UA_free(conf);
+        UA_ServerConfig_delete(conf);
         return NULL;
     }
 
@@ -236,6 +235,10 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* config->serverCapabilities = NULL; */
     /* config->serverCapabilitiesSize = 0; */
 #endif
+
+    /* Nodestore */
+    if(config->nodestore.deleteNodestore)
+        config->nodestore.deleteNodestore(config->nodestore.context);
 
     /* Custom DataTypes */
     for(size_t i = 0; i < config->customDataTypesSize; ++i)

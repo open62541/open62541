@@ -3,12 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
-#include "ua_nodes.h"
 
 /* There is no UA_Node_new() method here. Creating nodes is part of the
  * NodeStore layer */
 
-void UA_Node_deleteMembersAnyNodeClass(UA_Node *node) {
+void UA_Node_deleteMembers(UA_Node *node) {
     /* Delete standard content */
     UA_NodeId_deleteMembers(&node->nodeId);
     UA_QualifiedName_deleteMembers(&node->browseName);
@@ -134,7 +133,8 @@ UA_ViewNode_copy(const UA_ViewNode *src, UA_ViewNode *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
+UA_StatusCode
+UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     if(src->nodeClass != dst->nodeClass)
         return UA_STATUSCODE_BADINTERNALERROR;
     
@@ -148,18 +148,17 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     dst->context = src->context;
     dst->constructed = src->constructed;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Node_deleteMembersAnyNodeClass(dst);
+        UA_Node_deleteMembers(dst);
         return retval;
     }
 
     /* Copy the references */
     dst->references = NULL;
     if(src->referencesSize > 0) {
-        dst->references =
-            (UA_NodeReferenceKind*)UA_calloc(src->referencesSize,
-                                             sizeof(UA_NodeReferenceKind));
+        dst->references = (UA_NodeReferenceKind*)
+            UA_calloc(src->referencesSize, sizeof(UA_NodeReferenceKind));
         if(!dst->references) {
-            UA_Node_deleteMembersAnyNodeClass(dst);
+            UA_Node_deleteMembers(dst);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dst->referencesSize = src->referencesSize;
@@ -179,7 +178,7 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
             drefs->targetIdsSize = srefs->targetIdsSize;
         }
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_Node_deleteMembersAnyNodeClass(dst);
+            UA_Node_deleteMembers(dst);
             return retval;
         }
     }
@@ -215,7 +214,7 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
     }
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Node_deleteMembersAnyNodeClass(dst);
+        UA_Node_deleteMembers(dst);
 
     return retval;
 }
@@ -225,12 +224,11 @@ UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst) {
 /******************************/
 
 static UA_StatusCode
-copyStandardAttributes(UA_Node *node, const UA_AddNodesItem *item,
-                       const UA_NodeAttributes *attr) {
-    UA_StatusCode retval;
-    retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId);
-    retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName);
-    retval |= UA_LocalizedText_copy(&attr->displayName, &node->displayName);
+copyStandardAttributes(UA_Node *node, const UA_NodeAttributes *attr) {
+    /* retval  = UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
+    /* retval |= UA_QualifiedName_copy(&item->browseName, &node->browseName); */
+    UA_StatusCode retval = UA_LocalizedText_copy(&attr->displayName,
+                                                 &node->displayName);
     retval |= UA_LocalizedText_copy(&attr->description, &node->description);
     node->writeMask = attr->writeMask;
     return retval;
@@ -318,72 +316,58 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
     return UA_STATUSCODE_GOOD;
 }
 
-#define CHECK_ATTRIBUTES(TYPE)                                          \
-    if(item->nodeAttributes.content.decoded.type != &UA_TYPES[UA_TYPES_##TYPE]) { \
-        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID;                \
-        break;                                                          \
+#define CHECK_ATTRIBUTES(TYPE)                           \
+    if(attributeType != &UA_TYPES[UA_TYPES_##TYPE]) {    \
+        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID; \
+        break;                                           \
     }
 
-/* Copy the attributes into a new node. On success, newNode points to the
- * created node */
 UA_StatusCode
-UA_Node_createFromAttributes(const UA_AddNodesItem *item, UA_Node **newNode) {
-    /* Check that we can read the attributes */
-    if(item->nodeAttributes.encoding < UA_EXTENSIONOBJECT_DECODED ||
-       !item->nodeAttributes.content.decoded.type)
-        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;
-
-    /* Create the node */
-    // todo: error case where the nodeclass is faulty should return a different
-    // status code
-    UA_Node *node = UA_NodeStore_newNode(item->nodeClass);
-    if(!node)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+UA_Node_setAttributes(UA_Node *node, const void *attributes,
+                      const UA_DataType *attributeType) {
 
     /* Copy the attributes into the node */
-    void *data = item->nodeAttributes.content.decoded.data;
-    UA_StatusCode retval = copyStandardAttributes(node, item,
-                                                  (const UA_NodeAttributes*)data);
-    switch(item->nodeClass) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
         CHECK_ATTRIBUTES(OBJECTATTRIBUTES);
-        retval |= copyObjectNodeAttributes((UA_ObjectNode*)node,
-                                           (const UA_ObjectAttributes*)data);
+        retval = copyObjectNodeAttributes((UA_ObjectNode*)node,
+                                          (const UA_ObjectAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLE:
         CHECK_ATTRIBUTES(VARIABLEATTRIBUTES);
-        retval |= copyVariableNodeAttributes((UA_VariableNode*)node,
-                                             (const UA_VariableAttributes*)data);
+        retval = copyVariableNodeAttributes((UA_VariableNode*)node,
+                                            (const UA_VariableAttributes*)attributes);
         break;
     case UA_NODECLASS_OBJECTTYPE:
         CHECK_ATTRIBUTES(OBJECTTYPEATTRIBUTES);
-        retval |= copyObjectTypeNodeAttributes((UA_ObjectTypeNode*)node,
-                                               (const UA_ObjectTypeAttributes*)data);
+        retval = copyObjectTypeNodeAttributes((UA_ObjectTypeNode*)node,
+                                              (const UA_ObjectTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VARIABLETYPE:
         CHECK_ATTRIBUTES(VARIABLETYPEATTRIBUTES);
-        retval |= copyVariableTypeNodeAttributes((UA_VariableTypeNode*)node,
-                                                 (const UA_VariableTypeAttributes*)data);
+        retval = copyVariableTypeNodeAttributes((UA_VariableTypeNode*)node,
+                                                (const UA_VariableTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_REFERENCETYPE:
         CHECK_ATTRIBUTES(REFERENCETYPEATTRIBUTES);
-        retval |= copyReferenceTypeNodeAttributes((UA_ReferenceTypeNode*)node,
-                                                  (const UA_ReferenceTypeAttributes*)data);
+        retval = copyReferenceTypeNodeAttributes((UA_ReferenceTypeNode*)node,
+                                                 (const UA_ReferenceTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_DATATYPE:
         CHECK_ATTRIBUTES(DATATYPEATTRIBUTES);
-        retval |= copyDataTypeNodeAttributes((UA_DataTypeNode*)node,
-                                             (const UA_DataTypeAttributes*)data);
+        retval = copyDataTypeNodeAttributes((UA_DataTypeNode*)node,
+                                            (const UA_DataTypeAttributes*)attributes);
         break;
     case UA_NODECLASS_VIEW:
         CHECK_ATTRIBUTES(VIEWATTRIBUTES);
-        retval |= copyViewNodeAttributes((UA_ViewNode*)node,
-                                         (const UA_ViewAttributes*)data);
+        retval = copyViewNodeAttributes((UA_ViewNode*)node,
+                                        (const UA_ViewAttributes*)attributes);
         break;
     case UA_NODECLASS_METHOD:
         CHECK_ATTRIBUTES(METHODATTRIBUTES);
-        retval |= copyMethodNodeAttributes((UA_MethodNode*)node,
-                                           (const UA_MethodAttributes*)data);
+        retval = copyMethodNodeAttributes((UA_MethodNode*)node,
+                                          (const UA_MethodAttributes*)attributes);
         break;
     case UA_NODECLASS_UNSPECIFIED:
     default:
@@ -391,10 +375,9 @@ UA_Node_createFromAttributes(const UA_AddNodesItem *item, UA_Node **newNode) {
     }
 
     if(retval == UA_STATUSCODE_GOOD)
-        *newNode = (UA_Node*)node;
-    else
-        UA_NodeStore_deleteNode(node);
-
+        retval = copyStandardAttributes(node, (const UA_NodeAttributes*)attributes);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_Node_deleteMembers(node);
     return retval;
 }
 

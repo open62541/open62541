@@ -158,10 +158,13 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
     UA_Double samplingInterval = params->samplingInterval;
     if(mon->attributeID == UA_ATTRIBUTEID_VALUE) {
         const UA_VariableNode *vn = (const UA_VariableNode*)
-            UA_NodeStore_get(server->nodestore, &mon->monitoredNodeId);
-        if(vn && vn->nodeClass == UA_NODECLASS_VARIABLE &&
-           samplingInterval <  vn->minimumSamplingInterval)
-            samplingInterval = vn->minimumSamplingInterval;
+            UA_Nodestore_get(server, &mon->monitoredNodeId);
+        if(vn) {
+            if(vn->nodeClass == UA_NODECLASS_VARIABLE &&
+               samplingInterval <  vn->minimumSamplingInterval)
+                samplingInterval = vn->minimumSamplingInterval;
+            UA_Nodestore_release(server, (const UA_Node*)vn);
+        }
     } else if(mon->attributeID == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: events should not need a samplinginterval */
         samplingInterval = 10000.0f; // 10 seconds to reduce the load
@@ -195,7 +198,6 @@ setMonitoredItemSettings(UA_Server *server, UA_MonitoredItem *mon,
 }
 
 static const UA_String binaryEncoding = {sizeof("Default Binary")-1, (UA_Byte*)"Default Binary"};
-/* static const UA_String xmlEncoding = {sizeof("Default Xml")-1, (UA_Byte*)"Default Xml"}; */
 
 /* Thread-local variables to pass additional arguments into the operation */
 static UA_THREAD_LOCAL UA_Subscription *op_sub;
