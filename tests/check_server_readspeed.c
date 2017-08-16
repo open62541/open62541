@@ -26,9 +26,10 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                              parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL, NULL);
+    UA_StatusCode retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                                     parentReferenceNodeId, myIntegerName,
+                                                     UA_NODEID_NULL, attr, NULL, NULL);
+    assert(retval == UA_STATUSCODE_GOOD);
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -41,7 +42,6 @@ int main(int argc, char** argv) {
     request.nodesToReadSize = 1;
     request.nodesToRead = &rvi;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ByteString request_msg;
     retval |= UA_ByteString_allocBuffer(&request_msg, 1000);
     UA_ByteString response_msg;

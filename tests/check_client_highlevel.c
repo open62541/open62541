@@ -210,18 +210,19 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NULL;
+    target.nodeId = newObjectId;
+
     // Add 'Top' to view
     retval = UA_Client_addReference(client, newViewId, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                    UA_TRUE, UA_STRING_NULL,
-                                    UA_EXPANDEDNODEID_NUMERIC(1, newObjectId.identifier.numeric),
-                                    UA_NODECLASS_VARIABLE);
+                                    UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_VARIABLE);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // Delete 'Top' from view
     retval = UA_Client_deleteReference(client, newViewId,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_TRUE,
-                                       UA_EXPANDEDNODEID_NUMERIC(1, newObjectId.identifier.numeric), UA_TRUE);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       true, target, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // Delete 'AllTopCoordinates' view
@@ -817,14 +818,12 @@ START_TEST(Node_ReadWrite_DataType) {
     UA_NodeId dataType;
 
     // read to check if node id was changed
-    UA_StatusCode retval = UA_Client_readDataTypeAttribute(client, nodeReadWriteGeneric, &dataType);
+    UA_StatusCode retval = UA_Client_readDataTypeAttribute(client, nodeReadWriteInt, &dataType);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_int_eq(dataType.identifierType, UA_NODEIDTYPE_NUMERIC);
-    ck_assert_int_eq(dataType.namespaceIndex, 0);
-    ck_assert_int_eq(dataType.identifier.numeric, UA_NS0ID_BASEDATATYPE);
+    ck_assert(UA_NodeId_equal(&dataType, &UA_TYPES[UA_TYPES_INT32].typeId));
 
-    UA_NodeId newDataType = UA_TYPES[UA_TYPES_UINT32].typeId;
+    UA_NodeId newDataType = UA_TYPES[UA_TYPES_VARIANT].typeId;
     retval = UA_Client_writeDataTypeAttribute(client, nodeReadWriteGeneric, &newDataType);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -856,7 +855,6 @@ END_TEST
 
 
 START_TEST(Node_ReadWrite_ArrayDimensions) {
-
     UA_UInt32 *arrayDimsRead;
     size_t arrayDimsReadSize;
     UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,

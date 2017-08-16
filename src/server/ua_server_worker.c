@@ -55,7 +55,6 @@ workerLoop(UA_Worker *worker) {
     /* Initialize the (thread local) random seed with the ram address
      * of the worker. Not for security-critical entropy! */
     UA_random_seed((uintptr_t)worker);
-    rcu_register_thread();
 
     while(*running) {
         UA_atomic_add(counter, 1);
@@ -76,15 +75,10 @@ workerLoop(UA_Worker *worker) {
             continue;
         }
         
-        UA_RCU_LOCK();
         dc->callback(server, dc->data);
         UA_free(dc);
-        UA_RCU_UNLOCK();
     }
 
-    UA_ASSERT_RCU_UNLOCKED();
-    rcu_barrier();
-    rcu_unregister_thread();
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Worker shut down");
     return NULL;
@@ -389,9 +383,6 @@ UA_Server_run_shutdown(UA_Server *server) {
      * This also executes the delayed callbacks. */
     emptyDispatchQueue(server);
     
-    /* Wait for all scheduled call_rcu work to complete */
-    UA_ASSERT_RCU_UNLOCKED();
-    rcu_barrier();
 #endif
 
     /* Stop multicast discovery */

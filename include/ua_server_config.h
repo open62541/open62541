@@ -14,6 +14,7 @@ extern "C" {
 #include "ua_plugin_network.h"
 #include "ua_plugin_access_control.h"
 #include "ua_plugin_securitypolicy.h"
+#include "ua_plugin_nodestore.h"
 
 /**
  * Server Configuration
@@ -47,6 +48,9 @@ struct UA_ServerConfig {
     /* Custom DataTypes */
     size_t customDataTypesSize;
     UA_DataType *customDataTypes;
+
+    /* Nodestore */
+    UA_Nodestore nodestore;
 
     /* Networking */
     size_t networkLayersSize;

@@ -8,7 +8,7 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "check.h"
 
 UA_Server *server;

@@ -86,12 +86,12 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /********************************/
 
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
              const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
 
-    const UA_Node *node = UA_NodeStore_get(ns, leafNode);
+    const UA_Node *node = ns->getNode(ns->context, leafNode);
     if(!node)
         return false;
 
@@ -115,24 +115,33 @@ isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
         /* Match the targets or recurse */
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
             if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
-                            referenceTypeIds, referenceTypeIdsSize))
+                            referenceTypeIds, referenceTypeIdsSize)) {
+                ns->releaseNode(ns->context, node);
                 return true;
+            }
         }
     }
+
+    ns->releaseNode(ns->context, node);
     return false;
 }
 
-const UA_NodeId *
+const UA_Node *
 getNodeType(UA_Server *server, const UA_Node *node) {
+    /* The reference to the parent is different for variable and variabletype */
     UA_NodeId parentRef;
     UA_Boolean inverse;
-
-    /* The reference to the parent is different for variable and variabletype */
+    UA_NodeClass typeNodeClass;
     switch(node->nodeClass) {
     case UA_NODECLASS_OBJECT:
+        parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
+        inverse = false;
+        typeNodeClass = UA_NODECLASS_OBJECTTYPE;
+        break;
     case UA_NODECLASS_VARIABLE:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION);
         inverse = false;
+        typeNodeClass = UA_NODECLASS_VARIABLETYPE;
         break;
     case UA_NODECLASS_OBJECTTYPE:
     case UA_NODECLASS_VARIABLETYPE:
@@ -140,45 +149,29 @@ getNodeType(UA_Server *server, const UA_Node *node) {
     case UA_NODECLASS_DATATYPE:
         parentRef = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
         inverse = true;
+        typeNodeClass = node->nodeClass;
         break;
     default:
-        return &UA_NODEID_NULL;
+        return NULL;
     }
 
-    /* Stop at the first matching candidate */
+    /* Return the first matching candidate */
     for(size_t i = 0; i < node->referencesSize; ++i) {
         if(node->references[i].isInverse != inverse)
             continue;
         if(!UA_NodeId_equal(&node->references[i].referenceTypeId, &parentRef))
             continue;
         UA_assert(node->references[i].targetIdsSize > 0);
-        return &node->references[i].targetIds[0].nodeId;
+        const UA_NodeId *targetId = &node->references[i].targetIds[0].nodeId;
+        const UA_Node *type = UA_Nodestore_get(server, targetId);
+        if(!type)
+            continue;
+        if(type->nodeClass == typeNodeClass)
+            return type;
+        UA_Nodestore_release(server, type);
     }
-    return &UA_NODEID_NULL;
-}
 
-const UA_VariableTypeNode *
-getVariableNodeType(UA_Server *server, const UA_VariableNode *node) {
-    const UA_NodeId *vtId = getNodeType(server, (const UA_Node*)node);
-    const UA_Node *vt = UA_NodeStore_get(server->nodestore, vtId);
-    if(!vt || vt->nodeClass != UA_NODECLASS_VARIABLETYPE) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "No VariableType for the node found");
-        return NULL;
-    }
-    return (const UA_VariableTypeNode*)vt;
-}
-
-const UA_ObjectTypeNode *
-getObjectNodeType(UA_Server *server, const UA_ObjectNode *node) {
-    const UA_NodeId *otId = getNodeType(server, (const UA_Node*)node);
-    const UA_Node *ot = UA_NodeStore_get(server->nodestore, otId);
-    if(!ot || ot->nodeClass != UA_NODECLASS_OBJECTTYPE) {
-        UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "No ObjectType for the node found");
-        return NULL;
-    }
-    return (const UA_ObjectTypeNode*)ot;
+    return NULL;
 }
 
 UA_Boolean
@@ -251,7 +244,7 @@ getTypeHierarchyFromNode(UA_NodeId **results_ptr, size_t *results_count,
 }
 
 UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *leafType,
+getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
                  UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
     /* Allocate the results array. Probably too big, but saves mallocs. */
     size_t results_size = 20;
@@ -270,7 +263,7 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *leafType,
     /* Loop over the array members .. and add new elements to the end */
     for(size_t idx = 0; idx < results_count; ++idx) {
         /* Get the node */
-        const UA_Node *node = UA_NodeStore_get(ns, &results[idx]);
+        const UA_Node *node = ns->getNode(ns->context, &results[idx]);
 
         /* Invalid node, remove from the array */
         if(!node) {
@@ -283,8 +276,14 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *leafType,
         /* Add references from the current node to the end of the array */
         retval = getTypeHierarchyFromNode(&results, &results_count,
                                           &results_size, node);
-        if(retval != UA_STATUSCODE_GOOD)
+
+        /* Release the node */
+        ns->releaseNode(ns->context, node);
+
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(results, results_count, &UA_TYPES[UA_TYPES_NODEID]);
             return retval;
+        }
     }
 
     /* Zero results. The leaf node was not found */
@@ -299,36 +298,35 @@ getTypeHierarchy(UA_NodeStore *ns, const UA_NodeId *leafType,
 }
 
 /* For mulithreading: make a copy of the node, edit and replace.
- * For singletrheading: edit the original */
+ * For singlethreading: edit the original */
 UA_StatusCode
 UA_Server_editNode(UA_Server *server, UA_Session *session,
                    const UA_NodeId *nodeId, UA_EditNodeCallback callback,
                    const void *data) {
 #ifndef UA_ENABLE_MULTITHREADING
-    const UA_Node *node = UA_NodeStore_get(server->nodestore, nodeId);
+    const UA_Node *node = UA_Nodestore_get(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_Node *editNode = (UA_Node*)(uintptr_t)node; // dirty cast
-    return callback(server, session, editNode, data);
+    UA_StatusCode retval = callback(server, session,
+                                    (UA_Node*)(uintptr_t)node, data);
+    UA_Nodestore_release(server, node);
+    return retval;
 #else
     UA_StatusCode retval;
     do {
-        UA_RCU_LOCK();
-        UA_Node *copy = UA_NodeStore_getCopy(server->nodestore, nodeId);
-        if(!copy) {
-            UA_RCU_UNLOCK();
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        retval = callback(server, session, copy, data);
+        UA_Node *node;
+        retval = server->config.nodestore.getNodeCopy(server->config.nodestore.context,
+                                                      nodeId, &node);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = callback(server, session, node, data);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_NodeStore_deleteNode(copy);
-            UA_RCU_UNLOCK();
+            server->config.nodestore.deleteNode(server->config.nodestore.context, node);
             return retval;
         }
-        retval = UA_NodeStore_replace(server->nodestore, copy);
-        UA_RCU_UNLOCK();
+        retval = server->config.nodestore.replaceNode(server->config.nodestore.context, node);
     } while(retval != UA_STATUSCODE_GOOD);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 #endif
 }
 
@@ -445,3 +443,4 @@ const UA_ViewAttributes UA_ViewAttributes_default = {
     false,                  /* containsNoLoops */
     0                       /* eventNotifier */
 };
+

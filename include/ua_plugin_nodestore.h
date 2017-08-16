@@ -95,18 +95,23 @@ UA_StatusCode UA_EXPORT
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType);
 
+/* Reset the destination node and copy the content of the source */
 UA_StatusCode UA_EXPORT
 UA_Node_copy(const UA_Node *src, UA_Node *dst);
 
+/* Add a single reference to the node */
 UA_StatusCode UA_EXPORT
 UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item);
 
+/* Delete a single reference from the node */
 UA_StatusCode UA_EXPORT
 UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
 
+/* Delete all references of the node */
 void UA_EXPORT
 UA_Node_deleteReferences(UA_Node *node);
 
+/* Remove all malloc'ed members of the node */
 void UA_EXPORT
 UA_Node_deleteMembers(UA_Node *node);
 

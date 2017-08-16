@@ -152,7 +152,7 @@ else()
     endif()
 endif()
 if(UA_ENABLE_MULTITHREADING)
-  list(APPEND open62541_LIBRARIES urcu-cds urcu urcu-common)
+  list(APPEND open62541_LIBRARIES urcu-cds urcu-bp urcu-common)
 endif(UA_ENABLE_MULTITHREADING)
 
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
@@ -256,13 +256,10 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_securitypolicy.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h)
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h)
 
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -275,11 +272,9 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_connection_internal.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
                      ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/ua_timer.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
@@ -293,36 +288,31 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_statuscode_descriptions.c
                 ${PROJECT_SOURCE_DIR}/src/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
+                ${PROJECT_SOURCE_DIR}/src/ua_session.c
                 ${PROJECT_SOURCE_DIR}/src/ua_connection.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/ua_session.c
-                ${PROJECT_SOURCE_DIR}/src/ua_timer.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
-                # nodestores
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c
-                # services
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
-                # method call
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
-                # subscriptions
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                # services
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_session.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_attribute.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
@@ -332,10 +322,17 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
 
+set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h)
+
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c)
 
 if(UA_DEBUG_DUMP_PKGS)
@@ -445,9 +442,10 @@ add_custom_target(open62541-generator-statuscode DEPENDS
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
+                           ${exported_headers} ${default_plugin_headers}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                           ${exported_headers} ${internal_headers})
+                           ${exported_headers} ${default_plugin_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD

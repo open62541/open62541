@@ -9,10 +9,6 @@
 #include "ua_namespaceinit_generated.h"
 #endif
 
-#if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
-UA_THREAD_LOCAL bool rcu_locked = false;
-#endif
-
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -52,12 +48,11 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
 UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
-    UA_RCU_LOCK();
-    const UA_Node *parent = UA_NodeStore_get(server->nodestore, &parentNodeId);
-    if(!parent) {
-        UA_RCU_UNLOCK();
+    const UA_Node *parent =
+        server->config.nodestore.getNode(server->config.nodestore.context,
+                                         &parentNodeId);
+    if(!parent)
         return UA_STATUSCODE_BADNODEIDINVALID;
-    }
 
     /* TODO: We need to do an ugly copy of the references array since users may
      * delete references from within the callback. In single-threaded mode this
@@ -68,7 +63,7 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
         (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_RCU_UNLOCK();
+        server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
         return retval;
     }
 
@@ -77,8 +72,8 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
         retval |= callback(ref->targetId.nodeId, ref->isInverse,
                            ref->referenceTypeId, handle);
     }
-    UA_RCU_UNLOCK();
 
+    server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
     UA_Array_delete(refs, refssize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     return retval;
 }
@@ -92,9 +87,6 @@ void UA_Server_delete(UA_Server *server) {
     /* Delete all internal data */
     UA_SecureChannelManager_deleteMembers(&server->secureChannelManager);
     UA_SessionManager_deleteMembers(&server->sessionManager);
-    UA_RCU_LOCK();
-    UA_NodeStore_delete(server->nodestore);
-    UA_RCU_UNLOCK();
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -179,7 +171,6 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     server->config = *config;
     server->startTime = UA_DateTime_now();
-    server->nodestore = UA_NodeStore_new();
 
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
@@ -196,7 +187,6 @@ UA_Server_new(const UA_ServerConfig *config) {
 
     /* Initialized the dispatch queue for worker threads */
 #ifdef UA_ENABLE_MULTITHREADING
-    rcu_init();
     cds_wfcq_init(&server->dispatchQueue_head, &server->dispatchQueue_tail);
 #endif
 

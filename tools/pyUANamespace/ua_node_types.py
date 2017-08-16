@@ -693,13 +693,7 @@ class opcua_node_t:
             unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
     else:
-      code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)
-      code = code + codegen.getCreateNodeBootstrap(self)
-      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
-      code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
-      code.append("UA_RCU_LOCK();")
-      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ");")
-      code.append("UA_RCU_UNLOCK();")
+      code.append("/* Omit bootstrapping the node %s */" % str(self.id()))
 
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
