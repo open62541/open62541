@@ -26,7 +26,7 @@ set(LIBS subunit ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-                        ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing_clock.c)
 

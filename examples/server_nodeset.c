@@ -2,11 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
-#include <stdlib.h>
-#include "ua_server.h"
-#include "ua_log_stdout.h"
-#include "ua_config_standard.h"
-#include "ua_network_tcp.h"
+#include "open62541.h"
 
 /* Files nodeset.h and nodeset.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */

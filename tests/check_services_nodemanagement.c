@@ -11,7 +11,7 @@
 #include "server/ua_services.h"
 #include "ua_client.h"
 #include "ua_types.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_MULTITHREADING

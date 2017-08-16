@@ -1,7 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"

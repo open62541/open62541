@@ -4,7 +4,7 @@
 
 #include "ua_server.h"
 #include "server/ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #include "check.h"
 #include "testing_clock.h"

@@ -8,7 +8,7 @@
 
 #include "ua_server.h"
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "testing_networklayers.h"
 
