@@ -1,8 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
-
+//#define POSIX_C_SOURCE >= 199309L
 #include "ua_types.h"
-
+#include "FreeRTOS.h"
+#include "task.h"
 #include <time.h>
 #ifdef _WIN32
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */
@@ -61,9 +62,16 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+
+   portTickType  TaskTime = xTaskGetTickCount() * portTICK_RATE_MS;
+   UA_UInt16 UATime = (UA_UInt16) TaskTime;
+     struct timespec ts;
+     ts.tv_sec = UATime/1000;
+     ts.tv_nsec = (UATime % 1000)* 1000000;
+     return (ts.tv_sec * UA_SEC_TO_DATETIME + ts.tv_nsec / 100);
+//    struct timeval tv;
+//    gettimeofday(&tv, NULL);
+//    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);

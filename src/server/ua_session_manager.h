@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "queue.h"
+#include "../../deps/queue.h"
 #include "ua_server.h"
 #include "ua_util.h"
 #include "ua_session.h"

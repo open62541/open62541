@@ -16,7 +16,7 @@ extern "C" {
 #define UA_assert(ignore) assert(ignore)
 
 /* BSD Queue Macros */
-#include "queue.h"
+#include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x

@@ -6,8 +6,7 @@
 #define UA_CLIENT_INTERNAL_H_
 
 #include "ua_securechannel.h"
-#include "queue.h"
-
+#include "../deps/queue.h"
 /**************************/
 /* Subscriptions Handling */
 /**************************/

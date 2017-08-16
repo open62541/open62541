@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "queue.h"
+#include "../deps/queue.h"
 #include "ua_types.h"
 #include "ua_transport_generated.h"
 #include "ua_connection_internal.h"

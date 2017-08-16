@@ -61,6 +61,18 @@ extern "C" {
 # define _BSD_SOURCE
 #endif
 
+#include <FreeRTOS.h>
+#include <semphr.h>
+#include <portmacro.h>
+#include <task.h>
+#include <queue.h>
+#include <portable.h>
+
+
+#ifdef BYTE_ORDER
+#undef BYTE_ORDER
+#endif
+
 // Disable deprecation warnings for sprintf, strncpy, strerror
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
@@ -94,10 +106,14 @@ typedef uint8_t bool;
 # include <malloc.h>
 #endif
 
-#define UA_free(ptr) free(ptr)
-#define UA_malloc(size) malloc(size)
-#define UA_calloc(num, size) calloc(num, size)
-#define UA_realloc(ptr, size) realloc(ptr, size)
+//#define UA_free(ptr) free(ptr)
+#define UA_free(ptr) vPortFree(ptr)
+//#define UA_malloc(size) malloc(size)
+#define UA_malloc(size) pvPortMalloc(size)
+//#define UA_calloc(num, size) calloc(num, size)
+#define UA_calloc(num, size) pvPortCalloc(num, size)
+//#define UA_realloc(ptr, size) realloc(ptr, size)
+#define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
 
 #if defined(__GNUC__) || defined(__clang__)
 # define UA_alloca(size) __builtin_alloca (size)
@@ -210,6 +226,7 @@ typedef uint8_t bool;
  * ^^^^^^^^^^^^^^^^^^
  * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
  * representation of the target architecture is little-endian. */
+ 
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
                         (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define UA_BINARY_OVERLAYABLE_INTEGER 1

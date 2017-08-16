@@ -7,6 +7,10 @@ find_package(PythonInterp REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
 
+include_directories("D:/4diac/freertos/Run_forte/freeRTOS_Includes/include")
+include_directories("D:/4diac/freertos/Run_forte/freeRTOS_Includes/include/ipv4")
+#include_directories("C:/Program Files (x86)/Atollic/TrueSTUDIO for ARM 8.0.0/ARMTools/arm-atollic-eabi/include")
+
 #############################
 # Compiled binaries folders #
 #############################
@@ -174,7 +178,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wundef
                     -Wc++-compat)
      if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
-        add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
+        add_definitions(-Wshadow -Wconversion -fvisibility=hidden)
      endif()
 
      if(UA_ENABLE_AMALGAMATION)
@@ -183,7 +187,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
-
+    list(APPEND open62541_LIBRARIES c m stdc++ supc++)
     # Debug
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         # add_definitions(-fsanitize=address)
@@ -228,6 +232,9 @@ if(MSVC)
     endforeach()
   endif()
 endif()
+
+
+add_definitions(-mcpu=cortex-m3 -mthumb -g -Wall -O0 -specs=nano.specs -ffunction-sections -fdata-sections  -fno-exceptions -fstack-usage )
 
 #########################
 # Generate Main Library #

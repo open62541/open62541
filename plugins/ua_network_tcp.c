@@ -13,11 +13,15 @@
 
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
-#include "queue.h"
+#include "../deps/queue.h"
+
+
+
+#define AI_PASSIVE 0x01
 
 #include <stdio.h> // snprintf
 #include <string.h> // memset
-#include <errno.h>
+//#include <errno.h>
 
 #ifdef _WIN32
 # include <winsock2.h>
@@ -26,29 +30,58 @@
 # define ssize_t int
 # define WIN32_INT (int)
 #else
-# define CLOSESOCKET(S) close(S)
+# define CLOSESOCKET(S) closesocket(S)
 # define SOCKET int
 # define WIN32_INT
-# include <arpa/inet.h>
-# include <netinet/in.h>
-# include <sys/select.h>
-# include <sys/ioctl.h>
+
+
+#include <FreeRTOS.h>
+#include <semphr.h>
+#include <portmacro.h>
+#include <task.h>
+#include <queue.h>
+#include <portable.h>
+
+
+
+# include <lwip/opt.h>
+# include <lwip/sockets.h>
+# include <lwip/api.h>
+# include <lwip/sys.h>
+# include <lwip/igmp.h>
+# include <lwip/inet.h>
+# include <lwip/tcp.h>
+# include <lwip/raw.h>
+# include <lwip/udp.h>
+# include <lwip/tcpip.h>
+# include <lwip/netdb.h>
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
-# include <netdb.h>
+
+#ifdef BYTE_ORDER
+#undef BYTE_ORDER
+#endif
+
+
+# define lwip_close(s)    close(s)
+
 # ifdef __QNX__
-#  include <sys/socket.h>
+//#  include <sys/socket.h>
 # endif
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-# include <sys/param.h>
+//# include <sys/param.h>
 # if defined(BSD)
-#  include<sys/socket.h>
+//#  include<sys/socket.h>
 # endif
 #endif
 # ifndef __CYGWIN__
-#  include <netinet/tcp.h>
+//#  include <netinet/tcp.h>
 # endif
 #endif
+
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-conversion"
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
@@ -201,9 +234,13 @@ socket_set_nonblocking(SOCKET sockfd) {
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
         return UA_STATUSCODE_BADINTERNALERROR;
 #else
-    int opts = fcntl(sockfd, F_GETFL);
-    if(opts < 0 || fcntl(sockfd, F_SETFL, opts|O_NONBLOCK) < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
+//    int opts = fcntl(sockfd, F_GETFL);
+//    if(opts < 0 || fcntl(sockfd, F_SETFL, opts|O_NONBLOCK) < 0)
+//        return UA_STATUSCODE_BADINTERNALERROR;
+
+    u_long iMode = 1;
+    if(ioctlsocket(sockfd, FIONBIO, &iMode) != 0)
+            return UA_STATUSCODE_BADINTERNALERROR;
 #endif
     return UA_STATUSCODE_GOOD;
 }
@@ -236,7 +273,7 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
 static UA_StatusCode
 ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
                           UA_Int32 newsockfd,
-                          struct sockaddr_storage *remote) {
+                          struct sockaddr *remote) {
     /* Set nonblocking */
     socket_set_nonblocking(newsockfd);
 
@@ -249,6 +286,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
     }
 
     /* Get the peer name for logging */
+	/*
     char remote_name[100];
     int res = getnameinfo((struct sockaddr*)remote,
                           sizeof(struct sockaddr_storage),
@@ -263,7 +301,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
                        "Connection %i | New connection over TCP, "
                        "getnameinfo failed with errno %i",
                        (int)newsockfd, errno__);
-    }
+    }*/
 
     /* Allocate and initialize the connection */
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
@@ -291,7 +329,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
 static void
 addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     /* Create the server socket */
-    SOCKET newsock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    SOCKET newsock = socket(ai->ai_family, SOCK_STREAM, IPPROTO_TCP);
 #ifdef _WIN32
     if(newsock == INVALID_SOCKET)
 #else
@@ -306,30 +344,30 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
-    int optval = 1;
-    if(ai->ai_family == AF_INET6 &&
-       setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
-                  (const char*)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Could not set an IPv6 socket to IPv6 only");
-        CLOSESOCKET(newsock);
-        return;
-    }
+   //int optval = 1;
+//    if(ai->ai_family == AF_INET6 &&
+//       setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
+//                  (const char*)&optval, sizeof(optval)) == -1) {
+//        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+//                       "Could not set an IPv6 socket to IPv6 only");
+//        CLOSESOCKET(newsock);
+//        return;
+//    }
 
-    if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
-                  (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Could not make the socket reusable");
-        CLOSESOCKET(newsock);
-        return;
-    }
-
-    if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Could not set the server socket to nonblocking");
-        CLOSESOCKET(newsock);
-        return;
-    }
+//    if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
+//                  (const char *)&optval, sizeof(optval)) == -1) {
+//        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+//                       "Could not make the socket reusable");
+//        CLOSESOCKET(newsock);
+//        return;
+//    }
+//
+//    if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
+//        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+//                       "Could not set the server socket to nonblocking");
+//        CLOSESOCKET(newsock);
+//        return;
+//    }
 
     /* Bind socket to address */
     if(bind(newsock, ai->ai_addr, WIN32_INT ai->ai_addrlen) < 0) {
@@ -363,19 +401,27 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
-    char hostname[256];
-    if(gethostname(hostname, 255) == 0) {
-        char discoveryUrl[256];
+    //char hostname[256];
+    char *hostname = "192.168.0.10";
+    //if(gethostname(hostname, 255) == 0) {
+    char discoveryUrl[256];
+    //char discoveryUrl[256] = "opc.tcp://192.168.0.10:4840";
+    //char *Buffer = discoveryUrl;
+
 #ifndef _MSC_VER
-        du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d",
+       du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d",
                                      hostname, layer->port);
+
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
                                         "opc.tcp://%s:%d", hostname,
                     layer->port);
 #endif
-        du.data = (UA_Byte*)discoveryUrl;
-    }
+
+
+       du.data = (UA_Byte*) discoveryUrl;
+
+    //}
     UA_String_copy(&du, &nl->discoveryUrl);
 
     /* Get addrinfo of the server and create server sockets */
@@ -386,11 +432,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
     _snprintf_s(portno, 6, _TRUNCATE, "%d", layer->port);
 #endif
     struct addrinfo hints, *res;
+    //struct addrinfo *res = NULL;
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
-    getaddrinfo(NULL, portno, &hints, &res);
+    hints.ai_protocol = IPPROTO_TCP;
+    getaddrinfo(hostname, portno, &hints, &res);
 
     /* There might be serveral addrinfos (for different network cards,
      * IPv4/IPv6). Add a server socket for all of them. */
@@ -435,20 +483,21 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
     /* Listen on open sockets (including the server) */
-    fd_set fdset, errset;
+    fd_set fdset, errset;  
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
-    struct timeval tmptv = {0, timeout * 1000};
+   struct timeval tmptv = {0, timeout * 1000};
     if (select(highestfd+1, &fdset, NULL, &errset, &tmptv) < 0) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Socket select failed with %s", strerror(errno));
-    }
+              UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Socket select failed with %s", strerror(errno));
+          }
+    //vTaskDelay(pdMS_TO_TICKS (200) );
 
     /* Accept new connections via the server sockets */
     for(UA_UInt16 i = 0; i < layer->serverSocketsSize; i++) {
         if(!UA_fd_isset(layer->serverSockets[i], &fdset))
             continue;
 
-        struct sockaddr_storage remote;
+        struct sockaddr remote;
         socklen_t remote_size = sizeof(remote);
         SOCKET newsockfd = accept((SOCKET)layer->serverSockets[i],
                                   (struct sockaddr*)&remote, &remote_size);
@@ -621,7 +670,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
     struct addrinfo hints, *server;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
+    hints.ai_family = AF_INET ;
     hints.ai_socktype = SOCK_STREAM;
     char portStr[6];
 #ifndef _MSC_VER
@@ -632,8 +681,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "DNS lookup of %s failed with error %s",
-                       hostname, gai_strerror(error));
+                       "DNS lookup of %s failed with error",
+                       hostname);
         return connection;
     }
 
@@ -677,3 +726,5 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
     return connection;
 }
+
+#pragma GCC diagnostic pop
