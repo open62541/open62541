@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://uademo.prosysopc.com:53530/OPCUA/SimulationServer");
     if(retval != UA_STATUSCODE_GOOD) {
@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_UInt32 subId = 0;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
     if(!subId) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
