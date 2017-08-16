@@ -5,7 +5,7 @@
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
 #include "ua_util.h"
-#include "stdio.h"
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 UA_StatusCode
@@ -306,11 +306,6 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     if(!sub)
         return;
 
-    if ((unsigned int)response->notificationMessage.notificationDataSize > 0)
-    printf(
-                 "Processing a publish response on subscription %u with %u notifications\n",
-                 sub->subscriptionID, (unsigned int)response->notificationMessage.notificationDataSize);
-
     /* Check if the server has acknowledged any of the sent ACKs */
     for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
         /* remove also acks that are unknown to the server */
@@ -357,13 +352,11 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         }
         else if(msg->notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]) {
             UA_EventNotificationList *eventNotificationList = (UA_EventNotificationList *)msg->notificationData[k].content.decoded.data;
-            printf("got an UA_TYPES_EVENTNOTIFICATIONLIST %zu\n", eventNotificationList->eventsSize);
             for (size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
                 UA_EventFieldList *eventFieldList = &eventNotificationList->events[j];
                 UA_Client_MonitoredItem *mon;
                 LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
                     if(mon->clientHandle == eventFieldList->clientHandle) {
-                        printf("%p\n", (void*)eventFieldList->eventFields);
                         mon->handlerEvents(mon->monitoredItemId, eventFieldList->eventFieldsSize,
                                            eventFieldList->eventFields, mon->handlerContext);
                         break;
