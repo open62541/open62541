@@ -589,8 +589,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 typedef void (*UA_MonitoredEventHandlingFunction)(UA_UInt32 monId,
                                                   size_t nEventFields,
-                                                  UA_Variant *eventFields,
-                                                  void *context);
+                                                  const UA_Variant *eventFields,
+                                                  const void *context);
 
 UA_StatusCode
 UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
