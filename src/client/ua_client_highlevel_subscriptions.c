@@ -116,7 +116,7 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscript
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_SimpleAttributeOperand *selectClause,
                                          size_t nSelectClauses,
-                                         UA_MonitoredEventHandlingFunction hf,
+                                         const UA_MonitoredEventHandlingFunction hf,
                                          void *hfContext, UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)

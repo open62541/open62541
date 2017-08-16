@@ -597,11 +597,8 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscript
                                           UA_NodeId nodeId, UA_UInt32 attributeID,
                                           UA_SimpleAttributeOperand *selectClause,
                                           size_t nSelectClauses,
-                                          UA_MonitoredEventHandlingFunction hf,
+                                          const UA_MonitoredEventHandlingFunction hf,
                                           void *hfContext, UA_UInt32 *newMonitoredItemId);
-
-// FIXME: do not forget about removeMonitoredEvent!
-
 
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
                                                  UA_DataValue *value,
