@@ -948,7 +948,6 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
-
 /******************/
 /* Add References */
 /******************/

@@ -442,11 +442,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
     UA_assert(responseType);
 
-#ifdef UA_ENABLE_NONSTANDARD_STATELESS
-    /* Stateless extension: Sessions are optional */
-    sessionRequired = false;
-#endif
-
     /* Decode the request */
     void *request = UA_alloca(requestType->memSize);
     UA_RequestHeader *requestHeader = (UA_RequestHeader*)request;
