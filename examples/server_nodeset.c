@@ -20,25 +20,24 @@ static void stopHandler(int sign) {
 }
 
 int main(int argc, char** argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGINT, stopHandler);
+    signal(SIGTERM, stopHandler);
 
     /* initialize the server */
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     /* create nodes from nodeset */
-    if (nodeset(server) != UA_STATUSCODE_GOOD) {
+    if(nodeset(server) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Namespace index for generated "
                      "nodeset does not match. The call to the generated method has to be "
                      "before any other namespace add calls.");
         UA_Server_delete(server);
-        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+        UA_ServerConfig_delete(config);
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-    /* start server */
     UA_StatusCode retval = UA_Server_run(server, &running);
-
-    /* ctrl-c received -> clean up */
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     return (int)retval;
