@@ -143,7 +143,6 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
     UA_EventFilter_init(evFilter);
     evFilter->selectClausesSize = nSelectClauses;
     evFilter->selectClauses = selectClause;
-    evFilter->selectClausesSize = nSelectClauses;
     evFilter->whereClause.elementsSize = 0; // FIXME: TBD
 
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
