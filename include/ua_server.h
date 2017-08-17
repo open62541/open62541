@@ -535,6 +535,9 @@ UA_Server_unregister_discovery(UA_Server *server, const char* discoveryServerUrl
   * When you manually unregister the server, you also need to cancel the
   * periodic callback, otherwise it will be automatically be registered again.
   *
+  * If you call this method multiple times for the same discoveryServerUrl, the older
+  * periodic callback will be removed.
+  *
   * @param server
   * @param discoveryServerUrl if set to NULL, the default value
   *        'opc.tcp://localhost:4840' will be used
