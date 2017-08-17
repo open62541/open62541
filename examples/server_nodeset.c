@@ -24,9 +24,6 @@ int main(int argc, char** argv) {
 
     /* initialize the server */
     UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_default, 16664);
-    config->networkLayers = &nl;
-    config->networkLayersSize = 1;
     UA_Server *server = UA_Server_new(config);
 
     /* create nodes from nodeset */
@@ -35,7 +32,6 @@ int main(int argc, char** argv) {
                      "nodeset does not match. The call to the generated method has to be "
                      "before any other namespace add calls.");
         UA_Server_delete(server);
-        nl.deleteMembers(&nl);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -44,7 +40,6 @@ int main(int argc, char** argv) {
 
     /* ctrl-c received -> clean up */
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
     UA_ServerConfig_delete(config);
     return (int)retval;
 }
