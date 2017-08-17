@@ -464,6 +464,17 @@ install(TARGETS open62541
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 
+if(UNIX)
+    set(prefix ${CMAKE_INSTALL_PREFIX})
+    set(exec_prefix ${CMAKE_INSTALL_PREFIX})
+    set(libdir ${CMAKE_INSTALL_PREFIX}/lib)
+    set(includedir ${CMAKE_INSTALL_PREFIX}/include)
+    set(pkg_version 0.2.0)
+    #generate output file
+    configure_file("open62541.pc.in" "open62541.pc" @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/open62541.pc DESTINATION "lib/pkgconfig")
+endif()
+
 ##########################
 # Packaging (DEB/RPM)    #
 ##########################
