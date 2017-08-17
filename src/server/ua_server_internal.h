@@ -92,6 +92,11 @@ typedef struct serverOnNetwork_hash_entry {
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
+typedef struct periodicServerRegisterCallback_entry {
+    LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
+    struct PeriodicServerRegisterCallback *callback;
+} periodicServerRegisterCallback_entry;
+
 #endif /* UA_ENABLE_DISCOVERY */
 
 struct UA_Server {
@@ -109,7 +114,7 @@ struct UA_Server {
     /* Discovery */
     LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
     size_t registeredServersSize;
-    struct PeriodicServerRegisterCallback *periodicServerRegisterCallback;
+    LIST_HEAD(periodicServerRegisterCallback_list, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks; // doubly-linked list of current register callbacks
     UA_Server_registerServerCallback registerServerCallback;
     void* registerServerCallbackData;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST

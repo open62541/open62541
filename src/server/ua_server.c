@@ -110,8 +110,12 @@ void UA_Server_delete(UA_Server *server) {
         UA_RegisteredServer_deleteMembers(&rs->registeredServer);
         UA_free(rs);
     }
-    if(server->periodicServerRegisterCallback)
-        UA_free(server->periodicServerRegisterCallback);
+    periodicServerRegisterCallback_entry *ps, *ps_tmp;
+    LIST_FOREACH_SAFE(ps, &server->periodicServerRegisterCallbacks, pointers, ps_tmp) {
+        LIST_REMOVE(ps, pointers);
+        UA_free(ps->callback);
+        UA_free(ps);
+    }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
@@ -216,7 +220,7 @@ UA_Server_new(const UA_ServerConfig *config) {
 #ifdef UA_ENABLE_DISCOVERY
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
-    server->periodicServerRegisterCallback = NULL;
+    LIST_INIT(&server->periodicServerRegisterCallbacks);
     server->registerServerCallback = NULL;
     server->registerServerCallbackData = NULL;
 #endif
