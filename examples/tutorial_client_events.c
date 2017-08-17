@@ -7,7 +7,7 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-handler_events(UA_UInt32 monId, size_t nEventFields, const UA_Variant *eventFields, const void *context) {
+handler_events(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context) {
     printf("got an event! %d, %zu\n", monId, nEventFields);
 
     for(size_t i = 0; i < nEventFields; ++i) {

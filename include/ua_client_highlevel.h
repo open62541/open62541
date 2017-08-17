@@ -587,16 +587,16 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
-typedef void (*UA_MonitoredEventHandlingFunction)(UA_UInt32 monId,
-                                                  size_t nEventFields,
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+                                                  const size_t nEventFields,
                                                   const UA_Variant *eventFields,
-                                                  const void *context);
+                                                  void *context);
 
 UA_StatusCode
-UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
-                                          UA_NodeId nodeId, UA_UInt32 attributeID,
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
+                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
                                           UA_SimpleAttributeOperand *selectClause,
-                                          size_t nSelectClauses,
+                                          const size_t nSelectClauses,
                                           const UA_MonitoredEventHandlingFunction hf,
                                           void *hfContext, UA_UInt32 *newMonitoredItemId);
 
