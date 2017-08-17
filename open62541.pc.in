@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: open62541
+Description: Open62541 OPC UA
+Version: @pkg_version@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lopen62541
