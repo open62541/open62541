@@ -18,6 +18,7 @@ list(APPEND DOC_SRC
     ${PROJECT_SOURCE_DIR}/examples/tutorial_server_object.c
     ${PROJECT_SOURCE_DIR}/examples/tutorial_server_variable.c
     ${PROJECT_SOURCE_DIR}/examples/tutorial_server_variabletype.c
+    ${PROJECT_SOURCE_DIR}/examples/server_instantiation.c
     ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
 )
 
