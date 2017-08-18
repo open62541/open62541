@@ -38,7 +38,7 @@ Let's start to create this type and its variables:
 .. literalinclude:: server_instantiation.c
    :language: c
    :linenos:
-   :lines: 47-72
+   :lines: 46-71
 
 
 
@@ -52,7 +52,7 @@ Now we can instantiate an object of this type by:
 .. literalinclude:: server_instantiation.c
    :language: c
    :linenos:
-   :lines: 141-150
+   :lines: 142-152
 
 As you can see instantiating an object is not much different from creating an object node. The main difference is that you *must* use an objectType node as typeDefinition.
 
@@ -94,7 +94,7 @@ Thus, we first define a callback function
 .. literalinclude:: server_instantiation.c
    :language: c
    :linenos:
-   :lines: 21-29
+   :lines: 21-28
 
 And then bind this function to the node instantiation with (`instantiationCallback`) and a handle (`myHandle`). You should already be familiar with callbacks and handles from our previous tutorial.
 
