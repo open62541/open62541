@@ -173,6 +173,7 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
     if(!newMon) {
         UA_CreateMonitoredItemsResponse_deleteMembers(&response);
         UA_EventFilter_delete(evFilter);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     newMon->monitoringMode = UA_MONITORINGMODE_REPORTING;
