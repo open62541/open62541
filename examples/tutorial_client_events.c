@@ -53,7 +53,7 @@ setupSelectClauses(void)
         return NULL;
     }
     selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME(0, "Message");
+    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
 
     selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, 2041) ; // BaseEventType
     selectClauses[1].browsePathSize = 1;
@@ -64,7 +64,7 @@ setupSelectClauses(void)
         return NULL;
     }
     selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME(0, "Severity");
+    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
 
     return selectClauses;
 }

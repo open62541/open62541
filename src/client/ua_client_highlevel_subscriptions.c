@@ -192,6 +192,7 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Created a monitored item with client handle %u", client->monitoredItemHandles);
 
+    UA_EventFilter_delete(evFilter);
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
     return UA_STATUSCODE_GOOD;
 }
