@@ -1,6 +1,10 @@
 #!/usr/bin/env/python
 # -*- coding: utf-8 -*-
 
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 ###
 ### Author:  Chris Iatrou (ichrispa@core-vector.net)
 ###
@@ -8,7 +12,7 @@
 ### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
-### file for more information on the LGPL terms and restrictions).
+### file for more information on the MPL v2 terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
@@ -22,6 +26,7 @@ import xml.dom.minidom as dom
 import os
 import string
 from collections import Counter
+import re
 
 from ua_namespace import opcua_node_id_t
 
@@ -118,7 +123,7 @@ class preProcessDocument:
       if "xmlns:" in key:  # Any key: we will be removing these qualifiers from Values later
         self.namespaceQualifiers.append(key.replace("xmlns:",""))
       if "xmlns:s" in key: # get a numeric nsId and modelname/uri
-        self.namespaceOrder.append((int(key.replace("xmlns:s","")), ns[0].getAttribute(key)))
+        self.namespaceOrder.append((int(key.replace("xmlns:s","")), re.sub("[A-Za-z0-9-_\.]+\.[xXsSdD]{3}$","",ns[0].getAttribute(key))))
 
     # Get all nodeIds contained in this XML
     for nd in ns[0].childNodes:

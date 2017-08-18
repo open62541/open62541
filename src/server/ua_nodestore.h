@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #ifndef UA_NODESTORE_H_
 #define UA_NODESTORE_H_
 
@@ -5,7 +9,6 @@
 extern "C" {
 #endif
 
-#include "ua_types_generated.h"
 #include "ua_nodes.h"
 
 /**

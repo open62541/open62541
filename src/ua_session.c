@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_session.h"
 #include "ua_types_generated_handling.h"
 #include "ua_util.h"
@@ -104,26 +108,6 @@ UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
 
 UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
     return ++(session->lastSubscriptionID);
-}
-
-void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session) {
-    /* Are there remaining subscriptions? */
-    if(LIST_FIRST(&session->serverSubscriptions))
-        return;
-
-    /* Send a response for every queued request */
-    UA_PublishResponseEntry *pre;
-    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
-        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
-        UA_PublishResponse *response = &pre->response;
-        UA_UInt32 requestId = pre->requestId;
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        response->responseHeader.timestamp = UA_DateTime_now();
-        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        UA_PublishResponse_deleteMembers(response);
-        UA_free(pre);
-    }
 }
 
 #endif

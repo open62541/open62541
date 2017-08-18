@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #ifndef UA_NODES_H_
 #define UA_NODES_H_
 
@@ -24,10 +28,9 @@ extern "C" {
  * Reference are triples of the form ``(source-nodeid, referencetype-nodeid,
  * target-nodeid)``. An example reference between nodes is a
  * ``hasTypeDefinition`` reference between a Variable and its VariableType. Some
- * ReferenceTypes are *hierarchic* and must not form *directed loops*. Every
- * node (except ``Root``) must have at least one hierarchic reference to a
- * parent. See the section on :ref:`ReferenceTypes <referencetypenode>` for more
- * details on possible references and their semantics.
+ * ReferenceTypes are *hierarchic* and must not form *directed loops*. See the
+ * section on :ref:`ReferenceTypes <referencetypenode>` for more details on
+ * possible references and their semantics.
  *
  * The structures defined in this section are *not user-facing*. The interaction
  * with the information model is possible only via the OPC UA :ref:`services`.
@@ -243,8 +246,102 @@ typedef struct {
  * ReferenceTypeNode
  * -----------------
  *
- * The OPC UA standard defines a set of ReferenceTypes as a mandatory part of
- * OPC UA information models. */
+ * Each reference between two nodes is typed with a ReferenceType that gives
+ * meaning to the relation. The OPC UA standard defines a set of ReferenceTypes
+ * as a mandatory part of OPC UA information models.
+ *
+ * - Abstract ReferenceTypes cannot be used in actual references and are only
+ *   used to structure the ReferenceTypes hierarchy
+ * - Symmetric references have the same meaning from the perspective of the
+ *   source and target node
+ *
+ * The figure below shows the hierarchy of the standard ReferenceTypes (arrows
+ * indicate a ``hasSubType`` relation). Refer to Part 3 of the OPC UA
+ * specification for the full semantics of each ReferenceType.
+ *
+ * .. graphviz::
+ *
+ *    digraph tree {
+ *
+ *    node [height=0, shape=box, fillcolor="#E5E5E5", concentrate=true]
+ *
+ *    references [label="References\n(Abstract, Symmetric)"]
+ *    hierarchical_references [label="HierarchicalReferences\n(Abstract)"]
+ *    references -> hierarchical_references
+ *
+ *    nonhierarchical_references [label="NonHierarchicalReferences\n(Abstract, Symmetric)"]
+ *    references -> nonhierarchical_references
+ *
+ *    haschild [label="HasChild\n(Abstract)"]
+ *    hierarchical_references -> haschild
+ *
+ *    aggregates [label="Aggregates\n(Abstract)"]
+ *    haschild -> aggregates
+ *
+ *    organizes [label="Organizes"]
+ *    hierarchical_references -> organizes
+ *
+ *    hascomponent [label="HasComponent"]
+ *    aggregates -> hascomponent
+ *
+ *    hasorderedcomponent [label="HasOrderedComponent"]
+ *    hascomponent -> hasorderedcomponent
+ *
+ *    hasproperty [label="HasProperty"]
+ *    aggregates -> hasproperty
+ *
+ *    hassubtype [label="HasSubtype"]
+ *    haschild -> hassubtype
+ *
+ *    hasmodellingrule [label="HasModellingRule"]
+ *    nonhierarchical_references -> hasmodellingrule
+ *
+ *    hastypedefinition [label="HasTypeDefinition"]
+ *    nonhierarchical_references -> hastypedefinition
+ *
+ *    hasencoding [label="HasEncoding"]
+ *    nonhierarchical_references -> hasencoding
+ *
+ *    hasdescription [label="HasDescription"]
+ *    nonhierarchical_references -> hasdescription
+ *
+ *    haseventsource [label="HasEventSource"]
+ *    hierarchical_references -> haseventsource
+ *
+ *    hasnotifier [label="HasNotifier"]
+ *    hierarchical_references -> hasnotifier
+ *
+ *    generatesevent [label="GeneratesEvent"]
+ *    nonhierarchical_references -> generatesevent
+ *
+ *    alwaysgeneratesevent [label="AlwaysGeneratesEvent"]
+ *    generatesevent -> alwaysgeneratesevent
+ *
+ *    {rank=same hierarchical_references nonhierarchical_references}
+ *    {rank=same generatesevent haseventsource hasmodellingrule
+ *               hasencoding hassubtype}
+ *    {rank=same alwaysgeneratesevent hasproperty}
+ *
+ *    }
+ *
+ * The ReferenceType hierarchy can be extended with user-defined ReferenceTypes.
+ * Many Companion Specifications for OPC UA define new ReferenceTypes to be used
+ * in their domain of interest.
+ *
+ * For the following example of custom ReferenceTypes, we attempt to model the
+ * structure of a technical system. For this, we introduce two custom
+ * ReferenceTypes. First, the hierarchical ``contains`` ReferenceType indicates
+ * that a system (represented by an OPC UA object) contains a component (or
+ * subsystem). This gives rise to a tree-structure of containment relations. For
+ * example, the motor (object) is contained in the car and the crankshaft is
+ * contained in the motor. Second, the symmetric ``connectedTo`` ReferenceType
+ * indicates that two components are connected. For example, the motor's
+ * crankshaft is connected to the gear box. Connections are independent of the
+ * containment hierarchy and can induce a general graph-structure. Further
+ * subtypes of ``connectedTo`` could be used to differentiate between physical,
+ * electrical and information related connections. A client can then learn the
+ * layout of a (physical) system represented in an OPC UA information model
+ * based on a common understanding of just two custom reference types. */
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
@@ -276,7 +373,7 @@ typedef struct {
  * --------
  *
  * Each View defines a subset of the Nodes in the AddressSpace. Views can be
- * used when browsing an informatin model to focus on a subset of nodes and
+ * used when browsing an information model to focus on a subset of nodes and
  * references only. ViewNodes can be created and be interacted with. But their
  * use in the :ref:`Browse<view-services>` service is currently unsupported in
  * open62541. */

@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -13,6 +17,8 @@ START_TEST(Server_addNamespace_ShallWork)
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 c = UA_Server_addNamespace(server, "http://nameOfNamespace2");
+
+    UA_Server_delete(server);
 
     ck_assert_uint_gt(a, 0);
     ck_assert_uint_eq(a,b);

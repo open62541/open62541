@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -37,7 +41,7 @@ START_TEST(Session_updateLifetime_ShallWork) {
     tmpDateTime = session.validTill;
     UA_Session_updateLifetime(&session);
 
-    UA_Int32 result = (session.validTill > tmpDateTime);
+    UA_Int32 result = (session.validTill >= tmpDateTime);
     ck_assert_int_gt(result,0);
 }
 END_TEST
@@ -60,6 +64,7 @@ int main(void) {
 
     s = testSuite_Session();
     sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr,CK_NORMAL);
     number_failed += srunner_ntests_failed(sr);
     srunner_free(sr);

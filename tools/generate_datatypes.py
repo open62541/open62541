@@ -1,3 +1,7 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 from __future__ import print_function
 import sys
 import time
@@ -97,6 +101,8 @@ class Type(object):
             #",\n  .xmlEncodingId = " + xmlEncodingId + \ Not used for now
 
     def members_c(self):
+        if len(self.members)==0:
+            return "#define %s_members NULL" % (self.name)
         members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
         before = None
         for index, member in enumerate(self.members):
@@ -414,7 +420,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-''' + ('\n#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
@@ -459,7 +465,7 @@ extern "C" {
 
 #include "''' + outname + '''_generated.h"
 
-#if defined(__GNUC__) && __GNUC__ <= 4
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 # pragma GCC diagnostic ignored "-Wmissing-braces"
@@ -471,7 +477,7 @@ for t in iter_types(types):
     printf(t.functions_c())
 
 printf('''
-#if defined(__GNUC__) && __GNUC__ <= 4
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
 # pragma GCC diagnostic pop
 #endif
 
@@ -488,8 +494,6 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "stddef.h"
-#include "ua_types.h"
 #include "''' + outname + '''_generated.h"''')
 
 for t in iter_types(types):

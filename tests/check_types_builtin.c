@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -410,6 +414,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
     ck_assert_int_eq(dst.arrayLength, 0);
     ck_assert_int_ne((uintptr_t)dst.data, 0);
+    assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
     UA_Variant_deleteMembers(&dst);
@@ -1314,6 +1319,23 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 }
 END_TEST
 
+START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
+    UA_ByteString text = UA_BYTESTRING("My xml");
+    UA_Variant src;
+    UA_Variant_setScalar(&src, &text, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_NumericRangeDimension d1 = {0, 8388607};
+    UA_NumericRange nr;
+    nr.dimensionsSize = 1;
+    nr.dimensions = &d1;
+
+    UA_Variant dst;
+    UA_StatusCode retval = UA_Variant_copyRange(&src, &dst, nr);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&dst);
+}
+END_TEST
+
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     // given
     UA_String *srcArray = UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
@@ -1538,6 +1560,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
+    tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
 
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);

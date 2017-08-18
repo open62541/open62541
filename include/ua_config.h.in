@@ -1,17 +1,6 @@
-/*
- * Copyright (C) 2013-2015 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
@@ -20,6 +9,38 @@
 extern "C" {
 #endif
 
+/**
+ * Library Version
+ * --------------- */
+#define UA_OPEN62541_VER_MAJOR ${OPEN62541_VER_MAJOR}
+#define UA_OPEN62541_VER_MINOR ${OPEN62541_VER_MINOR}
+#define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
+#define UA_OPEN62541_VER_LABEL "${OPEN62541_VER_LABEL}" /* Release candidate label, etc. */
+#define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
+
+/**
+ * Options
+ * ------- */
+#define UA_LOGLEVEL ${UA_LOGLEVEL}
+#cmakedefine UA_ENABLE_METHODCALLS
+#cmakedefine UA_ENABLE_NODEMANAGEMENT
+#cmakedefine UA_ENABLE_SUBSCRIPTIONS
+#cmakedefine UA_ENABLE_MULTITHREADING
+
+/**
+ * Advanced Options
+ * ---------------- */
+#cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
+#cmakedefine UA_ENABLE_TYPENAMES
+#cmakedefine UA_ENABLE_EMBEDDED_LIBC
+#cmakedefine UA_ENABLE_DETERMINISTIC_RNG
+#cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
+#cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
+#cmakedefine UA_ENABLE_NONSTANDARD_UDP
+
+/**
+ * Standard Includes
+ * ----------------- */
 #ifndef _XOPEN_SOURCE
 # define _XOPEN_SOURCE 500
 #endif
@@ -27,27 +48,54 @@ extern "C" {
 # define _DEFAULT_SOURCE
 #endif
 
-#define UA_LOGLEVEL ${UA_LOGLEVEL}
-#define UA_GIT_COMMIT_ID "${GIT_COMMIT_ID}"
-#cmakedefine UA_ENABLE_MULTITHREADING
-#cmakedefine UA_ENABLE_METHODCALLS
-#cmakedefine UA_ENABLE_SUBSCRIPTIONS
-#cmakedefine UA_ENABLE_TYPENAMES
-#cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
-#cmakedefine UA_ENABLE_EXTERNAL_NAMESPACES
-#cmakedefine UA_ENABLE_NODEMANAGEMENT
+#include <stddef.h>
 
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
+/* Include stdint.h or workaround for older Visual Studios */
+#if !defined(_MSC_VER) || _MSC_VER >= 1600
+# include <stdint.h>
+#else
+# include "ms_stdint.h"
+#endif
 
-#cmakedefine UA_ENABLE_NONSTANDARD_UDP
-#cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
+#ifndef __cplusplus
+# include <stdbool.h> /* C99 Boolean */
+/* Manual Boolean:
+typedef uint8_t bool;
+#define true 1
+#define false 0 */
+#endif
+
+#include <stdlib.h>
+
+/**
+ * Memory Management
+ * ---------------
+ * The default malloc implementation from ``stdlib.h`` is used internally.
+ * Override if required. */
+#if defined(_WIN32) && !defined(__clang__)
+# include <malloc.h>
+#endif
+
+#define UA_free(ptr) free(ptr)
+#define UA_malloc(size) malloc(size)
+#define UA_calloc(num, size) calloc(num, size)
+#define UA_realloc(ptr, size) realloc(ptr, size)
+
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_alloca(size) __builtin_alloca (size)
+#elif defined(_WIN32)
+# define UA_alloca(SIZE) _alloca(SIZE)
+#else
+# include <alloca.h>
+# define UA_alloca(SIZE) alloca(SIZE)
+#endif
 
 /**
  * Function Export
- * --------------- */
-/* On Win32: Define UA_DYNAMIC_LINKING and UA_DYNAMIC_LINKING_EXPORT in order to
-   export symbols for a DLL. Define UA_DYNAMIC_LINKING only to import symbols
-   from a DLL.*/
+ * ---------------
+ * On Win32: Define ``UA_DYNAMIC_LINKING`` and ``UA_DYNAMIC_LINKING_EXPORT`` in
+ * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
+ * import symbols from a DLL.*/
 #cmakedefine UA_DYNAMIC_LINKING
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
@@ -108,17 +156,34 @@ extern "C" {
 #endif
 
 /**
+ * String Manipulation
+ * -------------------
+ * The header ``string.h`` is defined in the C-standard. If no libc is provided
+ * (e.g. on some embedded target), use the following definitions and the
+ * implementation in ``/deps/libc_string.c`` */
+#ifndef UA_ENABLE_EMBEDDED_LIBC
+# include <string.h>
+#else
+  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
+  void *memset(void *dest, int c, size_t n);
+  size_t strlen(const char *s);
+  int memcmp(const void *vl, const void *vr, size_t n);
+#endif
+
+/**
  * Binary Encoding Overlays
  * ------------------------
- * Integers and floating point numbers are transmitted in little-endian (IEE 754
+ * Integers and floating point numbers are transmitted in little-endian (IEEE 754
  * for floating point) encoding. If the target architecture uses the same
  * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
  * This speeds up encoding.
  *
  * Integer Endianness
- * ^^^^^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^^^
+ * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
+ * representation of the target architecture is little-endian. */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)) /* little endian detected */
+                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
 # define UA_BINARY_OVERLAYABLE_INTEGER true
 #elif defined(__ANDROID__) /* Andoid */
 # include <endian.h>
@@ -161,7 +226,11 @@ extern "C" {
 
 /**
  * Float Endianness
- * ^^^^^^^^^^^^^^^^ */
+ * ^^^^^^^^^^^^^^^^
+ * The definition ``UA_BINARY_OVERLAYABLE_FLOAT`` is true when the floating
+ * point number representation of the target architecture is IEEE 754. Note that
+ * this cannot be reliable detected with macros for the clang compiler
+ * (beginning of 2017). Just override if necessary. */
 #if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_FLOAT true
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
@@ -174,19 +243,6 @@ extern "C" {
 
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT false
-#endif
-
-/**
- * Embed unavailable libc functions
- * -------------------------------- */
-#include <stddef.h>
-#ifdef UA_ENABLE_EMBEDDED_LIBC
-  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
-  void *memset(void *dest, int c, size_t n);
-  size_t strlen(const char *s);
-  int memcmp(const void *vl, const void *vr, size_t n);
-#else
-# include <string.h>
 #endif
 
 #ifdef __cplusplus

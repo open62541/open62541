@@ -1,10 +1,15 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_session_manager.h"
 #include "ua_types_generated_encoding_binary.h"
 
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                           const UA_CreateSessionRequest *request, UA_CreateSessionResponse *response) {
+                           const UA_CreateSessionRequest *request,
+                           UA_CreateSessionResponse *response) {
     if(channel->securityToken.channelId == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
         return;
@@ -19,7 +24,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->serverEndpointsSize = server->endpointDescriptionsSize;
 
     /* Mirror back the endpointUrl */
-    for(size_t i = 0; i < response->serverEndpointsSize; i++)
+    for(size_t i = 0; i < response->serverEndpointsSize; ++i)
         UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
 
     UA_Session *newSession;
@@ -37,7 +42,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
     if(server->endpointDescriptionsSize > 0)
-        response->responseHeader.serviceResult |= UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
+        response->responseHeader.serviceResult |=
+            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
                                &response->serverCertificate);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
@@ -48,8 +54,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 }
 
 void
-Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
-                        const UA_ActivateSessionRequest *request, UA_ActivateSessionResponse *response) {
+Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                        UA_Session *session, const UA_ActivateSessionRequest *request,
+                        UA_ActivateSessionResponse *response) {
     if(session->validTill < UA_DateTime_nowMonotonic()) {
         UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
                             "to activate, but the session has timed out", channel->securityToken.channelId);
@@ -106,7 +113,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
 
         /* trying to match pw/username */
         UA_Boolean match = false;
-        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; i++) {
+        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; ++i) {
             UA_String *user = &server->config.usernamePasswordLogins[i].username;
             UA_String *pw = &server->config.usernamePasswordLogins[i].password;
             if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
@@ -115,7 +122,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel, UA_Session
             }
         }
         if(!match) {
-            UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Did not find matching username/password");
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "ActivateSession: Did not find matching username/password");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }

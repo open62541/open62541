@@ -24,7 +24,7 @@
 #ifndef PCG_BASIC_H_INCLUDED
 #define PCG_BASIC_H_INCLUDED 1
 
-#include <stdint.h>
+#include "ms_stdint.h"
 
 #if __cplusplus
 extern "C" {

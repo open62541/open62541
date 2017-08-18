@@ -27,7 +27,7 @@ Building with CMake on Ubuntu or Debian
    # enable additional features
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
-   sudo apt-get install sphinx graphviz # for documentation generation
+   sudo apt-get install python-sphinx graphviz # for documentation generation
    sudo apt-get install python-sphinx-rtd-theme # documentation style
 
    cd open62541
@@ -39,6 +39,10 @@ Building with CMake on Ubuntu or Debian
    # select additional features
    ccmake ..
    make
+
+   # build documentation
+   make doc # html documentation
+   make doc_pdf # pdf documentation (requires LaTeX)
 
 Building with CMake on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -88,7 +92,7 @@ Building on OS X
 Follow Ubuntu instructions without the ``apt-get`` commands as these are taken care of by the above packages.
 
 Building on OpenBSD
--------------------
+^^^^^^^^^^^^^^^^^^^
 The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version 3.2.3 and Python version 2.7.10.
 
 - Install a recent gcc, python and cmake:
@@ -145,13 +149,6 @@ By default only the shared object libopen62541.so or the library open62541.dll
 and open62541.dll.a resp. open62541.lib are build. Additional artifacts can be
 specified by the following options:
 
-**UA_BUILD_DOCUMENTATION**
-  Generate Make targets for documentation
-
-   * HTML documentation: ``make doc``
-   * Latex Files: ``latex``
-   * PDF documentation: ``make pdf``
-
 **UA_BUILD_EXAMPLES**
    Compile example servers and clients from :file:`examples/{xyz}.c`. A static and a dynamic binary is linked, respectively.
 
@@ -192,8 +189,6 @@ be visible in the cmake GUIs.
    ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
 **UA_ENABLE_EMBEDDED_LIBC**
    Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling).
-**UA_ENABLE_EXTERNAL_NAMESPACES**
-  Enable namespace handling by an external component (experimental)
 **UA_ENABLE_NONSTANDARD_STATELESS**
    Enable stateless extension
 **UA_ENABLE_NONSTANDARD_UDP**

@@ -1,0 +1,21 @@
+The changelog tracks changes to the public API.
+Internal refactorings and bug fixes are not reported here.
+
+2017-07-04 jpfr <julius.pfrommer at web.de>
+
+    * Return partially overlapping ranges
+
+      Test the integrity of the range and compute the max index used for every
+      dimension. The standard says in Part 4, Section 7.22:
+
+      When reading a value, the indexes may not speify a range that is within
+      the bounds of the array. The Server shall return a partial result if some
+      elements exist within the range.
+
+2017-05-03 pro <profanter at fortiss.org>
+
+    * Array dimensions are UInt32 also for the highlevel client read service
+
+2017-04-14 jpfr <julius.pfrommer at web.de>
+
+    * Auto-instantiate only child nodes marked as mandatory (fixes #1004)

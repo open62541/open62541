@@ -1,15 +1,6 @@
-/* Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+*  License, v. 2.0. If a copy of the MPL was not distributed with this 
+*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -197,8 +188,8 @@ static UA_INLINE UA_AddReferencesResponse
 UA_Client_Service_addReferences(UA_Client *client,
                                 const UA_AddReferencesRequest request) {
     UA_AddReferencesResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE]);
     return response;
 }
 
@@ -215,8 +206,8 @@ static UA_INLINE UA_DeleteReferencesResponse
 UA_Client_Service_deleteReferences(UA_Client *client,
                                    const UA_DeleteReferencesRequest request) {
     UA_DeleteReferencesResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
     return response;
 }
 

@@ -30,6 +30,10 @@ const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard = {
 #define UA_STRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 #define UA_STRING_STATIC_NULL {0, NULL}
 
+#define STRINGIFY(arg) #arg
+#define VERSION(MAJOR, MINOR, PATCH, LABEL) \
+    STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
+
 UA_UsernamePasswordLogin usernamePasswords[2] = {
     { UA_STRING_STATIC("user1"), UA_STRING_STATIC("password") },
     { UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1") } };
@@ -43,7 +47,10 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
         .productUri = UA_STRING_STATIC(PRODUCT_URI),
         .manufacturerName = UA_STRING_STATIC(MANUFACTURER_NAME),
         .productName = UA_STRING_STATIC(PRODUCT_NAME),
-        .softwareVersion = UA_STRING_STATIC(UA_GIT_COMMIT_ID),
+        .softwareVersion = UA_STRING_STATIC(VERSION(UA_OPEN62541_VER_MAJOR,
+                                                    UA_OPEN62541_VER_MINOR,
+                                                    UA_OPEN62541_VER_PATCH,
+                                                    UA_OPEN62541_VER_LABEL)),
         .buildNumber = UA_STRING_STATIC(__DATE__ " " __TIME__),
         .buildDate = 0 },
     .applicationDescription = {
@@ -81,6 +88,7 @@ const UA_EXPORT UA_ServerConfig UA_ServerConfig_standard = {
     .lifeTimeCountLimits = { .max = 15000, .min = 3 },
     .keepAliveCountLimits = { .max = 100, .min = 1 },
     .maxNotificationsPerPublish = 1000,
+    .maxRetransmissionQueueSize = 0, /* unlimited */
 
     /* Limits for MonitoredItems */
     .samplingIntervalLimits = { .min = 50.0, .max = 24.0 * 3600.0 * 1000.0 },
