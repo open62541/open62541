@@ -330,8 +330,6 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     if(tempNodeid.identifierType == UA_NODEIDTYPE_NUMERIC &&
        tempNodeid.identifier.numeric == 0) {
         /* create a random nodeid */
-        if(node->nodeId.namespaceIndex == 0)
-            node->nodeId.namespaceIndex = 1;
         UA_UInt32 identifier = ns->count+1; // start value
         UA_UInt32 size = ns->size;
         UA_UInt32 increase = mod2(identifier, size);
