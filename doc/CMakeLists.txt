@@ -6,15 +6,18 @@ set(DOC_HTML_DIR  ${PROJECT_BINARY_DIR}/doc)
 set(DOC_SRC_DIR   ${PROJECT_BINARY_DIR}/doc_src)
 
 make_directory(${DOC_SRC_DIR})
+
 # Collect all necessary files
-list(REMOVE_ITEM DOC_SRC "${PROJECT_SOURCE_DIR}/doc/conf.py")
 file(GLOB DOC_SRC "${PROJECT_SOURCE_DIR}/doc/*")
 list(APPEND DOC_SRC
-    ${PROJECT_SOURCE_DIR}/examples/client_firstSteps.c
-    ${PROJECT_SOURCE_DIR}/examples/server_firstSteps.c
-    ${PROJECT_SOURCE_DIR}/examples/server_variable.c
-    ${PROJECT_SOURCE_DIR}/examples/server_method.c
-    ${PROJECT_SOURCE_DIR}/examples/server_instantiation.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_datasource.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_firststeps.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_object.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_variable.c
+    ${PROJECT_SOURCE_DIR}/examples/tutorial_server_variabletype.c
     ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
 )
 
@@ -52,8 +55,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_S
 
 add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
-  DEPENDS copy
-         ${DOC_SRC_FILES}
+  DEPENDS ${DOC_SRC_FILES}
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
@@ -67,8 +69,7 @@ add_dependencies(doc_pdf doc_latex)
 
 add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
-  DEPENDS copy
-          ${DOC_SRC_FILES}
+  DEPENDS ${DOC_SRC_FILES}
   COMMENT "Building HTML documentation with Sphinx")
 add_dependencies(doc open62541)
 
