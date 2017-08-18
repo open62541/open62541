@@ -8,20 +8,17 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 handler_events(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context) {
-    printf("got an event! %d, %zu\n", monId, nEventFields);
-
+    printf("Notification:\n");
     for(size_t i = 0; i < nEventFields; ++i) {
-        printf("%s\n", eventFields[i].type->typeName);
-        if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_BYTESTRING])) {
-            UA_ByteString *string = (UA_ByteString *)eventFields[i].data;
-            printf("'%.*s'\n", (int)string->length, string->data);
-            for (size_t u = 0; u < string->length; ++u)
-                printf("%x", string->data[u]);
-            printf("\n");
+        if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+            UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
+            printf("Severity: %u\n", severity);
         } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
             UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
-            printf("'%.*s'\n", (int)lt->text.length, lt->text.data);
-            printf("size: %zu\n", lt->text.length);
+            printf("Message: '%.*s'\n", (int)lt->text.length, lt->text.data);
+        }
+        else {
+            printf("Don't know how to handle type: '%s'\n", eventFields[i].type->typeName);
         }
     }
 }
@@ -31,6 +28,45 @@ static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
     running = false;
 }
+
+const size_t nSelectClauses = 2;
+
+static UA_SimpleAttributeOperand *
+setupSelectClauses(void)
+{
+    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand *)UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    if(!selectClauses){
+        return NULL;
+    }
+
+    for(size_t i =0; i<nSelectClauses; ++i) {
+        UA_SimpleAttributeOperand_init(&selectClauses[i]);
+    }
+
+    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, 2041) ; // BaseEventType
+    selectClauses[0].browsePathSize = 1;
+    selectClauses[0].browsePath = (UA_QualifiedName*)UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!selectClauses[0].browsePath) {
+        UA_SimpleAttributeOperand_delete(selectClauses);
+        return NULL;
+    }
+    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME(0, "Message");
+
+    selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, 2041) ; // BaseEventType
+    selectClauses[1].browsePathSize = 1;
+    selectClauses[1].browsePath = (UA_QualifiedName*)UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+    if(!selectClauses[1].browsePath) {
+        UA_SimpleAttributeOperand_deleteMembers(selectClauses);
+        UA_SimpleAttributeOperand_delete(selectClauses);
+        return NULL;
+    }
+    selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
+    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME(0, "Severity");
+
+    return selectClauses;
+}
+
 #endif
 
 int main(int argc, char *argv[]) {
@@ -60,35 +96,13 @@ int main(int argc, char *argv[]) {
     UA_NodeId monitorThis = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
     UA_UInt32 monId = 0;
 
-
-    // creating a single element array for the select clause of length 1
-    const size_t nSelectClauses = 1;
-    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand *)UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_SimpleAttributeOperand *selectClauses = setupSelectClauses();
     if(!selectClauses){
         UA_Client_Subscriptions_remove(client, subId);
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return (int)UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-    for(size_t i =0; i<nSelectClauses; ++i) {
-        UA_SimpleAttributeOperand_init(&selectClauses[i]);
-    }
-
-    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, 2041) ; // BaseEventType
-    selectClauses[0].browsePathSize = 1;
-    //selectClauses[0].browsePathSize = 2; // crashes
-    selectClauses[0].browsePath = (UA_QualifiedName*)UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[0].browsePath) {
-        UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-        UA_Client_Subscriptions_remove(client, subId);
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return (int)UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME(0, "Message");
-    //selectClauses[0].browsePath[1] = UA_QUALIFIEDNAME(0, "Severity");  // crashes
 
     UA_Client_Subscriptions_addMonitoredEvent(client, subId, monitorThis, UA_ATTRIBUTEID_EVENTNOTIFIER,
                                               selectClauses, nSelectClauses,
