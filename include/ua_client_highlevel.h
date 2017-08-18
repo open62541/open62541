@@ -592,7 +592,7 @@ typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
                                                   const UA_Variant *eventFields,
                                                   void *context);
 
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
                                           const UA_NodeId nodeId, const UA_UInt32 attributeID,
                                           UA_SimpleAttributeOperand *selectClause,
