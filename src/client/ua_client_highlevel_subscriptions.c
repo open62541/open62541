@@ -164,11 +164,17 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
         retval = response.results[0].statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_EventFilter_delete(evFilter);
         return retval;
     }
 
     /* Create the handler */
     UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
+    if(!newMon) {
+        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_EventFilter_delete(evFilter);
+    }
+
     newMon->monitoringMode = UA_MONITORINGMODE_REPORTING;
     UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
     newMon->attributeID = attributeID;
