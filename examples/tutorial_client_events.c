@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
 
     UA_Client_Subscriptions_addMonitoredEvent(client, subId, monitorThis, UA_ATTRIBUTEID_EVENTNOTIFIER,
                                               selectClauses, nSelectClauses,
+                                              NULL, 0,
                                               &handler_events, NULL, &monId);
     if (!monId) {
         UA_Array_delete(selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);

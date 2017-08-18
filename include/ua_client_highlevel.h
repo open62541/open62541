@@ -597,6 +597,8 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
                                           const UA_NodeId nodeId, const UA_UInt32 attributeID,
                                           UA_SimpleAttributeOperand *selectClause,
                                           const size_t nSelectClauses,
+                                          UA_ContentFilterElement *whereClause,
+                                          const size_t nWhereClauses,
                                           const UA_MonitoredEventHandlingFunction hf,
                                           void *hfContext, UA_UInt32 *newMonitoredItemId);
 

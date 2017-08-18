@@ -116,6 +116,8 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
                                          UA_SimpleAttributeOperand *selectClause,
                                          const size_t nSelectClauses,
+                                         UA_ContentFilterElement *whereClause,
+                                         const size_t nWhereClauses,
                                          const UA_MonitoredEventHandlingFunction hf,
                                          void *hfContext, UA_UInt32 *newMonitoredItemId) {
     UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
@@ -143,7 +145,8 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
     UA_EventFilter_init(evFilter);
     evFilter->selectClausesSize = nSelectClauses;
     evFilter->selectClauses = selectClause;
-    evFilter->whereClause.elementsSize = 0; // FIXME: TBD
+    evFilter->whereClause.elementsSize = nWhereClauses;
+    evFilter->whereClause.elements = whereClause;
 
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
