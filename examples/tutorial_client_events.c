@@ -1,24 +1,26 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include <stdio.h>
-#include <signal.h>
 #include "open62541.h"
+
+#include <signal.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
 handler_events(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context) {
-    printf("Notification:\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
     for(size_t i = 0; i < nEventFields; ++i) {
         if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
             UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
-            printf("Severity: %u\n", severity);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Severity: %u", severity);
         } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
             UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
-            printf("Message: '%.*s'\n", (int)lt->text.length, lt->text.data);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Message: '%.*s'", (int)lt->text.length, lt->text.data);
         }
         else {
-            printf("Don't know how to handle type: '%s'\n", eventFields[i].type->typeName);
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                        "Don't know how to handle type: '%s'", eventFields[i].type->typeName);
         }
     }
 }
@@ -90,7 +92,7 @@ int main(int argc, char *argv[]) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    printf("Create subscription succeeded, id %u\n", subId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
 
     /* Add a MonitoredItem */
     UA_NodeId monitorThis = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
@@ -114,14 +116,14 @@ int main(int argc, char *argv[]) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    printf("Monitoring 'Root->Objects->Server', id %u\n", subId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Monitoring 'Root->Objects->Server', id %u", subId);
 
     while (running)
         UA_Client_Subscriptions_manuallySendPublishRequest(client);
 
     /* Delete the subscription */
     if(!UA_Client_Subscriptions_remove(client, subId))
-        printf("Subscription removed\n");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Subscription removed");
 #endif
 
     UA_Client_disconnect(client);
