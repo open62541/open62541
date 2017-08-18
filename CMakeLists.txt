@@ -615,6 +615,7 @@ install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
         INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
 
 include(CMakePackageConfigHelpers)
