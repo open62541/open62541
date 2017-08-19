@@ -2,25 +2,16 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS //disable fopen deprication warning in msvs
+#define _CRT_SECURE_NO_WARNINGS /* disable fopen deprication warning in msvs */
 #endif
 
-#ifdef UA_NO_AMALGAMATION
-# include <time.h>
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
 
 #include <signal.h>
 #include <errno.h> // errno, EINTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "open62541.h"
 
 UA_Boolean running = true;
 UA_Logger logger = UA_Log_Stdout;
@@ -38,7 +29,7 @@ static UA_ByteString loadCertificate(void) {
 
     fseek(fp, 0, SEEK_END);
     certificate.length = (size_t)ftell(fp);
-    certificate.data = malloc(certificate.length*sizeof(UA_Byte));
+    certificate.data = (UA_Byte*)UA_malloc(certificate.length*sizeof(UA_Byte));
     if(!certificate.data)
         return certificate;
 
@@ -57,7 +48,10 @@ static void stopHandler(int sign) {
 
 /* Datasource Example */
 static UA_StatusCode
-readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
+readTimeData(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = true;
@@ -77,7 +71,10 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
-helloWorld(void *methodHandle, const UA_NodeId objectId,
+helloWorld(UA_Server *server,
+           const UA_NodeId *sessionId, void *sessionContext,
+           const UA_NodeId *methodId, void *methodContext,
+           const UA_NodeId *objectId, void *objectContext,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
@@ -85,7 +82,7 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
     UA_String hello = UA_STRING("Hello ");
     UA_String greet;
     greet.length = hello.length + name->length;
-    greet.data = malloc(greet.length);
+    greet.data = (UA_Byte*)UA_malloc(greet.length);
     memcpy(greet.data, hello.data, hello.length);
     memcpy(greet.data + hello.length, name->data, name->length);
     UA_Variant_setScalarCopy(output, &greet, &UA_TYPES[UA_TYPES_STRING]);
@@ -94,16 +91,22 @@ helloWorld(void *methodHandle, const UA_NodeId objectId,
 }
 
 static UA_StatusCode
-noargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+noargMethod(UA_Server *server,
+            const UA_NodeId *sessionId, void *sessionContext,
+            const UA_NodeId *methodId, void *methodContext,
+            const UA_NodeId *objectId, void *objectContext,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-outargMethod (void *methodHandle, const UA_NodeId objectId,
-           size_t inputSize, const UA_Variant *input,
-           size_t outputSize, UA_Variant *output) {
+outargMethod(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *methodId, void *methodContext,
+             const UA_NodeId *objectId, void *objectContext,
+             size_t inputSize, const UA_Variant *input,
+             size_t outputSize, UA_Variant *output) {
     UA_Int32 out = 42;
     UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_INT32]);
     return UA_STATUSCODE_GOOD;
@@ -113,14 +116,10 @@ outargMethod (void *methodHandle, const UA_NodeId objectId,
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
-
-    /* load certificate */
-    config.serverCertificate = loadCertificate();
-
+    UA_ByteString certificate = loadCertificate();
+    UA_ServerConfig *config =
+        UA_ServerConfig_new_minimal(4840, &certificate);
+    UA_ByteString_deleteMembers(&certificate);
     UA_Server *server = UA_Server_new(config);
 
     /* add a static variable node to the server */
@@ -140,7 +139,9 @@ int main(int argc, char** argv) {
     UA_Variant_deleteMembers(&myVar.value);
 
     /* add a variable with the datetime data source */
-    UA_DataSource dateDataSource = (UA_DataSource) {.handle = NULL, .read = readTimeData, .write = NULL};
+    UA_DataSource dateDataSource;
+    dateDataSource.read = readTimeData;
+    dateDataSource.write = NULL;
     UA_VariableAttributes v_attr;
     UA_VariableAttributes_init(&v_attr);
     v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
@@ -150,7 +151,7 @@ int main(int argc, char** argv) {
     UA_NodeId dataSourceId;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, &dataSourceId);
+                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, &dataSourceId);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
@@ -181,8 +182,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "hello_world"), addmethodattributes,
         &helloWorld, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 1, &outputArguments, NULL);
+        1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
 
     /* Add folders for demo information model */
@@ -265,7 +265,7 @@ int main(int argc, char** argv) {
 
         /* add an matrix node for every built-in type */
         void* myMultiArray = UA_Array_new(9, &UA_TYPES[type]);
-        attr.value.arrayDimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+        attr.value.arrayDimensions = (UA_UInt32*)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
         attr.value.arrayDimensions[0] = 3;
         attr.value.arrayDimensions[1] = 3;
         attr.value.arrayDimensionsSize = 2;
@@ -335,8 +335,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
         &noargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        0, NULL, 0, NULL, NULL);
+        0, NULL, 0, NULL, NULL, NULL);
 
     /* Method with in arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -355,8 +354,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
         &noargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 0, NULL, NULL);
+        1, &inputArguments, 0, NULL, NULL, NULL);
 
     /* Method with out arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -375,8 +373,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "outarg"), addmethodattributes,
         &outargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        0, NULL, 1, &outputArguments, NULL);
+        0, NULL, 1, &outputArguments, NULL, NULL);
 
     /* Method with inout arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -389,17 +386,12 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "inoutarg"), addmethodattributes,
         &outargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 1, &outputArguments, NULL);
+        1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
 
     /* run server */
-    UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
-
-    /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&config.serverCertificate);
-
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return (int)retval;
 }

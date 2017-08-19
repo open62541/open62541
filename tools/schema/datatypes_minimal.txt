@@ -158,6 +158,16 @@ MonitoredItemModifyResult
 ModifyMonitoredItemsResponse
 SetMonitoringModeRequest
 SetMonitoringModeResponse
+RegisteredServer
+RegisterServerRequest
+RegisterServerResponse
+DiscoveryConfiguration
+MdnsDiscoveryConfiguration
+RegisterServer2Request
+RegisterServer2Response
+ServerOnNetwork
+FindServersOnNetworkRequest
+FindServersOnNetworkResponse
 DataChangeTrigger
 DeadbandType
 DataChangeFilter

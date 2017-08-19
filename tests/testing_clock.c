@@ -15,6 +15,6 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
 }
 
 void
-UA_sleep(UA_DateTime duration) {
+UA_sleep(UA_UInt32 duration) {
     testingClock += duration * UA_MSEC_TO_DATETIME;
 }

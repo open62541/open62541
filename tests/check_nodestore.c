@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,10 +34,6 @@ int visitCnt = 0;
 static void checkZeroVisitor(const UA_Node* node) {
     visitCnt++;
     if (node == NULL) zeroCnt++;
-}
-
-static void printVisitor(const UA_Node* node) {
-    printf("%d\n", node->nodeId.identifier.numeric);
 }
 
 static UA_Node* createNode(UA_Int16 nsid, UA_Int32 id) {
@@ -213,7 +209,7 @@ static void *profileGetThread(void *arg) {
 #endif
 
 START_TEST(profileGetDelete) {
-#define N 1000000
+#define N 100 /* make bigger to test */
     for(UA_UInt32 i = 0; i < N; i++) {
         UA_Node *n = createNode(0,i);
         UA_NodeStore_insert(ns, n);
@@ -271,10 +267,10 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
     
-    /* TCase* tc_profile = tcase_create ("Profile"); */
-    /* tcase_add_checked_fixture(tc_profile, setup, teardown); */
-    /* tcase_add_test (tc_profile, profileGetDelete); */
-    /* suite_add_tcase (s, tc_profile); */
+    TCase* tc_profile = tcase_create ("Profile");
+    tcase_add_checked_fixture(tc_profile, setup, teardown);
+    tcase_add_test (tc_profile, profileGetDelete);
+    suite_add_tcase (s, tc_profile);
 
     return s;
 }

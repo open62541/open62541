@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ###
@@ -13,7 +13,7 @@
 ### contributed to the open62541 project by the author. All licensing
 ### terms for this source is inherited by the terms and conditions
 ### specified for by the open62541 project (see the projects readme
-### file for more information on the MPL v2 terms and restrictions).
+### file for more information on the MPLv2 terms and restrictions).
 ###
 ### This program is not meant to be used in a production environment. The
 ### author is not liable for any complications arising due to the use of
@@ -646,17 +646,13 @@ class opcua_namespace():
 
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
-    header.append('#ifdef UA_NO_AMALGAMATION')
-    header.append(  '#include "server/ua_server_internal.h"')
-    header.append(  '#include "server/ua_nodes.h"')
-    header.append('  #include "ua_util.h"')
-    header.append('  #include "ua_types.h"')
-    header.append('  #include "ua_types_encoding_binary.h"')
-    header.append('  #include "ua_types_generated_encoding_binary.h"')
-    header.append('  #include "ua_transport_generated_encoding_binary.h"')
-    header.append('#else')
-    header.append('  #include "open62541.h"')
-    header.append('#endif')
+    header.append('')
+    header.append('#include "server/ua_server_internal.h"')
+    header.append('#include "server/ua_nodes.h"')
+    header.append('#include "ua_util.h"')
+    header.append('#include "ua_types_encoding_binary.h"')
+    header.append('#include "ua_types_generated_encoding_binary.h"')
+    header.append('#include "ua_transport_generated_encoding_binary.h"')
     header.append('')
     header.append('/* Definition that (in userspace models) may be ')
     header.append(' * - not included in the amalgamated header or')

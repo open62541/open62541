@@ -1,9 +1,13 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SESSION_MANAGER_H_
 #define UA_SESSION_MANAGER_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "queue.h"
 #include "ua_server.h"
@@ -41,6 +45,13 @@ UA_StatusCode
 UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token);
 
 UA_Session *
-UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token);
+UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token);
+
+UA_Session *
+UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SESSION_MANAGER_H_ */

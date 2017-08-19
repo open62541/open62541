@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_NODES_H_
 #define UA_NODES_H_
@@ -48,6 +48,15 @@ extern "C" {
  * Internally, open62541 uses ``UA_Node`` in places where the exact node type is
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
+
+/* List of reference targets with the same reference type and direction */
+typedef struct {
+    UA_NodeId referenceTypeId;
+    UA_Boolean isInverse;
+    size_t targetIdsSize;
+    UA_ExpandedNodeId *targetIds;
+} UA_NodeReferenceKind;
+
 #define UA_NODE_BASEATTRIBUTES                  \
     UA_NodeId nodeId;                           \
     UA_NodeClass nodeClass;                     \
@@ -55,9 +64,12 @@ extern "C" {
     UA_LocalizedText displayName;               \
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
-    UA_UInt32 userWriteMask;                    \
     size_t referencesSize;                      \
-    UA_ReferenceNode *references;
+    UA_NodeReferenceKind *references;           \
+                                                \
+    /* Members specific to open62541 */         \
+    void *context;                              \
+    UA_Boolean constructed; /* don't run the constructors twice on a node */
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
@@ -156,7 +168,6 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
-    UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing; /* currently unsupported */
 } UA_VariableNode;
@@ -177,6 +188,9 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Boolean isAbstract;
+
+    /* Members specific to open62541 */
+    UA_NodeTypeLifecycle lifecycle;
 } UA_VariableTypeNode;
 
 /**
@@ -200,11 +214,9 @@ typedef struct {
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean executable;
-    UA_Boolean userExecutable;
 
     /* Members specific to open62541 */
-    void *methodHandle;
-    UA_MethodCallback attachedMethod;
+    UA_MethodCallback method;
 } UA_MethodNode;
 
 /**
@@ -218,9 +230,6 @@ typedef struct {
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Byte eventNotifier;
-
-    /* Members specific to open62541 */
-    void *instanceHandle;
 } UA_ObjectNode;
 
 /**
@@ -237,7 +246,7 @@ typedef struct {
     UA_Boolean isAbstract;
 
     /* Members specific to open62541 */
-    UA_ObjectLifecycleManagement lifecycleManagement;
+    UA_NodeTypeLifecycle lifecycle;
 } UA_ObjectTypeNode;
 
 /**

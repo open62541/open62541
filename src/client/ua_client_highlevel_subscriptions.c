@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client_highlevel.h"
 #include "ua_client_internal.h"
@@ -22,13 +22,15 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 
     UA_CreateSubscriptionResponse response = UA_Client_Service_createSubscription(client, request);
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CreateSubscriptionResponse_deleteMembers(&response);
+        return retval;
+    }
 
-    UA_Client_Subscription *newSub = UA_malloc(sizeof(UA_Client_Subscription));
+    UA_Client_Subscription *newSub = (UA_Client_Subscription *)UA_malloc(sizeof(UA_Client_Subscription));
     if(!newSub) {
-        retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
+        UA_CreateSubscriptionResponse_deleteMembers(&response);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     LIST_INIT(&newSub->monitoredItems);
@@ -43,19 +45,24 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     if(newSubscriptionId)
         *newSubscriptionId = newSub->subscriptionID;
 
- cleanup:
     UA_CreateSubscriptionResponse_deleteMembers(&response);
-    return retval;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_Client_Subscription *findSubscription(const UA_Client *client, UA_UInt32 subscriptionId)
+{
+    UA_Client_Subscription *sub = NULL;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if(sub->subscriptionID == subscriptionId)
+            break;
+    }
+    return sub;
 }
 
 /* remove the subscription remotely */
 UA_StatusCode
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -109,16 +116,12 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_MonitoredItemHandlingFunction hf,
                                          void *hfContext, UA_UInt32 *newMonitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
     /* Create the handler */
-    UA_Client_MonitoredItem *newMon = UA_malloc(sizeof(UA_Client_MonitoredItem));
+    UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem*)UA_malloc(sizeof(UA_Client_MonitoredItem));
     if(!newMon)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -178,11 +181,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 UA_StatusCode
 UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                             UA_UInt32 monitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -226,18 +225,13 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
-    /* Find the subscription */
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == response->subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         return;
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
                  "Processing a publish response on subscription %u with %u notifications",
-                 sub->subscriptionID, response->notificationMessage.notificationDataSize);
+                 sub->subscriptionID, (unsigned int)response->notificationMessage.notificationDataSize);
 
     /* Check if the server has acknowledged any of the sent ACKs */
     for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
@@ -270,7 +264,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         if(msg->notificationData[k].content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION])
             continue;
 
-        UA_DataChangeNotification *dataChangeNotification = msg->notificationData[k].content.decoded.data;
+        UA_DataChangeNotification *dataChangeNotification = (UA_DataChangeNotification *)msg->notificationData[k].content.decoded.data;
         for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
             UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
             UA_Client_MonitoredItem *mon;
@@ -288,11 +282,12 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     }
 
     /* Add to the list of pending acks */
-    UA_Client_NotificationsAckNumber *tmpAck = UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+    UA_Client_NotificationsAckNumber *tmpAck =
+        (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
     if(!tmpAck) {
         UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Not enough memory to store the acknowledgement for a "
-                       "publish message on subscription %u", sub->subscriptionID);
+                       "Not enough memory to store the acknowledgement for a publish "
+                       "message on subscription %u", sub->subscriptionID);
         return;
     }
     tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
@@ -316,9 +311,9 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             ++request.subscriptionAcknowledgementsSize;
         if(request.subscriptionAcknowledgementsSize > 0) {
             request.subscriptionAcknowledgements =
-                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
+                (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
-                return UA_STATUSCODE_GOOD;
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
         int i = 0;

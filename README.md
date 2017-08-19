@@ -1,9 +1,11 @@
 open62541
 =========
 
-open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture). open62541 is a C-based library (linking with C++ projects is possible) with all necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. The library is distributed as a single pair of [header](https://github.com/open62541/open62541/releases/download/v0.2/open62541.h) and [source](https://github.com/open62541/open62541/releases/download/v0.2/open62541.c) files, that can be easily dropped into your project. An example server and client implementation can be found in the [/examples](examples/) directory or further down on this page.
+open62541 (http://open62541.org) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
 
-open62541 is licensed under the Mozilla Public License v2.0. So the **open62541 library can be used in projects that are not open source**. However, changes to the open62541 library itself need to published under the same license. The [plugins](plugins/), as well as the server and client [examples](examples/) are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 library can be used in projects that are not open source*. Only changes to the open62541 library itself need to published under the same license. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+
+The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
 [![Build Status](https://img.shields.io/travis/open62541/open62541/0.2.svg)](https://travis-ci.org/open62541/open62541)
@@ -79,17 +81,13 @@ int main(int argc, char** argv)
 {
     signal(SIGINT, signalHandler); /* catch ctrl-c */
 
-    /* Create a server with one network layer listening on port 4840 */
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    /* Create a server listening on port 4840 */
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     /* Add a variable node */
     /* 1) Define the node attributes */
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -108,7 +106,7 @@ int main(int argc, char** argv)
     /* Run the server loop */
     UA_StatusCode status = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return status;
 }
 ```
@@ -121,7 +119,7 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* Create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

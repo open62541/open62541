@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
@@ -37,15 +37,33 @@ extern "C" {
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
+#cmakedefine UA_ENABLE_DISCOVERY
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
+#cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
  * Standard Includes
  * ----------------- */
 #ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 500
+ #if defined(__QNX__) || defined(__QNXNTO__)
+  # define _XOPEN_SOURCE 600
+ #else
+  # define _XOPEN_SOURCE 500
+ #endif
 #endif
 #ifndef _DEFAULT_SOURCE
 # define _DEFAULT_SOURCE
+#endif
+// On older systems we need to define _BSD_SOURCE
+// _DEFAULT_SOURCE is an alias for that
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+// Disable deprecation warnings for sprintf, strncpy, strerror
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+# define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stddef.h>
@@ -65,13 +83,12 @@ typedef uint8_t bool;
 #define false 0 */
 #endif
 
-#include <stdlib.h>
-
 /**
  * Memory Management
  * ---------------
  * The default malloc implementation from ``stdlib.h`` is used internally.
  * Override if required. */
+#include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
 #endif
@@ -148,11 +165,21 @@ typedef uint8_t bool;
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+# define UA_FORMAT(X,Y)
+#endif
+
+#ifdef __GNUC__
+# define UA_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+# define UA_DEPRECATED __declspec(deprecated)
+#else
+# define UA_DEPRECATED
 #endif
 
 /**
@@ -184,44 +211,44 @@ typedef uint8_t bool;
  * representation of the target architecture is little-endian. */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
                         (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
-# define UA_BINARY_OVERLAYABLE_INTEGER true
+# define UA_BINARY_OVERLAYABLE_INTEGER 1
 #elif defined(__ANDROID__) /* Andoid */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__linux__) /* Linux */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 # if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_FLOAT true
+#  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(__OpenBSD__) /* OpenBSD */
 # include <sys/endian.h>
 # if BYTE_ORDER == LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__) /* Other BSD */
 # include <sys/endian.h>
 # if _BYTE_ORDER == _LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__APPLE__) /* Apple (MacOS, iOS) */
 # include <libkern/OSByteOrder.h>
 # if defined(__LITTLE_ENDIAN__)
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__QNX__) || defined(__QNXNTO__) /* QNX */
 # include <gulliver.h>
 # if defined(__LITTLEENDIAN__)
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
-# define UA_BINARY_OVERLAYABLE_INTEGER false
+# define UA_BINARY_OVERLAYABLE_INTEGER 0
 #endif
 
 /**
@@ -232,17 +259,17 @@ typedef uint8_t bool;
  * this cannot be reliable detected with macros for the clang compiler
  * (beginning of 2017). Just override if necessary. */
 #if defined(_WIN32)
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
     (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
-# define UA_BINARY_OVERLAYABLE_FLOAT false
+# define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
 
 #ifdef __cplusplus

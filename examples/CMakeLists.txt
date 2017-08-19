@@ -1,73 +1,76 @@
-include_directories(${PROJECT_BINARY_DIR}
-                    ${PROJECT_BINARY_DIR}/src_generated
-                    ${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_BINARY_DIR})
+
+#############################
+# Compiled binaries folders #
+#############################
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
+
+macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
+  target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
+  assign_source_group(${EXAMPLE_SOURCE})
+  add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/examples")
+  if(UA_COMPILE_AS_CXX)
+    set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
+  endif()
+endmacro()
 
 #############
 # Tutorials #
 #############
 
-add_executable(tutorial_datatypes tutorial_datatypes.c)
-target_link_libraries(tutorial_datatypes open62541 ${open62541_LIBRARIES})
+add_example(tutorial_datatypes tutorial_datatypes.c)
 
-add_executable(tutorial_server_firststeps tutorial_server_firststeps.c)
-target_link_libraries(tutorial_server_firststeps open62541 ${open62541_LIBRARIES})
+add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
 
-add_executable(tutorial_server_variable tutorial_server_variable.c)
-target_link_libraries(tutorial_server_variable open62541 ${open62541_LIBRARIES})
+add_example(tutorial_server_variable tutorial_server_variable.c)
 
-add_executable(tutorial_server_datasource tutorial_server_datasource.c)
-target_link_libraries(tutorial_server_datasource open62541 ${open62541_LIBRARIES})
+add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
-add_executable(tutorial_server_variabletype tutorial_server_variabletype.c)
-target_link_libraries(tutorial_server_variabletype open62541 ${open62541_LIBRARIES})
+add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
-add_executable(tutorial_server_object tutorial_server_object.c)
-target_link_libraries(tutorial_server_object open62541 ${open62541_LIBRARIES})
+add_example(tutorial_server_object tutorial_server_object.c)
 
 if(UA_ENABLE_METHODCALLS)
-  add_executable(tutorial_server_method tutorial_server_method.c)
-  target_link_libraries(tutorial_server_method open62541 ${open62541_LIBRARIES})
+  add_example(tutorial_server_method tutorial_server_method.c)
 endif()
 
-add_executable(tutorial_client_firststeps tutorial_client_firststeps.c)
-target_link_libraries(tutorial_client_firststeps open62541 ${open62541_LIBRARIES})
+add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
 ##################
 # Example Server #
 ##################
 
-add_executable(server server.c)
-target_link_libraries(server open62541 ${open62541_LIBRARIES})
-
-if(UA_ENABLE_NONSTANDARD_UDP)
-  add_executable(server_udp server_udp.c ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.c)
-  target_link_libraries(server_udp open62541 ${open62541_LIBRARIES})
-endif()
+add_example(server server.c)
 
 ##################
 # Example Client #
 ##################
 
-add_executable(client client.c)
-target_link_libraries(client open62541 ${open62541_LIBRARIES})
+add_example(client client.c)
 
 ####################
 # Feature Examples #
 ####################
 
-add_executable(server_mainloop server_mainloop.c)
-target_link_libraries(server_mainloop open62541 ${open62541_LIBRARIES})
+add_example(server_mainloop server_mainloop.c)
 
-add_executable(server_instantiation server_instantiation.c)
-target_link_libraries(server_instantiation open62541 ${open62541_LIBRARIES})
+add_example(server_instantiation server_instantiation.c)
 
-add_executable(server_repeated_job server_repeated_job.c)
-target_link_libraries(server_repeated_job open62541 ${open62541_LIBRARIES})
+add_example(server_repeated_job server_repeated_job.c)
 
-add_executable(server_inheritance server_inheritance.c)
-target_link_libraries(server_inheritance open62541 ${open62541_LIBRARIES})
+add_example(server_inheritance server_inheritance.c)
 
-if(NOT BUILD_SHARED_open62541_LIBRARIES AND UA_BUILD_EXAMPLES_NODESET_COMPILER)
+if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
+  if(BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "The nodeset compiler currently requires static linking to access internal API")
+  endif()
+
   # example information model from nodeset xml
   add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
                     PRE_BUILD
@@ -84,11 +87,11 @@ if(NOT BUILD_SHARED_open62541_LIBRARIES AND UA_BUILD_EXAMPLES_NODESET_COMPILER)
                             ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
                             ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
                             ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-						  
+
   # needs internal methods which are not exported in the dynamic lib
-  add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
-  target_link_libraries(server_nodeset open62541 ${open62541_LIBRARIES})
+  add_example(server_nodeset ${PROJECT_BINARY_DIR}/src_generated/nodeset.c server_nodeset.c)
   target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
+  set_target_properties(server_nodeset PROPERTIES COMPILE_FLAGS "-Wno-pedantic -Wno-sign-conversion")
 endif()
 
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
@@ -97,9 +100,18 @@ if(UA_BUILD_SELFSIGNED_CERTIFICATE)
                      COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
                      DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
                              ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
-
   add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
-
-  add_executable(server_certificate server_certificate.c server_cert.der ca.crt)
+  add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der ca.crt)
   target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
+endif()
+
+if(UA_ENABLE_DISCOVERY)
+    add_example(discovery_server_lds discovery/server_lds.c)
+
+    add_example(discovery_server_register discovery/server_register.c)
+
+    add_example(discovery_client_find_servers discovery/client_find_servers.c)
+    if(UA_ENABLE_DISCOVERY_MULTICAST)
+        add_example(discovery_server_multicast discovery/server_multicast.c)
+    endif()
 endif()

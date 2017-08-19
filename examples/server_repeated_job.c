@@ -2,16 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_server.h"
-# include "ua_config_standard.h"
-# include "ua_network_tcp.h"
-# include "ua_log_stdout.h"
-#else
-# include "open62541.h"
-#endif
+#include "open62541.h"
 
 static void
 testCallback(UA_Server *server, void *data) {
@@ -28,19 +19,14 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
-    /* add a repeated job to the server */
-    UA_Job job = {.type = UA_JOBTYPE_METHODCALL,
-                  .job.methodCall = {.method = testCallback, .data = NULL} };
-    UA_Server_addRepeatedJob(server, job, 2000, NULL); /* call every 2 sec */
+    /* Add a repeated callback to the server */
+    UA_Server_addRepeatedCallback(server, testCallback, NULL, 2000, NULL); /* call every 2 sec */
 
-    UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-    return 0;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }

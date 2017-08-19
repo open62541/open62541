@@ -55,7 +55,7 @@ variables_basic(void) {
 
     cr.requestHeader.timestamp = UA_DateTime_now(); /* Members of a structure */
 
-    cr.methodsToCall = UA_Array_new(5, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]);
+    cr.methodsToCall = (UA_CallMethodRequest *)UA_Array_new(5, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST]);
     cr.methodsToCallSize = 5; /* Array size needs to be made known */
 
     UA_CallRequest *cr2 = UA_CallRequest_new();
@@ -120,7 +120,7 @@ variables_variants(void) {
     UA_Variant_setArrayCopy(&v3, d, 9, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     /* Set array dimensions */
-    v3.arrayDimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_UINT32]);
+    v3.arrayDimensions = (UA_UInt32 *)UA_Array_new(2, &UA_TYPES[UA_TYPES_UINT32]);
     v3.arrayDimensionsSize = 2;
     v3.arrayDimensions[0] = 3;
     v3.arrayDimensions[1] = 3;

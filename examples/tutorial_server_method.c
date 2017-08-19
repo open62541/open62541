@@ -34,13 +34,16 @@
 #include "open62541.h"
 
 static UA_StatusCode
-helloWorldMethodCallback(void *handle, const UA_NodeId objectId,
+helloWorldMethodCallback(UA_Server *server,
+                         const UA_NodeId *sessionId, void *sessionHandle,
+                         const UA_NodeId *methodId, void *methodContext,
+                         const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
     UA_String *inputStr = (UA_String*)input->data;
     UA_String tmp = UA_STRING_ALLOC("Hello ");
     if(inputStr->length > 0) {
-        tmp.data = realloc(tmp.data, tmp.length + inputStr->length);
+        tmp.data = (UA_Byte *)UA_realloc(tmp.data, tmp.length + inputStr->length);
         memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
         tmp.length += inputStr->length;
     }
@@ -66,8 +69,7 @@ addHellWorldMethod(UA_Server *server) {
     outputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArgument.valueRank = -1; /* scalar */
 
-    UA_MethodAttributes helloAttr;
-    UA_MethodAttributes_init(&helloAttr);
+    UA_MethodAttributes helloAttr = UA_MethodAttributes_default;
     helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
     helloAttr.displayName = UA_LOCALIZEDTEXT("en_US","Hello World");
     helloAttr.executable = true;
@@ -76,8 +78,8 @@ addHellWorldMethod(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
-                            helloAttr, &helloWorldMethodCallback, NULL,
-                            1, &inputArgument, 1, &outputArgument, NULL);
+                            helloAttr, &helloWorldMethodCallback,
+                            1, &inputArgument, 1, &outputArgument, NULL, NULL);
 }
 
 /**
@@ -87,7 +89,10 @@ addHellWorldMethod(UA_Server *server) {
  * copy of the array with every entry increased by the scalar. */
 
 static UA_StatusCode
-IncInt32ArrayMethodCallback(void *handle, const UA_NodeId objectId,
+IncInt32ArrayMethodCallback(UA_Server *server,
+                            const UA_NodeId *sessionId, void *sessionContext,
+                            const UA_NodeId *methodId, void *methodContext,
+                            const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
     UA_Int32 *inputArray = (UA_Int32*)input[0].data;
@@ -138,8 +143,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     outputArgument.arrayDimensions = &pOutputDimension;
 
     /* Add the method node */
-    UA_MethodAttributes incAttr;
-    UA_MethodAttributes_init(&incAttr);
+    UA_MethodAttributes incAttr = UA_MethodAttributes_default;
     incAttr.description = UA_LOCALIZEDTEXT("en_US", "IncInt32ArrayValues");
     incAttr.displayName = UA_LOCALIZEDTEXT("en_US", "IncInt32ArrayValues");
     incAttr.executable = true;
@@ -148,8 +152,9 @@ addIncInt32ArrayMethod(UA_Server *server) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "IncInt32ArrayValues"),
-                            incAttr, &IncInt32ArrayMethodCallback, NULL,
-                            2, inputArguments, 1, &outputArgument, NULL);
+                            incAttr, &IncInt32ArrayMethodCallback,
+                            2, inputArguments, 1, &outputArgument,
+                            NULL, NULL);
 }
 
 /** It follows the main server code, making use of the above definitions. */
@@ -164,18 +169,14 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl =
-        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     addHellWorldMethod(server);
     addIncInt32ArrayMethod(server);
 
-    UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-    return 0;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }

@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_session_manager.h"
 #include "ua_server_internal.h"
@@ -61,12 +61,14 @@ UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
             continue;
         UA_LOG_INFO_SESSION(sm->server->config.logger, &sentry->session,
                             "Session has timed out");
+        sm->server->config.accessControl.closeSession(&sentry->session.sessionId,
+                                                      sentry->session.sessionHandle);
         removeSession(sm, sentry);
     }
 }
 
 UA_Session *
-UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
+UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &sm->sessions, pointers) {
         /* Token does not match */
@@ -91,6 +93,32 @@ UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token) {
     return NULL;
 }
 
+UA_Session *
+UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId) {
+    session_list_entry *current = NULL;
+    LIST_FOREACH(current, &sm->sessions, pointers) {
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.sessionId, sessionId))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(sm->server->config.logger, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
+        }
+
+        /* Ok, return */
+        return &current->session;
+    }
+
+    /* Session not found */
+    UA_LOG_INFO(sm->server->config.logger, UA_LOGCATEGORY_SESSION,
+                "Try to use Session with identifier " UA_PRINTF_GUID_FORMAT " but is not found",
+                UA_PRINTF_GUID_DATA(sessionId->identifier.guid));
+    return NULL;
+}
+
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
 UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
@@ -98,7 +126,7 @@ UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel
     if(sm->currentSessionCount >= sm->server->config.maxSessions)
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
 
-    session_list_entry *newentry = UA_malloc(sizeof(session_list_entry));
+    session_list_entry *newentry = (session_list_entry *)UA_malloc(sizeof(session_list_entry));
     if(!newentry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 

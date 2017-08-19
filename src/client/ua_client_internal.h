@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_INTERNAL_H_
 #define UA_CLIENT_INTERNAL_H_
@@ -52,6 +52,14 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 /* Client */
 /**********/
 
+typedef struct AsyncServiceCall {
+    LIST_ENTRY(AsyncServiceCall) pointers;
+    UA_UInt32 requestId;
+    UA_ClientAsyncServiceCallback callback;
+    const UA_DataType *responseType;
+    void *userdata;
+} AsyncServiceCall;
+
 typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,
     UA_CLIENTAUTHENTICATION_USERNAME
@@ -80,6 +88,9 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
+
+    /* Async Service */
+    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
     
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -88,5 +99,22 @@ struct UA_Client {
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
 #endif
 };
+
+/* Connect to the selected server.
+ * This will not create a session.
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
+
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession);
+
+UA_StatusCode
+__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
+                         UA_EndpointDescription** endpointDescriptions);
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

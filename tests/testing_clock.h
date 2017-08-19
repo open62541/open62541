@@ -15,6 +15,6 @@
  * UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void); */
 
 /* Forwards the testing clock by the given duration in ms */
- void UA_sleep(UA_DateTime duration);
+void UA_sleep(UA_UInt32 duration);
 
 #endif /* TESTING_CLOCK_H_ */

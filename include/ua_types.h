@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -12,6 +12,8 @@ extern "C" {
 #include "ua_config.h"
 #include "ua_constants.h"
 
+#define UA_BUILTIN_TYPES_COUNT 25U
+
 /**
  * .. _types:
  *
@@ -20,7 +22,7 @@ extern "C" {
  *
  * The OPC UA protocol defines 25 builtin data types and three ways of combining
  * them into higher-order types: arrays, structures and unions. In open62541,
- * the builtin data types are defined manually. All other data types are
+ * only the builtin data types are defined manually. All other data types are
  * generated from standard XML definitions. Their exact definitions can be
  * looked up at https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml.
  *
@@ -29,11 +31,8 @@ extern "C" {
  * implementation details.
  *
  * Builtin Types
- * ------------- */
-
-#define UA_BUILTIN_TYPES_COUNT 25U
-
-/**
+ * -------------
+ *
  * Boolean
  * ^^^^^^^
  * A two-state logical value (true or false). */
@@ -128,26 +127,13 @@ typedef double UA_Double;
  * specific code. */
 typedef uint32_t UA_StatusCode;
 
-typedef struct {
-    UA_StatusCode code;      /* The numeric value of the StatusCode */
-    const char* name;        /* The symbolic name */
-    const char* explanation; /* Short message explaining the StatusCode */
-} UA_StatusCodeDescription;
-
-/* Returns the description of the StatusCode. Never returns NULL, but a generic
- * description for invalid StatusCodes instead. */
-UA_EXPORT const UA_StatusCodeDescription *
-UA_StatusCode_description(UA_StatusCode code);
-
-static UA_INLINE const char *
-UA_StatusCode_name(UA_StatusCode code) {
-    return UA_StatusCode_description(code)->name;
-}
-
-static UA_INLINE const char *
-UA_StatusCode_explanation(UA_StatusCode code) {
-    return UA_StatusCode_description(code)->explanation;
-}
+/* Returns the human-readable name of the StatusCode. If no matching StatusCode
+ * is found, a default string for "Unknown" is returned. This feature might be
+ * disabled to create a smaller binary with the
+ * UA_ENABLE_STATUSCODE_DESCRIPTIONS build-flag. Then the function returns an
+ * empty string for every StatusCode. */
+UA_EXPORT const char *
+UA_StatusCode_name(UA_StatusCode code);
 
 /**
  * String
@@ -166,7 +152,7 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**
- * ``UA_STRING`` returns a string pointing to the preallocated char-array.
+ * ``UA_STRING`` returns a string pointing to the original char-array.
  * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
  * of the char-array. */
 static UA_INLINE UA_String
@@ -191,6 +177,9 @@ typedef int64_t UA_DateTime;
 #define UA_USEC_TO_DATETIME 10LL
 #define UA_MSEC_TO_DATETIME (UA_USEC_TO_DATETIME * 1000LL)
 #define UA_SEC_TO_DATETIME (UA_MSEC_TO_DATETIME * 1000LL)
+#define UA_DATETIME_TO_USEC (1/10.0)
+#define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
+#define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
 
 /* Datetime of 1 Jan 1970 00:00 UTC */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
@@ -509,7 +498,7 @@ typedef struct UA_DataType UA_DataType;
 typedef enum {
     UA_VARIANT_DATA,          /* The data has the same lifecycle as the
                                  variant */
-    UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and
+    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and
                                  shall not be deleted at the end of the
                                  variant's lifecycle. */
 } UA_VariantStorageType;
@@ -775,8 +764,8 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
     UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */
@@ -896,6 +885,31 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * .. toctree::
  *
  *    types_generated */
+
+/**
+ * Deprecated Data Types API
+ * -------------------------
+ * The following definitions are deprecated and will be removed in future
+ * releases of open62541. */
+
+typedef struct {
+    UA_StatusCode code;      /* The numeric value of the StatusCode */
+    const char* name;        /* The symbolic name */
+    const char* explanation; /* Short message explaining the StatusCode */
+} UA_StatusCodeDescription;
+
+UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
+
+UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
+UA_StatusCode_description(UA_StatusCode code) {
+    return &statusCodeExplanation_default;
+}
+
+UA_DEPRECATED static UA_INLINE const char *
+UA_StatusCode_explanation(UA_StatusCode code) {
+    return statusCodeExplanation_default.name;
+}
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
