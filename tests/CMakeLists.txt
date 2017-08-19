@@ -115,6 +115,11 @@ if(UA_ENABLE_DISCOVERY)
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
 endif()
 
+
+add_executable(check_server_instantiation check_server_instantiation.c $<TARGET_OBJECTS:open62541-object>)
+target_link_libraries(check_server_instantiation ${LIBS})
+add_test(check_server_instantiation ${CMAKE_CURRENT_BINARY_DIR}/check_server_instantiation)
+
 # Readspeed server
 add_executable(check_server_readspeed check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})

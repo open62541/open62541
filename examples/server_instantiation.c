@@ -4,14 +4,26 @@
 #include <signal.h>
 #include "open62541.h"
 
+UA_Logger logger = UA_Log_Stdout;
 UA_Boolean running = true;
-static void stopHandler(int sig) {
+
+
+static UA_StatusCode instantiationCallback(UA_NodeId objectId, UA_NodeId definitionId, void *handle) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER,
+        "Created new node ns=%d;i=%d according to template ns=%d;i=%d (handle was %d)",
+         objectId.namespaceIndex,
+         objectId.identifier.numeric, definitionId.namespaceIndex,
+         definitionId.identifier.numeric, *((UA_Int32 *) handle));
+  return UA_STATUSCODE_GOOD;
+}
+
+static void stopHandler(int sign) {
+    UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
-int main(void) {
-    signal(SIGINT,  stopHandler);
-    signal(SIGTERM, stopHandler);
+int main(int argc, char** argv) {
+    signal(SIGINT, stopHandler); /* catches ctrl-c */
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
