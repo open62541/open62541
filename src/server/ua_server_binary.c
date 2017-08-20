@@ -328,6 +328,7 @@ processOPN(UA_Server *server, UA_Connection *connection,
     UA_SecureChannel *channel = connection->channel;
     if(!channel) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
+        UA_NodeId_deleteMembers(&requestType);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Could not open a SecureChannel. "
