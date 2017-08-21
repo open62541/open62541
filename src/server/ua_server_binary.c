@@ -330,7 +330,6 @@ processOPN(UA_Server *server,
     if(!channel) {
         UA_OpenSecureChannelResponse_deleteMembers(&openScResponse);
         UA_NodeId_deleteMembers(&requestType);
-
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Could not open a SecureChannel. "
                     "Closing the connection.", connection->sockfd);
