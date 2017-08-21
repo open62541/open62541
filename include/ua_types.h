@@ -348,6 +348,8 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
+UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+
 /** The following functions are shorthand for creating ExpandedNodeIds. */
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
