@@ -46,11 +46,7 @@ extern "C" {
  * Standard Includes
  * ----------------- */
 #ifndef _XOPEN_SOURCE
- #if defined(__QNX__) || defined(__QNXNTO__)
-  # define _XOPEN_SOURCE 600
- #else
-  # define _XOPEN_SOURCE 500
- #endif
+# define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
 # define _DEFAULT_SOURCE
