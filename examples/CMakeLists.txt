@@ -12,7 +12,7 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
   target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
   assign_source_group(${EXAMPLE_SOURCE})
-  add_dependencies(${EXAMPLE_NAME} open62541_amalgamation_header open62541_amalgamation_source)
+  add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/examples")
   if(UA_COMPILE_AS_CXX)
@@ -41,6 +41,8 @@ if(UA_ENABLE_METHODCALLS)
 endif()
 
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
+
+add_example(tutorial_client_events tutorial_client_events.c)
 
 ##################
 # Example Server #

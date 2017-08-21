@@ -429,7 +429,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             UA_LOG_WARNING_SESSION(server->config.logger, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
-            responseHeader->serviceResult = UA_STATUSCODE_BADNOTFOUND;
+            responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
             return;
         }
 
@@ -654,12 +654,6 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_UInt32 intervalMs,
                                             UA_UInt32 delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
-    /* There can be only one callback atm */
-    if(server->periodicServerRegisterCallback) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "There is already a register callback in place");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* No valid server URL */
     if(!discoveryServerUrl) {
@@ -668,13 +662,29 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+
+    /* check if we are already registering with the given discovery url and remove the old periodic call */
+    {
+        periodicServerRegisterCallback_entry *rs, *rs_tmp;
+        LIST_FOREACH_SAFE(rs, &server->periodicServerRegisterCallbacks, pointers, rs_tmp) {
+            if (strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
+                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
+                UA_Server_removeRepeatedCallback(server, rs->callback->id);
+                LIST_REMOVE(rs, pointers);
+                UA_free(rs->callback);
+                UA_free(rs);
+                break;
+            }
+        }
+    }
+
     /* Allocate and initialize */
     struct PeriodicServerRegisterCallback* cb =
         (struct PeriodicServerRegisterCallback*)
         UA_malloc(sizeof(struct PeriodicServerRegisterCallback));
     if(!cb)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->periodicServerRegisterCallback = cb;
 
     /* Start repeating a failed register after 1s, then increase the delay. Set
      * to 500ms, as the delay is doubled before changing the callback
@@ -684,6 +694,8 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     cb->registered = false;
     cb->discovery_server_url = discoveryServerUrl;
 
+
+
     /* Add the callback */
     UA_StatusCode retval =
         UA_Server_addRepeatedCallback(server, periodicServerRegister,
@@ -692,10 +704,22 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. "
                      "StatusCode %s", UA_StatusCode_name(retval));
-        UA_free(server->periodicServerRegisterCallback);
-        server->periodicServerRegisterCallback = NULL;
+        UA_free(cb);
         return retval;
     }
+
+#ifndef __clang_analyzer__
+    // the analyzer reports on LIST_INSERT_HEAD a use after free false positive
+    periodicServerRegisterCallback_entry *newEntry =
+            (periodicServerRegisterCallback_entry *)UA_malloc(sizeof(periodicServerRegisterCallback_entry));
+    if(!newEntry) {
+        UA_Server_removeRepeatedCallback(server, cb->id);
+        UA_free(cb);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    newEntry->callback = cb;
+    LIST_INSERT_HEAD(&server->periodicServerRegisterCallbacks, newEntry, pointers);
+#endif
 
     if(periodicCallbackId)
         *periodicCallbackId = cb->id;

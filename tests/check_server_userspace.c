@@ -10,28 +10,15 @@
 #include "check.h"
 
 #ifdef __clang__
- //required for ck_assert_ptr_eq and const casting
+//required for ck_assert_ptr_eq and const casting
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #endif
 
-UA_Server *server = NULL;
-UA_ServerConfig *config = NULL;
+START_TEST(Server_addNamespace_ShallWork) {
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
 
-static void setup(void) {
-    config = UA_ServerConfig_standard_new();
-    server = UA_Server_new(*config);
-    UA_Server_run_startup(server);
-}
-
-static void teardown(void) {
-    UA_Server_run_shutdown(server);
-    UA_Server_delete(server);
-    UA_ServerConfig_standard_delete(config);
-}
-
-START_TEST(Server_addNamespace_ShallWork)
-{
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 c = UA_Server_addNamespace(server, "http://nameOfNamespace2");
@@ -39,11 +26,16 @@ START_TEST(Server_addNamespace_ShallWork)
     ck_assert_uint_gt(a, 0);
     ck_assert_uint_eq(a,b);
     ck_assert_uint_ne(a,c);
+
+    UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 
-START_TEST(Server_addNamespace_writeService)
-{
+START_TEST(Server_addNamespace_writeService) {
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
+
     UA_Variant namespaces;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server_readValue(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
@@ -69,13 +61,14 @@ START_TEST(Server_addNamespace_writeService)
     ck_assert_uint_eq(namespaces.arrayLength, nsSize);
 
     UA_Variant_deleteMembers(&namespaces);
+    UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 END_TEST
 
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
     TCase *tc_core = tcase_create("Core");
-    tcase_add_checked_fixture(tc_core, setup, teardown);
     tcase_add_test(tc_core, Server_addNamespace_ShallWork);
     tcase_add_test(tc_core, Server_addNamespace_writeService);
 

@@ -33,18 +33,17 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig *config = UA_ServerConfig_standard_new();
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
 
-    UA_Server *server = UA_Server_new(*config);
+    UA_Server *server = UA_Server_new(config);
 
     if (server == NULL)
         return -1;
 
-    UA_Server_run(server, &running);
-
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    UA_ServerConfig_standard_delete(config);
-    return 0;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }
 
 /**

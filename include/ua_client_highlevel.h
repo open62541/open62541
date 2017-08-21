@@ -575,7 +575,7 @@ typedef struct {
     UA_Byte priority;
 } UA_SubscriptionSettings;
 
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_standard;
+extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
@@ -586,6 +586,21 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+                                                  const size_t nEventFields,
+                                                  const UA_Variant *eventFields,
+                                                  void *context);
+
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
+                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
+                                          UA_SimpleAttributeOperand *selectClause,
+                                          const size_t nSelectClauses,
+                                          UA_ContentFilterElement *whereClause,
+                                          const size_t nWhereClauses,
+                                          const UA_MonitoredEventHandlingFunction hf,
+                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
 
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
                                                  UA_DataValue *value,

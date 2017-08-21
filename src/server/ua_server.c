@@ -110,8 +110,12 @@ void UA_Server_delete(UA_Server *server) {
         UA_RegisteredServer_deleteMembers(&rs->registeredServer);
         UA_free(rs);
     }
-    if(server->periodicServerRegisterCallback)
-        UA_free(server->periodicServerRegisterCallback);
+    periodicServerRegisterCallback_entry *ps, *ps_tmp;
+    LIST_FOREACH_SAFE(ps, &server->periodicServerRegisterCallbacks, pointers, ps_tmp) {
+        LIST_REMOVE(ps, pointers);
+        UA_free(ps->callback);
+        UA_free(ps);
+    }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
@@ -162,20 +166,20 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 }
 
 UA_Server *
-UA_Server_new(const UA_ServerConfig config) {
+UA_Server_new(const UA_ServerConfig *config) {
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
     if(!server)
         return NULL;
 
-    if(config.endpoints.count == 0) {
-        UA_LOG_FATAL(config.logger,
+    if(config->endpoints.count == 0) {
+        UA_LOG_FATAL(config->logger,
                      UA_LOGCATEGORY_SERVER,
                      "There has to be at least one endpoint.");
         UA_free(server);
         return NULL;
     }
 
-    server->config = config;
+    server->config = *config;
     server->startTime = UA_DateTime_now();
     server->nodestore = UA_NodeStore_new();
 
@@ -216,7 +220,7 @@ UA_Server_new(const UA_ServerConfig config) {
 #ifdef UA_ENABLE_DISCOVERY
     LIST_INIT(&server->registeredServers);
     server->registeredServersSize = 0;
-    server->periodicServerRegisterCallback = NULL;
+    LIST_INIT(&server->periodicServerRegisterCallbacks);
     server->registerServerCallback = NULL;
     server->registerServerCallbackData = NULL;
 #endif

@@ -1,0 +1,10 @@
+# Probably this: https://bugzilla.redhat.com/show_bug.cgi?id=754026
+{
+   <glibc noai6ai_cached>
+   Memcheck:Free
+   fun:free
+   fun:__libc_freeres
+   fun:_vgnU_freeres
+   fun:__run_exit_handlers
+   fun:exit
+}

@@ -48,7 +48,10 @@ static void stopHandler(int sign) {
 
 /* Datasource Example */
 static UA_StatusCode
-readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
+readTimeData(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             UA_Boolean sourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
     if(range) {
         value->hasStatus = true;
@@ -68,8 +71,10 @@ readTimeData(void *handle, const UA_NodeId nodeId, UA_Boolean sourceTimeStamp,
 /* Method Node Example */
 #ifdef UA_ENABLE_METHODCALLS
 static UA_StatusCode
-helloWorld(void *methodHandle, const UA_NodeId *objectId,
-           const UA_NodeId *sessionId, void *sessionHandle,
+helloWorld(UA_Server *server,
+           const UA_NodeId *sessionId, void *sessionContext,
+           const UA_NodeId *methodId, void *methodContext,
+           const UA_NodeId *objectId, void *objectContext,
            size_t inputSize, const UA_Variant *input,
            size_t outputSize, UA_Variant *output) {
     /* input is a scalar string (checked by the server) */
@@ -86,16 +91,20 @@ helloWorld(void *methodHandle, const UA_NodeId *objectId,
 }
 
 static UA_StatusCode
-noargMethod(void *methodHandle, const UA_NodeId *objectId,
-            const UA_NodeId *sessionId, void *sessionHandle,
+noargMethod(UA_Server *server,
+            const UA_NodeId *sessionId, void *sessionContext,
+            const UA_NodeId *methodId, void *methodContext,
+            const UA_NodeId *objectId, void *objectContext,
             size_t inputSize, const UA_Variant *input,
             size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-outargMethod(void *methodHandle, const UA_NodeId *objectId,
-            const UA_NodeId *sessionId, void *sessionHandle,
+outargMethod(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *methodId, void *methodContext,
+             const UA_NodeId *objectId, void *objectContext,
              size_t inputSize, const UA_Variant *input,
              size_t outputSize, UA_Variant *output) {
     UA_Int32 out = 42;
@@ -109,15 +118,15 @@ int main(int argc, char** argv) {
 
     UA_ByteString cert = loadCertificate();
 
-    UA_ServerConfig *config = UA_ServerConfig_standard_parametrized_new(16664, &cert);
+    UA_ServerConfig *config = UA_ServerConfig_new_minimal(16664, &cert);
     if(config == NULL)
         return -1;
 
-    UA_Server *server = UA_Server_new(*config);
+    UA_Server *server = UA_Server_new(config);
 
     if (server == NULL)
     {
-        UA_ServerConfig_standard_delete(config);
+        UA_ServerConfig_delete(config);
         return -1;
     }
 
@@ -139,7 +148,6 @@ int main(int argc, char** argv) {
 
     /* add a variable with the datetime data source */
     UA_DataSource dateDataSource;
-    dateDataSource.handle = NULL;
     dateDataSource.read = readTimeData;
     dateDataSource.write = NULL;
     UA_VariableAttributes v_attr;
@@ -151,7 +159,7 @@ int main(int argc, char** argv) {
     UA_NodeId dataSourceId;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, &dataSourceId);
+                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, &dataSourceId);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
@@ -182,8 +190,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "hello_world"), addmethodattributes,
         &helloWorld, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 1, &outputArguments, NULL);
+        1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
 
     /* Add folders for demo information model */
@@ -336,8 +343,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
         &noargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        0, NULL, 0, NULL, NULL);
+        0, NULL, 0, NULL, NULL, NULL);
 
     /* Method with in arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -356,8 +362,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "noarg"), addmethodattributes,
         &noargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 0, NULL, NULL);
+        1, &inputArguments, 0, NULL, NULL, NULL);
 
     /* Method with out arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -376,8 +381,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "outarg"), addmethodattributes,
         &outargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        0, NULL, 1, &outputArguments, NULL);
+        0, NULL, 1, &outputArguments, NULL, NULL);
 
     /* Method with inout arguments */
     UA_MethodAttributes_init(&addmethodattributes);
@@ -390,8 +394,7 @@ int main(int argc, char** argv) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
         UA_QUALIFIEDNAME(1, "inoutarg"), addmethodattributes,
         &outargMethod, /* callback of the method node */
-        NULL, /* handle passed with the callback */
-        1, &inputArguments, 1, &outputArguments, NULL);
+        1, &inputArguments, 1, &outputArguments, NULL, NULL);
 #endif
 
     /* run server */
@@ -402,6 +405,6 @@ int main(int argc, char** argv) {
 
     UA_Server_delete(server);
 
-    UA_ServerConfig_standard_delete(config);
+    UA_ServerConfig_delete(config);
     return (int)retval;
 }

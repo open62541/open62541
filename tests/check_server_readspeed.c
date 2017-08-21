@@ -13,9 +13,8 @@
 #include "ua_types_encoding_binary.h"
 
 int main(int argc, char** argv) {
-    UA_ServerConfig *config = UA_ServerConfig_standard_new();
-
-    UA_Server *server = UA_Server_new(*config);
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr;
@@ -81,6 +80,6 @@ int main(int argc, char** argv) {
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
     UA_Server_delete(server);
-    UA_ServerConfig_standard_delete(config);
+    UA_ServerConfig_delete(config);
     return (int)retval;
 }

@@ -36,7 +36,7 @@ extern "C" {
  * -------------------- */
 
 typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout */
+    UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
@@ -70,7 +70,7 @@ typedef struct UA_Client UA_Client;
 
 /* Create a new client
  *
- * @param config for the new client. You can use UA_ClientConfig_standard
+ * @param config for the new client. You can use UA_ClientConfig_default
  *        which has sane defaults
  * @param logger function pointer to a logger function. See
  *        examples/logger_stdout.c for a simple implementation
