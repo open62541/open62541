@@ -160,15 +160,25 @@ UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, UA_ByteString 
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-        /* Listen for messages to arrive */
+    /* Listen for messages to arrive */
 
-        retval = connection->recv(connection, chunks, 1);
+    retval = connection->recv(connection, chunks, 1);
 
-        /* Get complete chunks and return */
-        retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+    /* No errors in recv */
+    if (retval == UA_STATUSCODE_GOOD) {
+        /*Data received*/
+        if (chunks->length > 0) {
+            /* Get complete chunks and return */
+            retval |= UA_Connection_completeMessages(connection, chunks, realloced);
+        }
+        else
+        {
+            /*Free allocated memory*/
+            UA_ByteString_deleteMembers(chunks);
+        }
 
-        /* We received a message. But the chunk is incomplete. Compute the
-         * remaining timeout. */
+    }
+
     return retval;
 }
 
