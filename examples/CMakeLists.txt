@@ -42,6 +42,8 @@ endif()
 
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 
+add_example(tutorial_client_events tutorial_client_events.c)
+
 ##################
 # Example Server #
 ##################
