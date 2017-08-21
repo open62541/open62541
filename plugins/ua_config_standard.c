@@ -8,7 +8,6 @@
 #include "ua_types_generated.h"
 #include "ua_securitypolicy_none.h"
 #include "ua_types.h"
-#include <winerror.h>
 #include "ua_types_generated_handling.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
