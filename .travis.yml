@@ -88,12 +88,15 @@ cache:
 # combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
 before_install: |
  set -e
+ # Exit if on coverity_scan branch and not first build
+ test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
  if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" = 1 ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
  if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
 script: |
  set -e
+ test $TRAVIS_BRANCH != coverity_scan || exit 0
  if [ ${TRAVIS_OS_NAME} == "linux" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_linux_script.sh; fi
  if [ ${TRAVIS_OS_NAME} == "osx" ] && [ "${COVERITY_SCAN_BRANCH}" != 1 ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
