@@ -119,6 +119,8 @@ int main(int argc, char** argv) {
     UA_ByteString cert = loadCertificate();
 
     UA_ServerConfig *config = UA_ServerConfig_new_minimal(16664, &cert);
+    UA_ByteString_deleteMembers(&cert);
+
     if(config == NULL)
         return -1;
 
@@ -399,9 +401,6 @@ int main(int argc, char** argv) {
 
     /* run server */
     UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
-
-    /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&cert);
 
     UA_Server_delete(server);
 
