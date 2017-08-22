@@ -264,7 +264,7 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpoints.count; ++i) {
         UA_SecurityPolicy *const policy = config->endpoints.endpoints[i].securityPolicy;
 
-        policy->policyContext.deleteContext(config->endpoints.endpoints[i].securityPolicy);
+        policy->policyContext.deleteContext(config->endpoints.endpoints[i].securityContext);
 
         UA_EndpointDescription_deleteMembers(&config->endpoints.endpoints[i].endpointDescription);
     }
