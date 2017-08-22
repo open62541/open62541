@@ -4,8 +4,6 @@
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 
 /*********************/
 /* Edit Node Context */

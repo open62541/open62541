@@ -9,6 +9,7 @@
 #include "ua_securitypolicy_none.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
+#include "ua_client_highlevel.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"

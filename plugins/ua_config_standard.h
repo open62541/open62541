@@ -11,8 +11,6 @@ extern "C" {
 #include "ua_server.h"
 #include "ua_server_config.h"
 #include "ua_client.h"
-#include "ua_client_highlevel.h"
-#include "ua_types.h"
 
 /**********************/
 /* Default Connection */

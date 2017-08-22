@@ -5,7 +5,6 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_mdns_internal.h"
-#include "ua_connection_internal.h"
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 

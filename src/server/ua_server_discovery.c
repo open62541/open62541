@@ -5,8 +5,6 @@
 #include "ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_standard.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
