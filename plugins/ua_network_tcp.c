@@ -27,12 +27,14 @@
 # define WIN32_INT (int)
 # define OPTVAL_TYPE char
 # define ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
+# define UA_sleep_ms(X) Sleep(X)
 #else
 # define CLOSESOCKET(S) close(S)
 # define SOCKET int
 # define WIN32_INT
 # define OPTVAL_TYPE int
 # define ERR_CONNECTION_PROGRESS EINPROGRESS
+# define UA_sleep_ms(X) usleep(X * 1000)
 # include <arpa/inet.h>
 # include <netinet/in.h>
 # include <sys/select.h>
@@ -77,13 +79,11 @@
 # define INTERRUPTED WSAEINTR
 # define WOULDBLOCK WSAEWOULDBLOCK
 # define AGAIN WSAEWOULDBLOCK
-# define sleepMs(X) Sleep(X)
 #else
 # define errno__ errno
 # define INTERRUPTED EINTR
 # define WOULDBLOCK EWOULDBLOCK
 # define AGAIN EAGAIN
-# define sleepMs(X) usleep(X * 1000)
 #endif
 
 /****************************/
@@ -754,7 +754,7 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
                     }
                     /* wait until we try a again. Do not make this too small, otherwise the
                      * timeout is somehow wrong */
-                    sleepMs(100);
+                    UA_sleep_ms(100);
                 } else {
                     connected = true;
                     break;

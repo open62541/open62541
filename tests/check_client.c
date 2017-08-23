@@ -99,6 +99,42 @@ START_TEST(Client_read) {
 }
 END_TEST
 
+
+START_TEST(Client_reconnect) {
+        UA_ClientConfig clientConfig = UA_ClientConfig_default;
+        clientConfig.timeout = 100;
+        UA_Client *client = UA_Client_new(clientConfig);
+        setup();
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant val;
+        UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_deleteMembers(&val);
+
+        // restart server to test reconnect
+        teardown();
+        setup();
+
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+        retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_deleteMembers(&val);
+
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+
+        teardown();
+    }
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -106,6 +142,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_read);
     suite_add_tcase(s,tc_client);
+    TCase *tc_client_reconnect = tcase_create("Client Reconnect");
+    tcase_add_test(tc_client_reconnect, Client_reconnect);
+    suite_add_tcase(s,tc_client_reconnect);
     return s;
 }
 

@@ -866,8 +866,13 @@ receiveServiceResponse(UA_Client *client, void *response,
         UA_StatusCode retval =
             UA_Connection_receiveChunksBlocking(&client->connection, &reply,
                                                 &realloced, timeout);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+                // set client to error state so that call to connect will force a new connection attempt
+                client->state = UA_CLIENTSTATE_ERRORED;
+            }
             return retval;
+        }
 
         /* ProcessChunks and call processServiceResponse for complete messages */
         UA_SecureChannel_processChunks(&client->channel, &reply,
