@@ -40,8 +40,6 @@ matrix:
       compiler: clang
       # disable homebrew auto update which takes a lot of time
       env: HOMEBREW_NO_AUTO_UPDATE=1
-      # Fixes bug 'shell_session_update: command not found' on coverity_scan branch, https://github.com/travis-ci/travis-ci/issues/6737
-      osx_image: xcode8.1
       cache:
         directories:
           - $HOME/Library/Caches/Homebrew
