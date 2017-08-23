@@ -385,6 +385,8 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
     if(attributeId == UA_ATTRIBUTEID_VALUE) {
         memcpy(out, &res->value, sizeof(UA_Variant));
         UA_Variant_init(&res->value);
+    } else if(attributeId == UA_ATTRIBUTEID_NODECLASS) {
+        memcpy(out, (UA_NodeClass*)res->value.data, sizeof(UA_NodeClass));
     } else if(UA_Variant_isScalar(&res->value) &&
               res->value.type == outDataType) {
         memcpy(out, res->value.data, res->value.type->memSize);
