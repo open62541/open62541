@@ -335,7 +335,7 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     retval = readValueAttribute(server, session, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(value.hasValue) {
+    if(value.hasValue && value.value.type) {
         retval = compatibleArrayDimensions(arrayDimensionsSize, arrayDimensions,
                                            value.value.arrayDimensionsSize,
                                            value.value.arrayDimensions);
@@ -441,7 +441,7 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = readValueAttribute(server, session, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    if(value.hasValue) {
+    if(value.hasValue && value.value.type) {
         retval = typeCheckValue(server, dataType, node->valueRank,
                                 node->arrayDimensionsSize, node->arrayDimensions,
                                 &value.value, NULL, NULL);
