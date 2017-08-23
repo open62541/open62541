@@ -1234,6 +1234,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
         /* UAExpert creates a monitoreditem on inputarguments ... */
         inputargs.minimumSamplingInterval = 100000.0f;
         inputargs.valueRank = 1;
+        inputargs.accessLevel = UA_ACCESSLEVELMASK_READ;
         inputargs.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
         /* dirty-cast, but is treated as const ... */
         UA_Variant_setArray(&inputargs.value, (void*)(uintptr_t)inputArguments,
@@ -1251,6 +1252,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
         /* UAExpert creates a monitoreditem on outputarguments ... */
         outputargs.minimumSamplingInterval = 100000.0f;
         outputargs.valueRank = 1;
+        outputargs.accessLevel = UA_ACCESSLEVELMASK_READ;
         outputargs.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
         /* dirty-cast, but is treated as const ... */
         UA_Variant_setArray(&outputargs.value, (void*)(uintptr_t)outputArguments,
