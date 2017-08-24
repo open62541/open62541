@@ -236,26 +236,30 @@ readValueAttribute(UA_Server *server, UA_Session *session,
  * Sometimes it can be necessary to transform the content of the value, e.g.
  * byte array to bytestring or uint32 to some enum. If editableValue is non-NULL,
  * we try to create a matching variant that points to the original data. */
-UA_StatusCode
+UA_Boolean
 compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
                 UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
                 const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
                 const UA_NumericRange *range);
 
-UA_StatusCode
+UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
-UA_StatusCode
+UA_Boolean
+compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimensionsSize,
+                               const UA_UInt32 *targetArrayDimensions);
+
+UA_Boolean
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
 
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType);
 
-UA_StatusCode
+UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 /*******************/

@@ -841,15 +841,39 @@ START_TEST(Node_ReadWrite_ValueRank) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(valueRank, -2);
 
+    // set the value to a scalar
+    UA_Double val = 0.0;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     // we want an array
     UA_Int32 newValueRank = 1;
 
+    // shall fail when the value is not compatible
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    // set the value to an array
+    UA_Double vec[3] = {0.0, 0.0, 0.0};
+    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // try again
     retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(valueRank, newValueRank);
+
+
+    // set the value to no array
+    UA_Variant_init(&value);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
@@ -862,7 +886,19 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 0);
 
+    // writing the array dimensions shall fail at first
     UA_UInt32 arrayDimsNew[] = {3};
+    retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    // Set a vector of size 3 as the value
+    UA_Double vec[3] = {0.0, 0.0, 0.0};
+    UA_Variant value;
+    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Now we can set matching array-dimensions
     retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

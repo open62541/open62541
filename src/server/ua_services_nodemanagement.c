@@ -158,29 +158,25 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(!compatibleValueRankArrayDimensions(node->valueRank, arrayDims))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check valueRank against the vt */
-    retval = compatibleValueRanks(node->valueRank, vt->valueRank);
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(!compatibleValueRanks(node->valueRank, vt->valueRank))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check array dimensions against the vt */
-    retval = compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
-                                       node->arrayDimensionsSize, node->arrayDimensions);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
+                                  node->arrayDimensionsSize, node->arrayDimensions))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Typecheck the value */
     if(value.hasValue) {
-        retval = compatibleValue(server, &node->dataType, node->valueRank,
-                                 node->arrayDimensionsSize, node->arrayDimensions,
-                                 &value.value, NULL);
-        /* The type-check failed. Write the same value again. The write-service
-         * tries to convert to the correct type... */
-        if(retval != UA_STATUSCODE_GOOD)
+        /* If the type-check failed write the same value again. The
+         * write-service tries to convert to the correct type... */
+        if(!compatibleValue(server, &node->dataType, node->valueRank,
+                            node->arrayDimensionsSize, node->arrayDimensions,
+                            &value.value, NULL))
             retval = UA_Server_writeValue(server, node->nodeId, value.value);
         UA_DataValue_deleteMembers(&value);
     }

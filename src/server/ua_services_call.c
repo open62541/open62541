@@ -53,13 +53,12 @@ argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequi
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(argReqsSize != argsSize)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < argReqsSize; ++i)
-        retval |= compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
-                                  argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                                  &args[i], NULL);
-    return retval;
+        if(!compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
+                            argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
+                            &args[i], NULL))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
