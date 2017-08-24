@@ -77,6 +77,10 @@ add_test_valgrind(check_utils ${TESTS_BINARY_DIR}/check_utils)
 
 # Test Server
 
+add_executable(check_accesscontrol check_accesscontrol.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_accesscontrol ${LIBS})
+add_test_valgrind(check_accesscontrol ${TESTS_BINARY_DIR}/check_accesscontrol)
+
 add_executable(check_services_view check_services_view.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_view ${LIBS})
 add_test_valgrind(services_view ${TESTS_BINARY_DIR}/check_services_view)

@@ -75,6 +75,13 @@ START_TEST(Client_subscription) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    retval = UA_Client_Subscriptions_remove(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
