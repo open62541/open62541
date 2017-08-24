@@ -608,6 +608,7 @@ removeDeconstructedNode(UA_Server *server, UA_Session *session,
 
 static const UA_NodeId hasSubtype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 
+/* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                          const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
@@ -810,14 +811,14 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     /* Create the AddNodesItem */
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
+    item.nodeClass = nodeClass;
     item.requestedNewNodeId.nodeId = *requestedNewNodeId;
     item.browseName = browseName;
-    item.nodeClass = nodeClass;
     item.parentNodeId.nodeId = *parentNodeId;
     item.referenceTypeId = *referenceTypeId;
     item.typeDefinition.nodeId = *typeDefinition;
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type =attributeType;
+    item.nodeAttributes.content.decoded.type = attributeType;
     item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
 
     /* Call the normal addnodes service */
@@ -829,6 +830,35 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
     else
         UA_NodeId_deleteMembers(&result.addedNodeId);
     return result.statusCode;
+}
+
+UA_StatusCode
+UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
+                        const UA_NodeId requestedNewNodeId,
+                        const UA_QualifiedName browseName,
+                        const UA_NodeId typeDefinition,
+                        const void *attr, const UA_DataType *attributeType,
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.nodeClass = nodeClass;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
+    item.browseName = browseName;
+    item.typeDefinition.nodeId = typeDefinition;
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type = attributeType;
+    item.nodeAttributes.content.decoded.data = (void*)(uintptr_t)attr;
+    return Operation_addNode_begin(server, &adminSession, &item,
+                                   nodeContext, outNewNodeId, false);
+}
+
+UA_StatusCode
+UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         const UA_NodeId typeDefinitionId) {
+    return Operation_addNode_finish(server, &adminSession, &nodeId, &parentNodeId,
+                                    &referenceTypeId, &typeDefinitionId, false);
 }
 
 /****************/
