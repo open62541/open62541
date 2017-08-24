@@ -50,22 +50,28 @@ int main(int argc, char** argv) {
     UA_Byte *pos = request_msg.data;
     const UA_Byte *end = &request_msg.data[request_msg.length];
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
+    assert(retval == UA_STATUSCODE_GOOD);
 
-    clock_t begin, finish;
-    begin = clock();
+    UA_Byte *resp_pos = response_msg.data;
+    const UA_Byte *resp_end = &response_msg.data[response_msg.length];
 
     UA_ReadRequest rq;
     UA_ReadResponse rr;
 
+    clock_t begin, finish;
+    begin = clock();
+
     for(int i = 0; i < 1000000; i++) {
         size_t offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
+        assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadResponse_init(&rr);
         Service_Read(server, &adminSession, &rq, &rr);
 
-        pos = request_msg.data;
-        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &pos, &end, NULL, NULL);
+        resp_pos = response_msg.data;
+        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &resp_pos, &resp_end, NULL, NULL);
+        assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadRequest_deleteMembers(&rq);
         UA_ReadResponse_deleteMembers(&rr);
@@ -74,7 +80,7 @@ int main(int argc, char** argv) {
     finish = clock();
     double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
-    printf("retval is %i\n", retval);
+    printf("retval is %s\n", UA_StatusCode_name(retval));
 
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
