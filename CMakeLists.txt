@@ -527,6 +527,7 @@ endif()
 
 if(UA_ENABLE_GENERATE_NAMESPACE0)
     add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
     if(NOT UA_ENABLE_AMALGAMATION)
         add_dependencies(open62541-object open62541-generator-namespace)
     endif()
