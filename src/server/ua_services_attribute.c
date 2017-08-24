@@ -479,66 +479,66 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
 
 /* Test whether a valurank and the given arraydimensions are compatible. zero
  * array dimensions indicate a scalar */
-UA_StatusCode
+UA_Boolean
 compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize) {
     switch(valueRank) {
     case -3: /* the value can be a scalar or a one dimensional array */
         if(arrayDimensionsSize > 1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     case -2: /* the value can be a scalar or an array with any number of dimensions */
         break;
     case -1: /* the value is a scalar */
         if(arrayDimensionsSize > 0)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     case 0: /* the value is an array with one or more dimensions */
         if(arrayDimensionsSize < 1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank < 0)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         /* Must hold if the array has a defined length. Null arrays (length -1)
          * need to be caught before. */
         if(arrayDimensionsSize != (size_t)valueRank)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
     }
-    return UA_STATUSCODE_GOOD;
+    return true;
 }
 
-UA_StatusCode
+UA_Boolean
 compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank) {
     /* Check if the valuerank of the variabletype allows the change. */
     switch(constraintValueRank) {
     case -3: /* the value can be a scalar or a one dimensional array */
         if(valueRank != -1 && valueRank != 1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     case -2: /* the value can be a scalar or an array with any number of dimensions */
         break;
     case -1: /* the value is a scalar */
         if(valueRank != -1)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     case 0: /* the value is an array with one or more dimensions */
         if(valueRank < 0)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     default: /* >= 1: the value is an array with the specified number of dimensions */
         if(valueRank != constraintValueRank)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
         break;
     }
-    return UA_STATUSCODE_GOOD;
+    return true;
 }
 
 /* Check if the valuerank allows for the value dimension */
-static UA_StatusCode
+static UA_Boolean
 compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     /* empty arrays (-1) always match */
     if(!value->data)
-        return UA_STATUSCODE_GOOD;
+        return false;
 
     size_t arrayDims = value->arrayDimensionsSize;
     if(!UA_Variant_isScalar(value))
@@ -546,53 +546,31 @@ compatibleValueRankValue(UA_Int32 valueRank, const UA_Variant *value) {
     return compatibleValueRankArrayDimensions(valueRank, arrayDims);
 }
 
-UA_StatusCode
+UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions) {
     /* No array dimensions defined -> everything is permitted if the value rank fits */
     if(constraintArrayDimensionsSize == 0)
-        return UA_STATUSCODE_GOOD;
+        return true;
 
     /* Dimension count must match */
     if(testArrayDimensionsSize != constraintArrayDimensionsSize)
-        return UA_STATUSCODE_BADTYPEMISMATCH;
+        return false;
 
     /* Dimension lengths must match; zero in the constraint is a wildcard */
     for(size_t i = 0; i < constraintArrayDimensionsSize; ++i) {
         if(constraintArrayDimensions[i] != testArrayDimensions[i] &&
            constraintArrayDimensions[i] != 0)
-            return UA_STATUSCODE_BADTYPEMISMATCH;
+            return false;
     }
-    return UA_STATUSCODE_GOOD;
+    return true;
 }
 
-UA_StatusCode
-compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
-                UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
-                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
-                const UA_NumericRange *range) {
-    /* Empty variant is only allowed for BaseDataType */
-    if(!value->type) {
-        if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
-           UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
-            return UA_STATUSCODE_GOOD;
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
-                    "Only Variables with data type BaseDataType may contain "
-                    "a null (empty) value");
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    /* Has the value a subtype of the required type? BaseDataType (Variant) can
-     * be anything... */
-    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId))
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Array dimensions are checked later when writing the range */
-    if(range)
-        return UA_STATUSCODE_GOOD;
-
+UA_Boolean
+compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimensionsSize,
+                               const UA_UInt32 *targetArrayDimensions) {
     size_t valueArrayDimensionsSize = value->arrayDimensionsSize;
     UA_UInt32 *valueArrayDimensions = value->arrayDimensions;
     UA_UInt32 tempArrayDimensions;
@@ -601,12 +579,38 @@ compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
         tempArrayDimensions = (UA_UInt32)value->arrayLength;
         valueArrayDimensions = &tempArrayDimensions;
     }
+    return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
+                                     valueArrayDimensionsSize, valueArrayDimensions);
+}
 
-    /* See if the array dimensions match. When arrayDimensions are defined, they
-     * already match the valuerank. */
-    if(targetArrayDimensionsSize > 0)
-        return compatibleArrayDimensions(targetArrayDimensionsSize, targetArrayDimensions,
-                                         valueArrayDimensionsSize, valueArrayDimensions);
+UA_Boolean
+compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+                UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
+                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
+                const UA_NumericRange *range) {
+    /* Empty variant is only allowed for BaseDataType */
+    if(!value->type) {
+        if(UA_NodeId_equal(targetDataTypeId, &UA_TYPES[UA_TYPES_VARIANT].typeId) ||
+           UA_NodeId_equal(targetDataTypeId, &UA_NODEID_NULL))
+            return true;
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Only Variables with data type BaseDataType may contain "
+                    "a null (empty) value");
+        return false;
+    }
+
+    /* Has the value a subtype of the required type? BaseDataType (Variant) can
+     * be anything... */
+    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId))
+        return false;
+
+    /* Array dimensions are checked later when writing the range */
+    if(range)
+        return true;
+
+    /* See if the array dimensions match. */
+    if(!compatibleValueArrayDimensions(value, targetArrayDimensionsSize, targetArrayDimensions))
+        return false;
 
     /* Check if the valuerank allows for the value dimension */
     return compatibleValueRankValue(targetValueRank, value);
@@ -665,35 +669,31 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Check that the array dimensions match with the valuerank */
-    UA_StatusCode retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDimensionsSize);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(!compatibleValueRankArrayDimensions(node->valueRank, arrayDimensionsSize)) {
         UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "The current value rank does not match the new array dimensions");
-        return retval;
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     /* Check if the array dimensions match with the wildcards in the
      * variabletype (dimension length 0) */
-    if(type->arrayDimensions) {
-        retval = compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
-                                           arrayDimensionsSize, arrayDimensions);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Array dimensions in the variable type do not match");
-            return retval;
-        }
+    if(type->arrayDimensions &&
+       !compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
+                                  arrayDimensionsSize, arrayDimensions)) {
+       UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
+                    "Array dimensions in the variable type do not match");
+       return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     /* Check if the current value is compatible with the array dimensions */
     UA_DataValue value;
     UA_DataValue_init(&value);
-    retval = readValueAttribute(server, session, node, &value);
+    UA_StatusCode retval = readValueAttribute(server, session, node, &value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
-        retval = compatibleArrayDimensions(arrayDimensionsSize, arrayDimensions,
-                                           value.value.arrayDimensionsSize,
-                                           value.value.arrayDimensions);
+        if(!compatibleValueArrayDimensions(&value.value, arrayDimensionsSize, arrayDimensions))
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_deleteMembers(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -731,9 +731,8 @@ writeValueRankAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if the valuerank of the variabletype allows the change. */
-    UA_StatusCode retval = compatibleValueRanks(valueRank, constraintValueRank);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(!compatibleValueRanks(valueRank, constraintValueRank))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the new valuerank is compatible with the array dimensions. Use
      * the read service to handle data sources. */
@@ -743,7 +742,7 @@ writeValueRankAttribute(UA_Server *server, UA_Session *session,
            dimensions zero indicate a scalar for compatibleValueRankArrayDimensions. */
         UA_DataValue value;
         UA_DataValue_init(&value);
-        retval = readValueAttribute(server, session, node, &value);
+        UA_StatusCode retval = readValueAttribute(server, session, node, &value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         if(!value.hasValue || !value.value.type) {
@@ -755,9 +754,8 @@ writeValueRankAttribute(UA_Server *server, UA_Session *session,
             arrayDims = 1;
         UA_DataValue_deleteMembers(&value);
     }
-    retval = compatibleValueRankArrayDimensions(valueRank, arrayDims);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(!compatibleValueRankArrayDimensions(valueRank, arrayDims))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* All good, apply the change */
     node->valueRank = valueRank;
@@ -788,9 +786,10 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     if(value.hasValue) {
-        retval = compatibleValue(server, dataType, node->valueRank,
-                                 node->arrayDimensionsSize, node->arrayDimensions,
-                                 &value.value, NULL);
+        if(!compatibleValue(server, dataType, node->valueRank,
+                            node->arrayDimensionsSize, node->arrayDimensions,
+                            &value.value, NULL))
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
         UA_DataValue_deleteMembers(&value);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -877,15 +876,14 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     UA_DataValue adjustedValue = *value;
 
     /* Type checking. May change the type of editableValue */
-    if(value->hasValue) {
+    if(value->hasValue && value->value.type) {
         adjustValue(server, &adjustedValue.value, &node->dataType);
-        retval = compatibleValue(server, &node->dataType, node->valueRank,
-                                 node->arrayDimensionsSize, node->arrayDimensions,
-                                 &adjustedValue.value, rangeptr);
-        if(retval != UA_STATUSCODE_GOOD) {
+        if(!compatibleValue(server, &node->dataType, node->valueRank,
+                            node->arrayDimensionsSize, node->arrayDimensions,
+                            &adjustedValue.value, rangeptr)) {
             if(rangeptr)
                 UA_free(range.dimensions);
-            return retval;
+            return UA_STATUSCODE_BADTYPEMISMATCH;
         }
     }
 
