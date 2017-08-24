@@ -337,16 +337,6 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session,
                          const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId,
                          UA_Boolean overrideChecks);
 
-/* UA_StatusCode */
-/* UA_Server_addNode_begin(UA_Server *server, const UA_AddNodesItem *item, */
-/*                         void *nodeContext, UA_NodeId *outnewNodeId); */
-
-/* UA_StatusCode */
-/* UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId, */
-/*                          const UA_NodeId parentNodeId, */
-/*                          const UA_NodeId referenceTypeId, */
-/*                          const UA_NodeId typeDefinitionId); */
-
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,

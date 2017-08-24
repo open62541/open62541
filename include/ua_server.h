@@ -935,6 +935,41 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         void *nodeContext, UA_NodeId *outNewNodeId);
 
+
+/**
+ * The method pair UA_Server_addNode_begin and _finish splits the AddNodes
+ * service in two parts. This is useful if the node shall be modified before
+ * finish the instantiation. For example to add children with specific NodeIds.
+ * Otherwise, mandatory children (e.g. of an ObjectType) are added with
+ * pseudo-random unique NodeIds. Existing children are detected during the
+ * _finish part via their matching BrowseName.
+ *
+ * The _begin method prepares the node and adds it to the nodestore. It may copy
+ * some unassigned attributes from the TypeDefinition node internally. The
+ * _finish method adds the references to the parent (and the TypeDefinition if
+ * applicable), copies mandatory children, performs type-checking of variables
+ * and calls the node constructor(s) at the end. The _finish method may remove
+ * the node if it encounters an error. */
+
+/* The ``attr`` argument must have a type according to the NodeClass.
+ * ``VariableAttributes`` for variables, ``ObjectAttributes`` for objects, and
+ * so on. Missing attributes are taken from the TypeDefinition node if
+ * applicable. */
+UA_StatusCode UA_EXPORT
+UA_Server_addNode_begin(UA_Server *server, const UA_NodeClass nodeClass,
+                        const UA_NodeId requestedNewNodeId,
+                        const UA_QualifiedName browseName,
+                        const UA_NodeId typeDefinition,
+                        const void *attr, const UA_DataType *attributeType,
+                        void *nodeContext, UA_NodeId *outNewNodeId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_NodeId parentNodeId,
+                         const UA_NodeId referenceTypeId,
+                         const UA_NodeId typeDefinitionId);
+
+/* Deletes a node and optionally all references leading to the node. */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
                      UA_Boolean deleteReferences);
