@@ -24,9 +24,9 @@
 #ifndef PCG_BASIC_H_INCLUDED
 #define PCG_BASIC_H_INCLUDED 1
 
-#include <stdint.h>
+#include "ms_stdint.h"
 
-#if __cplusplus
+#ifdef __cplusplus
 extern "C" {
 #endif
 
@@ -40,7 +40,7 @@ typedef struct pcg_state_setseq_64 {
 void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initial_state, uint64_t initseq);
 uint32_t pcg32_random_r(pcg32_random_t* rng);
 
-#if __cplusplus
+#ifdef __cplusplus
 }
 #endif
 

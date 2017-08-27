@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -8,9 +12,12 @@
 #include "ua_client_highlevel.h"
 #include "ua_config_standard.h"
 #include "ua_network_tcp.h"
+
 #include "check.h"
+#include "testing_clock.h"
 
 UA_Server *server;
+UA_ServerConfig *config;
 UA_Boolean *running;
 UA_ServerNetworkLayer nl;
 pthread_t server_thread;
@@ -24,10 +31,7 @@ static void * serverloop(void *_) {
 static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
@@ -39,7 +43,7 @@ static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
 }
 
 UA_Boolean notificationReceived;
@@ -49,24 +53,34 @@ static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *con
 }
 
 START_TEST(Client_subscription) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
     UA_UInt32 monId;
     retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
-                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler, NULL, &monId);
+                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
+                                                      NULL, &monId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_sleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
+
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    retval = UA_Client_Subscriptions_remove(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -74,12 +88,12 @@ START_TEST(Client_subscription) {
 END_TEST
 
 START_TEST(Client_methodcall) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:16664");
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */

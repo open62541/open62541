@@ -1,46 +1,35 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifdef UA_NO_AMALGAMATION
-# include "ua_types.h"
-# include "ua_client.h"
-# include "ua_client_highlevel.h"
-# include "ua_nodeids.h"
-# include "ua_network_tcp.h"
-# include "ua_config_standard.h"
-#else
-# include "open62541.h"
-# include <string.h>
-# include <stdlib.h>
-#endif
-
 #include <stdio.h>
+#include "open62541.h"
 
-static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+static void
+handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
-    return;
 }
+#endif
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
-  UA_NodeId *parent = (UA_NodeId *) handle;
-
-  if(!isInverse) {
+    if(isInverse)
+        return UA_STATUSCODE_GOOD;
+    UA_NodeId *parent = (UA_NodeId *)handle;
     printf("%d, %d --- %d ---> NodeId %d, %d\n",
            parent->namespaceIndex, parent->identifier.numeric,
            referenceTypeId.identifier.numeric, childId.namespaceIndex,
            childId.identifier.numeric);
-  }
-  return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char *argv[]) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:16664",
+    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
@@ -56,8 +45,8 @@ int main(int argc, char *argv[]) {
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
     /* Connect to a server */
-    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:16664"); */
-    retval = UA_Client_connect_username(client, "opc.tcp://localhost:16664", "user1", "password");
+    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+    retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return (int)retval;
@@ -78,12 +67,12 @@ int main(int argc, char *argv[]) {
         for (size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
             if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
-                printf("%-9d %-16d %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
+                printf("%-9d %-16d %-16.*s %-16.*s\n", ref->nodeId.nodeId.namespaceIndex,
                        ref->nodeId.nodeId.identifier.numeric, (int)ref->browseName.name.length,
                        ref->browseName.name.data, (int)ref->displayName.text.length,
                        ref->displayName.text.data);
             } else if(ref->nodeId.nodeId.identifierType == UA_NODEIDTYPE_STRING) {
-                printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->browseName.namespaceIndex,
+                printf("%-9d %-16.*s %-16.*s %-16.*s\n", ref->nodeId.nodeId.namespaceIndex,
                        (int)ref->nodeId.nodeId.identifier.string.length,
                        ref->nodeId.nodeId.identifier.string.data,
                        (int)ref->browseName.name.length, ref->browseName.name.data,
@@ -105,7 +94,7 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_UInt32 subId = 0;
-    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_standard, &subId);
+    UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
     if(subId)
         printf("Create subscription succeeded, id %u\n", subId);
     /* Add a MonitoredItem */
@@ -212,7 +201,7 @@ int main(int argc, char *argv[]) {
     retval = UA_Client_addObjectTypeNode(client,
                                          UA_NODEID_NUMERIC(1, 12134),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                          UA_QUALIFIEDNAME(1, "NewObjectType"),
                                          objt_attr, &objt_id);
     if(retval == UA_STATUSCODE_GOOD)

@@ -1,0 +1,36 @@
+#
+# AFL dictionary for OPC UA messages
+# -----------------------------
+#
+#
+# Stefan Profanter <git@s.profanter.me>
+#
+
+# Message header for final message (see Spec Part 6, Table 26)
+
+header_msg_final="MSGF"
+header_err_final="ERRF"
+header_opn_final="OPNF"
+header_hel_final="HELF"
+header_ack_final="ACKF"
+header_clo_final="CLOF"
+
+# Message header for message chunk (see Spec Part 6, Table 26)
+
+header_msg_chunk="MSGC"
+header_err_chunk="ERRC"
+header_opn_chunk="OPNC"
+header_hel_chunk="HELC"
+header_ack_chunk="ACKC"
+header_clo_chunk="CLOC"
+
+# Message header for message abort (see Spec Part 6, Table 26)
+
+header_msg_abort="MSGA"
+header_err_abort="ERRA"
+header_opn_abort="OPNA"
+header_hel_abort="HELA"
+header_ack_abort="ACKA"
+header_clo_abort="CLOA"
+
+# TODO add dict for Security Header and Sequence Header
