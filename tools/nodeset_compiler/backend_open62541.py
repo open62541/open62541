@@ -120,7 +120,6 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
-#include "ua_job.h"
 #include "ua_server.h"
 #else
 #include "open62541.h"
@@ -158,7 +157,12 @@ void %s(UA_Server *server) {""" % (outfilebase, outfilebase))
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec(generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs))
+            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs)
+            if code is None:
+                writec("/* Ignored. No parent */")
+                continue
+            else:
+                writec(code)
 
         # Print inverse references leading to this node
         for ref in node.printRefs:

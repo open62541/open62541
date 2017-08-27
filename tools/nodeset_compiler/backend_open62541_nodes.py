@@ -37,7 +37,6 @@ def extractNodeParent(node, parentrefs):
             node.inverseReferences.remove(ref)
             node.printRefs.remove(ref)
             return (ref.target, ref.referenceType)
-    logger.info("Node " + str(node) + " (" + str(node.browseName.name) + ") has no parent.")
     return None, None
 
 def extractNodeType(node):
@@ -157,6 +156,12 @@ def generateViewNodeCode(node):
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
 
+def generateTypeDefinitionCode(node):
+    for ref in node.references:
+        if ref.referenceType.i == 40:
+            return generateNodeIdCode(ref.target)
+    return "UA_NODEID_NULL"
+
 def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs):
     code = []
     code.append("{")
@@ -186,7 +191,7 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     if not generate_ns0:
         (parentNode, parentRef) = extractNodeParent(node, parentrefs)
         if parentNode is None or parentRef is None:
-            return []
+            return None
     else:
         (parentNode, parentRef) = (NodeId(), NodeId())
 
@@ -195,11 +200,11 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName) + ",")
-    if (isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode)) or isinstance(node, ObjectNode):
-        code.append("UA_NODEID_NUMERIC(0,0),")  # parent
+    if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
+        code.append(generateTypeDefinitionCode(node) + ",")
     code.append("attr,")
     if isinstance(node, MethodNode):
-        code.append("NULL, NULL, 0, NULL, 0, NULL, NULL);")
+        code.append("NULL, 0, NULL, 0, NULL, NULL, NULL);")
     else:
         code.append("NULL, NULL);")
     code.append("}\n")

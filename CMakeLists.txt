@@ -445,10 +445,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                           ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
                            ${lib_sources} ${default_plugin_sources}
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+                           ${lib_sources})
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
