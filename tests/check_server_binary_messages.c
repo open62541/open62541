@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include <stdlib.h>
 #include <stdio.h>
 #include "check.h"
@@ -20,7 +24,7 @@ static UA_ByteString readFile(char *filename) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         rewind(f);
-        buf.data = malloc(length);
+        buf.data = (UA_Byte*)UA_malloc(length);
         fread(buf.data, sizeof(char), length, f);
         buf.length = length;
         fclose(f);
@@ -31,18 +35,18 @@ static UA_ByteString readFile(char *filename) {
 
 START_TEST(processMessage) {
     UA_Connection c = createDummyConnection();
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = UA_Log_Stdout;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
         UA_Boolean reallocated;
-        UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
+        UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
         if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
             UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);
 }
 END_TEST

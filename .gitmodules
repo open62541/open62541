@@ -1,0 +1,3 @@
+[submodule "deps/mdnsd"]
+	path = deps/mdnsd
+	url = https://github.com/Pro/mdnsd.git

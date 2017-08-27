@@ -1,7 +1,13 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_util.h"
 #include "ua_nodestore.h"
+#include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_MULTITHREADING /* conditional compilation */
+#include <urcu/rculfhash.h>
 
 struct nodeEntry {
     struct cds_lfht_node htn; ///< Contains the next-ptr for urcu-hashmap
@@ -10,11 +16,9 @@ struct nodeEntry {
     UA_Node node; ///< Might be cast from any _bigger_ UA_Node* type. Allocate enough memory!
 };
 
-#include "ua_nodestore_hash.inc"
-
-static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
+static struct nodeEntry * instantiateEntry(UA_NodeClass nc) {
     size_t size = sizeof(struct nodeEntry) - sizeof(UA_Node);
-    switch(class) {
+    switch(nc) {
     case UA_NODECLASS_OBJECT:
         size += sizeof(UA_ObjectNode);
         break;
@@ -42,10 +46,10 @@ static struct nodeEntry * instantiateEntry(UA_NodeClass class) {
     default:
         return NULL;
     }
-    struct nodeEntry *entry = UA_calloc(1, size);
+    struct nodeEntry *entry = (struct nodeEntry*)UA_calloc(1, size);
     if(!entry)
         return NULL;
-    entry->node.nodeClass = class;
+    entry->node.nodeClass = nc;
     return entry;
 }
 
@@ -82,12 +86,13 @@ void UA_NodeStore_delete(UA_NodeStore *ns) {
         }
         cds_lfht_next(ht, &iter);
     }
+    UA_RCU_UNLOCK();
     cds_lfht_destroy(ht, NULL);
-    UA_free(ns);
+    UA_RCU_LOCK();
 }
 
-UA_Node * UA_NodeStore_newNode(UA_NodeClass class) {
-    struct nodeEntry *entry = instantiateEntry(class);
+UA_Node * UA_NodeStore_newNode(UA_NodeClass nc) {
+    struct nodeEntry *entry = instantiateEntry(nc);
     if(!entry)
         return NULL;
     return (UA_Node*)&entry->node;
@@ -109,7 +114,7 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
     tempNodeid = node->nodeId;
     tempNodeid.namespaceIndex = 0;
     if(!UA_NodeId_isNull(&tempNodeid)) {
-        hash_t h = hash(&node->nodeId);
+        UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
         result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
         /* If the nodeid exists already */
         if(result != &entry->htn) {
@@ -125,11 +130,11 @@ UA_StatusCode UA_NodeStore_insert(UA_NodeStore *ns, UA_Node *node) {
         unsigned long identifier;
         long before, after;
         cds_lfht_count_nodes(ht, &before, &identifier, &after); // current number of nodes stored
-        identifier++;
+        ++identifier;
 
         node->nodeId.identifier.numeric = (UA_UInt32)identifier;
         while(true) {
-            hash_t h = hash(&node->nodeId);
+            UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
             result = cds_lfht_add_unique(ht, h, compare, &node->nodeId, &entry->htn);
             if(result == &entry->htn)
                 break;
@@ -145,7 +150,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
     struct cds_lfht *ht = (struct cds_lfht*)ns;
 
     /* Get the current version */
-    hash_t h = hash(&node->nodeId);
+    UA_UInt32 h = UA_NodeId_hash(&node->nodeId);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, &node->nodeId, &iter);
     if(!iter.node)
@@ -153,8 +158,10 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 
     /* We try to replace an obsolete version of the node */
     struct nodeEntry *oldEntry = (struct nodeEntry*)iter.node;
-    if(oldEntry != entry->orig)
+    if(oldEntry != entry->orig) {
+        deleteEntry(&entry->rcu_head);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
     
     cds_lfht_node_init(&entry->htn);
     if(cds_lfht_replace(ht, &iter, h, compare, &node->nodeId, &entry->htn) != 0) {
@@ -171,7 +178,7 @@ UA_StatusCode UA_NodeStore_replace(UA_NodeStore *ns, UA_Node *node) {
 UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     if(!iter.node || cds_lfht_del(ht, iter.node) != 0)
@@ -184,7 +191,7 @@ UA_StatusCode UA_NodeStore_remove(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     struct nodeEntry *found_entry = (struct nodeEntry*)iter.node;
@@ -196,21 +203,21 @@ const UA_Node * UA_NodeStore_get(UA_NodeStore *ns, const UA_NodeId *nodeid) {
 UA_Node * UA_NodeStore_getCopy(UA_NodeStore *ns, const UA_NodeId *nodeid) {
     UA_ASSERT_RCU_LOCKED();
     struct cds_lfht *ht = (struct cds_lfht*)ns;
-    hash_t h = hash(nodeid);
+    UA_UInt32 h = UA_NodeId_hash(nodeid);
     struct cds_lfht_iter iter;
     cds_lfht_lookup(ht, h, compare, nodeid, &iter);
     struct nodeEntry *entry = (struct nodeEntry*)iter.node;
     if(!entry)
         return NULL;
-    struct nodeEntry *new = instantiateEntry(entry->node.nodeClass);
-    if(!new)
+    struct nodeEntry *n = instantiateEntry(entry->node.nodeClass);
+    if(!n)
         return NULL;
-    if(UA_Node_copyAnyNodeClass(&entry->node, &new->node) != UA_STATUSCODE_GOOD) {
-        deleteEntry(&new->rcu_head);
+    if(UA_Node_copyAnyNodeClass(&entry->node, &n->node) != UA_STATUSCODE_GOOD) {
+        deleteEntry(&n->rcu_head);
         return NULL;
     }
-    new->orig = entry;
-    return &new->node;
+    n->orig = entry;
+    return &n->node;
 }
 
 void UA_NodeStore_iterate(UA_NodeStore *ns, UA_NodeStore_nodeVisitor visitor) {

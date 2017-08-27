@@ -1,64 +1,81 @@
 language: c
 
-compiler:
-- gcc
-- clang
-
-os:
-- linux
-# - osx
-
 # use new build environment (docker)
-sudo: false
+sudo: required
 
 env:
   global:
+    # GITAUTH:
     - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-    - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
-  matrix:
-    # Do both, compile with static code analysis and without
-    - ANALYZE=false
-    - ANALYZE=true
+    # COVERITY_SCAN_TOKEN:
+    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
+
+
+dist: trusty
 
 matrix:
-  exclude:
-  # This excludes OSX GCC builds.
-    - os: osx
+  fast_finish: true
+  include:
+    - os: linux
       compiler: gcc
-    - os: osx
+      env: ANALYZE=false
+    - os: linux
+      compiler: gcc
       env: ANALYZE=true
+    - os: linux
+      compiler: gcc
+      env: DOCKER=true
+      services:
+        - docker
+    - os: linux
+      compiler: clang
+      env: ANALYZE=false
+    - os: linux
+      compiler: clang
+      env: ANALYZE=true
+    - os: linux
+      compiler: clang
+      env: FUZZER=true
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
 
 addons:
   apt:
     sources:
       # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
-      - kalakris-cmake
-      - ubuntu-toolchain-r-test
     packages:
       - binutils-mingw-w64-i686
       - build-essential
-      - clang
+      - check
       - cmake
-      - gcc-4.8
-      - gcc-mingw-w64-i686
+      - cppcheck
       - gcc-multilib
-      - g++-4.8
-      - libc6-dbg # for valgrind compilation
+      - g++-mingw-w64-i686
+      - g++-mingw-w64-x86-64
+      - g++-multilib
+      - graphviz
       - libsubunit-dev
       - libx11-dev
       - mingw-w64
+      - texlive-fonts-recommended
+      - texlive-latex-extra
+      - texlive-latex-recommended
+      - valgrind
       - wget
       - xutils-dev
       - zip
-      - graphviz
-    # - libsubunit-dev #for check_0.10.0
   coverity_scan:
     project:
-      name: acplt/open62541
-      description: Open-source OPC UA
+      name: "open62541/open62541"
+      description: "Build submitted by Travis"
     notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: mkdir build && cd build && cmake ..
-    build_command: make
+    build_command_prepend: "mkdir build && cd build && cmake .."
+    build_command: "make"
     branch_pattern: coverity_scan
 
 cache:
@@ -66,51 +83,32 @@ cache:
   apt: true
   directories:
     - $HOME/install
+    - $HOME/.cache/pip
 
-before_install:
-# set paths for locally installed libs (like liburcu)
-- export LOCAL_PKG=$HOME/install
-- mkdir -p $LOCAL_PKG/lib
-- mkdir -p $LOCAL_PKG/include
-- mkdir -p $LOCAL_PKG/bin
-- export LIBRARY_PATH=$LOCAL_PKG/lib:$LIBRARY_PATH
-- export C_INCLUDE_PATH=$LOCAL_PKG/include:$C_INCLUDE_PATH
-- export CPLUS_INCLUDE_PATH=$LOCAL_PKG/include:$CPLUS_INCLUDE_PATH
-- export PKG_CONFIG_PATH=$LOCAL_PKG/lib/pkgconfig:$PKG_CONFIG_PATH
-- export PATH=$LOCAL_PKG:$LOCAL_PKG/bin:$PATH
-# set local path for python packages
-- export PATH=$PATH:$HOME/.local/bin # linux
-- export PATH=$PATH:$HOME/Library/Python #OS X
-- export PATH=$PATH:$HOME/Library/Python/2.7/bin #OS X
-# set search path for check library
-- export CHECK_INCLUDE_DIRS=$LOCAL_PKG/include/
-- export CHECK_LIBRARIES=$LOCAL_PKG/lib/
+# combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
+before_install: |
+ set -e
+ # Exit travis if on coverity_scan branch and not first build
+ test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
+ if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
 
-- sh ./tools/travis/travis_notifications.sh
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
+script: |
+ set -e
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
+ if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
 
-script:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
+after_success: |
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
+ # Sleep to flush travis output
+ echo == Build success ==
+ sleep 5
 
-after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "0.2" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis/travis_push_doc.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis/travis_push_coverity.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then sh ./tools/travis/travis_push_release.sh; fi
-
-before_deploy:
-- rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for Raspberry Pi"
-- cd ~
-- git clone https://github.com/raspberrypi/tools
-- cd -
-- export PATH=$PATH:~/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-- cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-rpi64.cmake -DUA_ENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON ..
-- make
-- tar -pczf open62541-raspberrypi.tar.gz ../doc ../../server_cert.der ../LICENSE ../AUTHORS ../README.md examples/server examples/client libopen62541.a open62541.h open62541.c
-- cp open62541-raspberrypi.tar.gz ..
-- cd ..
+after_failure: |
+ # Sleep to flush travis output
+ echo == Build failed ==
+ sleep 5
 
 deploy:
   provider: releases
@@ -129,12 +127,3 @@ deploy:
     repo: open62541/open62541
     tags: true
     condition: $CC = gcc && $ANALYZE = false
-
-notifications:
-  irc:
-    channels:
-        - "chat.freenode.net#open62541"
-    on_success: ${IRC_NOTIFY_SUCCESS} # default: change, variable defined in ./tools/travis/travis_notification.sh
-    on_failure: ${IRC_NOTIFY_FAILURE} # default: always, variable defined in ./tools/travis/travis_notification.sh
-    use_notice: true
-    skip_join: true

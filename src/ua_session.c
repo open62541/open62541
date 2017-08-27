@@ -1,3 +1,7 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "ua_session.h"
 #include "ua_types_generated_handling.h"
 #include "ua_util.h"
@@ -6,18 +10,29 @@
 #endif
 
 UA_Session adminSession = {
-    .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
-                           .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},
-                           .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {0, NULL}, .discoveryProfileUri = {0, NULL},
-                           .discoveryUrlsSize = 0, .discoveryUrls = NULL},
-    .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
-    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                            .identifier.numeric = 1},
-    .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
-    .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = (UA_Double)UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
-    .continuationPoints = {NULL}};
+    {{0, NULL},{0, NULL},
+     {{0, NULL},{0, NULL}},
+     UA_APPLICATIONTYPE_CLIENT,
+     {0, NULL},{0, NULL},
+     0, NULL}, /* .clientDescription */
+    {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"}, /* .sessionName */
+    false, /* .activated */
+    NULL, /* .sessionHandle */
+    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
+    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .sessionId */
+    UA_UINT32_MAX, /* .maxRequestMessageSize */
+    UA_UINT32_MAX, /* .maxResponseMessageSize */
+    (UA_Double)UA_INT64_MAX, /* .timeout */
+    UA_INT64_MAX, /* .validTill */
+    NULL, /* .channel */
+    UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
+    {NULL}, /* .continuationPoints */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    0, /* .lastSubscriptionID */
+    {NULL}, /* .serverSubscriptions */
+    {NULL, NULL}, /* .responseQueue */
+#endif
+};
 
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
@@ -30,7 +45,7 @@ void UA_Session_init(UA_Session *session) {
     session->timeout = 0;
     UA_DateTime_init(&session->validTill);
     session->channel = NULL;
-    session->availableContinuationPoints = MAXCONTINUATIONPOINTS;
+    session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     LIST_INIT(&session->continuationPoints);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);
@@ -104,25 +119,6 @@ UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID) {
 
 UA_UInt32 UA_Session_getUniqueSubscriptionID(UA_Session *session) {
     return ++(session->lastSubscriptionID);
-}
-
-void UA_Session_answerPublishRequestsWithoutSubscription(UA_Session *session) {
-    /* Do we have publish requests but no subscriptions? */
-    if(LIST_FIRST(&session->serverSubscriptions))
-        return;
-
-    /* Send a response for every queued request */
-    UA_PublishResponseEntry *pre;
-    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
-        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
-        UA_PublishResponse *response = &pre->response;
-        UA_UInt32 requestId = pre->requestId;
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        response->responseHeader.timestamp = UA_DateTime_now();
-        UA_SecureChannel_sendBinaryMessage(session->channel, requestId, response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-        UA_free(pre);
-    }
 }
 
 #endif

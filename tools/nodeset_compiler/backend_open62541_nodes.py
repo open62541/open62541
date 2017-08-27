@@ -23,6 +23,10 @@ from backend_open62541_datatypes import *
 # Extract References with Special Meaning #
 ###########################################
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 def extractNodeParent(node, parentrefs):
     """Return a tuple of the most likely (parent, parentReference). The
     parentReference is removed form the inverse references list of the node.
@@ -33,7 +37,7 @@ def extractNodeParent(node, parentrefs):
             node.inverseReferences.remove(ref)
             node.printRefs.remove(ref)
             return (ref.target, ref.referenceType)
-    raise Exception("No node parent known for " + str(node))
+    return None, None
 
 def extractNodeType(node):
     """Returns the most likely type of the variable- or objecttype node. The
@@ -58,14 +62,14 @@ def extractNodeSuperType(node):
 def generateReferenceCode(reference):
     if reference.isForward:
         return "UA_Server_addReference(server, %s, %s, %s, true);" % \
-            (generateNodeIdCode(reference.source), \
-             generateNodeIdCode(reference.referenceType), \
-             generateExpandedNodeIdCode(reference.target))
+               (generateNodeIdCode(reference.source),
+                generateNodeIdCode(reference.referenceType),
+                generateExpandedNodeIdCode(reference.target))
     else:
-      return "UA_Server_addReference(server, %s, %s, %s, false);" % \
-          (generateNodeIdCode(reference.source), \
-           generateNodeIdCode(reference.referenceType), \
-           generateExpandedNodeIdCode(reference.target))
+        return "UA_Server_addReference(server, %s, %s, %s, false);" % \
+               (generateNodeIdCode(reference.source),
+                generateNodeIdCode(reference.referenceType),
+                generateExpandedNodeIdCode(reference.target))
 
 def generateReferenceTypeNodeCode(node):
     code = []
@@ -76,9 +80,9 @@ def generateReferenceTypeNodeCode(node):
     if node.symmetric:
         code.append("attr.symmetric  = true;")
     if node.inverseName != "":
-        code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"%s\");" % \
+        code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"\", \"%s\");" % \
                     node.inverseName)
-    return code;
+    return code
 
 def generateObjectNodeCode(node):
     code = []
@@ -86,7 +90,7 @@ def generateObjectNodeCode(node):
     code.append("UA_ObjectAttributes_init(&attr);")
     if node.eventNotifier:
         code.append("attr.eventNotifier = true;")
-    return code;
+    return code
 
 def generateVariableNodeCode(node):
     code = []
@@ -110,7 +114,7 @@ def generateVariableTypeNodeCode(node):
     code.append("UA_VariableTypeAttributes_init(&attr);")
     if node.historizing:
         code.append("attr.historizing = true;")
-    code.append("attr.valueRank = (UA_Int32)%s;" %str(node.valueRank))
+    code.append("attr.valueRank = (UA_Int32)%s;" % str(node.valueRank))
     # # The variant is guaranteed to exist by SubtypeEarly()
     # code.append(getCodePrintableNodeID(node) + ".value.variant.value = *" + \
     #             getCodePrintableNodeID(node) + "_variant;")
@@ -122,9 +126,9 @@ def generateMethodNodeCode(node):
     code.append("UA_MethodAttributes attr;")
     code.append("UA_MethodAttributes_init(&attr);")
     if node.executable:
-      code.append("attr.executable = true;")
+        code.append("attr.executable = true;")
     if node.userExecutable:
-      code.append("attr.userExecutable = true;")
+        code.append("attr.userExecutable = true;")
     return code
 
 def generateObjectTypeNodeCode(node):
@@ -132,7 +136,7 @@ def generateObjectTypeNodeCode(node):
     code.append("UA_ObjectTypeAttributes attr;")
     code.append("UA_ObjectTypeAttributes_init(&attr);")
     if node.isAbstract:
-      code.append("attr.isAbstract = true;")
+        code.append("attr.isAbstract = true;")
     return code
 
 def generateDataTypeNodeCode(node):
@@ -140,7 +144,7 @@ def generateDataTypeNodeCode(node):
     code.append("UA_DataTypeAttributes attr;")
     code.append("UA_DataTypeAttributes_init(&attr);")
     if node.isAbstract:
-      code.append("attr.isAbstract = true;")
+        code.append("attr.isAbstract = true;")
     return code
 
 def generateViewNodeCode(node):
@@ -148,9 +152,15 @@ def generateViewNodeCode(node):
     code.append("UA_ViewAttributes attr;")
     code.append("UA_ViewAttributes_init(&attr);")
     if node.containsNoLoops:
-      code.append("attr.containsNoLoops = true;")
+        code.append("attr.containsNoLoops = true;")
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
+
+def generateTypeDefinitionCode(node):
+    for ref in node.references:
+        if ref.referenceType.i == 40:
+            return generateNodeIdCode(ref.target)
+    return "UA_NODEID_NULL"
 
 def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs):
     code = []
@@ -177,9 +187,11 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     code.append("attr.description = " + generateLocalizedTextCode(node.description) + ";")
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
-    
+
     if not generate_ns0:
         (parentNode, parentRef) = extractNodeParent(node, parentrefs)
+        if parentNode is None or parentRef is None:
+            return None
     else:
         (parentNode, parentRef) = (NodeId(), NodeId())
 
@@ -188,11 +200,11 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName) + ",")
-    if (isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode)) or isinstance(node, ObjectNode):
-        code.append("UA_NODEID_NUMERIC(0,0),") # parent
+    if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
+        code.append(generateTypeDefinitionCode(node) + ",")
     code.append("attr,")
     if isinstance(node, MethodNode):
-        code.append("NULL, NULL, 0, NULL, 0, NULL, NULL);")
+        code.append("NULL, 0, NULL, 0, NULL, NULL, NULL);")
     else:
         code.append("NULL, NULL);")
     code.append("}\n")

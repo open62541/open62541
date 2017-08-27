@@ -1,17 +1,6 @@
-/*
- * Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_HIGHLEVEL_H_
 #define UA_CLIENT_HIGHLEVEL_H_
@@ -27,24 +16,21 @@ extern "C" {
  *
  * Highlevel Client Functionality
  * ------------------------------
+ *
  * The following definitions are convenience functions making use of the
- * standard OPC UA services in the background.
- *
- * The high level abstractions concetrate on getting the job done in a simple
- * manner for the user. This is a less flexible way of handling the stack,
- * because at many places sensible defaults are presumed; at the same time using
- * these functions is the easiest way of implementing an OPC UA application, as
- * you will not have to consider all the details that go into the OPC UA
- * services. A concept of how nodes and datatypes are used are completely
- * sufficient to use OPC UA with this layer.
- *
- * If more flexibility is needed, you can always achieve the same functionality
- * using the raw :ref:`OPC UA services <client-services>`.
+ * standard OPC UA services in the background. This is a less flexible way of
+ * handling the stack, because at many places sensible defaults are presumed; at
+ * the same time using these functions is the easiest way of implementing an OPC
+ * UA application, as you will not have to consider all the details that go into
+ * the OPC UA services. If more flexibility is needed, you can always achieve
+ * the same functionality using the raw :ref:`OPC UA services
+ * <client-services>`.
  *
  * Read Attributes
  * ^^^^^^^^^^^^^^^
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -166,23 +152,23 @@ UA_Client_readValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_StatusCode UA_EXPORT
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_Int32 **outArrayDimensions,
+                                       UA_UInt32 **outArrayDimensions,
                                        size_t *outArrayDimensionsSize);
 
 static UA_INLINE UA_StatusCode
 UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_UInt32 *outAccessLevel) {
+                                   UA_Byte *outAccessLevel) {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                     outAccessLevel, &UA_TYPES[UA_TYPES_UINT32]);
+                                     outAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
 UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_UInt32 *outUserAccessLevel) {
+                                       UA_Byte *outUserAccessLevel) {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_USERACCESSLEVEL,
                                      outUserAccessLevel,
-                                     &UA_TYPES[UA_TYPES_UINT32]);
+                                     &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
@@ -221,6 +207,7 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 /**
  * Write Attributes
  * ^^^^^^^^^^^^^^^^
+ *
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
 /* Don't call this function, use the typed versions */
@@ -346,23 +333,23 @@ UA_Client_writeValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_StatusCode UA_EXPORT
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Int32 *newArrayDimensions,
+                                        const UA_UInt32 *newArrayDimensions,
                                         size_t newArrayDimensionsSize);
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_UInt32 *newAccessLevel) {
+                                    const UA_Byte *newAccessLevel) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                      newAccessLevel, &UA_TYPES[UA_TYPES_UINT32]);
+                                      newAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_UInt32 *newUserAccessLevel) {
+                                        const UA_Byte *newUserAccessLevel) {
     return __UA_Client_writeAttribute(client, &nodeId,
                                       UA_ATTRIBUTEID_USERACCESSLEVEL,
                                       newUserAccessLevel,
-                                      &UA_TYPES[UA_TYPES_UINT32]);
+                                      &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 static UA_INLINE UA_StatusCode
@@ -425,6 +412,23 @@ UA_Client_deleteReference(UA_Client *client, const UA_NodeId sourceNodeId,
 UA_StatusCode UA_EXPORT
 UA_Client_deleteNode(UA_Client *client, const UA_NodeId nodeId,
                      UA_Boolean deleteTargetReferences);
+
+/* Protect against redundant definitions for server/client */
+#ifndef UA_DEFAULT_ATTRIBUTES_DEFINED
+#define UA_DEFAULT_ATTRIBUTES_DEFINED
+/* The default for variables is "BaseDataType" for the datatype, -2 for the
+ * valuerank and a read-accesslevel. */
+UA_EXPORT extern const UA_VariableAttributes UA_VariableAttributes_default;
+UA_EXPORT extern const UA_VariableTypeAttributes UA_VariableTypeAttributes_default;
+/* Methods are executable by default */
+UA_EXPORT extern const UA_MethodAttributes UA_MethodAttributes_default;
+/* The remaining attribute definitions are currently all zeroed out */
+UA_EXPORT extern const UA_ObjectAttributes UA_ObjectAttributes_default;
+UA_EXPORT extern const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default;
+UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default;
+UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
+UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
+#endif
 
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT
@@ -555,7 +559,7 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
  *
  * Subscriptions Handling
  * ^^^^^^^^^^^^^^^^^^^^^^
- * At this point, the client does not yet contain its own thread or event-driven
+ * At this time, the client does not yet contain its own thread or event-driven
  * main-loop. So the client will not perform any actions automatically in the
  * background. This is especially relevant for subscriptions. The user will have
  * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.
@@ -571,7 +575,7 @@ typedef struct {
     UA_Byte priority;
 } UA_SubscriptionSettings;
 
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_standard;
+extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
@@ -583,6 +587,21 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+                                                  const size_t nEventFields,
+                                                  const UA_Variant *eventFields,
+                                                  void *context);
+
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
+                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
+                                          UA_SimpleAttributeOperand *selectClause,
+                                          const size_t nSelectClauses,
+                                          UA_ContentFilterElement *whereClause,
+                                          const size_t nWhereClauses,
+                                          const UA_MonitoredEventHandlingFunction hf,
+                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
+
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
                                                  UA_DataValue *value,
                                                  void *context);
@@ -591,8 +610,8 @@ UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
                                          UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction hFunc,
-                                         void *handlingContext,
+                                         UA_MonitoredItemHandlingFunction hf,
+                                         void *hfContext,
                                          UA_UInt32 *newMonitoredItemId);
 
 UA_StatusCode UA_EXPORT

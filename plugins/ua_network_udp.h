@@ -1,8 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifndef UA_NETWORKLAYER_UDP_H_
-#define UA_NETWORKLAYER_UDP_H_
+#ifndef UA_NETWORK_UDP_H_
+#define UA_NETWORK_UDP_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,13 +12,14 @@ extern "C" {
 #include "ua_client.h"
 
 /* Create the UDP networklayer and listen to the specified port */
-UA_ServerNetworkLayer UA_EXPORT * ServerNetworkLayerUDP_new(UA_ConnectionConfig conf, UA_UInt32 port);
+UA_ServerNetworkLayer UA_EXPORT
+UA_ServerNetworkLayerUDP(UA_ConnectionConfig conf, UA_UInt16 port);
 
 UA_Connection UA_EXPORT
-ClientNetworkLayerUDP_connect(UA_ConnectionConfig conf, char endpointUrl[], UA_Logger logger);
+UA_ClientConnectionUDP(UA_ConnectionConfig conf, const char *endpointUrl, UA_Logger logger);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif /* UA_NETWORKLAYER_UDP_H_ */
+#endif /* UA_NETWORK_UDP_H_ */

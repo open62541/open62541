@@ -1,17 +1,6 @@
-/*
- * Copyright (C) 2013-2015 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details.
- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_TYPES_H_
 #define UA_TYPES_H_
@@ -22,42 +11,27 @@ extern "C" {
 
 #include "ua_config.h"
 #include "ua_constants.h"
-#include <stdint.h>
-#include <stdbool.h>
-
-/**
- * Data Types
- * ==========
- *
- * In open62541, all data types share the same basic API for creation, copying
- * and deletion. The header ua_types.h defines the builtin types. In addition,
- * we auto-generate ua_types_generated.h with additional types as well as the
- * following function definitions for all (builtin and generated) data types
- * ``T``.
- *
- * ``void T_init(T *ptr)``
- *   Initialize the data type. This is synonymous with zeroing out the memory,
- *   i.e. ``memset(dataptr, 0, sizeof(T))``.
- * ``T* T_new()``
- *   Allocate and return the memory for the data type. The memory is already
- *   initialized.
- * ``UA_StatusCode T_copy(const T *src, T *dst)``
- *   Copy the content of the data type. Returns ``UA_STATUSCODE_GOOD`` or
- *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
- * ``void T_deleteMembers(T *ptr)``
- *   Delete the dynamically allocated content of the data type and perform a
- *   ``T_init`` to reset the type.
- * ``void T_delete(T *ptr)``
- *   Delete the content of the data type and the memory for the data type itself.
- *
- * OPC UA defines 25 builtin data types. All other data types are combinations
- * of the 25 builtin data types. */
 
 #define UA_BUILTIN_TYPES_COUNT 25U
 
 /**
- * Builtin Types Part 1
- * --------------------
+ * .. _types:
+ *
+ * Data Types
+ * ==========
+ *
+ * The OPC UA protocol defines 25 builtin data types and three ways of combining
+ * them into higher-order types: arrays, structures and unions. In open62541,
+ * only the builtin data types are defined manually. All other data types are
+ * generated from standard XML definitions. Their exact definitions can be
+ * looked up at https://opcfoundation.org/UA/schemas/Opc.Ua.Types.bsd.xml.
+ *
+ * For users that are new to open62541, take a look at the :ref:`tutorial for
+ * working with data types<types-tutorial>` before diving into the
+ * implementation details.
+ *
+ * Builtin Types
+ * -------------
  *
  * Boolean
  * ^^^^^^^
@@ -71,65 +45,65 @@ typedef bool UA_Boolean;
  * ^^^^^
  * An integer value between -128 and 127. */
 typedef int8_t UA_SByte;
-#define UA_SBYTE_MAX 127
 #define UA_SBYTE_MIN (-128)
+#define UA_SBYTE_MAX 127
 
 /**
  * Byte
  * ^^^^
- * An integer value between 0 and 256. */
+ * An integer value between 0 and 255. */
 typedef uint8_t UA_Byte;
-#define UA_BYTE_MAX 256
 #define UA_BYTE_MIN 0
+#define UA_BYTE_MAX 255
 
 /**
  * Int16
  * ^^^^^
  * An integer value between -32 768 and 32 767. */
 typedef int16_t UA_Int16;
-#define UA_INT16_MAX 32767
 #define UA_INT16_MIN (-32768)
+#define UA_INT16_MAX 32767
 
 /**
  * UInt16
  * ^^^^^^
  * An integer value between 0 and 65 535. */
 typedef uint16_t UA_UInt16;
-#define UA_UINT16_MAX 65535
 #define UA_UINT16_MIN 0
+#define UA_UINT16_MAX 65535
 
 /**
  * Int32
  * ^^^^^
  * An integer value between -2 147 483 648 and 2 147 483 647. */
 typedef int32_t UA_Int32;
-#define UA_INT32_MAX 2147483647
 #define UA_INT32_MIN (-2147483648)
+#define UA_INT32_MAX 2147483647
 
 /**
  * UInt32
  * ^^^^^^
  * An integer value between 0 and 4 294 967 295. */
 typedef uint32_t UA_UInt32;
-#define UA_UINT32_MAX 4294967295
 #define UA_UINT32_MIN 0
+#define UA_UINT32_MAX 4294967295
 
 /**
  * Int64
  * ^^^^^
- * An integer value between -10 223 372 036 854 775 808 and
+ * An integer value between -9 223 372 036 854 775 808 and
  * 9 223 372 036 854 775 807. */
 typedef int64_t UA_Int64;
-#define UA_INT64_MAX (int64_t)9223372036854775807
 #define UA_INT64_MIN ((int64_t)-9223372036854775808)
+#define UA_INT64_MAX (int64_t)9223372036854775807
 
 /**
  * UInt64
  * ^^^^^^
  * An integer value between 0 and 18 446 744 073 709 551 615. */
 typedef uint64_t UA_UInt64;
-#define UA_UINT64_MAX (int64_t)18446744073709551615
 #define UA_UINT64_MIN (int64_t)0
+#define UA_UINT64_MAX (int64_t)18446744073709551615
 
 /**
  * Float
@@ -153,77 +127,15 @@ typedef double UA_Double;
  * specific code. */
 typedef uint32_t UA_StatusCode;
 
-/**
- * Array handling
- * --------------
- * In OPC UA, arrays can have a length of zero or more with the usual meaning.
- * In addition, arrays can be undefined. Then, they don't even have a length. In
- * the binary encoding, this is indicated by an array of length -1.
- *
- * In open62541 however, we use ``size_t`` for array lengths. An undefined array
- * has length 0 and the data pointer is NULL. An array of length 0 also has
- * length 0 but points to a sentinel memory address. */
-#define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
-
-/** Forward Declaration of UA_DataType. See Section `Generic Type Handling`_
-    for details. */
-struct UA_DataType;
-typedef struct UA_DataType UA_DataType;
-
-/** The following functions are used for handling arrays of any data type. */
-
-/* Allocates and initializes an array of variables of a specific type
- *
- * @param size The requested array length
- * @param type The datatype description
- * @return Returns the memory location of the variable or (void*)0 if no memory
-           could be allocated */
-void UA_EXPORT * UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
-
-/* Allocates and copies an array
- *
- * @param src The memory location of the source array
- * @param size The size of the array
- * @param dst The location of the pointer to the new array
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY */
-UA_StatusCode UA_EXPORT
-UA_Array_copy(const void *src, size_t size, void **dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-/* Deletes an array.
- *
- * @param p The memory location of the array
- * @param size The size of the array
- * @param type The datatype of the array members */
-void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+/* Returns the human-readable name of the StatusCode. If no matching StatusCode
+ * is found, a default string for "Unknown" is returned. This feature might be
+ * disabled to create a smaller binary with the
+ * UA_ENABLE_STATUSCODE_DESCRIPTIONS build-flag. Then the function returns an
+ * empty string for every StatusCode. */
+UA_EXPORT const char *
+UA_StatusCode_name(UA_StatusCode code);
 
 /**
- * .. _numericrange:
- *
- * NumericRange
- * ^^^^^^^^^^^^
- *
- * NumericRanges are used to indicate subsets of a (multidimensional) variant
- * array. NumericRange has no official type structure in the standard. On the
- * wire, it only exists as an encoded string, such as "1:2,0:3,5". The colon
- * separates min/max index and the comma separates dimensions. A single value
- * indicates a range with a single element (min==max). */
-
-typedef struct {
-    UA_UInt32 min;
-    UA_UInt32 max;
-} UA_NumericRangeDimension;
-    
-typedef struct {
-    size_t dimensionsSize;
-    UA_NumericRangeDimension *dimensions;
-} UA_NumericRange;
-
-/**
- * Builtin Types, Part 2
- * ---------------------
- *
  * String
  * ^^^^^^
  * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
@@ -240,7 +152,7 @@ UA_Boolean UA_EXPORT UA_String_equal(const UA_String *s1, const UA_String *s2);
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**
- * ``UA_STRING`` returns a string pointing to the preallocated char-array.
+ * ``UA_STRING`` returns a string pointing to the original char-array.
  * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
  * of the char-array. */
 static UA_INLINE UA_String
@@ -252,6 +164,8 @@ UA_STRING(char *chars) {
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
 /**
+ * .. _datetime:
+ *
  * DateTime
  * ^^^^^^^^
  * An instance in time. A DateTime value is encoded as a 64-bit signed integer
@@ -263,6 +177,9 @@ typedef int64_t UA_DateTime;
 #define UA_USEC_TO_DATETIME 10LL
 #define UA_MSEC_TO_DATETIME (UA_USEC_TO_DATETIME * 1000LL)
 #define UA_SEC_TO_DATETIME (UA_MSEC_TO_DATETIME * 1000LL)
+#define UA_DATETIME_TO_USEC (1/10.0)
+#define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
+#define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
 
 /* Datetime of 1 Jan 1970 00:00 UTC */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
@@ -312,8 +229,10 @@ UA_EXPORT extern const UA_Guid UA_GUID_NULL;
 typedef UA_String UA_ByteString;
 
 static UA_INLINE UA_Boolean
-UA_ByteString_equal(const UA_ByteString *string1, const UA_ByteString *string2) {
-    return UA_String_equal((const UA_String*)string1, (const UA_String*)string2);
+UA_ByteString_equal(const UA_ByteString *string1,
+                    const UA_ByteString *string2) {
+    return UA_String_equal((const UA_String*)string1,
+                           (const UA_String*)string2);
 }
 
 /* Allocates memory of size length for the bytestring.
@@ -342,6 +261,8 @@ UA_BYTESTRING_ALLOC(const char *chars) {
 typedef UA_String UA_XmlElement;
 
 /**
+ * .. _nodeid:
+ *
  * NodeId
  * ^^^^^^
  * An identifier for a node in the address space of an OPC UA Server. */
@@ -370,6 +291,9 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 UA_Boolean UA_EXPORT UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2);
+
+/* Returns a non-cryptographic hash for the NodeId */
+UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
 
 /** The following functions are shorthand for creating NodeIds. */
 static UA_INLINE UA_NodeId
@@ -462,6 +386,8 @@ UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
 }
 
 /**
+ * .. _qualifiedname:
+ *
  * QualifiedName
  * ^^^^^^^^^^^^^
  * A name qualified by a namespace. */
@@ -509,83 +435,121 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
 }
 
 /**
- * ExtensionObject
- * ^^^^^^^^^^^^^^^
- * ExtensionObjects may contain scalars of any data type. Even those that are
- * unknown to the receiver. See the Section `Generic Type Handling`_ on how
- * types are described. An ExtensionObject always contains the NodeId of the
- * Data Type. If the data cannot be decoded, we keep the encoded string and the
- * NodeId. */
+ * .. _numericrange:
+ *
+ * NumericRange
+ * ^^^^^^^^^^^^
+ *
+ * NumericRanges are used to indicate subsets of a (multidimensional) array.
+ * They no official data type in the OPC UA standard and are transmitted only
+ * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
+ * index and the comma separates dimensions. A single value indicates a range
+ * with a single element (min==max). */
 typedef struct {
-    enum {
-        UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
-        UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
-        UA_EXTENSIONOBJECT_ENCODED_XML        = 2,
-        UA_EXTENSIONOBJECT_DECODED            = 3,
-        UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4 /* Don't delete the content
-                                                     together with the
-                                                     ExtensionObject */
-    } encoding;
-    union {
-        struct {
-            UA_NodeId typeId;   /* The nodeid of the datatype */
-            UA_ByteString body; /* The bytestring of the encoded data */
-        } encoded;
-        struct {
-            const UA_DataType *type;
-            void *data;
-        } decoded;
-    } content;
-} UA_ExtensionObject;
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_NumericRangeDimension;
+
+typedef struct  {
+    size_t dimensionsSize;
+    UA_NumericRangeDimension *dimensions;
+} UA_NumericRange;
 
 /**
  * .. _variant:
  *
  * Variant
  * ^^^^^^^
- * Variants may contain data of any type. See the Section `Generic Type
- * Handling`_ on how types are described. If the data is not of one of the 25
- * builtin types, it will be encoded as an `ExtensionObject`_ on the wire. (The
- * standard says that a variant is a union of the built-in types. open62541
- * generalizes this to any data type by transparently de- and encoding
- * ExtensionObjects in the background. If the decoding fails, the variant
- * contains the original ExtensionObject.)
  *
- * Variants can contain a single scalar or an array. For details on the handling
- * of arrays, see the Section `Array Handling`_. Array variants can have an
- * additional dimensionality (matrix, 3-tensor, ...) defined in an array of
- * dimension sizes. Higher rank dimensions are serialized first.
+ * Variants may contain values of any type together with a description of the
+ * content. See the section on :ref:`generic-types` on how types are described.
+ * The standard mandates that variants contain built-in data types only. If the
+ * value is not of a builtin type, it is wrapped into an :ref:`extensionobject`.
+ * open62541 hides this wrapping transparently in the encoding layer. If the
+ * data type is unknown to the receiver, the variant contains the original
+ * ExtensionObject in binary or XML encoding.
  *
- * The differentiation between variants containing a scalar, an array or no data
- * is as follows:
+ * Variants may contain a scalar value or an array. For details on the handling
+ * of arrays, see the section on :ref:`array-handling`. Array variants can have
+ * an additional dimensionality (matrix, 3-tensor, ...) defined in an array of
+ * dimension lengths. The actual values are kept in an array of dimensions one.
+ * For users who work with higher-dimensions arrays directly, keep in mind that
+ * dimensions of higher rank are serialized first (the highest rank dimension
+ * has stride 1 and elements follow each other directly). Usually it is simplest
+ * to interact with higher-dimensional arrays via ``UA_NumericRange``
+ * descriptions (see :ref:`array-handling`).
  *
- * - arrayLength == 0 && data == NULL: no existing data
- * - arrayLength == 0 && data == UA_EMPTY_ARRAY_SENTINEL: array of length 0
- * - arrayLength == 0 && data > UA_EMPTY_ARRAY_SENTINEL: scalar value
- * - arrayLength > 0: array of the given length */
+ * To differentiate between scalar / array variants, the following definition is
+ * used. ``UA_Variant_isScalar`` provides simplified access to these checks.
+ *
+ * - ``arrayLength == 0 && data == NULL``: undefined array of length -1
+ * - ``arrayLength == 0 && data == UA_EMPTY_ARRAY_SENTINEL``: array of length 0
+ * - ``arrayLength == 0 && data > UA_EMPTY_ARRAY_SENTINEL``: scalar value
+ * - ``arrayLength > 0``: array of the given length
+ *
+ * Variants can also be *empty*. Then, the pointer to the type description is
+ * ``NULL``. */
+/* Forward declaration. See the section on Generic Type Handling */
+struct UA_DataType;
+typedef struct UA_DataType UA_DataType;
+
+#define UA_EMPTY_ARRAY_SENTINEL ((void*)0x01)
+
+typedef enum {
+    UA_VARIANT_DATA,          /* The data has the same lifecycle as the
+                                 variant */
+    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and
+                                 shall not be deleted at the end of the
+                                 variant's lifecycle. */
+} UA_VariantStorageType;
+
 typedef struct {
-    const UA_DataType *type; /* The data type description */
-    enum {
-        UA_VARIANT_DATA,          /* The data has the same lifecycle as the
-                                     variant */
-        UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and
-                                     shall not be deleted at the end of the
-                                     variant's lifecycle. */
-    } storageType;
-    size_t arrayLength;         /* The number of elements in the data array */
-    void *data;                 /* Points to the scalar or array data */
-    size_t arrayDimensionsSize; /* The number of dimensions the data-array has */
-    UA_Int32 *arrayDimensions;  /* The length of each dimension */
+    const UA_DataType *type;      /* The data type description */
+    UA_VariantStorageType storageType;
+    size_t arrayLength;           /* The number of elements in the data array */
+    void *data;                   /* Points to the scalar or array data */
+    size_t arrayDimensionsSize;   /* The number of dimensions */
+    UA_UInt32 *arrayDimensions;   /* The length of each dimension */
 } UA_Variant;
+
+/* Returns true if the variant has no value defined (contains neither an array
+ * nor a scalar value).
+ *
+ * @param v The variant
+ * @return Is the variant empty */
+static UA_INLINE UA_Boolean
+UA_Variant_isEmpty(const UA_Variant *v) {
+    return v->type == NULL;
+}
 
 /* Returns true if the variant contains a scalar value. Note that empty variants
  * contain an array of length -1 (undefined).
  *
  * @param v The variant
- * @return Does the variant contain a scalar value. */
+ * @return Does the variant contain a scalar value */
 static UA_INLINE UA_Boolean
 UA_Variant_isScalar(const UA_Variant *v) {
     return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
+}
+
+/* Returns true if the variant contains a scalar value of the given type.
+ *
+ * @param v The variant
+ * @param type The data type
+ * @return Does the variant contain a scalar value of the given type */
+static UA_INLINE UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
+    return UA_Variant_isScalar(v) && type == v->type;
+}
+
+/* Returns true if the variant contains an array of the given type.
+ *
+ * @param v The variant
+ * @param type The data type
+ * @return Does the variant contain an array of the given type */
+static UA_INLINE UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
+    return (!UA_Variant_isScalar(v)) && type == v->type;
 }
 
 /* Set the variant to a scalar value that already resides in memory. The value
@@ -668,6 +632,42 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_NumericRange range);
 
 /**
+ * .. _extensionobject:
+ *
+ * ExtensionObject
+ * ^^^^^^^^^^^^^^^
+ *
+ * ExtensionObjects may contain scalars of any data type. Even those that are
+ * unknown to the receiver. See the section on :ref:`generic-types` on how types
+ * are described. If the received data type is unkown, the encoded string and
+ * target NodeId is stored instead of the decoded value. */
+typedef enum {
+    UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
+    UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
+    UA_EXTENSIONOBJECT_ENCODED_XML        = 2,
+    UA_EXTENSIONOBJECT_DECODED            = 3,
+    UA_EXTENSIONOBJECT_DECODED_NODELETE   = 4 /* Don't delete the content
+                                                 together with the
+                                                 ExtensionObject */
+} UA_ExtensionObjectEncoding;
+
+typedef struct {
+    UA_ExtensionObjectEncoding encoding;
+    union {
+        struct {
+            UA_NodeId typeId;   /* The nodeid of the datatype */
+            UA_ByteString body; /* The bytestring of the encoded data */
+        } encoded;
+        struct {
+            const UA_DataType *type;
+            void *data;
+        } decoded;
+    } content;
+} UA_ExtensionObject;
+
+/**
+ * .. _datavalue:
+ *
  * DataValue
  * ^^^^^^^^^
  * A data value with an associated status code and timestamps. */
@@ -709,12 +709,32 @@ typedef struct UA_DiagnosticInfo {
 } UA_DiagnosticInfo;
 
 /**
+ * .. _generic-types:
+ *
  * Generic Type Handling
  * ---------------------
- * The builtin types can be combined to data structures. All information about a
- * (structured) data type is stored in a ``UA_DataType``. The array ``UA_TYPES``
- * contains the description of all standard-defined types and is used for
- * handling of generic types. */
+ *
+ * All information about a (builtin/structured) data type is stored in a
+ * ``UA_DataType``. The array ``UA_TYPES`` contains the description of all
+ * standard-defined types. This type description is used for the following
+ * generic operations that work on all types:
+ *
+ * - ``void T_init(T *ptr)``: Initialize the data type. This is synonymous with
+ *   zeroing out the memory, i.e. ``memset(ptr, 0, sizeof(T))``.
+ * - ``T* T_new()``: Allocate and return the memory for the data type. The
+ *   value is already initialized.
+ * - ``UA_StatusCode T_copy(const T *src, T *dst)``: Copy the content of the
+ *   data type. Returns ``UA_STATUSCODE_GOOD`` or
+ *   ``UA_STATUSCODE_BADOUTOFMEMORY``.
+ * - ``void T_deleteMembers(T *ptr)``: Delete the dynamically allocated content
+ *   of the data type and perform a ``T_init`` to reset the type.
+ * - ``void T_delete(T *ptr)``: Delete the content of the data type and the
+ *   memory for the data type itself.
+ *
+ * Specializations, such as ``UA_Int32_new()`` are derived from the generic
+ * type operations as static inline functions.
+ */
+
 typedef struct {
 #ifdef UA_ENABLE_TYPENAMES
     const char *memberName;
@@ -729,8 +749,8 @@ typedef struct {
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in
                                      namespace zero. In this implementation,
                                      types from custom namespace may contain
-                                     members from the same namespace or ns0
-                                     only.*/
+                                     members from the same namespace or
+                                     namespace zero only.*/
     UA_Boolean isArray       : 1; /* The member is an array */
 } UA_DataTypeMember;
 
@@ -744,22 +764,31 @@ struct UA_DataType {
     UA_Byte    membersSize;      /* How many members does the type have? */
     UA_Boolean builtin      : 1; /* The type is "builtin" and has dedicated de-
                                     and encoding functions */
-    UA_Boolean fixedSize    : 1; /* The type (and its members) contains no
-                                    pointers */
+    UA_Boolean pointerFree  : 1; /* The type (and its members) contains no
+                                    pointers that need to be freed */
     UA_Boolean overlayable  : 1; /* The type has the identical memory layout in
                                     memory and on the binary stream. */
-    //UA_UInt16  xmlEncodingId;    /* NodeId of datatype when encoded as XML */
-    UA_UInt16  binaryEncodingId;    /* NodeId of datatype when encoded as binary */
+    UA_UInt16  binaryEncodingId; /* NodeId of datatype when encoded as binary */
+    //UA_UInt16  xmlEncodingId;  /* NodeId of datatype when encoded as XML */
     UA_DataTypeMember *members;
 };
+
+/**
+ * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
+ * the name of the data type. If only the NodeId of a type is known, use the
+ * following method to retrieve the data type description. */
+/* Returns the data type description for the type's identifier or NULL if no
+ * matching data type was found. */
+const UA_DataType UA_EXPORT *
+UA_findDataType(const UA_NodeId *typeId);
 
 /** The following functions are used for generic handling of data types. */
 
 /* Allocates and initializes a variable of type dataType
  *
  * @param type The datatype description
- * @return Returns the memory location of the variable or (void*)0 if no
- *         memory is available */
+ * @return Returns the memory location of the variable or NULL if no
+ *         memory could be allocated */
 void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
 /* Initializes a variable to default values
@@ -798,6 +827,44 @@ void UA_EXPORT UA_deleteMembers(void *p, const UA_DataType *type);
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
 /**
+ * .. _array-handling:
+ *
+ * Array handling
+ * --------------
+ * In OPC UA, arrays can have a length of zero or more with the usual meaning.
+ * In addition, arrays can be undefined. Then, they don't even have a length. In
+ * the binary encoding, this is indicated by an array of length -1.
+ *
+ * In open62541 however, we use ``size_t`` for array lengths. An undefined array
+ * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
+ * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
+/* Allocates and initializes an array of variables of a specific type
+ *
+ * @param size The requested array length
+ * @param type The datatype description
+ * @return Returns the memory location of the variable or NULL if no memory
+           could be allocated */
+void UA_EXPORT * UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+
+/* Allocates and copies an array
+ *
+ * @param src The memory location of the source array
+ * @param size The size of the array
+ * @param dst The location of the pointer to the new array
+ * @param type The datatype of the array members
+ * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY */
+UA_StatusCode UA_EXPORT
+UA_Array_copy(const void *src, size_t size, void **dst,
+              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Deletes an array.
+ *
+ * @param p The memory location of the array
+ * @param size The size of the array
+ * @param type The datatype of the array members */
+void UA_EXPORT UA_Array_delete(void *p, size_t size, const UA_DataType *type);
+
+/**
  * Random Number Generator
  * -----------------------
  * If UA_ENABLE_MULTITHREADING is defined, then the seed is stored in thread
@@ -806,6 +873,42 @@ void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 void UA_EXPORT UA_random_seed(UA_UInt64 seed);
 UA_UInt32 UA_EXPORT UA_UInt32_random(void); /* no cryptographic entropy */
 UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
+
+/**
+ * .. _generated-types:
+ *
+ * Generated Data Type Definitions
+ * -------------------------------
+ *
+ * The following data types were auto-generated from a definition in XML format.
+ *
+ * .. toctree::
+ *
+ *    types_generated */
+
+/**
+ * Deprecated Data Types API
+ * -------------------------
+ * The following definitions are deprecated and will be removed in future
+ * releases of open62541. */
+
+typedef struct {
+    UA_StatusCode code;      /* The numeric value of the StatusCode */
+    const char* name;        /* The symbolic name */
+    const char* explanation; /* Short message explaining the StatusCode */
+} UA_StatusCodeDescription;
+
+UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
+
+UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
+UA_StatusCode_description(UA_StatusCode code) {
+    return &statusCodeExplanation_default;
+}
+
+UA_DEPRECATED static UA_INLINE const char *
+UA_StatusCode_explanation(UA_StatusCode code) {
+    return statusCodeExplanation_default.name;
+}
 
 #ifdef __cplusplus
 } // extern "C"

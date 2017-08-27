@@ -1,8 +1,13 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #define _XOPEN_SOURCE 500
 #include <stdlib.h>
 #include <stdio.h>
 
 #include "ua_types.h"
+#include "ua_server.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_types_encoding_binary.h"
@@ -58,12 +63,13 @@ START_TEST(encodeShallYieldDecode) {
 
     // given
     UA_ByteString msg1, msg2;
-    size_t pos = 0;
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_encodeBinary(obj1, &UA_TYPES[_i], NULL, NULL, &msg1, &pos);
-    msg1.length = pos;
+    UA_Byte *pos = msg1.data;
+    const UA_Byte *end = &msg1.data[msg1.length];
+    retval = UA_encodeBinary(obj1, &UA_TYPES[_i],
+                             &pos, &end, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_deleteMembers(&msg1);
@@ -72,17 +78,21 @@ START_TEST(encodeShallYieldDecode) {
 
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
-    pos = 0; retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
+    size_t offset = 0;
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL); 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     retval = UA_ByteString_allocBuffer(&msg2, 65000);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    pos = 0; retval = UA_encodeBinary(obj2, &UA_TYPES[_i], NULL, NULL, &msg2, &pos);
-    msg2.length = pos;
+    pos = msg2.data;
+    end = &msg2.data[msg2.length];
+    retval = UA_encodeBinary(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
+    msg1.length = offset;
+    msg2.length = offset;
     ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true, "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
 
@@ -95,22 +105,29 @@ START_TEST(encodeShallYieldDecode) {
 END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
+    //Skip test for void*
+    if (_i == UA_TYPES_DISCOVERYCONFIGURATION || _i == UA_TYPES_FILTEROPERAND || _i == UA_TYPES_MONITORINGFILTER)
+        return;
     // given
     UA_ByteString msg1;
     void *obj1 = UA_new(&UA_TYPES[_i]);
-    size_t pos = 0;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
-    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], NULL, NULL, &msg1, &pos);
+    UA_Byte *pos = msg1.data;
+    const UA_Byte *end = &msg1.data[msg1.length];
+    retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     UA_delete(obj1, &UA_TYPES[_i]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_deleteMembers(&msg1);
         return; // e.g. variants cannot be encoded after an init without failing (no datatype set)
     }
+
+    size_t half = (uintptr_t)(pos - msg1.data) / 2;
+    msg1.length = half;
+
     // when
     void *obj2 = UA_new(&UA_TYPES[_i]);
-    msg1.length = pos / 2;
-    pos = 0;
-    retval = UA_decodeBinary(&msg1, &pos, obj2, &UA_TYPES[_i]);
+    size_t offset = 0;
+    retval = UA_decodeBinary(&msg1, &offset, obj2, &UA_TYPES[_i], 0, NULL);
     ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj2, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg1);
@@ -143,7 +160,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         }
         size_t pos = 0;
         obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Decoding %d from random buffer", UA_TYPES[_i].typeId.identifier.numeric);
         // finally
@@ -177,7 +194,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
         }
         size_t pos = 0;
         void *obj1 = UA_new(&UA_TYPES[_i]);
-        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i]);
+        retval |= UA_decodeBinary(&msg1, &pos, obj1, &UA_TYPES[_i], 0, NULL);
         UA_delete(obj1, &UA_TYPES[_i]);
     }
 
@@ -187,10 +204,13 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
 END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
-    /* Empty variants (with no type defined) cannot be encoded. This is intentional. */
+    /* Empty variants (with no type defined) cannot be encoded. This is intentional. Discovery configuration is just a base class and void * */
     if(_i == UA_TYPES_VARIANT ||
        _i == UA_TYPES_VARIABLEATTRIBUTES ||
-       _i == UA_TYPES_VARIABLETYPEATTRIBUTES)
+       _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
+       _i == UA_TYPES_FILTEROPERAND ||
+       _i == UA_TYPES_MONITORINGFILTER ||
+       _i == UA_TYPES_DISCOVERYCONFIGURATION)
         return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
@@ -198,12 +218,13 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    size_t offset = 0;
-    retval = UA_encodeBinary(obj, &UA_TYPES[_i], NULL, NULL, &msg, &offset);
+    UA_Byte *pos = msg.data;
+    const UA_Byte *end = &msg.data[msg.length];
+    retval = UA_encodeBinary(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(offset, predicted_size);
+    ck_assert_int_eq((uintptr_t)(pos - msg.data), predicted_size);
     UA_delete(obj, &UA_TYPES[_i]);
     UA_ByteString_deleteMembers(&msg);
 }

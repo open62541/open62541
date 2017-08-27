@@ -1,15 +1,6 @@
-/* Copyright (C) 2014-2016 the contributors as stated in the AUTHORS file
- *
- * This file is part of open62541. open62541 is free software: you can
- * redistribute it and/or modify it under the terms of the GNU Lesser General
- * Public License, version 3 (as published by the Free Software Foundation) with
- * a static linking exception as stated in the LICENSE file provided with
- * open62541.
- *
- * open62541 is distributed in the hope that it will be useful, but WITHOUT ANY
- * WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE. See the GNU Lesser General Public License for more
- * details. */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_H_
 #define UA_CLIENT_H_
@@ -18,12 +9,11 @@
 extern "C" {
 #endif
 
-#include "ua_config.h"
 #include "ua_types.h"
-#include "ua_connection.h"
-#include "ua_log.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_plugin_network.h"
+#include "ua_plugin_log.h"
 
 /**
  * .. _client:
@@ -35,7 +25,7 @@ extern "C" {
  * convenience, some functionality has been wrapped in :ref:`high-level
  * abstractions <client-highlevel>`.
  *
- * **However**: At this point, the client does not yet contain its own thread or
+ * **However**: At this time, the client does not yet contain its own thread or
  * event-driven main-loop. So the client will not perform any actions
  * automatically in the background. This is especially relevant for
  * subscriptions. The user will have to periodically call
@@ -44,17 +34,18 @@ extern "C" {
  *
  * Client Configuration
  * -------------------- */
-typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf,
-                              const char *endpointUrl, UA_Logger logger);
 
 typedef struct UA_ClientConfig {
-    UA_UInt32 timeout;               /* Sync response timeout */
+    UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
                                         to be renewed) */
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
+
+    /* Custom DataTypes */
+    size_t customDataTypesSize;
+    const UA_DataType *customDataTypes;
 } UA_ClientConfig;
 
 /**
@@ -79,7 +70,7 @@ typedef struct UA_Client UA_Client;
 
 /* Create a new client
  *
- * @param config for the new client. You can use UA_ClientConfig_standard
+ * @param config for the new client. You can use UA_ClientConfig_default
  *        which has sane defaults
  * @param logger function pointer to a logger function. See
  *        examples/logger_stdout.c for a simple implementation
@@ -96,12 +87,14 @@ void UA_EXPORT UA_Client_reset(UA_Client *client);
 void UA_EXPORT UA_Client_delete(UA_Client *client);
 
 /**
- * Manage the Connection
- * --------------------- */
+ * Discovery
+ * --------- */
+
 /* Gets a list of endpoints of a server
  *
- * @param client to use
- * @param server url to connect (for example "opc.tcp://localhost:16664")
+ * @param client to use. Must be connected to the same endpoint given in
+ *        serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
  * @param endpointDescriptionsSize size of the array of endpoint descriptions
  * @param endpointDescriptions array of endpoint descriptions that is allocated
  *        by the function (you need to free manually)
@@ -110,6 +103,61 @@ UA_StatusCode UA_EXPORT
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions);
+
+/* Gets a list of all registered servers at the given server.
+ *
+ * You can pass an optional filter for serverUris. If the given server is not registered,
+ * an empty array will be returned. If the server is registered, only that application
+ * description will be returned.
+ *
+ * Additionally you can optionally indicate which locale you want for the server name
+ * in the returned application description. The array indicates the order of preference.
+ * A server may have localized names.
+ *
+ * @param client to use. Must be connected to the same endpoint given in
+ *        serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param serverUrisSize Optional filter for specific server uris
+ * @param serverUris Optional filter for specific server uris
+ * @param localeIdsSize Optional indication which locale you prefer
+ * @param localeIds Optional indication which locale you prefer
+ * @param registeredServersSize size of returned array, i.e., number of found/registered servers
+ * @param registeredServers array containing found/registered servers
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_findServers(UA_Client *client, const char *serverUrl,
+                      size_t serverUrisSize, UA_String *serverUris,
+                      size_t localeIdsSize, UA_String *localeIds,
+                      size_t *registeredServersSize,
+                      UA_ApplicationDescription **registeredServers);
+
+/* Get a list of all known server in the network. Only supported by LDS servers.
+ *
+ * @param client to use. Must be connected to the same endpoint given in
+ * serverUrl or otherwise in disconnected state.
+ * @param serverUrl url to connect (for example "opc.tcp://localhost:16664")
+ * @param startingRecordId optional. Only return the records with an ID higher
+ *        or equal the given. Can be used for pagination to only get a subset of
+ *        the full list
+ * @param maxRecordsToReturn optional. Only return this number of records
+
+ * @param serverCapabilityFilterSize optional. Filter the returned list to only
+ *        get servers with given capabilities, e.g. "LDS"
+ * @param serverCapabilityFilter optional. Filter the returned list to only get
+ *        servers with given capabilities, e.g. "LDS"
+ * @param serverOnNetworkSize size of returned array, i.e., number of
+ *        known/registered servers
+ * @param serverOnNetwork array containing known/registered servers
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
+                     UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
+                     size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                     size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
+
+/**
+ * Manage the Connection
+ * --------------------- */
 
 /* Connect to the selected server
  *
@@ -139,8 +187,8 @@ UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 /**
  * .. _client-services:
  *
- * Raw Services
- * ------------
+ * Services
+ * --------
  * The raw OPC UA services are exposed to the client. But most of them time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
@@ -172,6 +220,7 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
 /**
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_METHODCALLS
 static UA_INLINE UA_CallResponse
 UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
     UA_CallResponse response;
@@ -179,6 +228,7 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
                         &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     return response;
 }
+#endif
 
 /**
  * NodeManagement Service Set
@@ -195,8 +245,8 @@ static UA_INLINE UA_AddReferencesResponse
 UA_Client_Service_addReferences(UA_Client *client,
                                 const UA_AddReferencesRequest request) {
     UA_AddReferencesResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE]);
     return response;
 }
 
@@ -213,8 +263,8 @@ static UA_INLINE UA_DeleteReferencesResponse
 UA_Client_Service_deleteReferences(UA_Client *client,
                                    const UA_DeleteReferencesRequest request) {
     UA_DeleteReferencesResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
     return response;
 }
 
@@ -357,7 +407,34 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 
 #endif
 
-/** .. include:: client_highlevel.rst */
+/**
+ * .. _client-async-services:
+ *
+ * Asynchronous Services
+ * ---------------------
+ * All OPC UA services are asynchronous in nature. So several service calls can
+ * be made without waiting for a response first. Responess may come in a
+ * different ordering. */
+
+typedef void
+(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, const void *response);
+
+/* Don't use this function. Use the type versions below instead. */
+UA_StatusCode UA_EXPORT
+__UA_Client_AsyncService(UA_Client *client, const void *request,
+                         const UA_DataType *requestType,
+                         UA_ClientAsyncServiceCallback callback,
+                         const UA_DataType *responseType,
+                         void *userdata, UA_UInt32 *requestId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
+
+/**
+ * .. toctree::
+ *
+ *    client_highlevel */
 
 #ifdef __cplusplus
 } // extern "C"
