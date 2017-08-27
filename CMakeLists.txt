@@ -103,7 +103,6 @@ mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
-option(UA_BUILD_DOCUMENTATION "Generate doxygen/sphinx documentation" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
 if (UA_BUILD_FUZZING)
@@ -476,7 +475,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            --generate-ns0
-                           ${UA_NAMESPACE0_XML}
+                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
+                           --xml ${UA_NAMESPACE0_XML}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
                    DEPENDS ${UA_NAMESPACE0_XML}
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
@@ -488,8 +488,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #
@@ -545,12 +545,10 @@ else()
     endif()
 endif()
 
-if(UA_ENABLE_GENERATE_NAMESPACE0)
-    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-    if(NOT UA_ENABLE_AMALGAMATION)
-        add_dependencies(open62541-object open62541-generator-namespace)
-    endif()
+add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
+if(NOT UA_ENABLE_AMALGAMATION)
+    add_dependencies(open62541-object open62541-generator-namespace)
 endif()
 
 # Export Symbols

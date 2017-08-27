@@ -28,7 +28,7 @@
 #ifndef UA_STRDUP
 # if defined(__MINGW32__)
 static char *ua_strdup(const char *s) {
-    char *p = UA_malloc(strlen(s) + 1);
+    char *p = (char*)UA_malloc(strlen(s) + 1);
     if(p) { strcpy(p, s); }
     return p;
 }
