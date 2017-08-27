@@ -11,6 +11,7 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 #include "ua_namespace0.h"
+#include "ua_subscription.h"
 
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
@@ -162,6 +163,180 @@ UA_Server_cleanup(UA_Server *server, void *_) {
 #endif
 }
 
+
+/****************/
+/* Data Sources */
+/****************/
+
+static UA_StatusCode
+readStatus(UA_Server *server, const UA_NodeId *sessionId,
+           void *sessionContext, const UA_NodeId *nodeId,
+           void *nodeContext, UA_Boolean sourceTimestamp,
+           const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
+    status->startTime = server->startTime;
+    status->currentTime = UA_DateTime_now();
+    status->state = UA_SERVERSTATE_RUNNING;
+    status->secondsTillShutdown = 0;
+    UA_BuildInfo_copy(&server->config.buildInfo, &status->buildInfo);
+
+    value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
+    value->value.arrayLength = 0;
+    value->value.data = status;
+    value->value.arrayDimensionsSize = 0;
+    value->value.arrayDimensions = NULL;
+    value->hasValue = true;
+    if(sourceTimestamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readServiceLevel(UA_Server *server, const UA_NodeId *sessionId,
+                 void *sessionContext, const UA_NodeId *nodeId,
+                 void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                 const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    value->value.type = &UA_TYPES[UA_TYPES_BYTE];
+    value->value.arrayLength = 0;
+    UA_Byte *byte = UA_Byte_new();
+    *byte = 255;
+    value->value.data = byte;
+    value->value.arrayDimensionsSize = 0;
+    value->value.arrayDimensions = NULL;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readAuditing(UA_Server *server, const UA_NodeId *sessionId,
+             void *sessionContext, const UA_NodeId *nodeId,
+             void *nodeContext, UA_Boolean includeSourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
+    value->value.arrayLength = 0;
+    UA_Boolean *boolean = UA_Boolean_new();
+    *boolean = false;
+    value->value.data = boolean;
+    value->value.arrayDimensionsSize = 0;
+    value->value.arrayDimensions = NULL;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readNamespaces(UA_Server *server, const UA_NodeId *sessionId,
+               void *sessionContext, const UA_NodeId *nodeid,
+               void *nodeContext, UA_Boolean includeSourceTimeStamp,
+               const UA_NumericRange *range,
+               UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_StatusCode retval;
+    retval = UA_Variant_setArrayCopy(&value->value, server->namespaces,
+                                     server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    value->hasValue = true;
+    if(includeSourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = UA_DateTime_now();
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+
+static UA_StatusCode
+readCurrentTime(UA_Server *server, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *nodeid,
+                void *nodeContext, UA_Boolean sourceTimeStamp,
+                const UA_NumericRange *range, UA_DataValue *value) {
+    if(range) {
+        value->hasStatus = true;
+        value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_DateTime currentTime = UA_DateTime_now();
+    UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime,
+                                                    &UA_TYPES[UA_TYPES_DATETIME]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    value->hasValue = true;
+    if(sourceTimeStamp) {
+        value->hasSourceTimestamp = true;
+        value->sourceTimestamp = currentTime;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+static UA_StatusCode
+readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *methodId,
+                   void *methodContext, const UA_NodeId *objectId,
+                   void *objectContext, size_t inputSize,
+                   const UA_Variant *input, size_t outputSize,
+                   UA_Variant *output) {
+    UA_Session *session = UA_SessionManager_getSessionById(&server->sessionManager, sessionId);
+    if(!session)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+    UA_Subscription* subscription = UA_Session_getSubscriptionByID(session, subscriptionId);
+    if(!subscription)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+
+    UA_UInt32 sizeOfOutput = 0;
+    UA_MonitoredItem* monitoredItem;
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
+        ++sizeOfOutput;
+    }
+    if(sizeOfOutput==0)
+        return UA_STATUSCODE_GOOD;
+
+    UA_UInt32* clientHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32* serverHandles = (UA_UInt32 *)UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_UInt32 i = 0;
+    LIST_FOREACH(monitoredItem, &subscription->monitoredItems, listEntry) {
+        clientHandles[i] = monitoredItem->clientHandle;
+        serverHandles[i] = monitoredItem->itemId;
+        ++i;
+    }
+    UA_Variant_setArray(&output[0], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setArray(&output[1], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
+
 static void
 writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
     UA_Variant var;
@@ -190,7 +365,7 @@ static void initNamespace0(UA_Server *server) {
     server->bootstrapNS0 = false;
 
     /* NamespaceArray */
-    UA_DataSource namespaceDataSource = {.handle = server, .read = readNamespaces, .write = NULL};
+    UA_DataSource namespaceDataSource = {.read = readNamespaces, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), namespaceDataSource);
 
@@ -205,7 +380,7 @@ static void initNamespace0(UA_Server *server) {
                           &locale_en, 1, &UA_TYPES[UA_TYPES_STRING]);
 
     /* MaxBrowseContinuationPoints */
-    UA_UInt16 maxBrowseContinuationPoints = MAXCONTINUATIONPOINTS;
+    UA_UInt16 maxBrowseContinuationPoints = 0; /* no restriction */
     writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
                      &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
@@ -252,7 +427,7 @@ static void initNamespace0(UA_Server *server) {
                      &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {.handle = server, .read = readStatus, .write = NULL};
+    UA_DataSource serverStatus = {.read = readStatus, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
@@ -261,7 +436,7 @@ static void initNamespace0(UA_Server *server) {
                      &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
 
     /* CurrentTime */
-    UA_DataSource currentTime = {.handle = server, .read = readCurrentTime, .write = NULL};
+    UA_DataSource currentTime = {.read = readCurrentTime, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), currentTime);
 
@@ -310,12 +485,12 @@ static void initNamespace0(UA_Server *server) {
                      &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
-    UA_DataSource serviceLevel = {.handle = server, .read = readServiceLevel, .write = NULL};
+    UA_DataSource serviceLevel = {.read = readServiceLevel, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
     /* Auditing */
-    UA_DataSource auditing = {.handle = server, .read = readAuditing, .write = NULL};
+    UA_DataSource auditing = {.read = readAuditing, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
 
@@ -350,9 +525,7 @@ static void initNamespace0(UA_Server *server) {
     addmethodattributes.userExecutable = true;
 
     UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
-                                     readMonitoredItems, /* callback of the method node */
-                                     NULL /* handle passed with the callback */
-    );
+                                     readMonitoredItems);
 #endif
 }
 

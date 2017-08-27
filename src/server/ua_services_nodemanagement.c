@@ -63,51 +63,39 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
        UA_NodeId_isNull(referenceTypeId))
         return UA_STATUSCODE_GOOD;
 
-void
-Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId, const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_AddNodesResult *result) {
-    if(node->nodeId.namespaceIndex >= server->namespacesSize) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session, "AddNodes: Namespace invalid");
-        result->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
-        UA_NodeStore_deleteNode(node);
-        return;
-    }
-
     /* omit checks */
     if(server->bootstrapNS0)
-        goto insert_node;
+        return UA_STATUSCODE_GOOD;
 
     /* See if the parent exists */
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
-
-        returnUA_STATUSCODE_BADPARENTNODEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Parent node not found");
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
     /* Check the referencetype exists */
     const UA_ReferenceTypeNode *referenceType =
-        (const UA_ReferenceTypeNode*)UA_NodeStore_get(server->nodestore, referenceTypeId);
+            (const UA_ReferenceTypeNode*)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent not found");
-
-        returnUA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Reference type to the parent not found");
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check if the referencetype is a reference type node */
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent invalid");
-
-        returnUA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Reference type to the parent invalid");
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check that the reference type is not abstract */
     if(referenceType->isAbstract == true) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Abstract reference type to the parent not allowed");
-        returnUA_STATUSCODE_BADREFERENCENOTALLOWED;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Abstract reference type to the parent not allowed");
+        return UA_STATUSCODE_BADREFERENCENOTALLOWED;
     }
 
     /* Check hassubtype relation for type nodes */
@@ -120,123 +108,30 @@ Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
         if(!UA_NodeId_equal(referenceTypeId, &subtypeId)) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: New type node need to have a "
-                                "HasSubType reference");
+                                        "HasSubType reference");
             return UA_STATUSCODE_BADREFERENCENOTALLOWED;
         }
         /* supertype needs to be of the same node type  */
         if(parent->nodeClass != nodeClass) {
             UA_LOG_INFO_SESSION(server->config.logger, session,
                                 "AddNodes: New type node needs to be of the same "
-                                "node type as the parent");
+                                        "node type as the parent");
             return UA_STATUSCODE_BADPARENTNODEIDINVALID;
         }
         return UA_STATUSCODE_GOOD;
-    /* Insert the node */
- insert_node:
-    result->statusCode = UA_NodeStore_insert(server->nodestore, node);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: Node could not be added to the nodestore with error code 0x%08x",
-                             result->statusCode);
-        return;
-    }
-
-    /* Copy the id of the inserted node (might be generated in the nodestore) */
-    result->statusCode = UA_NodeId_copy(&node->nodeId, &result->addedNodeId);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: Could not copy the NodeId of the inserted node");
-        goto remove_node;
-    }
-
-    /* Omit the reference to the parent and the instantiation*/
-    if(server->bootstrapNS0)
-        return;
-
-    /* Create hierarchical reference back to the parent */
-    UA_AddReferencesItem item;
-    UA_AddReferencesItem_init(&item);
-    item.sourceNodeId = node->nodeId;
-    item.referenceTypeId = *referenceTypeId;
-    item.isForward = false;
-    item.targetNodeId.nodeId = *parentNodeId;
-    result->statusCode = Service_AddReferences_single(server, session, &item);
-    if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                             "AddNodes: Could not add the reference to the parent");
-        goto remove_node;
     }
 
     /* Test if the referencetype is hierarchical */
     const UA_NodeId hierarchicalReference =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     if(!isNodeInTree(server->nodestore, referenceTypeId,
                      &hierarchicalReference, &subtypeId, 1)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Reference type is not hierarchical");
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-    /* Instantiate objects and variables */
-    const UA_NodeId hassubtype = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-    if(node->nodeClass == UA_NODECLASS_OBJECT) {
-        const UA_NodeId baseobjtype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-        if(!typeDefinition || UA_NodeId_equal(typeDefinition, &UA_NODEID_NULL)) {
-            /* Objects must have a type reference. Default to BaseObjectType */
-            UA_NodeId *writableTypeDef = UA_alloca(sizeof(UA_NodeId));
-            *writableTypeDef = baseobjtype;
-            typeDefinition = writableTypeDef;
-        } else {
-            /* Check if the supplied type is a subtype of BaseObjectType */
-            UA_Boolean found = false;
-            result->statusCode = isNodeInTree(server->nodestore, typeDefinition,
-                                              &baseobjtype, &hassubtype, 1, 10, &found);
-            if(!found)
-                result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-            if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                     "AddNodes: The object if not derived from BaseObjectType");
-                goto remove_node;
-            }
-        }
-        result->statusCode = instantiateObjectNode(server, session, &result->addedNodeId,
-                                                   typeDefinition, instantiationCallback);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            goto remove_node;
-    } else if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-        const UA_NodeId basevartype = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE);
-        if(!typeDefinition || UA_NodeId_equal(typeDefinition, &UA_NODEID_NULL)) {
-            /* Variables must have a type reference. Default to BaseVariableType */
-            UA_NodeId *writableTypeDef = UA_alloca(sizeof(UA_NodeId));
-            *writableTypeDef = basevartype;
-            typeDefinition = writableTypeDef;
-        } else {
-            /* Check if the supplied type is a subtype of BaseVariableType */
-            UA_Boolean found = false;
-            result->statusCode = isNodeInTree(server->nodestore, typeDefinition,
-                                              &basevartype, &hassubtype, 1, 10, &found);
-            if(!found)
-                result->statusCode = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
-            if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_DEBUG_SESSION(server->config.logger, session,
-                                     "AddNodes: The variable if not derived from BaseVariableType");
-                goto remove_node;
-            }
-        }
-        result->statusCode = instantiateVariableNode(server, session, &result->addedNodeId,
-                                                     typeDefinition, instantiationCallback);
-        if(result->statusCode != UA_STATUSCODE_GOOD)
-            goto remove_node;
     }
 
-    /* Custom callback */
-    if(instantiationCallback)
-        instantiationCallback->method(result->addedNodeId, *typeDefinition,
-                                      instantiationCallback->handle);
-
-    return;
-
-remove_node:
-    Service_DeleteNodes_single(server, &adminSession, &result->addedNodeId, true);
-    UA_AddNodesResult_deleteMembers(result);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
