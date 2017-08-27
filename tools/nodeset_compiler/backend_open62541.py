@@ -58,6 +58,8 @@ def reorderNodesMinDependencies(nodeset):
 
     relevant_types = getSubTypesOf(nodeset,
                                    nodeset.getNodeByBrowseName("HierarchicalReferences"))
+
+    relevant_types.append(nodeset.getNodeByBrowseName("HasEncoding"))
     relevant_types = map(lambda x: x.id, relevant_types)
 
     # determine in-degree
@@ -139,6 +141,7 @@ extern void %s(UA_Server *server);
 void %s(UA_Server *server) {""" % (outfilebase, outfilebase))
 
     parentrefs = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
+    parentrefs.append(nodeset.getNodeByBrowseName("HasEncoding"))
     parentrefs = map(lambda x: x.id, parentrefs)
 
     # Generate namespaces (don't worry about duplicates)
