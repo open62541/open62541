@@ -435,21 +435,20 @@ add_custom_target(open62541-generator-statuscode DEPENDS
 
 # single-file release
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-        ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-        ${exported_headers} ${internal_headers})
-
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h ${exported_headers}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                           ${exported_headers} ${internal_headers})
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
-                ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
-                ${lib_sources} ${default_plugin_sources}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
-                ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
+                           ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
+                           ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc
+                           ${lib_sources} ${default_plugin_sources}
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
+                           ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
@@ -460,18 +459,18 @@ add_dependencies(open62541-amalgamation-header open62541-generator-types)
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
-        DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
-                ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
@@ -582,21 +581,21 @@ endif()
 
 find_package(ClangTools)
 add_custom_target(lint ${CLANG_TIDY_PROGRAM}
-        ${lib_sources}
-        -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
-        -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
-        --
-        -std=c99
-        -I${PROJECT_SOURCE_DIR}/include
-        -I${PROJECT_SOURCE_DIR}/plugins
-        -I${PROJECT_SOURCE_DIR}/deps
-        -I${PROJECT_SOURCE_DIR}/src
-        -I${PROJECT_SOURCE_DIR}/src/server
-        -I${PROJECT_SOURCE_DIR}/src/client
-        -I${PROJECT_BINARY_DIR}/src_generated
-        -DUA_NO_AMALGAMATION
-        DEPENDS ${lib_sources}
-        COMMENT "Run clang-tidy on the library")
+                  ${lib_sources}
+                  -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
+                  -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
+                  --
+                  -std=c99
+                  -I${PROJECT_SOURCE_DIR}/include
+                  -I${PROJECT_SOURCE_DIR}/plugins
+                  -I${PROJECT_SOURCE_DIR}/deps
+                  -I${PROJECT_SOURCE_DIR}/src
+                  -I${PROJECT_SOURCE_DIR}/src/server
+                  -I${PROJECT_SOURCE_DIR}/src/client
+                  -I${PROJECT_BINARY_DIR}/src_generated
+                  -DUA_NO_AMALGAMATION
+                  DEPENDS ${lib_sources}
+                  COMMENT "Run clang-tidy on the library")
 add_dependencies(lint open62541)
 
 ##########################
@@ -621,23 +620,23 @@ install(TARGETS open62541
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541-config.cmake.in"
-        "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
-        INSTALL_DESTINATION "${cmake_configfile_install}"
-        PATH_VARS target_install_dest_name open62541_tools_dir)
+                              "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
+                              INSTALL_DESTINATION "${cmake_configfile_install}"
+                              PATH_VARS target_install_dest_name open62541_tools_dir)
 
 set(open62541_VERSION)
 get_target_property(open62541_VERSION open62541 VERSION)
 
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
-        VERSION ${open62541_VERSION}
-        COMPATIBILITY AnyNewerVersion)
+                                 VERSION ${open62541_VERSION}
+                                 COMPATIBILITY AnyNewerVersion)
 
 install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}")
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
         DESTINATION "${cmake_configfile_install}")
 
 
