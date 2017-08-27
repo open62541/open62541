@@ -108,7 +108,11 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     //Skip test for void*
     if (_i == UA_TYPES_DISCOVERYCONFIGURATION ||
             _i == UA_TYPES_FILTEROPERAND ||
-            _i == UA_TYPES_MONITORINGFILTER)
+            _i == UA_TYPES_MONITORINGFILTER ||
+            _i == UA_TYPES_UNION ||
+            _i == UA_TYPES_HISTORYREADDETAILS ||
+            _i == UA_TYPES_NOTIFICATIONDATA ||
+            _i == UA_TYPES_MONITORINGFILTERRESULT)
         return;
     // given
     UA_ByteString msg1;
@@ -212,7 +216,11 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
        _i == UA_TYPES_VARIABLETYPEATTRIBUTES ||
        _i == UA_TYPES_FILTEROPERAND ||
        _i == UA_TYPES_MONITORINGFILTER ||
-       _i == UA_TYPES_DISCOVERYCONFIGURATION)
+       _i == UA_TYPES_DISCOVERYCONFIGURATION ||
+       _i == UA_TYPES_UNION ||
+       _i == UA_TYPES_HISTORYREADDETAILS ||
+       _i == UA_TYPES_NOTIFICATIONDATA ||
+       _i == UA_TYPES_MONITORINGFILTERRESULT)
         return;
     void *obj = UA_new(&UA_TYPES[_i]);
     size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);

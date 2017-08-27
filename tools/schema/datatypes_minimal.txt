@@ -184,3 +184,13 @@ SessionDiagnosticsDataType
 ServiceCounterDataType
 SessionSecurityDiagnosticsDataType
 Duration
+UtcTime
+LocaleId
+RedundancySupport
+RedundantServerDataType
+NetworkGroupDataType
+NumericRange
+EndpointUrlListDataType
+ModelChangeStructureDataType
+SemanticChangeStructureDataType
+TimeZoneDataType
