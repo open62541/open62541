@@ -81,7 +81,7 @@ def generateReferenceTypeNodeCode(node):
     if node.symmetric:
         code.append("attr.symmetric  = true;")
     if node.inverseName != "":
-        code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"%s\");" % \
+        code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"\", \"%s\");" % \
                     node.inverseName)
     return code
 

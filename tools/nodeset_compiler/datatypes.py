@@ -322,7 +322,7 @@ class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_LOCALIZEDTEXT
-        self.locale = 'en_US'
+        self.locale = ''
         self.text = ''
         if xmlvalue:
             self.parseXML(xmlvalue)
@@ -342,6 +342,12 @@ class LocalizedText(Value):
         tmp = xmlvalue.getElementsByTagName("Text")
         if len(tmp) > 0 and tmp[0].firstChild != None:
             self.text = tmp[0].firstChild.data
+
+    def __str__(self):
+        if self.locale is not None and len(self.locale) > 0:
+            return "(" + self.locale + ":" + self.text + ")"
+        else:
+            return self.text
 
 class NodeId(Value):
     def __init__(self, idstring=None):
