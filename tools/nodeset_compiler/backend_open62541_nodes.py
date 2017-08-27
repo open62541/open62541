@@ -37,7 +37,7 @@ def extractNodeParent(node, parentrefs):
             node.inverseReferences.remove(ref)
             node.printRefs.remove(ref)
             return (ref.target, ref.referenceType)
-    logger.info("Node " + str(node) + " (" + str(node.browseName) + ") ignored because it has no parent.")
+    logger.info("Node " + str(node) + " (" + str(node.browseName.name) + ") has no parent.")
     return None, None
 
 def extractNodeType(node):
@@ -63,13 +63,13 @@ def extractNodeSuperType(node):
 def generateReferenceCode(reference):
     if reference.isForward:
         return "UA_Server_addReference(server, %s, %s, %s, true);" % \
-               (generateNodeIdCode(reference.source), \
-                generateNodeIdCode(reference.referenceType), \
+               (generateNodeIdCode(reference.source),
+                generateNodeIdCode(reference.referenceType),
                 generateExpandedNodeIdCode(reference.target))
     else:
         return "UA_Server_addReference(server, %s, %s, %s, false);" % \
-               (generateNodeIdCode(reference.source), \
-                generateNodeIdCode(reference.referenceType), \
+               (generateNodeIdCode(reference.source),
+                generateNodeIdCode(reference.referenceType),
                 generateExpandedNodeIdCode(reference.target))
 
 def generateReferenceTypeNodeCode(node):
@@ -83,7 +83,7 @@ def generateReferenceTypeNodeCode(node):
     if node.inverseName != "":
         code.append("attr.inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"%s\");" % \
                     node.inverseName)
-    return code;
+    return code
 
 def generateObjectNodeCode(node):
     code = []
@@ -91,7 +91,7 @@ def generateObjectNodeCode(node):
     code.append("UA_ObjectAttributes_init(&attr);")
     if node.eventNotifier:
         code.append("attr.eventNotifier = true;")
-    return code;
+    return code
 
 def generateVariableNodeCode(node):
     code = []

@@ -63,6 +63,7 @@ class Node(object):
         self.browseName = QualifiedName()
         self.displayName = LocalizedText()
         self.description = LocalizedText()
+        self.symbolicName = String()
         self.writeMask = 0
         self.userWriteMask = 0
         self.references = Set()
@@ -96,6 +97,8 @@ class Node(object):
                 self.userWriteMask = int(av)
             elif at == "EventNotifier":
                 self.eventNotifier = int(av)
+            elif at == "SymbolicName":
+                self.symbolicName = String(av)
 
         for x in xmlelement.childNodes:
             if x.nodeType != x.ELEMENT_NODE:

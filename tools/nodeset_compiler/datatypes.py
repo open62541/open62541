@@ -286,6 +286,9 @@ class String(Value):
     def parseXML(self, xmlvalue):
         # Expect <String>value</String> or
         #        <Aliasname>value</Aliasname>
+        if not isinstance(xmlvalue, dom.Element):
+            self.value = xmlvalue
+            return
         self.checkXML(xmlvalue)
         if xmlvalue.firstChild == None:
             self.value = ""  # Catch XML <String /> by setting the value to a default
