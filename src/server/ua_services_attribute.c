@@ -634,11 +634,24 @@ writeValueAttribute(UA_Server *server, UA_Session *session, UA_VariableNode *nod
 
     /* Type checking. May change the type of editableValue */
     if(value->hasValue) {
-        retval = typeCheckValue(server, &node->dataType, node->valueRank,
-                                node->arrayDimensionsSize, node->arrayDimensions,
-                                &value->value, rangeptr, &editableValue.value);
-        if(retval != UA_STATUSCODE_GOOD) {
-            if(rangeptr)
+        /* The value may be an extension object, especially the nodeset compiler uses
+         * extension objects to write variable values.
+         * If value is an extension object we check if the current node value is also an extension object.
+         */
+        if (value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+                value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
+            const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            retval = typeCheckValue(server, &nodeDataType, node->valueRank,
+                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                    &value->value, rangeptr, &editableValue.value);
+        } else {
+            retval = typeCheckValue(server, &node->dataType, node->valueRank,
+                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                    &value->value, rangeptr, &editableValue.value);
+        }
+
+        if (retval != UA_STATUSCODE_GOOD) {
+            if (rangeptr)
                 UA_free(range.dimensions);
             return retval;
         }

@@ -63,35 +63,39 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
        UA_NodeId_isNull(referenceTypeId))
         return UA_STATUSCODE_GOOD;
 
-/* See
-    ifthe parent exists */
+    /* omit checks */
+    if(server->bootstrapNS0)
+        return UA_STATUSCODE_GOOD;
+
+    /* See if the parent exists */
     const UA_Node *parent = UA_NodeStore_get(server->nodestore, parentNodeId);
     if(!parent) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Parent node not found");
-
-        returnUA_STATUSCODE_BADPARENTNODEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Parent node not found");
+        return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
     /* Check the referencetype exists */
     const UA_ReferenceTypeNode *referenceType =
         (const UA_ReferenceTypeNode*)UA_NodeStore_get(server->nodestore, referenceTypeId);
     if(!referenceType) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent not found");
-
-        returnUA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Reference type to the parent not found");
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check if the referencetype is a reference type node */
     if(referenceType->nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Reference type to the parent invalid");
-
-        returnUA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Reference type to the parent invalid");
+        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check that the reference type is not abstract */
     if(referenceType->isAbstract == true) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "AddNodes: Abstract reference type to the parent not allowed");
-        returnUA_STATUSCODE_BADREFERENCENOTALLOWED;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "AddNodes: Abstract reference type to the parent not allowed");
+        return UA_STATUSCODE_BADREFERENCENOTALLOWED;
     }
 
     /* Check hassubtype relation for type nodes */
@@ -118,7 +122,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
 
     /* Test if the referencetype is hierarchical */
     const UA_NodeId hierarchicalReference =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     if(!isNodeInTree(server->nodestore, referenceTypeId,
                      &hierarchicalReference, &subtypeId, 1)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -126,9 +130,7 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
-
-
-    returnUA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -161,7 +163,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Check valueRank against array dimensions */
     retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
-        if(retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Check valueRank against the vt */
@@ -176,7 +178,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Typecheck the value */
-    if(value.hasValue) {
+    if(!server->bootstrapNS0 && value.hasValue) {
         retval = typeCheckValue(server, &node->dataType, node->valueRank,
                                 node->arrayDimensionsSize, node->arrayDimensions,
                                 &value.value, NULL, NULL);
@@ -463,7 +465,8 @@ copyChildNodes(UA_Server *server, UA_Session *session,
 /* The node is deleted in the caller when the instantiation fails here */
 static UA_StatusCode
 constructNode(UA_Server *server, UA_Session *session,
-              const UA_Node *node, const UA_NodeId *typeId) {
+              const UA_Node *node, const UA_NodeId *typeId,
+              const UA_NodeId *parentNodeId) {
     /* Currently, only variables and objects are instantiated */
     if(node->nodeClass != UA_NODECLASS_VARIABLE &&
        node->nodeClass != UA_NODECLASS_OBJECT)
@@ -482,8 +485,17 @@ constructNode(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     } else { /* nodeClass == UA_NODECLASS_OBJECT */
         if(typenode->nodeClass != UA_NODECLASS_OBJECTTYPE ||
-           ((const UA_ObjectTypeNode*)typenode)->isAbstract)
-            return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+           ((const UA_ObjectTypeNode*)typenode)->isAbstract) {
+            /* Object node created of an abstract ObjectType. Only allowed if within BaseObjectType folder */
+            const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+            const UA_NodeId refs[] = {
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
+            };
+            if(!isNodeInTree(server->nodestore, parentNodeId,
+                             &objectTypes, refs , 2))
+                return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+        }
     }
 
     /* Get the hierarchy of the type and all its supertypes */
@@ -621,7 +633,8 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
        node->nodeClass == UA_NODECLASS_REFERENCETYPE ||
        node->nodeClass == UA_NODECLASS_DATATYPE) {
         referenceTypeId = &hasSubtype;
-        typeDefinition = parentNodeId;
+        if (UA_NodeId_equal(typeDefinition, &UA_NODEID_NULL))
+            typeDefinition = parentNodeId;
     }
 
     /* Replace empty typeDefinition with the most permissive default */
@@ -659,7 +672,7 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
     }
 
     /* Add children and call the constructor */
-    retval = constructNode(server, session, node, typeDefinition);
+    retval = constructNode(server, session, node, typeDefinition, parentNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Node instantiation failed "
@@ -707,6 +720,10 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
     /* AddNodes_begin */
     Service_AddNode_begin(server, session, item, result, nodeContext);
     if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Skip finishing tasks on bootstrapping */
+    if (server->bootstrapNS0)
         return;
 
     /* AddNodes_finish */
