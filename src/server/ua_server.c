@@ -275,6 +275,42 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+writeNamespaces(UA_Server *server, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *nodeid,
+                void *nodeContext, const UA_NumericRange *range,
+                const UA_DataValue *value) {
+    /* Check the data type */
+    if(!value->hasValue ||
+       value->value.type != &UA_TYPES[UA_TYPES_STRING])
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Check that the variant is not empty */
+    if(!value->value.data)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* TODO: Writing with a range is not implemented */
+    if(range)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_String *newNamespaces = (UA_String*)value->value.data;
+    size_t newNamespacesSize = value->value.arrayLength;
+
+    /* Test if we append to the existing namespaces */
+    if(newNamespacesSize <= server->namespacesSize)
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Test if the existing namespaces are unchanged */
+    for(size_t i = 0; i < server->namespacesSize; ++i) {
+        if(!UA_String_equal(&server->namespaces[i], &newNamespaces[i]))
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Add namespaces */
+    for(size_t i = server->namespacesSize; i < newNamespacesSize; ++i)
+        addNamespace(server, newNamespaces[i]);
+    return UA_STATUSCODE_GOOD;
+}
 
 static UA_StatusCode
 readCurrentTime(UA_Server *server, const UA_NodeId *sessionId,
@@ -359,6 +395,10 @@ writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
 /********************/
 
 static void initNamespace0(UA_Server *server) {
+
+	/* Initialize base nodes which are always required an cannot be created through the NS compiler */
+	UA_Server_createNS0_base(server);
+
     /* Load nodes and references generated from the XML ns0 definition */
     server->bootstrapNS0 = true;
     ua_namespace0(server);
@@ -493,6 +533,11 @@ static void initNamespace0(UA_Server *server) {
     UA_DataSource auditing = {.read = readAuditing, .write = NULL};
     UA_Server_setVariableNode_dataSource(server,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
+
+    /* NamespaceArray */
+    UA_DataSource nsarray_datasource =  {.read = readNamespaces, .write = writeNamespaces};
+    UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+                                         nsarray_datasource);
 
     /* Redundancy Support */
     /* TODO: Use enum */

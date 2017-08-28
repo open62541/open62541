@@ -299,6 +299,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
         ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_base.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -463,8 +464,8 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #
