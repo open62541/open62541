@@ -25,9 +25,7 @@ import logging;
 
 logger = logging.getLogger(__name__)
 
-from datatypes import *
 from nodes import *
-from constants import *
 
 ####################
 # Helper Functions #
@@ -102,6 +100,7 @@ class NodeSet(object):
 
     def __init__(self):
         self.nodes = {}
+        self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
 
     def sanitize(self):
@@ -133,6 +132,12 @@ class NodeSet(object):
 
     def getNodeByBrowseName(self, idstring):
         return next((n for n in self.nodes.values() if idstring == n.browseName.name), None)
+
+    def getNodeById(self, namespace, id):
+        nodeId = NodeId()
+        nodeId.ns = namespace
+        nodeId.i = id
+        return self.nodes[nodeId]
 
     def getRoot(self):
         return self.getNodeByBrowseName("Root")
@@ -169,6 +174,16 @@ class NodeSet(object):
                 ref.hidden = True
         return node
 
+    def merge_dicts(self, *dict_args):
+        """
+        Given any number of dicts, shallow copy and merge into a new dict,
+        precedence goes to key value pairs in latter dicts.
+        """
+        result = {}
+        for dictionary in dict_args:
+            result.update(dictionary)
+        return result
+
     def addNodeSet(self, xmlfile, hidden=False):
         # Extract NodeSet DOM
         nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
@@ -183,13 +198,12 @@ class NodeSet(object):
         nsMapping = self.createNamespaceMapping(orig_namespaces)
 
         # Extract the aliases
-        aliases = None
         for nd in nodeset.childNodes:
             if nd.nodeType != nd.ELEMENT_NODE:
                 continue
             ndtype = nd.tagName.lower()
             if 'aliases' in ndtype:
-                aliases = buildAliasList(nd)
+                self.aliases = self.merge_dicts(self.aliases, buildAliasList(nd))
 
         # Instantiate nodes
         newnodes = []
@@ -199,7 +213,7 @@ class NodeSet(object):
             node = self.createNode(nd, nsMapping, hidden)
             if not node:
                 continue
-            node.replaceAliases(aliases)
+            node.replaceAliases(self.aliases)
             node.replaceNamespaces(nsMapping)
 
             # Add the node the the global dict
@@ -220,3 +234,56 @@ class NodeSet(object):
                 hide = ref.hidden or (node.hidden and newsource.hidden)
                 newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide)
                 newsource.references.add(newref)
+
+    def getBinaryEncodingIdForNode(self, nodeId):
+        """
+        The node should have a 'HasEncoding' forward reference which points to the encoding ids.
+        These can be XML Encoding or Binary Encoding. Therefore we also need to check if the SymbolicName
+        of the target node is "DefaultBinary"
+        """
+        node = self.nodes[nodeId]
+        refId = NodeId()
+        for ref in node.references:
+            if ref.referenceType.ns == 0 and ref.referenceType.i == 38:
+                refNode = self.nodes[ref.target]
+                if refNode.symbolicName.value == "DefaultBinary":
+                    return ref.target
+        raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
+
+    def buildEncodingRules(self):
+        """ Calls buildEncoding() for all DataType nodes (opcua_node_dataType_t).
+
+            No return value
+        """
+        stat = {True: 0, False: 0}
+        for n in self.nodes.values():
+            if isinstance(n, DataTypeNode):
+                n.buildEncoding(self)
+                stat[n.isEncodable()] = stat[n.isEncodable()] + 1
+        logger.debug("Type definitions built/passed: " +  str(stat))
+
+
+    def allocateVariables(self):
+        for n in self.nodes.values():
+            if isinstance(n, VariableNode):
+                n.allocateValue(self)
+                
+    def getDataTypeNode(self, dataType):
+        if isinstance(dataType, basestring):
+            if not valueIsInternalType(dataType):
+                logger.error("Not a valid dataType string: " + dataType)
+                return None
+            return self.nodes[NodeId(self.aliases[dataType])]
+        if isinstance(dataType, NodeId):
+            if dataType.i == 0:
+                return None
+            dataTypeNode = self.nodes[dataType]
+            if not isinstance(dataTypeNode, DataTypeNode):
+                logger.error("Node id " + str(dataType) + " is not reference a valid dataType.")
+                return None
+            if not dataTypeNode.isEncodable():
+                logger.error("DataType " + str(dataTypeNode.browseName) + " is not encodable.")
+                return None
+            return dataTypeNode
+        return None
+
