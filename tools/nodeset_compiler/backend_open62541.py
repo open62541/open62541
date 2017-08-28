@@ -121,6 +121,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
 #include "ua_server.h"
+#include "ua_types_encoding_binary.h"
 #else
 #include "open62541.h"
 #define NULL ((void *)0)
@@ -157,7 +158,7 @@ void %s(UA_Server *server) {""" % (outfilebase, outfilebase))
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs)
+            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset)
             if code is None:
                 writec("/* Ignored. No parent */")
                 continue

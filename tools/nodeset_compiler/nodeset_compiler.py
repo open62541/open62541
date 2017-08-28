@@ -116,6 +116,18 @@ for blacklist in args.blacklistFiles:
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
 
+
+# Parse Datatypes in order to find out what the XML keyed values actually
+# represent.
+# Ex. <rpm>123</rpm> is not encodable
+#     only after parsing the datatypes, it is known that
+#     rpm is encoded as a double
+ns.buildEncodingRules()
+
+# Allocate/Parse the data values. In order to do this, we must have run
+# buidEncodingRules.
+ns.allocateVariables()
+
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
 generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0)
