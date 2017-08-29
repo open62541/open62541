@@ -76,12 +76,12 @@ void UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
  * -------- */
 typedef void
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
-                             UA_MessageType messageType, UA_UInt32 requestId,
-                             const UA_ByteString *message);
+                            UA_MessageType messageType, UA_UInt32 requestId,
+                            const UA_ByteString *message);
 
 UA_StatusCode
-UA_SecureChannel_processChunks(UA_SecureChannel *channel, const UA_ByteString *chunks,
-                               UA_ProcessMessageCallback callback, void *application);
+UA_SecureChannel_processChunk(UA_SecureChannel *channel, const UA_ByteString *chunk,
+                              UA_ProcessMessageCallback callback, void *application);
 
 /**
  * Log Helper
