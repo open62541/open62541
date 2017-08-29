@@ -624,50 +624,13 @@ UA_Server_processSecureChannelMessage(UA_Server *server, UA_SecureChannel *chann
     }
 }
 
-/* Takes the raw message from the network layer */
 static void
-processBinaryMessage(UA_Server *server, UA_Connection *connection,
+processCompleteChunk(UA_Server *server, UA_Connection *connection,
                      UA_ByteString *message) {
-    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                 "Connection %i | Received a packet.", connection->sockfd);
-
-    #ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(message->data, message->length);
-    #endif
-
-    UA_Boolean realloced = UA_FALSE;
-    UA_StatusCode retval = UA_Connection_completeChunks(connection, message, &realloced);
-
-    /* No failure, but no chunk ready */
-    if(message->length == 0) {
-        UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                     "Connection %i | Not a complete chunk yet.", connection->sockfd);
-        return;
-    }
-
-    /* Failed to complete a chunk */
-    if(retval != UA_STATUSCODE_GOOD) {
-        if(!realloced)
-            connection->releaseRecvBuffer(connection, message);
-        else
-            UA_ByteString_deleteMembers(message);
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
-                    "Connection %i | Failed to complete a chunk. "
-                    "Closing the connection.", connection->sockfd);
-        connection->close(connection);
-        return;
-    }
-
-    UA_SecureChannel *channel = connection->channel;
-    if(channel) {
-        /* Assemble chunks in the securechannel and process complete messages */
-        retval = UA_SecureChannel_processChunks(channel, message,
-                      (UA_ProcessMessageCallback*)UA_Server_processSecureChannelMessage, server);
-        if(retval != UA_STATUSCODE_GOOD)
-            UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
-                                 "resulted in error code %s", UA_StatusCode_name(retval));
-    } else {
-        /* Process messages without a channel and no chunking */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_SecureChannel *channel = connection->channel; 
+    if(!channel) {
+        /* Process chunk without a channel; must be OPN */
         UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
                      "Connection %i | No channel attached to the connection. "
                      "Process the chunk directly", connection->sockfd);
@@ -728,12 +691,40 @@ processBinaryMessage(UA_Server *server, UA_Connection *connection,
                          "Connection %i | Unknown message type", connection->sockfd);
             connection->close(connection);
         }
+        return;
     }
 
-    if(!realloced)
-        connection->releaseRecvBuffer(connection, message);
-    else
-        UA_ByteString_deleteMembers(message);
+    /* Process (and decode) chunk in the securechannel and process complete messages */
+    retval = UA_SecureChannel_processChunk(channel, message, (UA_ProcessMessageCallback*)
+                                           UA_Server_processSecureChannelMessage, server);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_TRACE_CHANNEL(server->config.logger, channel, "Procesing chunks "
+                             "resulted in error code %s", UA_StatusCode_name(retval));
+}
+
+/* Takes the raw message from the network layer */
+static void
+processBinaryMessage(UA_Server *server, UA_Connection *connection,
+                     UA_ByteString *message) {
+    UA_LOG_TRACE(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                 "Connection %i | Received a packet.", connection->sockfd);
+
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(message->data, message->length);
+#endif
+
+    UA_StatusCode retval =
+        UA_Connection_processChunks(connection, server,
+                                    (UA_Connection_processChunk)processCompleteChunk,
+                                    message);
+
+    /* Failed to complete a chunk */
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_NETWORK,
+                    "Connection %i | Failed to complete a chunk. "
+                    "Closing the connection.", connection->sockfd);
+        connection->close(connection);
+    }
 }
 
 #ifndef UA_ENABLE_MULTITHREADING

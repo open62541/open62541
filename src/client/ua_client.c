@@ -85,6 +85,39 @@ UA_ClientState UA_Client_getState(UA_Client *client) {
 
 #define UA_MINMESSAGESIZE 8192
 
+static void
+processHelResponse(void *application, UA_Connection *connection,
+                   const UA_ByteString *chunk) {
+    UA_Client *client = (UA_Client*)application;
+
+    /* Decode the message */
+    size_t offset = 0;
+    UA_StatusCode retval;
+    UA_TcpMessageHeader messageHeader;
+    UA_TcpAcknowledgeMessage ackMessage;
+    retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset, &ackMessage);
+
+    /* Store remote connection settings and adjust local configuration to not
+     * exceed the limits */
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
+        connection->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
+        connection->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
+        connection->remoteConf.protocolVersion = ackMessage.protocolVersion;
+        connection->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
+        connection->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
+        if(connection->remoteConf.recvBufferSize < connection->localConf.sendBufferSize)
+            connection->localConf.sendBufferSize = connection->remoteConf.recvBufferSize;
+        if(connection->remoteConf.sendBufferSize < connection->localConf.recvBufferSize)
+            connection->localConf.recvBufferSize = connection->remoteConf.sendBufferSize;
+        connection->state = UA_CONNECTION_ESTABLISHED;
+    } else {
+        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
+    }
+    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
+}
+
 static UA_StatusCode
 HelAckHandshake(UA_Client *client) {
     /* Get a buffer */
@@ -131,48 +164,89 @@ HelAckHandshake(UA_Client *client) {
                  "Sent HEL message");
 
     /* Loop until we have a complete chunk */
-    UA_ByteString reply = UA_BYTESTRING_NULL;
-    UA_Boolean realloced = false;
-    retval = UA_Connection_receiveChunksBlocking(conn, &reply, &realloced,
+    retval = UA_Connection_receiveChunksBlocking(conn, client, processHelResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
-        return retval;
-    }
-
-    /* Decode the message */
-    size_t offset = 0;
-    UA_TcpAcknowledgeMessage ackMessage;
-    retval = UA_TcpMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
-    retval |= UA_TcpAcknowledgeMessage_decodeBinary(&reply, &offset, &ackMessage);
-
-    /* Free the message buffer */
-    if(!realloced)
-        conn->releaseRecvBuffer(conn, &reply);
-    else
-        UA_ByteString_deleteMembers(&reply);
-
-    /* Store remote connection settings and adjust local configuration to not
-       exceed the limits */
-    if(retval == UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK, "Received ACK message");
-        conn->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
-        conn->remoteConf.maxMessageSize = ackMessage.maxMessageSize; /* may be zero -> unlimited */
-        conn->remoteConf.protocolVersion = ackMessage.protocolVersion;
-        conn->remoteConf.sendBufferSize = ackMessage.sendBufferSize;
-        conn->remoteConf.recvBufferSize = ackMessage.receiveBufferSize;
-        if(conn->remoteConf.recvBufferSize < conn->localConf.sendBufferSize)
-            conn->localConf.sendBufferSize = conn->remoteConf.recvBufferSize;
-        if(conn->remoteConf.sendBufferSize < conn->localConf.recvBufferSize)
-            conn->localConf.recvBufferSize = conn->remoteConf.sendBufferSize;
-        conn->state = UA_CONNECTION_ESTABLISHED;
-    } else {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK, "Decoding ACK message failed");
-    }
-    UA_TcpAcknowledgeMessage_deleteMembers(&ackMessage);
-
     return retval;
+}
+
+struct OPNResponseData {
+    UA_Client *client;
+    UA_Boolean renew;
+};
+
+static void
+processOPNResponse(void *data, UA_Connection *connection,
+                   const UA_ByteString *chunk) {
+    struct OPNResponseData *rd = (struct OPNResponseData*)data;
+    UA_Client *client = rd->client;
+
+    /* Decode the header */
+    size_t offset = 0;
+    UA_StatusCode retval;
+    UA_SecureConversationMessageHeader messageHeader;
+    UA_AsymmetricAlgorithmSecurityHeader asymHeader;
+    UA_SequenceHeader seqHeader;
+    UA_NodeId requestType;
+    retval = UA_SecureConversationMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(chunk, &offset, &asymHeader);
+    retval |= UA_SequenceHeader_decodeBinary(chunk, &offset, &seqHeader);
+    retval |= UA_NodeId_decodeBinary(chunk, &offset, &requestType);
+    UA_NodeId expectedRequest =
+        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
+    if(retval != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&requestType, &expectedRequest)) {
+        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+        UA_NodeId_deleteMembers(&requestType);
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Chunk answers the wrong request. Expected OpenSecureChannelResponse.");
+        client->state = UA_CLIENTSTATE_ERRORED;
+    }
+
+    /* Save the sequence number from server */
+    client->channel.receiveSequenceNumber = seqHeader.sequenceNumber;
+
+    /* Decode the response */
+    UA_OpenSecureChannelResponse response;
+    retval = UA_OpenSecureChannelResponse_decodeBinary(chunk, &offset, &response);
+
+    /* Results in either the StatusCode of decoding or the service */
+    retval |= response.responseHeader.serviceResult;
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
+         * to DateTime=Int64 we take 75% of lifetime to start renewing as
+         *  described in standard */
+        client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
+            (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
+
+        /* Replace the old nonce */
+        UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
+        UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
+        UA_ByteString_deleteMembers(&client->channel.serverNonce);
+        UA_ByteString_copy(&response.serverNonce, &client->channel.serverNonce);
+
+        if(rd->renew)
+            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "SecureChannel renewed");
+        else
+            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                         "SecureChannel opened");
+    } else {
+        if(rd->renew)
+            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "SecureChannel could not be renewed "
+                        "with error code %s", UA_StatusCode_name(retval));
+        else
+            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                        "SecureChannel could not be opened "
+                        "with error code %s", UA_StatusCode_name(retval));
+    }
+
+    /* Clean up */
+    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
+    UA_OpenSecureChannelResponse_deleteMembers(&response);
 }
 
 static UA_StatusCode
@@ -255,82 +329,14 @@ SecureChannelHandshake(UA_Client *client, UA_Boolean renew) {
         return retval;
 
     /* Receive the response */
-    UA_ByteString reply = UA_BYTESTRING_NULL;
-    UA_Boolean realloced = false;
-    retval = UA_Connection_receiveChunksBlocking(conn, &reply, &realloced,
+    struct OPNResponseData rd;
+    rd.client = client;
+    rd.renew = renew;
+    retval = UA_Connection_receiveChunksBlocking(conn, &rd, processOPNResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Receiving OpenSecureChannelResponse failed");
-        return retval;
-    }
-
-    /* Decode the header */
-    size_t offset = 0;
-    retval = UA_SecureConversationMessageHeader_decodeBinary(&reply, &offset, &messageHeader);
-    retval |= UA_AsymmetricAlgorithmSecurityHeader_decodeBinary(&reply, &offset, &asymHeader);
-    retval |= UA_SequenceHeader_decodeBinary(&reply, &offset, &seqHeader);
-    retval |= UA_NodeId_decodeBinary(&reply, &offset, &requestType);
-    UA_NodeId expectedRequest =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
-    if(retval != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&requestType, &expectedRequest)) {
-        UA_ByteString_deleteMembers(&reply);
-        UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-        UA_NodeId_deleteMembers(&requestType);
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Reply answers the wrong request. Expected OpenSecureChannelResponse.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Save the sequence number from server */
-    client->channel.receiveSequenceNumber = seqHeader.sequenceNumber;
-
-    /* Decode the response */
-    UA_OpenSecureChannelResponse response;
-    retval = UA_OpenSecureChannelResponse_decodeBinary(&reply, &offset, &response);
-
-    /* Free the message */
-    if(!realloced)
-        conn->releaseRecvBuffer(conn, &reply);
-    else
-        UA_ByteString_deleteMembers(&reply);
-
-    /* Results in either the StatusCode of decoding or the service */
-    retval |= response.responseHeader.serviceResult;
-
-    if(retval == UA_STATUSCODE_GOOD) {
-        /* Response.securityToken.revisedLifetime is UInt32 we need to cast it
-         * to DateTime=Int64 we take 75% of lifetime to start renewing as
-         *  described in standard */
-        client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
-            (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
-
-        /* Replace the old nonce */
-        UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-        UA_ChannelSecurityToken_copy(&response.securityToken, &client->channel.securityToken);
-        UA_ByteString_deleteMembers(&client->channel.serverNonce);
-        UA_ByteString_copy(&response.serverNonce, &client->channel.serverNonce);
-
-        if(renew)
-            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "SecureChannel renewed");
-        else
-            UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "SecureChannel opened");
-    } else {
-        if(renew)
-            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                        "SecureChannel could not be renewed "
-                        "with error code %s", UA_StatusCode_name(retval));
-        else
-            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                        "SecureChannel could not be opened "
-                        "with error code %s", UA_StatusCode_name(retval));
-    }
-
-    /* Clean up */
-    UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
-    UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
 
@@ -827,10 +833,17 @@ processServiceResponse(SyncResponseDescription *rd, UA_SecureChannel *channel,
     }
 }
 
+static void
+processChunk(void *application, UA_Connection *connection,
+             const UA_ByteString *chunk) {
+    SyncResponseDescription *rd = (SyncResponseDescription*)application;
+    UA_SecureChannel_processChunk(&rd->client->channel, chunk,
+                                  (UA_ProcessMessageCallback*)processServiceResponse, rd);
+}
+
 static UA_StatusCode
-receiveServiceResponse(UA_Client *client, void *response,
-                       const UA_DataType *responseType, UA_DateTime maxDate,
-                       UA_UInt32 *synchronousRequestId) {
+receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
+                       UA_DateTime maxDate, UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
     SyncResponseDescription rd = {client, false, 0, response, responseType};
 
@@ -841,33 +854,22 @@ receiveServiceResponse(UA_Client *client, void *response,
 
     do {
         /* Retrieve complete chunks */
-        UA_ByteString reply = UA_BYTESTRING_NULL;
-        UA_Boolean realloced = false;
         UA_DateTime now = UA_DateTime_nowMonotonic();
         if(now > maxDate)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         UA_UInt32 timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
         UA_StatusCode retval =
-            UA_Connection_receiveChunksBlocking(&client->connection, &reply,
-                                                &realloced, timeout);
+            UA_Connection_receiveChunksBlocking(&client->connection, &rd,
+                                                processChunk, timeout);
         if(retval != UA_STATUSCODE_GOOD) {
-            if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
-                // set client to error state so that call to connect will force a new connection attempt
+            if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+                /* set client to error state so that call to connect will force
+                 * a new connection attempt */
                 client->state = UA_CLIENTSTATE_ERRORED;
             }
             return retval;
         }
-
-        /* ProcessChunks and call processServiceResponse for complete messages */
-        UA_SecureChannel_processChunks(&client->channel, &reply,
-                                       (UA_ProcessMessageCallback*)processServiceResponse, &rd);
-        /* Free the received buffer */
-        if(!realloced)
-            client->connection.releaseRecvBuffer(&client->connection, &reply);
-        else
-            UA_ByteString_deleteMembers(&reply);
     } while(!rd.received);
-
     return UA_STATUSCODE_GOOD;
 }
 
