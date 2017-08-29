@@ -57,7 +57,8 @@ struct UA_ServerConfig {
     UA_ServerNetworkLayer *networkLayers;
 
     /* Available endpoints */
-    UA_Endpoints endpoints;
+    size_t endpointsSize;
+    UA_Endpoint *endpoints;
 
     /* Global Node Lifecycle */
     UA_GlobalNodeLifecycle nodeLifecycle;

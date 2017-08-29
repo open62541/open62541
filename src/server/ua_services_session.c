@@ -18,18 +18,18 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription*)
-        UA_Array_new(server->config.endpoints.count,
+        UA_Array_new(server->config.endpointsSize,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!response->serverEndpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
     }
-    response->serverEndpointsSize = server->config.endpoints.count;
+    response->serverEndpointsSize = server->config.endpointsSize;
 
     /* Copy the server's endpointdescriptions into the response */
-    for(size_t i = 0; i < server->config.endpoints.count; ++i)
+    for(size_t i = 0; i < server->config.endpointsSize; ++i)
         response->responseHeader.serviceResult |=
-            UA_EndpointDescription_copy(&server->config.endpoints.endpoints[0].endpointDescription,
+            UA_EndpointDescription_copy(&server->config.endpoints[0].endpointDescription,
                                         &response->serverEndpoints[i]);
 
     /* Mirror back the endpointUrl */
@@ -63,9 +63,9 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->config.endpoints.count > 0)
+    if(server->config.endpointsSize > 0)
         response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->config.endpoints.endpoints[0].endpointDescription.serverCertificate,
+            UA_ByteString_copy(&server->config.endpoints[0].endpointDescription.serverCertificate,
                                &response->serverCertificate);
 
     /* Failure -> remove the session */

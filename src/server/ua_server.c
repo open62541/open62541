@@ -161,7 +161,7 @@ UA_Server_new(const UA_ServerConfig *config) {
     if(!server)
         return NULL;
 
-    if(config->endpoints.count == 0) {
+    if(config->endpointsSize == 0) {
         UA_LOG_FATAL(config->logger,
                      UA_LOGCATEGORY_SERVER,
                      "There has to be at least one endpoint.");
