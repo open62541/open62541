@@ -564,21 +564,21 @@ class opcua_BuiltinType_localizedtext_t(opcua_value_t):
 
     if xmlvalue.firstChild == None:
       if self.alias() != None:
-        logger.debug("Neither locale nor text in XML description field " + self.alias() + ". Setting to default ['en_US','']")
+        logger.debug("Neither locale nor text in XML description field " + self.alias() + ". Setting to default ['','']")
       else:
-        logger.debug("Neither locale nor text in XML description. Setting to default ['en_US','']")
-      self.value = ['en_US','']
+        logger.debug("Neither locale nor text in XML description. Setting to default ['','']")
+      self.value = ['','']
       return
 
     self.value = []
     tmp = xmlvalue.getElementsByTagName("Locale")
     if len(tmp) == 0:
-      logger.warn("Did not find a locale. Setting to en_US per default.")
-      self.value.append('en_US')
+      logger.warn("Did not find a locale. Setting to \"\" per default.")
+      self.value.append('')
     else:
       if tmp[0].firstChild == None:
-        logger.warn("Locale tag without contents. Setting to en_US per default.")
-        self.value.append('en_US')
+        logger.warn("Locale tag without contents. Setting to \"\" per default.")
+        self.value.append('')
       else:
         self.value.append(tmp[0].firstChild.data)
       clean = ""

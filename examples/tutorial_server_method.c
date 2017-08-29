@@ -57,21 +57,21 @@ static void
 addHellWorldMethod(UA_Server *server) {
     UA_Argument inputArgument;
     UA_Argument_init(&inputArgument);
-    inputArgument.description = UA_LOCALIZEDTEXT("en_US", "A String");
+    inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
     inputArgument.name = UA_STRING("MyInput");
     inputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     inputArgument.valueRank = -1; /* scalar */
 
     UA_Argument outputArgument;
     UA_Argument_init(&outputArgument);
-    outputArgument.description = UA_LOCALIZEDTEXT("en_US", "A String");
+    outputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
     outputArgument.name = UA_STRING("MyOutput");
     outputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     outputArgument.valueRank = -1; /* scalar */
 
     UA_MethodAttributes helloAttr = UA_MethodAttributes_default;
-    helloAttr.description = UA_LOCALIZEDTEXT("en_US","Say `Hello World`");
-    helloAttr.displayName = UA_LOCALIZEDTEXT("en_US","Hello World");
+    helloAttr.description = UA_LOCALIZEDTEXT("en-US","Say `Hello World`");
+    helloAttr.displayName = UA_LOCALIZEDTEXT("en-US","Hello World");
     helloAttr.executable = true;
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
@@ -117,7 +117,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     /* Two input arguments */
     UA_Argument inputArguments[2];
     UA_Argument_init(&inputArguments[0]);
-    inputArguments[0].description = UA_LOCALIZEDTEXT("en_US", "int32[5] array");
+    inputArguments[0].description = UA_LOCALIZEDTEXT("en-US", "int32[5] array");
     inputArguments[0].name = UA_STRING("int32 array");
     inputArguments[0].dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     inputArguments[0].valueRank = 1;
@@ -126,7 +126,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     inputArguments[0].arrayDimensions = &pInputDimension;
 
     UA_Argument_init(&inputArguments[1]);
-    inputArguments[1].description = UA_LOCALIZEDTEXT("en_US", "int32 delta");
+    inputArguments[1].description = UA_LOCALIZEDTEXT("en-US", "int32 delta");
     inputArguments[1].name = UA_STRING("int32 delta");
     inputArguments[1].dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     inputArguments[1].valueRank = -1; /* scalar */
@@ -134,7 +134,7 @@ addIncInt32ArrayMethod(UA_Server *server) {
     /* One output argument */
     UA_Argument outputArgument;
     UA_Argument_init(&outputArgument);
-    outputArgument.description = UA_LOCALIZEDTEXT("en_US", "int32[5] array");
+    outputArgument.description = UA_LOCALIZEDTEXT("en-US", "int32[5] array");
     outputArgument.name = UA_STRING("each entry is incremented by the delta");
     outputArgument.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     outputArgument.valueRank = 1;
@@ -144,8 +144,8 @@ addIncInt32ArrayMethod(UA_Server *server) {
 
     /* Add the method node */
     UA_MethodAttributes incAttr = UA_MethodAttributes_default;
-    incAttr.description = UA_LOCALIZEDTEXT("en_US", "IncInt32ArrayValues");
-    incAttr.displayName = UA_LOCALIZEDTEXT("en_US", "IncInt32ArrayValues");
+    incAttr.description = UA_LOCALIZEDTEXT("en-US", "IncInt32ArrayValues");
+    incAttr.displayName = UA_LOCALIZEDTEXT("en-US", "IncInt32ArrayValues");
     incAttr.executable = true;
     incAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "IncInt32ArrayValues"),

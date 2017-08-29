@@ -32,8 +32,8 @@ int main() {
     UA_VariableAttributes_init(&attr);
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
+    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_ALLOC(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);

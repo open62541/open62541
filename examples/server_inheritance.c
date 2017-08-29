@@ -36,8 +36,8 @@ int main(void) {
     UA_ObjectTypeAttributes otAttr;
     UA_ObjectTypeAttributes_init(&otAttr);
 
-    otAttr.description = UA_LOCALIZEDTEXT("en_US", "A mamal");
-    otAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MamalType");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
+    otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MamalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -45,8 +45,8 @@ int main(void) {
 
     UA_VariableAttributes   vAttr;
     UA_VariableAttributes_init(&vAttr);
-    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This mamals class");
-    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Class");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals class");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Class");
     UA_String classVar = UA_STRING("mamalia");
     UA_Variant_setScalar(&vAttr.value, &classVar, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
@@ -56,8 +56,8 @@ int main(void) {
                               vAttr, NULL, NULL);
 
     UA_VariableAttributes_init(&vAttr);
-    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This mamals species");
-    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Species");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals species");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Species");
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10002),
                               UA_NODEID_NUMERIC(1, 10000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
@@ -67,16 +67,16 @@ int main(void) {
 
 
     UA_ObjectTypeAttributes_init(&otAttr);
-    otAttr.description = UA_LOCALIZEDTEXT("en_US", "A dog, subtype of mamal");
-    otAttr.displayName = UA_LOCALIZEDTEXT("en_US", "DogType");
+    otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
+    otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 20000),
                                 UA_NODEID_NUMERIC(1, 10000),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "DogType"), otAttr, NULL, NULL);
 
     UA_VariableAttributes_init(&vAttr);
-    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This dogs species");
-    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Species");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This dogs species");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Species");
     UA_String defaultSpecies = UA_STRING("Canis");
     UA_Variant_setScalar(&vAttr.value, &defaultSpecies, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20001),
@@ -86,8 +86,8 @@ int main(void) {
                               vAttr, NULL, NULL);
 
     UA_VariableAttributes_init(&vAttr);
-    vAttr.description =  UA_LOCALIZEDTEXT("en_US", "This dogs name");
-    vAttr.displayName =  UA_LOCALIZEDTEXT("en_US", "Name");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This dogs name");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Name");
     UA_String defaultName = UA_STRING("unnamed dog");
     UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20002),
@@ -106,8 +106,8 @@ int main(void) {
 
     UA_ObjectAttributes oAttr;
     UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US", "A dog named Bello");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Bello");
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Bello");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Bello");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -115,8 +115,8 @@ int main(void) {
                             oAttr, NULL, NULL);
 
     UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US", "Another dog");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Dog2");
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "Another dog");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Dog2");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -124,8 +124,8 @@ int main(void) {
                             oAttr, NULL, NULL);
 
     UA_ObjectAttributes_init(&oAttr);
-    oAttr.description = UA_LOCALIZEDTEXT("en_US", "A mamal");
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Mamal1");
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A mamal");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Mamal1");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),

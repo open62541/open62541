@@ -1230,7 +1230,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     if(inputArgumentsSize > 0 && UA_NodeId_isNull(&inputArgsId)) {
         UA_VariableAttributes inputargs;
         UA_VariableAttributes_init(&inputargs);
-        inputargs.displayName = UA_LOCALIZEDTEXT("en_US", "InputArguments");
+        inputargs.displayName = UA_LOCALIZEDTEXT("", "InputArguments");
         /* UAExpert creates a monitoreditem on inputarguments ... */
         inputargs.minimumSamplingInterval = 100000.0f;
         inputargs.valueRank = 1;
@@ -1248,7 +1248,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
     if(outputArgumentsSize > 0 && UA_NodeId_isNull(&outputArgsId)) {
         UA_VariableAttributes outputargs;
         UA_VariableAttributes_init(&outputargs);
-        outputargs.displayName = UA_LOCALIZEDTEXT("en_US", "OutputArguments");
+        outputargs.displayName = UA_LOCALIZEDTEXT("", "OutputArguments");
         /* UAExpert creates a monitoreditem on outputarguments ... */
         outputargs.minimumSamplingInterval = 100000.0f;
         outputargs.valueRank = 1;

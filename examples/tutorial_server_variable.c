@@ -21,8 +21,8 @@ addVariable(UA_Server *server) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 
     /* Add the variable node to the information model */
