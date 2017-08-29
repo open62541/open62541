@@ -6,6 +6,11 @@
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_nodestore_default.h"
+#include "ua_types_generated.h"
+#include "ua_securitypolicy_none.h"
+#include "ua_types.h"
+#include "ua_types_generated_handling.h"
+#include "ua_client_highlevel.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -53,10 +58,10 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 
 static UA_StatusCode
 createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
-                                 const UA_ByteString *cert) {
+                                 const UA_ByteString localCertificate) {
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
-    endpoint->securityPolicy = NULL;
+    UA_SecurityPolicy_None(&endpoint->securityPolicy, localCertificate, conf->logger);
     endpoint->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
     endpoint->endpointDescription.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -81,8 +86,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
     endpoint->endpointDescription.userIdentityTokens[1].policyId =
         UA_STRING_ALLOC(USERNAME_POLICY);
 
-    if(cert)
-        UA_String_copy(cert, &endpoint->endpointDescription.serverCertificate);
+    UA_String_copy(&localCertificate, &endpoint->endpointDescription.serverCertificate);
 
     UA_ApplicationDescription_copy(&conf->applicationDescription,
                                    &endpoint->endpointDescription.server);
@@ -202,16 +206,19 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     conf->networkLayersSize = 1;
 
     /* Allocate the endpoint */
-    conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint));
-    if(!conf->endpoints.endpoints) {
+    conf->endpointsSize = 1;
+    conf->endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint));
+    if(!conf->endpoints) {
         UA_ServerConfig_delete(conf);
         return NULL;
     }
-    conf->endpoints.count = 1;
 
     /* Populate the endpoint */
-    retval = createSecurityPolicyNoneEndpoint(conf, &conf->endpoints.endpoints[0],
-                                              certificate);
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    UA_StatusCode retval =
+        createSecurityPolicyNoneEndpoint(conf, &conf->endpoints[0], localCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);
         return NULL;
@@ -232,8 +239,8 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     UA_String_deleteMembers(&config->mdnsServerName);
     UA_Array_delete(config->serverCapabilities, config->serverCapabilitiesSize,
                     &UA_TYPES[UA_TYPES_STRING]);
-    /* config->serverCapabilities = NULL; */
-    /* config->serverCapabilitiesSize = 0; */
+    config->serverCapabilities = NULL;
+    config->serverCapabilitiesSize = 0;
 #endif
 
     /* Nodestore */
@@ -244,21 +251,24 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->customDataTypesSize; ++i)
         UA_free(config->customDataTypes[i].members);
     UA_free(config->customDataTypes);
-    /* config->customDataTypes = NULL; */
-    /* config0>customDataTypesSize = 0; */
+    config->customDataTypes = NULL;
+    config->customDataTypesSize = 0;
 
     /* Networking */
     for(size_t i = 0; i < config->networkLayersSize; ++i)
         config->networkLayers[i].deleteMembers(&config->networkLayers[i]);
     UA_free(config->networkLayers);
-    /* config->networkLayers = NULL; */
-    /* config->networkLayersSize = 0; */
+    config->networkLayers = NULL;
+    config->networkLayersSize = 0;
 
-    for(size_t i = 0; i < config->endpoints.count; ++i)
-        UA_EndpointDescription_deleteMembers(&config->endpoints.endpoints[i].endpointDescription);
-    UA_free(config->endpoints.endpoints);
-    /* config->endpoints.endpoints = NULL; */
-    /* config->endpoints.count = 0; */
+    for(size_t i = 0; i < config->endpointsSize; ++i) {
+        UA_SecurityPolicy *policy = &config->endpoints[i].securityPolicy;
+        policy->deleteMembers(policy);
+        UA_EndpointDescription_deleteMembers(&config->endpoints[i].endpointDescription);
+    }
+    UA_free(config->endpoints);
+    config->endpoints = NULL;
+    config->endpointsSize = 0;
 
     UA_free(config);
 }

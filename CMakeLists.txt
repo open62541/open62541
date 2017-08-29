@@ -259,8 +259,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h)
-
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
+                     ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
+)
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                      ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -318,6 +323,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c
+
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c)
@@ -326,14 +332,16 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h)
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
