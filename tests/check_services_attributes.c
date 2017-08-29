@@ -335,7 +335,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
-    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "OrganizedBy");
+    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "OrganizedBy");
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
@@ -597,7 +597,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
 START_TEST(WriteSingleAttributeDisplayName) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
@@ -609,7 +609,7 @@ START_TEST(WriteSingleAttributeDisplayName) {
 START_TEST(WriteSingleAttributeDescription) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
