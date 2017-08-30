@@ -186,7 +186,6 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #include "ua_types_encoding_binary.h"
 #else
 #include "open62541.h"
-#define NULL ((void *)0)
 #endif
     
 extern UA_StatusCode %s(UA_Server *server);
