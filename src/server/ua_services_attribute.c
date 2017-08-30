@@ -69,11 +69,12 @@ typeEquivalence(const UA_DataType *t) {
     return TYPE_EQUIVALENCE_NONE;
 }
 
+static const UA_NodeId subtypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
+static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
+
 UA_Boolean
 compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
                    const UA_NodeId *constraintDataType) {
-    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
-
     /* Do not allow empty datatypes */
     if(UA_NodeId_isNull(dataType))
        return false;
@@ -87,11 +88,25 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
         return true;
 
     /* Enum allows Int32 (only) */
-    UA_NodeId enumNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION);
     if(isNodeInTree(server->nodestore, constraintDataType, &enumNodeId, &subtypeId, 1))
         return UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId);
 
-    return isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1);
+    /* Is the value-type a subtype of the required type? */
+    if(isNodeInTree(server->nodestore, dataType, constraintDataType, &subtypeId, 1))
+        return true;
+
+    /* If value is a built-in type: The target data type may be a sub type of
+     * the built-in type. (e.g. UtcTime is sub-type of DateTime and has a
+     * DateTime value). A type is builtin if its NodeId is in Namespace 0 and
+     * has a numeric identifier <= 25 (DiagnosticInfo) */
+    if(dataType->namespaceIndex == 0 &&
+       dataType->identifierType == UA_NODEIDTYPE_NUMERIC &&
+       dataType->identifier.numeric <= 25 &&
+       isNodeInTree(server->nodestore, constraintDataType,
+                    dataType, &subtypeId, 1))
+        return true;
+
+    return false;
 }
 
 /* Test whether a valurank and the given arraydimensions are compatible. zero
