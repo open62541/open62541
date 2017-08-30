@@ -199,7 +199,7 @@ class NodeSet(object):
             result.update(dictionary)
         return result
 
-    def addNodeSet(self, xmlfile, hidden=False):
+    def addNodeSet(self, xmlfile, hidden=False, typesArray="UA_TYPES"):
         # Extract NodeSet DOM
         nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
         if len(nodesets) == 0 or len(nodesets) > 1:
@@ -230,6 +230,7 @@ class NodeSet(object):
                 continue
             node.replaceAliases(self.aliases)
             node.replaceNamespaces(nsMapping)
+            node.typesArray = typesArray
 
             # Add the node the the global dict
             if node.id in self.nodes:

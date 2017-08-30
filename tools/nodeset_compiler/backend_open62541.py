@@ -161,7 +161,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False):
+def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, typesArray=[]):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = open(outfilename + ".h", r"w+")
@@ -172,6 +172,14 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 
     def writec(line):
         print(unicode(line).encode('utf8'), end='\n', file=outfilec)
+
+    additionalHeaders = ""
+    if len(typesArray) > 0:
+        for arr in set(typesArray):
+            if arr == "UA_TYPES":
+                continue
+            additionalHeaders += """#include "%s_generated.h"
+                                 """ % arr.lower()
 
     # Print the preamble of the generated code
     writeh("""/* WARNING: This is a generated file.
@@ -184,6 +192,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_types_encoding_binary.h"
+%s
 #else
 #include "open62541.h"
 #endif
@@ -191,7 +200,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 extern UA_StatusCode %s(UA_Server *server);
 
 #endif /* %s_H_ */""" % \
-           (outfilebase.upper(), outfilebase.upper(),
+           (outfilebase.upper(), outfilebase.upper(), additionalHeaders,
             outfilebase, outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.

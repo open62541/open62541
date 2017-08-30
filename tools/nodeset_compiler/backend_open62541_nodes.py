@@ -312,18 +312,18 @@ def generateSubtypeStructureCode(node, parent, nodeset, recursionDepth=0, arrayI
         encFieldIdx = encFieldIdx + 1
         if encField[2] == 0:
             code.append(
-                "retval |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + ", &UA_TYPES[UA_TYPES_" +
-                subv.__class__.__name__.upper() + "], &pos" + instanceName + ", &end" + instanceName + ", NULL, NULL);")
+                "retval |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + ", " +
+                getTypesArrayForValue(nodeset, subv) + ", &pos" + instanceName + ", &end" + instanceName + ", NULL, NULL);")
         else:
             if isinstance(subv, list):
                 for subvidx in range(0, len(subv)):
                     code.append("retval |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + "[" +
-                                str(subvidx) + "], &UA_TYPES[UA_TYPES_" + subv.__class__.__name__.upper() + "], &pos" +
+                                str(subvidx) + "], " + getTypesArrayForValue(nodeset, subv) + ", &pos" +
                                 instanceName + ", &end" + instanceName + ", NULL, NULL);")
             else:
                 code.append(
-                    "retval |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + "[0], &UA_TYPES[UA_TYPES_" +
-                    subv.__class__.__name__.upper() + "], &pos" + instanceName + ", &end" + instanceName + ", NULL, NULL);")
+                    "retval |= UA_encodeBinary(&" + instanceName + "_struct." + subv.alias + "[0], " +
+                    getTypesArrayForValue(nodeset, subv) + ", &pos" + instanceName + ", &end" + instanceName + ", NULL, NULL);")
 
     code.append("}")
     # Reallocate the memory by swapping the 65k Bytestring for a new one
@@ -344,13 +344,22 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
-    type = "UA_TYPES[UA_TYPES_" + dataTypeNode.browseName.name.upper() + "]"
+    type = dataTypeNode.typesArray + "[" + dataTypeNode.typesArray + "_" + dataTypeNode.browseName.name.upper() + "]"
 
     code.append("void *" + valueName + " = UA_alloca(" + type + ".memSize);")
     code.append("UA_init(" + valueName + ", &" + type + ");")
     code.append("UA_Variant_setScalar(&attr.value, " + valueName + ", &" + type + ");")
 
     return code
+
+def getTypesArrayForValue(nodeset, value):
+    typeNode = nodeset.getNodeByBrowseName(value.__class__.__name__)
+    if typeNode is None:
+        typesArray = "UA_TYPES"
+    else:
+        typesArray = typeNode.typesArray
+    return "&" + typesArray + "[" + typesArray + "_" + \
+                    value.__class__.__name__.upper() + "]"
 
 def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
     code = []
@@ -389,7 +398,6 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                 for idx, v in enumerate(node.value):
                     logger.debug("Building extObj array index " + str(idx))
                     code = code + generateSubtypeStructureCode(v, parent=parentNode, nodeset=nodeset, arrayIndex=idx)
-            # code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + node.value[0].__class__.__name__.upper() + "];")
             code.append("UA_" + node.value[0].__class__.__name__ + " " + valueName + "[" + str(len(node.value)) + "];")
             if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
                 for idx, v in enumerate(node.value):
@@ -405,8 +413,8 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                     code.append(
                         valueName + "[" + str(idx) + "] = " + generateSubTypeValueCode(v, instanceName) + ";")
             code.append("UA_Variant_setArray( &attr.value, &" + valueName +
-                        ", (UA_Int32) " + str(len(node.value)) + ", &UA_TYPES[UA_TYPES_" + node.value[
-                            0].__class__.__name__.upper() + "]);")
+                        ", (UA_Int32) " + str(len(node.value)) + ", " +
+                        getTypesArrayForValue(nodeset, node.value[0]) + ");")
     else:
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
         if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_GUID:
@@ -421,14 +429,13 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
             # The following strategy applies to all other types, in particular strings and numerics.
             if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
                 code = code + generateSubtypeStructureCode(node.value[0], parent=parentNode, nodeset=nodeset)
-            # code.append("attr.value.type = &UA_TYPES[UA_TYPES_" + node.value[0].__class__.__name__.upper() + "];")
             instanceName = generateNodeValueInstanceName(node.value[0], parentNode, 0, 0)
             if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_EXTENSIONOBJECT:
                 code.append("UA_" + node.value[0].__class__.__name__ + " *" + valueName + " = " +
                             generateSubTypeValueCode(node.value[0], instanceName) + ";")
                 code.append(
-                    "UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + node.value[
-                        0].__class__.__name__.upper() + "]);")
+                    "UA_Variant_setScalar( &attr.value, " + valueName + ", " +
+                    getTypesArrayForValue(nodeset, node.value[0]) + ");")
 
                 # FIXME: There is no membership definition for extensionObjects generated in this function.
                 # code.append("UA_" + node.value[0].__class__.__name__ + "_deleteMembers(" + valueName + ");")
@@ -440,14 +447,12 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                 code.append("*" + valueName + " = " + generateSubTypeValueCode(node.value[0], instanceName) + ";")
                 if bootstrapping == False:
                     code.append(
-                        "UA_Variant_setScalar( &attr.value, " + valueName + ", &UA_TYPES[UA_TYPES_" + node.value[
-                            0].__class__.__name__.upper() + "]);")
+                        "UA_Variant_setScalar( &attr.value, " + valueName + ", " +
+                        getTypesArrayForValue(nodeset, node.value[0]) + ");")
                 else:
                     code.append(
-                        "UA_Variant_setScalar( " + generateNodeIdPrintable(
-                            parentNode) + "_variant, " + valueName + ", &UA_TYPES[UA_TYPES_" + node.value[
-                            0].__class__.__name__.upper() + "]);")
-                    # code.append("UA_" + node.value[0].__class__.__name__ + "_deleteMembers(" + valueName + ");")
+                        "UA_Variant_setScalar( " + generateNodeIdPrintable(parentNode) + "_variant, " + valueName +
+                        ", " + getTypesArrayForValue(nodeset, node.value[0]) + ");")
     return code
 
 def generateMethodNodeCode(node):

@@ -30,10 +30,11 @@ parser.add_argument('-e', '--existing',
                     default=[],
                     help='NodeSet XML files with nodes that are already present on the server.')
 
-parser.add_argument('infiles',
+parser.add_argument('-x', '--xml',
                     metavar="<nodeSetXML>",
-                    action='append',
                     type=argparse.FileType('r'),
+                    action='append',
+                    dest="infiles",
                     default=[],
                     help='NodeSet XML files with nodes that shall be generated.')
 
@@ -70,6 +71,14 @@ parser.add_argument('-s', '--suppress',
                     default=[],
                     help="Suppresses the generation of some node attributes. Currently supported options are 'description', 'browseName', 'displayName', 'writeMask', 'userWriteMask' and 'nodeid'.")
 
+parser.add_argument('-t', '--types-array',
+                    metavar="<typesArray>",
+                    action='append',
+                    type=str,
+                    dest="typesArray",
+                    default=[],
+                    help='Types array for the given namespace. Can be used mutliple times to define (in the same order as the .xml files, first for --existing, then --xml) the type arrays')
+
 parser.add_argument('-v', '--verbose', action='count',
                     help='Make the script more verbose. Can be applied up to 4 times')
 
@@ -95,12 +104,22 @@ else:
 # Create a new nodeset. The nodeset name is not significant.
 # Parse the XML files
 ns = NodeSet()
+nsCount = 0
+
+def getTypesArray(nsIdx):
+    if nsIdx < len(args.typesArray):
+        return args.typesArray[nsIdx]
+    else:
+        return "UA_TYPES"
+
 for xmlfile in args.existing:
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
-    ns.addNodeSet(xmlfile, True)
+    ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
+    nsCount +=1
 for xmlfile in args.infiles:
     logger.info("Preprocessing " + str(xmlfile.name))
-    ns.addNodeSet(xmlfile)
+    ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
+    nsCount +=1
 
 # # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
 # namespaceArrayNames = preProc.getUsedNamespaceArrayNames()
@@ -128,8 +147,9 @@ for ignoreFile in args.ignoreFiles:
     for line in ignoreFile.readlines():
         line = line.replace(" ", "")
         id = line.replace("\n", "")
-        if not ns.hide_node(NodeId(id)):
-            logger.info("Can't ignore node, namespace does currently not contain a node with id " + str(id))
+        ns.hide_node(NodeId(id))
+        #if not ns.hide_node(NodeId(id)):
+        #    logger.info("Can't ignore node, namespace does currently not contain a node with id " + str(id))
     ignoreFile.close()
 
 # Remove nodes that are not printable or contain parsing errors, such as
@@ -152,5 +172,5 @@ ns.allocateVariables()
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0)
+generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0, args.typesArray)
 logger.info("NodeSet generation code successfully printed")
