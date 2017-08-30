@@ -62,9 +62,9 @@ class StructMember(object):
         self.isArray = isArray
 
 class Type(object):
-    def __init__(self, outname, xml):
+    def __init__(self, outname, xml, namespace):
         self.name = xml.get("Name")
-        self.ns0 = ("true" if outname == "ua_types" else "false")
+        self.ns0 = ("true" if namespace == 0 else "false")
         self.typeIndex = outname.upper() + "_" + self.name.upper()
         self.outname = outname
         self.description = ""
@@ -171,8 +171,8 @@ class BuiltinType(Type):
             self.members = [StructMember("", self, False)]
 
 class EnumerationType(Type):
-    def __init__(self, outname, xml):
-        Type.__init__(self, outname, xml)
+    def __init__(self, outname, xml, namespace):
+        Type.__init__(self, outname, xml, namespace)
         self.pointerfree = "true"
         self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
         self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
@@ -192,8 +192,8 @@ class EnumerationType(Type):
                                                             " = " + kv[1], values)) + "\n} UA_%s;" % self.name
 
 class OpaqueType(Type):
-    def __init__(self, outname, xml, baseType):
-        Type.__init__(self, outname, xml)
+    def __init__(self, outname, xml, namespace, baseType):
+        Type.__init__(self, outname, xml, namespace)
         self.baseType = baseType
         self.members = [StructMember("", types[baseType], False)] # encoded as string
 
@@ -201,8 +201,8 @@ class OpaqueType(Type):
         return "typedef UA_" + self.baseType + " UA_%s;" % self.name
 
 class StructType(Type):
-    def __init__(self, outname, xml):
-        Type.__init__(self, outname, xml)
+    def __init__(self, outname, xml, namespace):
+        Type.__init__(self, outname, xml, namespace)
         self.members = []
         lengthfields = [] # lengthfields of arrays are not included as members
         for child in xml:
@@ -252,7 +252,7 @@ class StructType(Type):
 # Parse Typedefinitions #
 #########################
 
-def parseTypeDefinitions(outname, xmlDescription):
+def parseTypeDefinitions(outname, xmlDescription, namespace):
     def typeReady(element):
         "Are all member types defined?"
         for child in element:
@@ -288,11 +288,11 @@ def parseTypeDefinitions(outname, xmlDescription):
             if name in builtin_types:
                 types[name] = BuiltinType(name)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                types[name] = EnumerationType(outname, typeXml)
+                types[name] = EnumerationType(outname, typeXml, namespace)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                types[name] = OpaqueType(outname, typeXml, get_base_type_for_opaque(name)['name'])
+                types[name] = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
-                types[name] = StructType(outname, typeXml)
+                types[name] = StructType(outname, typeXml, namespace)
             else:
                 raise Exception("Type not known")
             del snippets[name]
@@ -309,10 +309,9 @@ class TypeDescription(object):
         self.xmlEncodingId = "0"
         self.binaryEncodingId = "0"
 
-def parseTypeDescriptions(filename, namespaceid):
+def parseTypeDescriptions(f, namespaceid):
     definitions = {}
-    with open(filename) as f:
-        input_str = f.read()
+    input_str = f.read()
     input_str = input_str.replace('\r','')
     rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
     for index, row in enumerate(rows):
@@ -344,21 +343,65 @@ def parseTypeDescriptions(filename, namespaceid):
             definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
     return definitions
 
+def merge_dicts(*dict_args):
+    """
+    Given any number of dicts, shallow copy and merge into a new dict,
+    precedence goes to key value pairs in latter dicts.
+    """
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
+
 ###############################
 # Parse the Command Line Input#
 ###############################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--typedescriptions', help='csv file with type descriptions')
-parser.add_argument('--namespace', type=int, default=0, help='namespace id of the generated type nodeids (defaults to 0)')
-parser.add_argument('--selected_types', help='file with list of types (among those parsed) to be generated')
-parser.add_argument('typexml_ns0', help='path/to/Opc.Ua.Types.bsd ...')
-parser.add_argument('typexml_additional', nargs='*', help='path/to/Opc.Ua.Types.bsd ...')
-parser.add_argument('outfile', help='output file w/o extension')
+parser.add_argument('-c', '--type-csv',
+                    metavar="<typeDescriptions>",
+                    type=argparse.FileType('r'),
+                    dest="type_csv",
+                    action='append',
+                    default=[],
+                    help='csv file with type descriptions')
+
+parser.add_argument('--namespace',
+                    type=int,
+                    dest="namespace",
+                    default=0,
+                    help='namespace id of the generated type nodeids (defaults to 0)')
+
+parser.add_argument('-s', '--selected-types',
+                    metavar="<selectedTypes>",
+                    type=argparse.FileType('r'),
+                    dest="selected_types",
+                    action='append',
+                    default=[],
+                    help='file with list of types (among those parsed) to be generated. If not given, all types are generated')
+
+parser.add_argument('--no-builtin',
+                    action='store_true',
+                    dest="no_builtin",
+                    help='Do not generate builtin types')
+
+parser.add_argument('-t', '--type-bsd',
+                    metavar="<typeBsds>",
+                    type=argparse.FileType('r'),
+                    dest="type_bsd",
+                    action='append',
+                    default=[],
+                    help='csv file with type descriptions')
+
+parser.add_argument('outfile',
+                    metavar='<outputFile>',
+                    help='output file w/o extension')
 args = parser.parse_args()
 
 outname = args.outfile.split("/")[-1]
-inname = ', '.join([args.typexml_ns0.split("/")[-1]] + list(map(lambda x:x.split("/")[-1], args.typexml_additional)))
+inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
+
+
 
 ################
 # Create Types #
@@ -367,20 +410,19 @@ inname = ', '.join([args.typexml_ns0.split("/")[-1]] + list(map(lambda x:x.split
 for builtin in builtin_types:
     types[builtin] = BuiltinType(builtin)
 
-with open(args.typexml_ns0) as f:
-    parseTypeDefinitions("ua_types", f)
-for typexml in args.typexml_additional:
-    with open(typexml) as f:
-        parseTypeDefinitions(outname, f)
+for f in args.type_bsd:
+    parseTypeDefinitions(outname, f, args.namespace)
+
 
 typedescriptions = {}
-if args.typedescriptions:
-    typedescriptions = parseTypeDescriptions(args.typedescriptions, args.namespace)
+for f in args.type_csv:
+    typedescriptions = merge_dicts(typedescriptions, parseTypeDescriptions(f, args.namespace))
 
-selected_types = types.keys()
-if args.selected_types:
-    with open(args.selected_types) as f:
-        selected_types = list(filter(len, [line.strip() for line in f]))
+selected_types = []
+for f in args.selected_types:
+    selected_types = list(filter(len, [line.strip() for line in f]))
+if len(selected_types) == 0:
+    selected_types = types.keys()
 
 #############################
 # Write out the Definitions #
@@ -405,7 +447,11 @@ def iter_types(v):
         l = list(v.itervalues())
     else:
         l = list(v.values())
-    return filter(lambda t: t.name in selected_types, l)
+    if len(selected_types) > 0:
+        l = filter(lambda t: t.name in selected_types, l)
+    if args.no_builtin:
+        l = filter(lambda t: type(t) != BuiltinType, l)
+    return l
 
 ################
 # Print Header #
@@ -425,15 +471,17 @@ extern "C" {
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
+filtered_types = iter_types(types)
+
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-printh("#define " + outname.upper() + "_COUNT %s" % (str(len(selected_types))))
+printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
-for t in iter_types(types):
+for t in filtered_types:
     printh("\n/**\n * " +  t.name)
     printh(" * " + "^" * len(t.name))
     if t.description == "":
@@ -475,7 +523,7 @@ extern "C" {
 #endif
 ''')
 
-for t in iter_types(types):
+for t in filtered_types:
     printf("\n/* " + t.name + " */")
     printf(t.functions_c())
 
@@ -500,13 +548,13 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "''' + outname + '''_generated.h"
 #include "ua_util.h"''')
 
-for t in iter_types(types):
+for t in filtered_types:
     printc("")
     printc("/* " + t.name + " */")
     printc(t.members_c())
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
-for t in iter_types(types):
+for t in filtered_types:
     printc("")
     printc("/* " + t.name + " */")
     printc(t.datatype_c() + ",")
@@ -523,7 +571,7 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "ua_types_encoding_binary.h"
 #include "''' + outname + '''_generated.h"''')
 
-for t in iter_types(types):
+for t in filtered_types:
     printe("\n/* " + t.name + " */")
     printe(t.encoding_h())
 
