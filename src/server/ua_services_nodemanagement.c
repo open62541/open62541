@@ -95,7 +95,6 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
     }
 
     /* Check hassubtype relation for type nodes */
-    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
     if(nodeClass == UA_NODECLASS_DATATYPE ||
        nodeClass == UA_NODECLASS_VARIABLETYPE ||
        nodeClass == UA_NODECLASS_OBJECTTYPE ||

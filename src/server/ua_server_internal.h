@@ -195,6 +195,9 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *da
 /* Utility Functions */
 /*********************/
 
+/* A few global NodeId definitions */
+extern const UA_NodeId subtypeId;
+
 UA_StatusCode
 UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
 
