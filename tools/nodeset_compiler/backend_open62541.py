@@ -71,7 +71,6 @@ def reorderNodesMinDependencies(nodeset):
     # determine in-degree
     in_degree = {u.id: 0 for u in nodeset.nodes.values()}
     dataType_refs = {}
-    varType_refs = {}
     hiddenCount = 0
     for u in nodeset.nodes.values():  # of each node
         if u.hidden:
@@ -86,8 +85,6 @@ def reorderNodesMinDependencies(nodeset):
         if hasTypeDef is not None and not nodeset.nodes[hasTypeDef].hidden:
             # we cannot print the node u because it first needs the variable type node
             in_degree[u.id] += 1
-            # to be able to decrement the in_degree count, we need to store it here
-            addTypeRef(nodeset, varType_refs,hasTypeDef, u.id)
 
         if isinstance(u, VariableNode) and u.dataType is not None:
             dataTypeNode = nodeset.getDataTypeNode(u.dataType)
@@ -128,17 +125,12 @@ def reorderNodesMinDependencies(nodeset):
                         Q.append(nodeset.nodes[n])
                 del dataType_refs[u.id]
 
-        if u.id in varType_refs:
-            for ref in u.inverseReferences:
-                if ref.referenceType.i == 40:
-                    for n in varType_refs[u.id]:
-                        if not nodeset.nodes[n].hidden:
-                            in_degree[n] -= 1
-                        if in_degree[n] == 0:
-                            Q.append(nodeset.nodes[n])
-            del varType_refs[u.id]
-
-
+        for ref in u.inverseReferences:
+            if ref.referenceType.i == 40:
+                if not nodeset.nodes[ref.target].hidden:
+                    in_degree[ref.target] -= 1
+                if in_degree[ref.target] == 0:
+                    Q.append(nodeset.nodes[ref.target])
 
         for ref in u.references:
             if (ref.referenceType in relevant_types and ref.isForward):
@@ -161,7 +153,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False):
+def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, typesArray=[]):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = open(outfilename + ".h", r"w+")
@@ -172,6 +164,14 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 
     def writec(line):
         print(unicode(line).encode('utf8'), end='\n', file=outfilec)
+
+    additionalHeaders = ""
+    if len(typesArray) > 0:
+        for arr in set(typesArray):
+            if arr == "UA_TYPES":
+                continue
+            additionalHeaders += """#include "%s_generated.h"
+                                 """ % arr.lower()
 
     # Print the preamble of the generated code
     writeh("""/* WARNING: This is a generated file.
@@ -184,6 +184,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_types_encoding_binary.h"
+%s
 #else
 #include "open62541.h"
 #endif
@@ -191,7 +192,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 extern UA_StatusCode %s(UA_Server *server);
 
 #endif /* %s_H_ */""" % \
-           (outfilebase.upper(), outfilebase.upper(),
+           (outfilebase.upper(), outfilebase.upper(), additionalHeaders,
             outfilebase, outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.
@@ -205,7 +206,6 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 """ % (outfilebase, outfilebase))
 
     parentrefs = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
-    parentrefs.append(nodeset.getNodeByBrowseName("HasEncoding"))
     parentrefs = map(lambda x: x.id, parentrefs)
 
     # Generate namespaces (don't worry about duplicates)
@@ -225,6 +225,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
             code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset)
             if code is None:
                 writec("/* Ignored. No parent */")
+                nodeset.hide_node(node.id)
                 continue
             else:
                 writec(code)

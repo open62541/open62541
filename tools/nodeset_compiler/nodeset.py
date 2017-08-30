@@ -199,7 +199,7 @@ class NodeSet(object):
             result.update(dictionary)
         return result
 
-    def addNodeSet(self, xmlfile, hidden=False):
+    def addNodeSet(self, xmlfile, hidden=False, typesArray="UA_TYPES"):
         # Extract NodeSet DOM
         nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
         if len(nodesets) == 0 or len(nodesets) > 1:
@@ -230,6 +230,7 @@ class NodeSet(object):
                 continue
             node.replaceAliases(self.aliases)
             node.replaceNamespaces(nsMapping)
+            node.typesArray = typesArray
 
             # Add the node the the global dict
             if node.id in self.nodes:
@@ -316,7 +317,8 @@ class NodeSet(object):
         relevant_types = getSubTypesOf(self,
                                        self.getNodeByBrowseName("HierarchicalReferences"),
                                        [])
-        #relevant_types.append(self.getNodeByBrowseName("HasEncoding"))
-        #relevant_types.append(self.getNodeByBrowseName("HasTypeDefinition"))
+        relevant_types += getSubTypesOf(self,
+                                        self.getNodeByBrowseName("HasEncoding"),
+                                        [])
         relevant_types = map(lambda x: x.id, relevant_types)
         return relevant_types
