@@ -54,6 +54,14 @@ parser.add_argument('-b', '--blacklist',
                     default=[],
                     help='Loads a list of NodeIDs stored in blacklistFile (one NodeID per line). Any of the nodeIds encountered in this file will be removed from the nodeset prior to compilation. Any references to these nodes will also be removed')
 
+parser.add_argument('-i', '--ignore',
+                    metavar="<ignoreFile>",
+                    type=argparse.FileType('r'),
+                    action='append',
+                    dest="ignoreFiles",
+                    default=[],
+                    help='Loads a list of NodeIDs stored in ignoreFile (one NodeID per line). Any of the nodeIds encountered in this file will be kept in the nodestore but not printed in the generated code')
+
 parser.add_argument('-s', '--suppress',
                     metavar="<attribute>",
                     action='append',
@@ -112,6 +120,18 @@ for blacklist in args.blacklistFiles:
             ns.removeNodeById(line)
     blacklist.close()
 
+# Set the nodes from the ignore list to hidden. This removes them from dependency calculation
+# and from printing their generated code.
+# These nodes should be already pre-created on the server to avoid any errors during
+# creation.
+for ignoreFile in args.ignoreFiles:
+    for line in ignoreFile.readlines():
+        line = line.replace(" ", "")
+        id = line.replace("\n", "")
+        if not ns.hide_node(NodeId(id)):
+            logger.info("Can't ignore node, namespace does currently not contain a node with id " + str(id))
+    ignoreFile.close()
+
 # Remove nodes that are not printable or contain parsing errors, such as
 # unresolvable or no references or invalid NodeIDs
 ns.sanitize()
@@ -127,6 +147,8 @@ ns.buildEncodingRules()
 # Allocate/Parse the data values. In order to do this, we must have run
 # buidEncodingRules.
 ns.allocateVariables()
+
+#printDependencyGraph(ns)
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")

@@ -183,3 +183,15 @@ SubscriptionDiagnosticsDataType
 SessionDiagnosticsDataType
 ServiceCounterDataType
 SessionSecurityDiagnosticsDataType
+UtcTime
+Duration
+LocaleId
+RedundancySupport
+RedundantServerDataType
+NetworkGroupDataType
+NumericRange
+EndpointUrlListDataType
+ModelChangeStructureDataType
+SemanticChangeStructureDataType
+TimeZoneDataType
+

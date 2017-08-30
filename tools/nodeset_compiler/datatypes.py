@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 import xml.dom.minidom as dom
 
 from constants import *
+from base64 import *
 
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
@@ -40,11 +41,11 @@ def getNextElementNode(xmlvalue):
     return xmlvalue
 
 def valueIsInternalType(valueTypeString):
-    return valueTypeString.lower() in ['boolean', 'int32', 'uint32', 'int16', 'uint16',
+    return valueTypeString.lower() in ['boolean', 'number', 'int32', 'uint32', 'int16', 'uint16',
                    'int64', 'uint64', 'byte', 'sbyte', 'float', 'double',
                    'string', 'bytestring', 'localizedtext', 'statuscode',
                    'diagnosticinfo', 'nodeid', 'guid', 'datetime',
-                   'qualifiedname', 'expandednodeid', 'xmlelement']
+                   'qualifiedname', 'expandednodeid', 'xmlelement', 'integer', 'uinteger']
 
 class Value(object):
     def __init__(self, xmlelement=None):
@@ -70,6 +71,12 @@ class Value(object):
         stringName = str(stringName.lower())
         if stringName == 'boolean':
             t = Boolean()
+        elif stringName == 'number':
+            t = Number()
+        elif stringName == 'integer':
+            t = Integer()
+        elif stringName == 'uinteger':
+            t = UInteger()
         elif stringName == 'int32':
             t = Int32()
         elif stringName == 'uint32':
@@ -294,47 +301,15 @@ class Boolean(Value):
             else:
                 self.value = "true"
 
-class Byte(Value):
+class Number(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_BYTE
+        self.numericRepresentation = BUILTINTYPE_TYPEID_NUMBER
         if xmlelement:
             self.parseXML(xmlelement)
 
     def parseXML(self, xmlvalue):
-        # Expect <Byte>value</Byte> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <Byte /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class SByte(Value):
-    def __init__(self, xmlelement=None):
-        Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_SBYTE
-        if xmlelement:
-            self.parseXML(xmlelement)
-
-    def parseXML(self, xmlvalue):
-        # Expect <SByte>value</SByte> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <SByte /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class Int16(Value):
-    def __init__(self, xmlelement=None):
-        Value.__init__(self)
-        self.numericRepresentation = BUILTINTYPE_TYPEID_INT16
-        if xmlelement:
-            self.parseXML(xmlelement)
-
-    def parseXML(self, xmlvalue):
-        # Expect <Int16>value</Int16> or
+        # Expect <Int16>value</Int16> or any other valid number type, or
         #        <Aliasname>value</Aliasname>
         self.checkXML(xmlvalue)
         if xmlvalue.firstChild == None:
@@ -342,87 +317,77 @@ class Int16(Value):
         else:
             self.value = int(unicode(xmlvalue.firstChild.data))
 
-class UInt16(Value):
+class Integer(Number):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        self.numericRepresentation = BUILTINTYPE_TYPEID_INTEGER
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+class UInteger(Number):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        self.numericRepresentation = BUILTINTYPE_TYPEID_UINTEGER
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+class Byte(UInteger):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        self.numericRepresentation = BUILTINTYPE_TYPEID_BYTE
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+class SByte(Integer):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        self.numericRepresentation = BUILTINTYPE_TYPEID_SBYTE
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+class Int16(Integer):
+    def __init__(self, xmlelement=None):
+        Value.__init__(self)
+        self.numericRepresentation = BUILTINTYPE_TYPEID_INT16
+        if xmlelement:
+            self.parseXML(xmlelement)
+
+class UInt16(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_UINT16
         if xmlelement:
             self.parseXML(xmlelement)
 
-    def parseXML(self, xmlvalue):
-        # Expect <UInt16>value</UInt16> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <UInt16 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class Int32(Value):
+class Int32(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_INT32
         if xmlelement:
             self.parseXML(xmlelement)
 
-    def parseXML(self, xmlvalue):
-        # Expect <Int32>value</Int32> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <Int32 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class UInt32(Value):
+class UInt32(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_UINT32
         if xmlelement:
             self.parseXML(xmlelement)
 
-    def parseXML(self, xmlvalue):
-        # Expect <UInt32>value</UInt32> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <UInt32 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class Int64(Value):
+class Int64(Integer):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_INT64
         if xmlelement:
             self.parseXML(xmlelement)
 
-    def parseXML(self, xmlvalue):
-        # Expect <Int64>value</Int64> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <Int64 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class UInt64(Value):
+class UInt64(UInteger):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_UINT64
         if xmlelement:
             self.parseXML(xmlelement)
 
-    def parseXML(self, xmlvalue):
-        # Expect <UInt16>value</UInt16> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0  # Catch XML <UInt64 /> by setting the value to a default
-        else:
-            self.value = int(unicode(xmlvalue.firstChild.data))
-
-class Float(Value):
+class Float(Number):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_FLOAT
@@ -438,21 +403,12 @@ class Float(Value):
         else:
             self.value = float(unicode(xmlvalue.firstChild.data))
 
-class Double(Value):
+class Double(Float):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
         self.numericRepresentation = BUILTINTYPE_TYPEID_DOUBLE
         if xmlelement:
             self.parseXML(xmlelement)
-
-    def parseXML(self, xmlvalue):
-        # Expect <Double>value</Double> or
-        #        <Aliasname>value</Aliasname>
-        self.checkXML(xmlvalue)
-        if xmlvalue.firstChild == None:
-            self.value = 0.0  # Catch XML <Double /> by setting the value to a default
-        else:
-            self.value = float(unicode(xmlvalue.firstChild.data))
 
 class String(Value):
     def __init__(self, xmlelement=None):
@@ -487,6 +443,17 @@ class ByteString(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self, xmlelement)
         self.numericRepresentation = BUILTINTYPE_TYPEID_BYTESTRING
+
+    def parseXML(self, xmlvalue):
+        # Expect <ByteString>value</ByteString>
+        if not isinstance(xmlvalue, dom.Element):
+            self.value = xmlvalue
+            return
+        self.checkXML(xmlvalue)
+        if xmlvalue.firstChild == None:
+            self.value = []  # Catch XML <ByteString /> by setting the value to a default
+        else:
+            self.value = b64decode(xmlvalue.firstChild.data)
 
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):
@@ -668,9 +635,12 @@ class DateTime(Value):
             try:
                 self.value = strptime(timestr, "%Y-%m-%dT%H:%M:%S")
             except:
-                logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23, but got " + \
-                             timestr + " instead. Time will be defaultet to now()")
-                self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
+                try:
+                    self.value = strptime(timestr, "%Y-%m-%d")
+                except:
+                    logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23 or 2001-01-30, but got " + \
+                                 timestr + " instead. Time will be defaultet to now()")
+                    self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
 
 class QualifiedName(Value):
     def __init__(self, xmlelement=None):

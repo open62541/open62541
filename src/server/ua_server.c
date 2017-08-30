@@ -373,56 +373,58 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId,
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
-static void
+static UA_StatusCode
 writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, v, type);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
+    return UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
 }
 
-static void
+static UA_StatusCode
 writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
-    UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
+    return UA_Server_writeValue(server, UA_NODEID_NUMERIC(0, id), var);
 }
 
 /********************/
 /* Server Lifecycle */
 /********************/
 
-static void initNamespace0(UA_Server *server) {
+static UA_StatusCode initNamespace0(UA_Server *server) {
 
-	/* Initialize base nodes which are always required an cannot be created through the NS compiler */
-	UA_Server_createNS0_base(server);
+    /* Initialize base nodes which are always required an cannot be created through the NS compiler */
+    UA_Server_createNS0_base(server);
 
     /* Load nodes and references generated from the XML ns0 definition */
     server->bootstrapNS0 = true;
-    ua_namespace0(server);
+    UA_StatusCode retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
+    if (retVal != UA_STATUSCODE_GOOD)
+        return retVal;
 
     /* NamespaceArray */
     UA_DataSource namespaceDataSource = {.read = readNamespaces, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), namespaceDataSource);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY), namespaceDataSource);
 
     /* ServerArray */
-    writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
-                          &server->config.applicationDescription.applicationUri,
-                          1, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERARRAY,
+                                    &server->config.applicationDescription.applicationUri,
+                                    1, &UA_TYPES[UA_TYPES_STRING]);
 
     /* LocaleIdArray */
-    UA_String locale_en = UA_STRING("en");
-    writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY,
-                          &locale_en, 1, &UA_TYPES[UA_TYPES_STRING]);
+    UA_LocaleId locale_en = UA_STRING("en");
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY,
+                                    &locale_en, 1, &UA_TYPES[UA_TYPES_LOCALEID]);
 
     /* MaxBrowseContinuationPoints */
     UA_UInt16 maxBrowseContinuationPoints = 0; /* no restriction */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
-                     &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
+                               &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerProfileArray */
     UA_String profileArray[4];
@@ -438,112 +440,111 @@ static void initNamespace0(UA_Server *server) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/EmbeddedDataChangeSubscription");
 #endif
-    writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
-                          profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
+                                    profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
 
     /* MaxQueryContinuationPoints */
     UA_UInt16 maxQueryContinuationPoints = 0;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXQUERYCONTINUATIONPOINTS,
-                     &maxQueryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXQUERYCONTINUATIONPOINTS,
+                               &maxQueryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* MaxHistoryContinuationPoints */
     UA_UInt16 maxHistoryContinuationPoints = 0;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS,
-                     &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS,
+                               &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* MinSupportedSampleRate */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
-                     &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_UINT16]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE,
+                               &server->config.samplingIntervalLimits.min, &UA_TYPES[UA_TYPES_DURATION]);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary */
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
     UA_ServerDiagnosticsSummaryDataType_init(&serverDiagnosticsSummary);
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
-                     &serverDiagnosticsSummary, &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY,
+                               &serverDiagnosticsSummary, &UA_TYPES[UA_TYPES_SERVERDIAGNOSTICSSUMMARYDATATYPE]);
 
     /* ServerDiagnostics - EnabledFlag */
     UA_Boolean enabledFlag = false;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
-                     &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG,
+                               &enabledFlag, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* ServerStatus */
     UA_DataSource serverStatus = {.read = readStatus, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
     /* StartTime */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME,
-                     &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME,
+                               &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
 
     /* CurrentTime */
     UA_DataSource currentTime = {.read = readCurrentTime, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), currentTime);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
 
     /* State */
     UA_ServerState state = UA_SERVERSTATE_RUNNING;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_STATE,
-                     &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_STATE,
+                               &state, &UA_TYPES[UA_TYPES_SERVERSTATE]);
 
     /* BuildInfo */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO,
-                     &server->config.buildInfo, &UA_TYPES[UA_TYPES_BUILDINFO]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO,
+                               &server->config.buildInfo, &UA_TYPES[UA_TYPES_BUILDINFO]);
 
     /* BuildInfo - ProductUri */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI,
-                     &server->config.buildInfo.productUri, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI,
+                               &server->config.buildInfo.productUri, &UA_TYPES[UA_TYPES_STRING]);
 
     /* BuildInfo - ManufacturerName */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
-                     &server->config.buildInfo.manufacturerName, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
+                               &server->config.buildInfo.manufacturerName, &UA_TYPES[UA_TYPES_STRING]);
 
     /* BuildInfo - ProductName */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME,
-                     &server->config.buildInfo.productName, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME,
+                               &server->config.buildInfo.productName, &UA_TYPES[UA_TYPES_STRING]);
 
     /* BuildInfo - SoftwareVersion */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION,
-                     &server->config.buildInfo.softwareVersion, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION,
+                               &server->config.buildInfo.softwareVersion, &UA_TYPES[UA_TYPES_STRING]);
 
     /* BuildInfo - BuildNumber */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER,
-                     &server->config.buildInfo.buildNumber, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER,
+                               &server->config.buildInfo.buildNumber, &UA_TYPES[UA_TYPES_STRING]);
 
     /* BuildInfo - BuildDate */
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE,
-                     &server->config.buildInfo.buildDate, &UA_TYPES[UA_TYPES_DATETIME]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE,
+                               &server->config.buildInfo.buildDate, &UA_TYPES[UA_TYPES_DATETIME]);
 
     /* SecondsTillShutdown */
     UA_UInt32 secondsTillShutdown = 0;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN,
-                     &secondsTillShutdown, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN,
+                               &secondsTillShutdown, &UA_TYPES[UA_TYPES_UINT32]);
 
     /* ShutDownReason */
     UA_LocalizedText shutdownReason;
     UA_LocalizedText_init(&shutdownReason);
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON,
-                     &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON,
+                               &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
     UA_DataSource serviceLevel = {.read = readServiceLevel, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVICELEVEL), serviceLevel);
 
     /* Auditing */
     UA_DataSource auditing = {.read = readAuditing, .write = NULL};
-    UA_Server_setVariableNode_dataSource(server,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
+    retVal |= UA_Server_setVariableNode_dataSource(server,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_AUDITING), auditing);
 
     /* NamespaceArray */
     UA_DataSource nsarray_datasource =  {.read = readNamespaces, .write = writeNamespaces};
-    UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
-                                         nsarray_datasource);
+    retVal |= UA_Server_setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY),
+                                                   nsarray_datasource);
 
     /* Redundancy Support */
-    /* TODO: Use enum */
-    UA_Int32 redundancySupport = 0;
-    writeNs0Variable(server, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT,
-                     &redundancySupport, &UA_TYPES[UA_TYPES_INT32]);
+    UA_RedundancySupport redundancySupport = UA_REDUNDANCYSUPPORT_NONE;
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT,
+                               &redundancySupport, &UA_TYPES[UA_TYPES_REDUNDANCYSUPPORT]);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     UA_Argument inputArguments;
@@ -569,9 +570,10 @@ static void initNamespace0(UA_Server *server) {
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 
-    UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
-                                     readMonitoredItems);
+    retVal |= UA_Server_setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+                                               readMonitoredItems);
 #endif
+    return retVal;
 }
 
 UA_Server *
@@ -659,7 +661,12 @@ UA_Server_new(const UA_ServerConfig *config) {
 #endif
 
     /* Initialize namespace 0*/
-    initNamespace0(server);
+    UA_StatusCode retVal = initNamespace0(server);
+    if (retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logger,
+                     UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.", UA_StatusCode_name(retVal));
+    }
 
     return server;
 }

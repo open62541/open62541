@@ -37,7 +37,8 @@ def extractNodeParent(node, parentrefs):
     for ref in node.inverseReferences:
         if ref.referenceType in parentrefs:
             node.inverseReferences.remove(ref)
-            node.printRefs.remove(ref)
+            if ref in node.printRefs:
+                node.printRefs.remove(ref)
             return (ref.target, ref.referenceType)
     return None, None
 
@@ -76,12 +77,12 @@ def generateNodeValueInstanceName(node, parent, recursionDepth, arrayIndex):
 
 def generateReferenceCode(reference):
     if reference.isForward:
-        return "UA_Server_addReference(server, %s, %s, %s, true);" % \
+        return "retVal |= UA_Server_addReference(server, %s, %s, %s, true);" % \
                (generateNodeIdCode(reference.source),
                 generateNodeIdCode(reference.referenceType),
                 generateExpandedNodeIdCode(reference.target))
     else:
-        return "UA_Server_addReference(server, %s, %s, %s, false);" % \
+        return "retVal |= UA_Server_addReference(server, %s, %s, %s, false);" % \
                (generateNodeIdCode(reference.source),
                 generateNodeIdCode(reference.referenceType),
                 generateExpandedNodeIdCode(reference.target))
@@ -118,10 +119,20 @@ def generateVariableNodeCode(node, nodeset):
     code.append("attr.accessLevel = %d;" % node.accessLevel)
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.dataType is not None:
-        dataTypeNode = nodeset.getDataTypeNode(node.dataType)
-        if dataTypeNode is not None and dataTypeNode.isEncodable() and node.value is not None:
+        if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
+            #BaseDataType
+            dataTypeNode = nodeset.nodes[NodeId("i=24")]
+        else:
+            dataTypeNode = nodeset.getBaseDataType(nodeset.getDataTypeNode(node.dataType))
+
+        if dataTypeNode is not None:
             code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
-            code += generateValueCode(node.value, nodeset.nodes[node.id], nodeset)
+
+            if dataTypeNode.isEncodable():
+                if node.value is not None:
+                    code += generateValueCode(node.value, nodeset.nodes[node.id], nodeset)
+                else:
+                    code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
     return code
 
 def generateVariableTypeNodeCode(node, nodeset):
@@ -132,10 +143,18 @@ def generateVariableTypeNodeCode(node, nodeset):
         code.append("attr.historizing = true;")
     code.append("attr.valueRank = (UA_Int32)%s;" % str(node.valueRank))
     if node.dataType is not None:
-        dataTypeNode = nodeset.getDataTypeNode(node.dataType)
-        if dataTypeNode is not None and dataTypeNode.isEncodable() and node.value is not None:
+        if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
+            #BaseDataType
+            dataTypeNode = nodeset.nodes[NodeId("i=24")]
+        else:
+            dataTypeNode = nodeset.getBaseDataType(nodeset.getDataTypeNode(node.dataType))
+        if dataTypeNode is not None:
             code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
-            code += generateValueCode(node.value, nodeset.nodes[node.id], nodeset)
+            if dataTypeNode.isEncodable():
+                if node.value is not None:
+                    code += generateValueCode(node.value, nodeset.nodes[node.id], nodeset)
+                else:
+                    code += generateValueCodeDummy(dataTypeNode, nodeset.nodes[node.id], nodeset)
     return code
 
 def generateSubTypeValueCode(node, instanceName, asIndirect=True):
@@ -146,10 +165,7 @@ def generateSubTypeValueCode(node, instanceName, asIndirect=True):
     elif type(node) == XmlElement:
         return "UA_XMLELEMENT_ALLOC(\"" + node.value.encode('utf-8') + "\")"
     elif type(node) == ByteString:
-        bs = ""
-        for line in node.value:
-            bs = bs + str(line).replace("\n", "")
-        outs = bs
+        outs = re.sub(r"[\r\n]+","", node.value).replace('"', r'\"')
         logger.debug("Encoded Bytestring: " + outs)
         #      bs = bs.decode('base64')
         #      outs = ""
@@ -323,6 +339,19 @@ def generateSubtypeStructureCode(node, parent, nodeset, recursionDepth=0, arrayI
     code.append("")
     return code
 
+
+def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True):
+    code = []
+    valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
+
+    type = "UA_TYPES[UA_TYPES_" + dataTypeNode.browseName.name.upper() + "]"
+
+    code.append("void *" + valueName + " = UA_alloca(" + type + ".memSize);")
+    code.append("UA_init(" + valueName + ", &" + type + ");")
+    code.append("UA_Variant_setScalar(&attr.value, " + valueName + ", &" + type + ");")
+
+    return code
+
 def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
@@ -458,7 +487,15 @@ def generateViewNodeCode(node):
 
 def generateTypeDefinitionCode(node):
     for ref in node.references:
+        # 40 = HasTypeDefinition
         if ref.referenceType.i == 40:
+            return generateNodeIdCode(ref.target)
+    return "UA_NODEID_NULL"
+
+def generateSubtypeOfDefinitionCode(node):
+    for ref in node.inverseReferences:
+        # 45 = HasSubtype
+        if ref.referenceType.i == 45:
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
@@ -488,6 +525,7 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
+    # a variable type node always needs a parent node, otherwise adding it to the nodestore will fail
     if not generate_ns0:
         (parentNode, parentRef) = extractNodeParent(node, parentrefs)
         if parentNode is None or parentRef is None:
@@ -495,12 +533,15 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     else:
         (parentNode, parentRef) = (NodeId(), NodeId())
 
-    code.append("UA_Server_add%s(server," % node.__class__.__name__)
+    code.append("retVal |= UA_Server_add%s(server," % node.__class__.__name__)
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
     code.append(generateQualifiedNameCode(node.browseName) + ",")
-    if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
+    if isinstance(node, VariableTypeNode):
+        # we need the HasSubtype reference
+        code.append(generateSubtypeOfDefinitionCode(node) + ",")
+    elif isinstance(node, VariableNode) or isinstance(node, ObjectNode):
         code.append(generateTypeDefinitionCode(node) + ",")
     code.append("attr,")
     if isinstance(node, MethodNode):

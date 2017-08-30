@@ -26,6 +26,7 @@ import logging;
 logger = logging.getLogger(__name__)
 
 from nodes import *
+from opaque_type_mapping import opaque_type_mapping
 
 ####################
 # Helper Functions #
@@ -33,11 +34,13 @@ from nodes import *
 
 hassubtype = NodeId("ns=0;i=45")
 
-def getSubTypesOf(nodeset, node):
+def getSubTypesOf(nodeset, node, skipNodes=[]):
+    if node in skipNodes:
+        return []
     re = [node]
     for ref in node.references:
         if ref.referenceType == hassubtype and ref.isForward:
-            re = re + getSubTypesOf(nodeset, nodeset.nodes[ref.target])
+            re = re + getSubTypesOf(nodeset, nodeset.nodes[ref.target], skipNodes=skipNodes)
     return re
 
 def extractNamespaces(xmlfile):
@@ -174,6 +177,18 @@ class NodeSet(object):
                 ref.hidden = True
         return node
 
+    def hide_node(self, nodeId, hidden=True):
+        if not nodeId in self.nodes:
+            return False
+        node = self.nodes[nodeId]
+        node.hidden = hidden
+        # References from an existing nodeset are all suppressed
+        for ref in node.references:
+            ref.hidden = hidden
+        for ref in node.inverseReferences:
+            ref.hidden = hidden
+        return True
+
     def merge_dicts(self, *dict_args):
         """
         Given any number of dicts, shallow copy and merge into a new dict,
@@ -227,12 +242,12 @@ class NodeSet(object):
             for ref in node.references:
                 newsource = self.nodes[ref.target]
                 hide = ref.hidden or (node.hidden and newsource.hidden)
-                newref = Reference(newsource.id, ref.referenceType, ref.source, False, hide)
+                newref = Reference(newsource.id, ref.referenceType, ref.source, False, hide, inferred=True)
                 newsource.inverseReferences.add(newref)
             for ref in node.inverseReferences:
                 newsource = self.nodes[ref.target]
                 hide = ref.hidden or (node.hidden and newsource.hidden)
-                newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide)
+                newref = Reference(newsource.id, ref.referenceType, ref.source, True, hide, inferred=True)
                 newsource.references.add(newref)
 
     def getBinaryEncodingIdForNode(self, nodeId):
@@ -267,6 +282,17 @@ class NodeSet(object):
         for n in self.nodes.values():
             if isinstance(n, VariableNode):
                 n.allocateValue(self)
+
+
+    def getBaseDataType(self, node):
+        if node is None:
+            return None
+        if node.browseName.name not in opaque_type_mapping:
+            return node
+        for ref in node.inverseReferences:
+            if ref.referenceType.i == 45:
+                return self.getBaseDataType(self.nodes[ref.target])
+        return node
                 
     def getDataTypeNode(self, dataType):
         if isinstance(dataType, basestring):
@@ -282,8 +308,15 @@ class NodeSet(object):
                 logger.error("Node id " + str(dataType) + " is not reference a valid dataType.")
                 return None
             if not dataTypeNode.isEncodable():
-                logger.error("DataType " + str(dataTypeNode.browseName) + " is not encodable.")
-                return None
+                logger.warn("DataType " + str(dataTypeNode.browseName) + " is not encodable.")
             return dataTypeNode
         return None
 
+    def getRelevantOrderingReferences(self):
+        relevant_types = getSubTypesOf(self,
+                                       self.getNodeByBrowseName("HierarchicalReferences"),
+                                       [])
+        #relevant_types.append(self.getNodeByBrowseName("HasEncoding"))
+        #relevant_types.append(self.getNodeByBrowseName("HasTypeDefinition"))
+        relevant_types = map(lambda x: x.id, relevant_types)
+        return relevant_types

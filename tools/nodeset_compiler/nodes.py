@@ -31,12 +31,13 @@ if sys.version_info[0] >= 3:
 
 class Reference(object):
     # all either nodeids or strings with an alias
-    def __init__(self, source, referenceType, target, isForward=True, hidden=False):
+    def __init__(self, source, referenceType, target, isForward=True, hidden=False, inferred=False):
         self.source = source
         self.referenceType = referenceType
         self.target = target
         self.isForward = isForward
         self.hidden = hidden  # the reference is part of a nodeset that already exists
+        self.inferred = inferred
 
     def __str__(self):
         retval = str(self.source)
@@ -226,8 +227,9 @@ class VariableNode(Node):
         self.dataType = NodeId()
         self.valueRank = -1
         self.arrayDimensions = []
-        self.accessLevel = 0
-        self.userAccessLevel = 0
+        # Set access levels to read by default
+        self.accessLevel = 1
+        self.userAccessLevel = 1
         self.minimumSamplingInterval = 0.0
         self.historizing = False
         self.value = None
@@ -522,7 +524,7 @@ class DataTypeNode(Node):
                 fname  = ""
                 fdtype = ""
                 enumVal = ""
-                hasValueRank = 0
+                valueRank = 0
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
@@ -533,8 +535,9 @@ class DataTypeNode(Node):
                         enumVal = int(av)
                         isSubType = False
                     elif at == "ValueRank":
-                        hasValueRank = int(av)
-                        logger.warn("Arrays or matrices (ValueRank) are not supported for datatypes. This DT will become scalar.")
+                        valueRank = int(av)
+                        if valueRank > 0:
+                            logger.warn("Value ranks >0 not fully supported. Further steps may fail")
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
@@ -555,12 +558,10 @@ class DataTypeNode(Node):
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable
                     typeDict.append([fname, dtnode])
-                    if hasValueRank < 0:
-                        hasValueRank = 0
-                    fdtype = str(dtnode.browseName.name) + "+"*hasValueRank
+                    fdtype = str(dtnode.browseName.name)
                     logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
                     subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1)
-                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, hasValueRank]]
+                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank]]
                     if not dtnode.isEncodable():
                         # If we inherit an encoding from an unencodable not, this node is
                         # also not encodable

@@ -12,6 +12,7 @@ import re
 import xml.etree.ElementTree as etree
 import itertools
 import argparse
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -191,12 +192,13 @@ class EnumerationType(Type):
                                                             " = " + kv[1], values)) + "\n} UA_%s;" % self.name
 
 class OpaqueType(Type):
-    def __init__(self, outname, xml):
+    def __init__(self, outname, xml, baseType):
         Type.__init__(self, outname, xml)
-        self.members = [StructMember("", types["ByteString"], False)] # encoded as string
+        self.baseType = baseType
+        self.members = [StructMember("", types[baseType], False)] # encoded as string
 
     def typedef_h(self):
-        return "typedef UA_ByteString UA_%s;" % self.name
+        return "typedef UA_" + self.baseType + " UA_%s;" % self.name
 
 class StructType(Type):
     def __init__(self, outname, xml):
@@ -288,7 +290,7 @@ def parseTypeDefinitions(outname, xmlDescription):
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
                 types[name] = EnumerationType(outname, typeXml)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                types[name] = OpaqueType(outname, typeXml)
+                types[name] = OpaqueType(outname, typeXml, get_base_type_for_opaque(name)['name'])
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
                 types[name] = StructType(outname, typeXml)
             else:

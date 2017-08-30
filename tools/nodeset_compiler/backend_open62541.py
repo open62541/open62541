@@ -34,40 +34,68 @@ from backend_open62541_nodes import generateNodeCode, generateReferenceCode
 ##############
 
 # Select the references that shall be generated after this node in the ordering
+# If both nodes of the reference are hidden we assume that the references between
+# those nodes are already setup. Still print if only the target node is hidden,
+# because we need that reference.
 def selectPrintRefs(nodeset, L, node):
     printRefs = []
     for ref in node.references:
-        if ref.hidden:
-            continue
         targetnode = nodeset.nodes[ref.target]
-        if not targetnode in L:
+        if node.hidden and targetnode.hidden:
+            continue
+        if not targetnode.hidden and not targetnode in L:
             continue
         printRefs.append(ref)
     for ref in node.inverseReferences:
-        if ref.hidden:
-            continue
         targetnode = nodeset.nodes[ref.target]
-        if not targetnode in L:
+        if node.hidden and targetnode.hidden:
+            continue
+        if not targetnode.hidden and not targetnode in L:
             continue
         printRefs.append(ref)
     return printRefs
+
+def addTypeRef(nodeset, type_refs, dataTypeId, referencedById):
+    if not dataTypeId in type_refs:
+        type_refs[dataTypeId] = [referencedById]
+    else:
+        type_refs[dataTypeId].append(referencedById)
+
 
 def reorderNodesMinDependencies(nodeset):
     # Kahn's algorithm
     # https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
 
-    relevant_types = getSubTypesOf(nodeset,
-                                   nodeset.getNodeByBrowseName("HierarchicalReferences"))
-
-    relevant_types.append(nodeset.getNodeByBrowseName("HasEncoding"))
-    relevant_types = map(lambda x: x.id, relevant_types)
+    relevant_types = nodeset.getRelevantOrderingReferences()
 
     # determine in-degree
     in_degree = {u.id: 0 for u in nodeset.nodes.values()}
+    dataType_refs = {}
+    varType_refs = {}
+    hiddenCount = 0
     for u in nodeset.nodes.values():  # of each node
+        if u.hidden:
+            hiddenCount += 1
+            continue
+        hasTypeDef = None
         for ref in u.references:
-            if (ref.referenceType in relevant_types and ref.isForward):
+            if ref.referenceType.i == 40:
+                hasTypeDef = ref.target
+            elif (ref.referenceType in relevant_types and ref.isForward) and not nodeset.nodes[ref.target].hidden:
                 in_degree[ref.target] += 1
+        if hasTypeDef is not None and not nodeset.nodes[hasTypeDef].hidden:
+            # we cannot print the node u because it first needs the variable type node
+            in_degree[u.id] += 1
+            # to be able to decrement the in_degree count, we need to store it here
+            addTypeRef(nodeset, varType_refs,hasTypeDef, u.id)
+
+        if isinstance(u, VariableNode) and u.dataType is not None:
+            dataTypeNode = nodeset.getDataTypeNode(u.dataType)
+            if dataTypeNode is not None and not dataTypeNode.hidden:
+                # we cannot print the node u because it first needs the data type node
+                in_degree[u.id] += 1
+                # to be able to decrement the in_degree count, we need to store it here
+                addTypeRef(nodeset, dataType_refs,dataTypeNode.id, u.id)
 
     # collect nodes with zero in-degree
     Q = deque()
@@ -85,14 +113,48 @@ def reorderNodesMinDependencies(nodeset):
         u = Q.pop()  # choose node of zero in-degree
         # decide which references to print now based on the ordering
         u.printRefs = selectPrintRefs(nodeset, L, u)
+        if u.hidden:
+            continue
+
         L.append(u)  # and 'remove' it from graph
+
+        if isinstance(u, DataTypeNode):
+            # decrement all the nodes which depend on this datatype
+            if u.id in dataType_refs:
+                for n in dataType_refs[u.id]:
+                    if not nodeset.nodes[n].hidden:
+                        in_degree[n] -= 1
+                    if in_degree[n] == 0:
+                        Q.append(nodeset.nodes[n])
+                del dataType_refs[u.id]
+
+        if u.id in varType_refs:
+            for ref in u.inverseReferences:
+                if ref.referenceType.i == 40:
+                    for n in varType_refs[u.id]:
+                        if not nodeset.nodes[n].hidden:
+                            in_degree[n] -= 1
+                        if in_degree[n] == 0:
+                            Q.append(nodeset.nodes[n])
+            del varType_refs[u.id]
+
+
+
         for ref in u.references:
             if (ref.referenceType in relevant_types and ref.isForward):
-                in_degree[ref.target] -= 1
+                if not nodeset.nodes[ref.target].hidden:
+                    in_degree[ref.target] -= 1
                 if in_degree[ref.target] == 0:
                     Q.append(nodeset.nodes[ref.target])
-    if len(L) != len(nodeset.nodes.values()):
-        raise Exception("Node graph is circular on the specified references")
+
+    if len(L) + hiddenCount != len(nodeset.nodes.values()):
+        stillOpen = ""
+        for id in in_degree:
+            if in_degree[id] == 0:
+                continue
+            node = nodeset.nodes[id]
+            stillOpen += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[id]) + "\r\n"
+        raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + stillOpen)
     return L
 
 ###################
@@ -127,7 +189,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #define NULL ((void *)0)
 #endif
     
-extern void %s(UA_Server *server);
+extern UA_StatusCode %s(UA_Server *server);
 
 #endif /* %s_H_ */""" % \
            (outfilebase.upper(), outfilebase.upper(),
@@ -138,7 +200,10 @@ extern void %s(UA_Server *server);
 
 #include "%s.h"
 
-void %s(UA_Server *server) {""" % (outfilebase, outfilebase))
+UA_StatusCode %s(UA_Server *server) {
+
+UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+""" % (outfilebase, outfilebase))
 
     parentrefs = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
     parentrefs.append(nodeset.getNodeByBrowseName("HasEncoding"))
@@ -170,6 +235,7 @@ void %s(UA_Server *server) {""" % (outfilebase, outfilebase))
             writec(generateReferenceCode(ref))
 
     # Finalize the generated source
+    writec("return retVal;")
     writec("} // closing nodeset()")
     outfileh.close()
     outfilec.close()

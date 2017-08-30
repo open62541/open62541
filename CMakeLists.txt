@@ -86,6 +86,8 @@ option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functio
 mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 
 set(UA_NAMESPACE0_XML ${CMAKE_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.Minimal.xml CACHE FILEPATH "Namespace Zero definition XML file")
+set(UA_DATATYPES_FILE ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt CACHE FILEPATH "File containing the list of datatypes added to the server")
+mark_as_advanced(UA_DATATYPES_FILE)
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
@@ -379,7 +381,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                            --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
-                           --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
+                           --selected_types=${UA_DATATYPES_FILE}
                            ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt
@@ -452,6 +454,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            --generate-ns0
+                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            ${UA_NAMESPACE0_XML}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
                    DEPENDS ${UA_NAMESPACE0_XML}
@@ -517,12 +520,10 @@ else()
     endif()
 endif()
 
-if(UA_ENABLE_GENERATE_NAMESPACE0)
-    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-    if(NOT UA_ENABLE_AMALGAMATION)
-        add_dependencies(open62541-object open62541-generator-namespace)
-    endif()
+add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
+if(NOT UA_ENABLE_AMALGAMATION)
+    add_dependencies(open62541-object open62541-generator-namespace)
 endif()
 
 # Export Symbols

@@ -163,9 +163,12 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    // TODO is this if bootstrapNS0 really needed here?
+    if (!server->bootstrapNS0) {
+        retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
+        if (retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     /* Check valueRank against the vt */
     retval = compatibleValueRanks(node->valueRank, vt->valueRank);
@@ -179,7 +182,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* Typecheck the value */
-    if(value.hasValue) {
+    if(!server->bootstrapNS0 && value.hasValue) {
         retval = typeCheckValue(server, &node->dataType, node->valueRank,
                                 node->arrayDimensionsSize, node->arrayDimensions,
                                 &value.value, NULL, NULL);
@@ -624,7 +627,8 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
        node->nodeClass == UA_NODECLASS_REFERENCETYPE ||
        node->nodeClass == UA_NODECLASS_DATATYPE) {
         referenceTypeId = &hasSubtype;
-        typeDefinition = parentNodeId;
+        if (UA_NodeId_equal(typeDefinition, &UA_NODEID_NULL))
+            typeDefinition = parentNodeId;
     }
 
     /* Replace empty typeDefinition with the most permissive default */
@@ -699,6 +703,10 @@ Service_AddNodes_single(UA_Server *server, UA_Session *session,
     /* AddNodes_begin */
     Service_AddNode_begin(server, session, item, result, nodeContext);
     if(result->statusCode != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Skip finishing tasks on bootstrapping */
+    if (server->bootstrapNS0)
         return;
 
     /* AddNodes_finish */
