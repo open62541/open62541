@@ -4,7 +4,6 @@
 #include "stdafx.h"
 #include"CustomDataTypes.h"
 #include "open62541.h"
-
 typedef struct {
 	UA_Float x;
 	UA_Float y;
@@ -21,16 +20,11 @@ static UA_DataTypeMember members[3] = {
 	{ "z", UA_TYPES_FLOAT, padding_z, true, false },
 };
 
-static UA_DataTypeMember members1[1] = {
-	{ "Day",UA_TYPES_INT32,0,true,false },
-};
-static const UA_DataType customType[2] = {
+static const UA_DataType customType[1] = {
 	{ "Point",{ 1, UA_NODEIDTYPE_NUMERIC,{ 1 } }, sizeof(Point), 0, 3, false, true, false, 0, members
-	},
-	{ "WeekDays",{ 1,UA_NODEIDTYPE_NUMERIC,{ 2 } },sizeof(WeekDays),UA_TYPES_INT32,1,false,true, UA_BINARY_OVERLAYABLE_INTEGER,0,
-	members1
 	}
 };
+
 UA_Boolean running = true;
 static void stopHandler(int sig) {
 	UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
@@ -84,7 +78,7 @@ int main()
 
 	UA_ServerConfig config = UA_ServerConfig_standard;
 	config.customDataTypes =customType;
-	config.customDataTypesSize = 2;
+	config.customDataTypesSize = 1;
   
 	UA_ServerNetworkLayer nl =
 		UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
