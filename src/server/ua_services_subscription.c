@@ -404,8 +404,8 @@ subscriptionSendError(UA_SecureChannel *channel, UA_UInt32 requestHandle,
     err_response.responseHeader.requestHandle = requestHandle;
     err_response.responseHeader.timestamp = UA_DateTime_now();
     err_response.responseHeader.serviceResult = error;
-    UA_SecureChannel_sendBinaryMessage(channel, requestId, &err_response,
-                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
+                                          &err_response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 }
 
 void

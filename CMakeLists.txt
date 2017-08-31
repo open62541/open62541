@@ -260,11 +260,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
-                     ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
 )
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
@@ -320,6 +315,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c

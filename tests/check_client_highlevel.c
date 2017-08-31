@@ -58,7 +58,7 @@ static void teardown(void) {
 
 START_TEST(Misc_State) {
     UA_ClientState state = UA_Client_getState(client);
-    ck_assert_uint_eq(state, UA_CLIENTSTATE_CONNECTED);
+    ck_assert_uint_eq(state, UA_CLIENTSTATE_SESSION);
 }
 END_TEST
 

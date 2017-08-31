@@ -11,6 +11,7 @@ extern "C" {
 
 #include "ua_types.h"
 #include "ua_types_generated.h"
+#include "ua_plugin_log.h"
 
 extern const UA_ByteString UA_SECURITY_POLICY_NONE_URI;
 
@@ -18,6 +19,8 @@ struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 typedef struct {
+    UA_String signatureAlgorithmUri;
+
     /* Verifies the signature of the message using the provided keys in the context.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
@@ -46,7 +49,7 @@ typedef struct {
                           const UA_ByteString *message,
                           UA_ByteString *signature);
 
-    /* Gets the signature size that depends on the local private key.
+    /* Gets the signature size that depends on the local (private) key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the channelContext that contains the
@@ -56,20 +59,17 @@ typedef struct {
     size_t (*getLocalSignatureSize)(const UA_SecurityPolicy *securityPolicy,
                                     const void *channelContext);
 
-    /* Gets the signature size that depends on the remote public key.
+    /* Gets the signature size that depends on the remote (public) key.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
      * @param channelContext the context to retrieve data from.
-     * @return the size of the remote asymmetric signature. Returns 0 if no
+     * @return the size of the remote signature. Returns 0 if no
      *         remote certificate was set previousely. */
     size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *securityPolicy,
                                      const void *channelContext);
 
-    /* The signature size in bytes */
-    UA_String signatureAlgorithmUri;
-} UA_SecurityPolicySigningModule;
+    UA_String encryptionAlgorithmUri;
 
-typedef struct {
     /* Encrypt the given data in place using an asymmetric algorithm and keys.
      *
      * @param securityPolicy the securityPolicy the function is invoked on.
@@ -90,7 +90,25 @@ typedef struct {
     UA_StatusCode(*decrypt)(const UA_SecurityPolicy *securityPolicy,
                             const void *channelContext,
                             UA_ByteString *data);
-} UA_SecurityPolicyEncryptingModule;
+
+    /* Returns the length of the key used locally to encrypt messages in bits
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the local key. Returns 0 if no
+     *         key length is known. */
+    size_t (*getLocalEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext);
+
+    /* Returns the length of the key used remotely to encrypt messages in bits
+     *
+     * @param securityPolicy the securityPolicy the function is invoked on.
+     * @param channelContext the context to retrieve data from.
+     * @return the length of the remote key. Returns 0 if no
+     *         key length is known. */
+    size_t (*getRemoteEncryptionKeyLength)(const UA_SecurityPolicy *securityPolicy,
+                                           const void *channelContext);
+} UA_SecurityPolicyCryptoModule;
 
 typedef struct {
     /* Generates a thumprint for the specified certificate.
@@ -115,12 +133,7 @@ typedef struct {
     UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                   const UA_ByteString *certificateThumbprint);
 
-    size_t minAsymmetricKeyLength;
-    size_t maxAsymmetricKeyLength;
-    size_t thumbprintLength;
-
-    UA_SecurityPolicyEncryptingModule encryptingModule;
-    UA_SecurityPolicySigningModule signingModule;
+    UA_SecurityPolicyCryptoModule cryptoModule;
 } UA_SecurityPolicyAsymmetricModule;
 
 typedef struct {
@@ -149,12 +162,9 @@ typedef struct {
     UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *securityPolicy,
                                    UA_ByteString *out);
 
-    UA_SecurityPolicyEncryptingModule encryptingModule;
-    UA_SecurityPolicySigningModule signingModule;
-
+    UA_SecurityPolicyCryptoModule cryptoModule;
+    size_t encryptionBlockSize;
     size_t signingKeyLength;
-    size_t encryptingKeyLength;
-    size_t encryptingBlockSize;
 } UA_SecurityPolicySymmetricModule;
 
 typedef struct {
@@ -243,7 +253,7 @@ typedef struct {
 
     /* Gets the number of bytes that are needed by the encryption function in
      * addition to the length of the plaintext message. This is needed, since
-     * most rsa encryption methods have their own padding mechanism included.
+     * most RSA encryption methods have their own padding mechanism included.
      * This makes the encrypted message larger than the plainText, so we need to
      * have enough room in the buffer for the overhead.
      *
@@ -269,6 +279,8 @@ struct UA_SecurityPolicy {
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
     UA_SecurityPolicySymmetricModule symmetricModule;
     UA_SecurityPolicyChannelModule channelModule;
+
+    UA_Logger logger;
 
     /* Deletes the dynamic content of the policy */
     void (*deleteMembers)(UA_SecurityPolicy *policy);

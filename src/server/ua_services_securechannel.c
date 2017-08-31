@@ -6,28 +6,22 @@
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
 
-void
-Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
-                          const UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
-    /* TODO: if(request->clientProtocolVersion != protocolVersion) */
-
+void Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel* channel,
+                               const UA_OpenSecureChannelRequest *request,
+                               UA_OpenSecureChannelResponse *response) {
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_RENEW) {
         /* Renew the channel */
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_renew(&server->secureChannelManager,
-                                          connection, request, response);
+                                          channel, request, response);
 
         /* Logging */
         if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Connection %i | SecureChannel %i | "
-                         "SecureChannel renewed", connection->sockfd,
-                         response->securityToken.channelId);
+            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                                 "SecureChannel renewed");
         } else {
-            UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                         "Connection %i | Renewing SecureChannel failed",
-                         connection->sockfd);
+            UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                                 "Renewing SecureChannel failed");
         }
         return;
     }
@@ -40,19 +34,16 @@ Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
 
     /* Open the channel */
     response->responseHeader.serviceResult =
-        UA_SecureChannelManager_open(&server->secureChannelManager,
-                                     connection, request, response);
+        UA_SecureChannelManager_open(&server->secureChannelManager, channel,
+                                     request, response);
 
     /* Logging */
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                    "Connection %i | SecureChannel %i | "
-                    "Opened SecureChannel", connection->sockfd,
-                    response->securityToken.channelId);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Opened SecureChannel");
     } else {
-        UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "Connection %i | Opening a SecureChannel failed",
-                     connection->sockfd);
+        UA_LOG_INFO_CHANNEL(server->config.logger, channel,
+                            "Opening a SecureChannel failed");
     }
 }
 
