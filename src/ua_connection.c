@@ -138,7 +138,7 @@ struct completeChunkTrampolineData {
 
 static void
 completeChunkTrampoline(void *application, UA_Connection *connection,
-                        const UA_ByteString *chunk) {
+                        UA_ByteString *chunk) {
     struct completeChunkTrampolineData *data =
         (struct completeChunkTrampolineData*)application;
     data->called = true;
