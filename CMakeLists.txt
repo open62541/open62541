@@ -459,8 +459,8 @@ add_dependencies(lint open62541)
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR} 
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}) 
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 
