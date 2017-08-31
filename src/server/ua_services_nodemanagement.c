@@ -163,12 +163,9 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    // TODO is this if bootstrapNS0 really needed here?
-    if (!server->bootstrapNS0) {
-        retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
-        if (retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
+    retval = compatibleValueRankArrayDimensions(node->valueRank, arrayDims);
+    if (retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Check valueRank against the vt */
     retval = compatibleValueRanks(node->valueRank, vt->valueRank);
@@ -469,7 +466,8 @@ copyChildNodes(UA_Server *server, UA_Session *session,
 /* The node is deleted in the caller when the instantiation fails here */
 static UA_StatusCode
 constructNode(UA_Server *server, UA_Session *session,
-              const UA_Node *node, const UA_NodeId *typeId) {
+              const UA_Node *node, const UA_NodeId *typeId,
+              const UA_NodeId *parentNodeId) {
     /* Currently, only variables and objects are instantiated */
     if(node->nodeClass != UA_NODECLASS_VARIABLE &&
        node->nodeClass != UA_NODECLASS_OBJECT)
@@ -488,8 +486,17 @@ constructNode(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     } else { /* nodeClass == UA_NODECLASS_OBJECT */
         if(typenode->nodeClass != UA_NODECLASS_OBJECTTYPE ||
-           ((const UA_ObjectTypeNode*)typenode)->isAbstract)
-            return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+           ((const UA_ObjectTypeNode*)typenode)->isAbstract) {
+            /* Object node created of an abstract ObjectType. Only allowed if within BaseObjectType folder */
+            const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+            const UA_NodeId refs[] = {
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
+            };
+            if(!isNodeInTree(server->nodestore, parentNodeId,
+                             &objectTypes, refs , 2))
+                return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+        }
     }
 
     /* Get the hierarchy of the type and all its supertypes */
@@ -666,7 +673,7 @@ Service_AddNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *
     }
 
     /* Add children and call the constructor */
-    retval = constructNode(server, session, node, typeDefinition);
+    retval = constructNode(server, session, node, typeDefinition, parentNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Node instantiation failed "

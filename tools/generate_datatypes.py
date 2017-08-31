@@ -337,8 +337,6 @@ def parseTypeDescriptions(f, namespaceid):
             definitions["ExtensionObject"] = TypeDescription(row[0], row[1], namespaceid)
         elif row[0] not in types:
             continue
-        elif type(types[row[0]]) == EnumerationType:
-            definitions[row[0]] = TypeDescription(row[0], "6", namespaceid) # enumerations look like int32 on the wire
         else:
             definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
     return definitions

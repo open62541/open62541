@@ -317,7 +317,8 @@ class NodeSet(object):
         relevant_types = getSubTypesOf(self,
                                        self.getNodeByBrowseName("HierarchicalReferences"),
                                        [])
-        #relevant_types.append(self.getNodeByBrowseName("HasEncoding"))
-        #relevant_types.append(self.getNodeByBrowseName("HasTypeDefinition"))
+        relevant_types += getSubTypesOf(self,
+                                        self.getNodeByBrowseName("HasEncoding"),
+                                        [])
         relevant_types = map(lambda x: x.id, relevant_types)
         return relevant_types

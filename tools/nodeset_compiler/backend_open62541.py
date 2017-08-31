@@ -71,7 +71,6 @@ def reorderNodesMinDependencies(nodeset):
     # determine in-degree
     in_degree = {u.id: 0 for u in nodeset.nodes.values()}
     dataType_refs = {}
-    varType_refs = {}
     hiddenCount = 0
     for u in nodeset.nodes.values():  # of each node
         if u.hidden:
@@ -86,8 +85,6 @@ def reorderNodesMinDependencies(nodeset):
         if hasTypeDef is not None and not nodeset.nodes[hasTypeDef].hidden:
             # we cannot print the node u because it first needs the variable type node
             in_degree[u.id] += 1
-            # to be able to decrement the in_degree count, we need to store it here
-            addTypeRef(nodeset, varType_refs,hasTypeDef, u.id)
 
         if isinstance(u, VariableNode) and u.dataType is not None:
             dataTypeNode = nodeset.getDataTypeNode(u.dataType)
@@ -128,17 +125,12 @@ def reorderNodesMinDependencies(nodeset):
                         Q.append(nodeset.nodes[n])
                 del dataType_refs[u.id]
 
-        if u.id in varType_refs:
-            for ref in u.inverseReferences:
-                if ref.referenceType.i == 40:
-                    for n in varType_refs[u.id]:
-                        if not nodeset.nodes[n].hidden:
-                            in_degree[n] -= 1
-                        if in_degree[n] == 0:
-                            Q.append(nodeset.nodes[n])
-            del varType_refs[u.id]
-
-
+        for ref in u.inverseReferences:
+            if ref.referenceType.i == 40:
+                if not nodeset.nodes[ref.target].hidden:
+                    in_degree[ref.target] -= 1
+                if in_degree[ref.target] == 0:
+                    Q.append(nodeset.nodes[ref.target])
 
         for ref in u.references:
             if (ref.referenceType in relevant_types and ref.isForward):
@@ -214,7 +206,6 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 """ % (outfilebase, outfilebase))
 
     parentrefs = getSubTypesOf(nodeset, nodeset.getNodeByBrowseName("HierarchicalReferences"))
-    parentrefs.append(nodeset.getNodeByBrowseName("HasEncoding"))
     parentrefs = map(lambda x: x.id, parentrefs)
 
     # Generate namespaces (don't worry about duplicates)
@@ -234,6 +225,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
             code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset)
             if code is None:
                 writec("/* Ignored. No parent */")
+                nodeset.hide_node(node.id)
                 continue
             else:
                 writec(code)
