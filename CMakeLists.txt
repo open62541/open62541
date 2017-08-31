@@ -612,9 +612,9 @@ set(open62541_deps_dir include/open62541/deps)
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         EXPORT open62541Targets
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
         INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
 
 include(CMakePackageConfigHelpers)
