@@ -26,6 +26,8 @@ set(OPEN62541_VER_MINOR 3)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
+
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
@@ -148,7 +150,7 @@ if(NOT WIN32)
     list(APPEND open62541_LIBRARIES stdc++)
   else()
     list(APPEND open62541_LIBRARIES pthread m)
-    if(NOT APPLE)
+    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
       list(APPEND open62541_LIBRARIES rt)
     endif()
   endif()
@@ -179,7 +181,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wundef
                     -Wc++-compat)
 
-    if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
+    if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     endif()
 
@@ -449,6 +451,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
                            ${UA_FILE_TYPES_BSD}
                            ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -493,7 +496,7 @@ add_dependencies(open62541-amalgamation-source open62541-generator-types
 
 
 set(NODESET_MAX_STR_LEN 0)
-if (MSVC)
+if(MSVC)
     # Visual Studio has a maximum string length of 65535 bytes
     set(NODESET_MAX_STR_LEN 65535)
 endif()
@@ -547,8 +550,7 @@ if(UA_ENABLE_AMALGAMATION)
                      open62541-generator-types
                      open62541-generator-transport
                      open62541-generator-statuscode
-                     open62541-amalgamation-source
-                     )
+                     open62541-amalgamation-source)
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
