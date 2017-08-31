@@ -42,6 +42,7 @@ START_TEST(processMessage) {
         UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);

@@ -51,40 +51,67 @@ typedef struct UA_ClientConfig {
 /**
  * Client Lifecycle
  * ---------------- */
+
 typedef enum {
-     UA_CLIENTSTATE_READY,     /* The client is not connected but initialized
-                                  and ready to use. */
-     UA_CLIENTSTATE_CONNECTED, /* The client is connected to a server. */
-     UA_CLIENTSTATE_FAULTED,   /* An error has occured that might have
-                                  influenced the connection state. A successfull
-                                  service call or renewal of the secure channel
-                                  will reset the state to CONNECTED. */
-     UA_CLIENTSTATE_ERRORED    /* A non-recoverable error has occured and the
-                                  connection is no longer reliable. The client
-                                  needs to be disconnected and reinitialized to
-                                  recover into a CONNECTED state. */
+    UA_CLIENTSTATE_DISCONNECTED,        /* The client is not connected */
+    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
+    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
+    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
+    UA_CLIENTSTATE_SESSION_DISCONNECTED /* A session with the server is open.
+                                         * But the SecureChannel was lost. Try
+                                         * to establish a new SecureChannel and
+                                         * reattach the existing session. */
 } UA_ClientState;
 
 struct UA_Client;
 typedef struct UA_Client UA_Client;
 
-/* Create a new client
- *
- * @param config for the new client. You can use UA_ClientConfig_default
- *        which has sane defaults
- * @param logger function pointer to a logger function. See
- *        examples/logger_stdout.c for a simple implementation
- * @return return the new Client object */
-UA_Client UA_EXPORT * UA_Client_new(UA_ClientConfig config);
+/* Create a new client */
+UA_Client UA_EXPORT *
+UA_Client_new(UA_ClientConfig config);
 
 /* Get the client connection status */
-UA_ClientState UA_EXPORT UA_Client_getState(UA_Client *client);
+UA_ClientState UA_EXPORT
+UA_Client_getState(UA_Client *client);
 
 /* Reset a client */
-void UA_EXPORT UA_Client_reset(UA_Client *client);
+void UA_EXPORT
+UA_Client_reset(UA_Client *client);
 
 /* Delete a client */
-void UA_EXPORT UA_Client_delete(UA_Client *client);
+void UA_EXPORT
+UA_Client_delete(UA_Client *client);
+
+/**
+ * Connect to a Server
+ * ------------------- */
+
+/* Connect to the server
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect(UA_Client *client, const char *endpointUrl);
+
+/* Connect to the selected server with the given username and password
+ *
+ * @param client to use
+ * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
+ * @param username
+ * @param password
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
+                           const char *username, const char *password);
+
+/* Close a connection to the selected server */
+UA_StatusCode UA_EXPORT
+UA_Client_disconnect(UA_Client *client);
+
+/* Renew the underlying secure channel */
+UA_StatusCode UA_EXPORT
+UA_Client_manuallyRenewSecureChannel(UA_Client *client);
 
 /**
  * Discovery
@@ -151,38 +178,9 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
-                     UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
-                     size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
-                     size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
-
-/**
- * Manage the Connection
- * --------------------- */
-
-/* Connect to the selected server
- *
- * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Client_connect(UA_Client *client, const char *endpointUrl);
-
-/* Connect to the selected server with the given username and password
- *
- * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
- * @param username
- * @param password
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
-                           const char *username, const char *password);
-
-/* Close a connection to the selected server */
-UA_StatusCode UA_EXPORT UA_Client_disconnect(UA_Client *client);
-
-/* Renew the underlying secure channel */
-UA_StatusCode UA_EXPORT UA_Client_manuallyRenewSecureChannel(UA_Client *client);
+                               UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
+                               size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
+                               size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
 
 /**
  * .. _client-services:

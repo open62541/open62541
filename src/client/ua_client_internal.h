@@ -8,9 +8,9 @@
 #include "ua_securechannel.h"
 #include "queue.h"
 
-/**************************/
-/* Subscriptions Handling */
-/**************************/
+ /**************************/
+ /* Subscriptions Handling */
+ /**************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -29,9 +29,9 @@ typedef struct UA_Client_MonitoredItem {
     UA_Double samplingInterval;
     UA_UInt32 queueSize;
     UA_Boolean discardOldest;
-    void (*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
+    void(*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
     void *handlerContext;
-    void (*handlerEvents)(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
+    void(*handlerEvents)(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
     void *handlerEventsContext;
 } UA_Client_MonitoredItem;
 
@@ -77,6 +77,7 @@ struct UA_Client {
     UA_String endpointUrl;
 
     /* SecureChannel */
+    UA_SecurityPolicy securityPolicy;
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
@@ -93,7 +94,7 @@ struct UA_Client {
 
     /* Async Service */
     LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
-    
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 monitoredItemHandles;
@@ -102,21 +103,12 @@ struct UA_Client {
 #endif
 };
 
-/* Connect to the selected server.
- * This will not create a session.
- *
- * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:16664")
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Client_connect_no_session(UA_Client *client, const char *endpointUrl);
+UA_StatusCode
+UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
+                          UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, const char *endpointUrl,
-                    UA_Boolean endpointsHandshake, UA_Boolean createSession);
-
-UA_StatusCode
-__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
-                         UA_EndpointDescription** endpointDescriptions);
+UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSize,
+                               UA_EndpointDescription** endpointDescriptions);
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

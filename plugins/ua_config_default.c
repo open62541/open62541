@@ -217,7 +217,7 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     UA_ByteString localCertificate = UA_BYTESTRING_NULL;
     if(certificate)
         localCertificate = *certificate;
-    UA_StatusCode retval =
+    retval =
         createSecurityPolicyNoneEndpoint(conf, &conf->endpoints[0], localCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_delete(conf);

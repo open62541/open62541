@@ -10,11 +10,12 @@ extern "C" {
 #endif
 
 #include "ua_plugin_network.h"
+#include "ua_transport_generated.h"
 
 /* The application can be the client or the server */
-typedef void (*UA_Connection_processChunk)(void *application,
-                                           UA_Connection *connection,
-                                           UA_ByteString *chunk);
+typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
+                                                    UA_Connection *connection,
+                                                    UA_ByteString *chunk);
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. This method calls the processChunk callback on all full chunks that
@@ -51,6 +52,15 @@ UA_StatusCode
 UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application,
                                     UA_Connection_processChunk processCallback,
                                     UA_UInt32 timeout);
+
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_Connection_sendError(UA_Connection *connection,
+                        UA_TcpErrorMessage *error);
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_Connection_attachSecureChannel(UA_Connection *connection,

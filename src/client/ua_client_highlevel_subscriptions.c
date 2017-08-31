@@ -399,7 +399,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
 UA_StatusCode
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
-    if (client->state == UA_CLIENTSTATE_ERRORED)
+    if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_Boolean moreNotifications = true;
@@ -412,8 +412,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
             ++request.subscriptionAcknowledgementsSize;
         if(request.subscriptionAcknowledgementsSize > 0) {
-            request.subscriptionAcknowledgements =
-                (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
+            request.subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
                 return UA_STATUSCODE_BADOUTOFMEMORY;
         }

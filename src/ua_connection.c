@@ -7,10 +7,54 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_types_generated_encoding_binary.h"
 #include "ua_types_generated_handling.h"
+#include "ua_transport_generated_encoding_binary.h"
 #include "ua_securechannel.h"
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
+}
+
+/* Hides somme errors before sending them to a client according to the
+ * standard. */
+static void
+hideErrors(UA_TcpErrorMessage *const error) {
+    switch(error->error) {
+    case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
+        error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        error->reason = UA_STRING_NULL;
+        break;
+    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+        error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        error->reason = UA_STRING_NULL;
+        break;
+        // TODO: Check if these are all cases that need to be covered.
+    default:
+        break;
+    }
+}
+
+void
+UA_Connection_sendError(UA_Connection *connection, UA_TcpErrorMessage *error) {
+    hideErrors(error);
+
+    UA_TcpMessageHeader header;
+    header.messageTypeAndChunkType = UA_MESSAGETYPE_ERR + UA_CHUNKTYPE_FINAL;
+    // Header + ErrorMessage (error + reasonLength_field + length)
+    header.messageSize = 8 + (4 + 4 + (UA_UInt32)error->reason.length);
+
+    /* Get the send buffer from the network layer */
+    UA_ByteString msg = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = connection->getSendBuffer(connection, header.messageSize, &msg);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    /* Encode and send the response */
+    UA_Byte *bufPos = msg.data;
+    const UA_Byte *bufEnd = &msg.data[msg.length];
+    UA_TcpMessageHeader_encodeBinary(&header, &bufPos, &bufEnd);
+    UA_TcpErrorMessage_encodeBinary(error, &bufPos, &bufEnd);
+    msg.length = header.messageSize;
+    connection->send(connection, &msg);
 }
 
 static UA_StatusCode
@@ -41,62 +85,58 @@ bufferIncompleteChunk(UA_Connection *connection, const UA_Byte *pos, const UA_By
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_Boolean
+static UA_StatusCode
 processChunk(UA_Connection *connection, void *application,
              UA_Connection_processChunk processCallback,
-             const UA_Byte **posp, const UA_Byte *end) {
+             const UA_Byte **posp, const UA_Byte *end, UA_Boolean *done) {
     const UA_Byte *pos = *posp;
     size_t length = (uintptr_t)end - (uintptr_t)pos;
 
     /* At least 8 byte needed for the header. Wait for the next chunk. */
     if(length < 8) {
         bufferIncompleteChunk(connection, pos, end);
-        return true;
+        *done = true;
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Check the message type */
-    UA_UInt32 msgtype = (UA_UInt32)pos[0] +
-                       ((UA_UInt32)pos[1] << 8) +
-                       ((UA_UInt32)pos[2] << 16);
-    if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
-       msgtype != ('E' + ('R' << 8) + ('R' << 16)) &&
-       msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
-       msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
-       msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
-       msgtype != ('C' + ('L' << 8) + ('O' << 16))) {
+    UA_MessageType msgtype = (UA_MessageType)((UA_UInt32)pos[0] + ((UA_UInt32)pos[1] << 8) +
+        ((UA_UInt32)pos[2] << 16));
+    if(msgtype != UA_MESSAGETYPE_MSG && msgtype != UA_MESSAGETYPE_ERR &&
+       msgtype != UA_MESSAGETYPE_OPN && msgtype != UA_MESSAGETYPE_HEL &&
+       msgtype != UA_MESSAGETYPE_ACK && msgtype != UA_MESSAGETYPE_CLO) {
         /* The message type is not recognized */
-        return true;
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
     UA_Byte isFinal = pos[3];
     if(isFinal != 'C' && isFinal != 'F' && isFinal != 'A') {
         /* The message type is not recognized */
-        return true;
+        return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
     UA_UInt32 chunk_length = 0;
-    UA_ByteString temp = {8, (UA_Byte*)(uintptr_t)pos}; /* At least 8 byte left */
+    UA_ByteString temp = { 8, (UA_Byte*)(uintptr_t)pos }; /* At least 8 byte left */
     size_t temp_offset = 4;
     /* Decoding the UInt32 cannot fail */
     UA_UInt32_decodeBinary(&temp, &temp_offset, &chunk_length);
 
     /* The message size is not allowed */
     if(chunk_length < 16 || chunk_length > connection->localConf.recvBufferSize)
-        return true;
+        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
     /* Wait for the next packet to process the complete chunk */
     if(chunk_length > length) {
         bufferIncompleteChunk(connection, pos, end);
-        return true;
+        *done = true;
+        return UA_STATUSCODE_GOOD;
     }
 
-    /* Process the chunk */
+    /* Process the chunk; forward the position pointer */
     temp.length = chunk_length;
-    processCallback(application, connection, &temp);
-
-    /* Continue to the next chunk */
     *posp += chunk_length;
-    return false;
+    *done = false;
+    return processCallback(application, connection, &temp);
 }
 
 UA_StatusCode
@@ -108,8 +148,9 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
      * message and the buffer is released if allocating the memory fails. */
     UA_Boolean realloced = false;
     UA_ByteString message = *packet;
+    UA_StatusCode retval;
     if(connection->incompleteMessage.length > 0) {
-        UA_StatusCode retval = prependIncompleteChunk(connection, &message);
+        retval = prependIncompleteChunk(connection, &message);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         realloced = true;
@@ -118,14 +159,15 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     /* Loop over the received chunks. pos is increased with each chunk. */
     const UA_Byte *pos = message.data;
     const UA_Byte *end = &message.data[message.length];
-    UA_Boolean done;
+    UA_Boolean done = true;
     do {
-        done = processChunk(connection, application, processCallback, &pos, end);
-    } while(!done);
+        retval = processChunk(connection, application, processCallback,
+                              &pos, end, &done);
+    } while(!done && retval == UA_STATUSCODE_GOOD);
 
     if(realloced)
         UA_ByteString_deleteMembers(&message);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* In order to know whether a chunk was processed, we insert an indirection into
@@ -136,13 +178,13 @@ struct completeChunkTrampolineData {
     UA_Connection_processChunk processCallback;
 };
 
-static void
+static UA_StatusCode
 completeChunkTrampoline(void *application, UA_Connection *connection,
                         UA_ByteString *chunk) {
     struct completeChunkTrampolineData *data =
         (struct completeChunkTrampolineData*)application;
     data->called = true;
-    data->processCallback(data->application, connection, chunk);
+    return data->processCallback(data->application, connection, chunk);
 }
 
 UA_StatusCode
