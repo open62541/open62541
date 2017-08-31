@@ -14,7 +14,7 @@ extern "C" {
 /* The application can be the client or the server */
 typedef void (*UA_Connection_processChunk)(void *application,
                                            UA_Connection *connection,
-                                           const UA_ByteString *chunk);
+                                           UA_ByteString *chunk);
 
 /* The network layer may receive chopped up messages since TCP is a streaming
  * protocol. This method calls the processChunk callback on all full chunks that
