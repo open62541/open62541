@@ -476,7 +476,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            --generate-ns0
-                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_Blacklist_FullNS0.txt
+                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_NAMESPACE0_XML}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
                    DEPENDS ${UA_NAMESPACE0_XML}
