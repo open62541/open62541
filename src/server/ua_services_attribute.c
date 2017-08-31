@@ -261,9 +261,17 @@ typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
-    /* Has the value a subtype of the required type? BaseDataType (Variant) can
-     * be anything... */
-    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId)) {
+    /* Has the value a subtype of the required type? BaseDataType (Variant)
+     * can be anything...
+     * If value is a built-in type:
+     * The target data type may be a sub type of the built-in type.
+     * (e.g. UtcTime is sub-type of DateTime and has a DateTime value) */
+    const UA_NodeId subtypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    if(!compatibleDataType(server, &value->type->typeId, targetDataTypeId)
+            && (value->type->builtin ?
+                    !isNodeInTree(server->nodestore, targetDataTypeId,
+                                  &value->type->typeId, &subtypeId, 1) :
+                    true)) {
         /* Convert to a matching value if possible */
         if(!editableValue)
             return UA_STATUSCODE_BADTYPEMISMATCH;
