@@ -6,7 +6,7 @@ License:  Mozilla 2.0
 URL:      http://open62541.org
 Source0:  https://github.com/open62541/open62541/archive/v%{version}.tar.gz
 
-BuildRequires: cmake
+BuildRequires: cmake, python2
 
 %description
 Open 62541
