@@ -1,15 +1,17 @@
 Name:     open62541
 Version:  0.2
 Release:  1%{?dist}
-Summary:  Open 62541
-License:  Mozilla 2.0
+Summary:  OPC UA implementation
+License:  MPLv2.0
 URL:      http://open62541.org
 Source0:  https://github.com/open62541/open62541/archive/v%{version}.tar.gz
 
 BuildRequires: cmake, python2
 
 %description
-Open 62541
+open62541 is a C-based library (linking with C++ projects is possible)
+with all necessary tools to implement dedicated OPC UA clients and servers,
+or to integrate OPC UA-based communication into existing applications.
 
 %package  devel
 Summary:  Development files for %{name}
@@ -43,3 +45,4 @@ make %{?_smp_mflags}
 %changelog
 * Thu Aug 31 2017 Jens Reimann <jreimann@redhat.com> - 0.2-1
 - Initial version of the package
+
