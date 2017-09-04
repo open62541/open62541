@@ -382,9 +382,10 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    -1,                          /* valueRank */
     0, NULL,                     /* arrayDimensions */
-    UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
+    UA_ACCESSLEVELMASK_READ,     /* accessLevel */
+    UA_ACCESSLEVELMASK_READ,     /* userAccessLevel */
     0.0,                         /* minimumSamplingInterval */
     false                        /* historizing */
 };
@@ -414,7 +415,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
      0, NULL, 0, NULL},          /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
-    -2,                          /* valueRank */
+    -1,                          /* valueRank */
     0, NULL,                     /* arrayDimensions */
     false                        /* isAbstract */
 };
