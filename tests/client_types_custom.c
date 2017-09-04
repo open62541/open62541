@@ -1,3 +1,5 @@
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 // client_types_custom.cpp : Defines the entry point for the console application.
 //
 
