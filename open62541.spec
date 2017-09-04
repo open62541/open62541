@@ -26,7 +26,7 @@ developing applications that use %{name}.
 
 %build
 %cmake -DUA_ENABLE_AMALGAMATION=ON .
-make %{?_smp_mflags}
+make
 
 %install
 %make_install
