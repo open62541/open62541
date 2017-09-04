@@ -4,9 +4,9 @@ Release:  1%{?dist}
 Summary:  OPC UA implementation
 License:  MPLv2.0
 URL:      http://open62541.org
-Source0:  https://github.com/ctron/open62541/archive/rpm-%{version}.tar.gz
+Source0:  https://github.com/ctron/open62541/archive/%{name}-%{version}.tar.gz
 
-BuildRequires: cmake, python2
+BuildRequires: cmake, python
 
 %description
 open62541 is a C-based library (linking with C++ projects is possible)
@@ -31,16 +31,23 @@ make %{?_smp_mflags}
 %install
 %make_install
 
+# Remove this from the examples installation
+rm examples/CMakeLists.txt
+
 %post -p /sbin/ldconfig
 
 %postun -p /sbin/ldconfig
 
 %files
+%license LICENSE LICENSE-CC0
+%doc AUTHORS CHANGELOG README.md
 %{_libdir}/libopen62541.so.*
 
 %files devel
 %{_libdir}/libopen62541.so
 %{_includedir}/open62541.h
+%doc FEATURES.md
+%doc examples/
 
 %changelog
 * Thu Aug 31 2017 Jens Reimann <jreimann@redhat.com> - 0.2-1
