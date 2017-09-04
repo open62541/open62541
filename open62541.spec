@@ -4,7 +4,7 @@ Release:  1%{?dist}
 Summary:  OPC UA implementation
 License:  MPLv2.0
 URL:      http://open62541.org
-Source0:  https://github.com/open62541/open62541/archive/v%{version}.tar.gz
+Source0:  https://github.com/ctron/open62541/archive/rpm-%{version}.tar.gz
 
 BuildRequires: cmake, python2
 
@@ -15,17 +15,17 @@ or to integrate OPC UA-based communication into existing applications.
 
 %package  devel
 Summary:  Development files for %{name}
-Requires: %{name} = %{version}-%{release}
+Requires: %{name}%{?_isa} = %{version}-%{release}
 
 %description devel
 The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}.
 
 %prep
-%setup -q
+%setup -q -n %{name}-rpm-%{version}
 
 %build
-%cmake .
+%cmake -DUA_ENABLE_AMALGAMATION=ON .
 make %{?_smp_mflags}
 
 %install
@@ -36,10 +36,10 @@ make %{?_smp_mflags}
 %postun -p /sbin/ldconfig
 
 %files
-%{_libdir}/libopen62541.so
 %{_libdir}/libopen62541.so.*
 
 %files devel
+%{_libdir}/libopen62541.so
 %{_includedir}/open62541.h
 
 %changelog
