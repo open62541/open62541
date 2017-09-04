@@ -4,7 +4,7 @@ Release:  1%{?dist}
 Summary:  OPC UA implementation
 License:  MPLv2.0
 URL:      http://open62541.org
-Source0:  https://github.com/ctron/open62541/archive/v%{version}.tar.gz
+Source0:  https://github.com/ctron/open62541/archive/%{name}-%{version}.tar.gz
 
 BuildRequires: cmake, python
 
@@ -22,7 +22,7 @@ The %{name}-devel package contains libraries and header files for
 developing applications that use %{name}.
 
 %prep
-%setup -q -n %{name}-rpm-%{version}
+%setup -q -n %{name}-%{name}-%{version} # double-name prefix by GitHub
 
 %build
 %cmake -DUA_ENABLE_AMALGAMATION=ON .
