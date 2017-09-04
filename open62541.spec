@@ -39,11 +39,12 @@ rm examples/CMakeLists.txt
 %postun -p /sbin/ldconfig
 
 %files
-%license LICENSE LICENSE-CC0
+%license LICENSE
 %doc AUTHORS CHANGELOG README.md
 %{_libdir}/libopen62541.so.*
 
 %files devel
+%license LICENSE LICENSE-CC0
 %{_libdir}/libopen62541.so
 %{_includedir}/open62541.h
 %doc FEATURES.md
