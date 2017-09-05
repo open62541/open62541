@@ -62,6 +62,7 @@ addVariable(UA_Server *server) {
     vAttr.arrayDimensions = arrayDims;
     vAttr.arrayDimensionsSize = 1;
     vAttr.displayName = UA_LOCALIZEDTEXT("en_US", "2DPoint Variable");
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     /* vAttr.value is left empty, the server instantiates with the default value */
 
     /* Add the node */
