@@ -318,8 +318,7 @@ Let's look at an example that will create a pump instance given the newly define
 
       UA_NodeId createdNodeId;
       UA_Int32 myHandle = 42;
-      UA_ObjectAttributes object_attr;
-      UA_ObjectAttributes_init(&object_attr);
+      UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
       
       object_attr.description = UA_LOCALIZEDTEXT("en_US","A pump!");
       object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Pump1");
