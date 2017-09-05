@@ -7,7 +7,7 @@
 #include "ua_log_stdout.h"
 #include "ua_config_default.h"
 
-/* Files nodeset.h and nodeset.c are created from server_nodeset.xml in the
+/* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
 #include "example_nodeset.h"
 
@@ -35,7 +35,6 @@ int main(int argc, char** argv) {
         UA_ServerConfig_delete(config);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
