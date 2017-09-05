@@ -112,7 +112,6 @@ option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
-option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)

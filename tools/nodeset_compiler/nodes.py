@@ -166,6 +166,9 @@ class Node(object):
     def replaceNamespaces(self, nsMapping):
         self.id.ns = nsMapping[self.id.ns]
         self.browseName.ns = nsMapping[self.browseName.ns]
+        if hasattr(self, 'dataType') and isinstance(self.dataType, NodeId):
+            self.dataType.ns = nsMapping[self.dataType.ns]
+
         new_refs = set()
         for ref in self.references:
             ref.source.ns = nsMapping[ref.source.ns]
@@ -225,7 +228,7 @@ class VariableNode(Node):
         Node.__init__(self)
         self.nodeClass = NODE_CLASS_VARIABLE
         self.dataType = NodeId()
-        self.valueRank = -1
+        self.valueRank = -2
         self.arrayDimensions = []
         # Set access levels to read by default
         self.accessLevel = 1
