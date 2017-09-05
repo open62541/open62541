@@ -28,8 +28,7 @@ int main() {
     UA_Server *server = UA_Server_new(config);
 
     // add a variable node to the adresspace
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     attr.description = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
