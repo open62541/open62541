@@ -462,6 +462,13 @@ add_dependencies(open62541-amalgamation-header open62541-generator-types)
 add_dependencies(open62541-amalgamation-source open62541-generator-types
                  open62541-generator-transport open62541-generator-statuscode)
 
+
+set(NODESET_MAX_STR_LEN 0)
+if ( (MSVC) AND (MSVC_VERSION LESS 1600))
+    # Visual Studio 2008 has a maximum string length of 65535 bytes
+    set(NODESET_MAX_STR_LEN 65535)
+endif()
+
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
@@ -469,6 +476,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            --generate-ns0
                            --internal-headers
+                           --max-string-length=${NODESET_MAX_STR_LEN}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_NAMESPACE0_XML}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
