@@ -58,10 +58,7 @@ if is_c:
 else:
     file.write(u'''#ifndef %s
 #define %s
-
-#ifdef __cplusplus
-extern "C" {
-#endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
+''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
     with io.open(fname, encoding='utf8', errors='replace') as infile:
@@ -78,12 +75,7 @@ for fname in args.inputs:
         print ("done."),
 
 if not is_c:
-    file.write(u'''
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /* %s */\n''' % (outname.upper() + u"_H_"))
+    file.write(u"#endif /* %s */\n" % (outname.upper() + u"_H_"))
 
 # Ensure file is written to disk.
 # See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close
