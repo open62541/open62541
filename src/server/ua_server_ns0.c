@@ -598,7 +598,9 @@ UA_Server_initNS0(UA_Server *server) {
 #endif
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
                                     profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    UA_Array_delete(profileArray, 4, &UA_TYPES[UA_TYPES_STRING]);
+    for (int i=0; i<4; i++) {
+        UA_String_deleteMembers(&profileArray[i]);
+    }
 
     /* MaxQueryContinuationPoints */
     UA_UInt16 maxQueryContinuationPoints = 0;

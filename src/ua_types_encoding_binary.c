@@ -855,8 +855,8 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 /* The binary encoding has a different nodeid from the data type. So it is not
  * possible to reuse UA_findDataType */
-static const UA_DataType *
-findDataTypeByBinary(const UA_NodeId *typeId) {
+const UA_DataType *
+UA_findDataTypeByBinary(const UA_NodeId *typeId) {
     /* We only store a numeric identifier for the encoding nodeid of data types */
     if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
@@ -943,7 +943,7 @@ ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_
 static UA_StatusCode
 ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *typeId) {
     /* Lookup the datatype */
-    const UA_DataType *type = findDataTypeByBinary(typeId);
+    const UA_DataType *type = UA_findDataTypeByBinary(typeId);
 
     /* Unknown type, just take the binary content */
     if(!type) {
@@ -1106,7 +1106,7 @@ Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst) {
 
     /* Search for the datatype. Default to ExtensionObject. */
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       (dst->type = findDataTypeByBinary(&typeId)) != NULL) {
+       (dst->type = UA_findDataTypeByBinary(&typeId)) != NULL) {
         /* Jump over the length field (TODO: check if length matches) */
         pos += 4; 
     } else {

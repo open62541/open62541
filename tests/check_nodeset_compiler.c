@@ -42,7 +42,7 @@ END_TEST
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
     TCase *tc_server = tcase_create("Server DI and ADI nodeset");
-    tcase_add_checked_fixture(tc_server, setup, teardown);
+    tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addDiNodeset);
     tcase_add_test(tc_server, Server_addAdiNodeset);
     suite_add_tcase(s, tc_server);

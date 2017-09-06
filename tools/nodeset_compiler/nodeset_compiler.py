@@ -51,6 +51,11 @@ parser.add_argument('--generate-ns0',
                     dest="generate_ns0",
                     help='Omit some consistency checks for bootstrapping namespace 0, create references to parents and type definitions manually')
 
+parser.add_argument('--internal-headers',
+                    action='store_true',
+                    dest="internal_headers",
+                    help='Include internal headers instead of amalgamated header')
+
 parser.add_argument('-b', '--blacklist',
                     metavar="<blacklistFile>",
                     type=argparse.FileType('r'),
@@ -176,5 +181,5 @@ ns.allocateVariables()
 
 # Create the C code with the open62541 backend of the compiler
 logger.info("Generating Code")
-generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0, args.typesArray)
+generateOpen62541Code(ns, args.outputFile, args.suppressedAttributes, args.generate_ns0, args.internal_headers, args.typesArray)
 logger.info("NodeSet generation code successfully printed")
