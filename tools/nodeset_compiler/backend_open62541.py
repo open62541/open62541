@@ -153,7 +153,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[]):
+def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = open(outfilename + ".h", r"w+")
@@ -228,7 +228,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset)
+            code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length)
             if code is None:
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
