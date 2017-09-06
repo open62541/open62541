@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
-# include "open62541.h"
+#include "open62541.h"
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
@@ -18,8 +18,7 @@ static void stopHandler(int sign) {
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
-
-    /* initialize the server */
+    
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
@@ -31,6 +30,7 @@ int main(int argc, char** argv) {
         UA_ServerConfig_delete(config);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
+    
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);

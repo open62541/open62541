@@ -236,6 +236,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
                    ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   --internal-headers
                    --types-array=UA_TYPES
                    --types-array=UA_TYPES_DI
                    --existing ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
@@ -259,6 +260,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi.c
                    ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   --internal-headers
                    --types-array=UA_TYPES
                    --types-array=UA_TYPES_DI
                    --types-array=UA_TYPES_ADI
