@@ -2,10 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <signal.h>
-#include "ua_server.h"
-#include "ua_plugin_log.h"
-#include "ua_log_stdout.h"
-#include "ua_config_default.h"
+#include "open62541.h"
 
 /* Files example_namespace.h and example_namespace.c are created from server_nodeset.xml in the
  * /src_generated directory by CMake */
@@ -21,8 +18,7 @@ static void stopHandler(int sign) {
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
-
-    /* initialize the server */
+    
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 

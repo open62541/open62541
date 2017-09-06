@@ -247,10 +247,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
 
-include_directories(${PROJECT_BINARY_DIR}/src_generated
-                    ${PROJECT_SOURCE_DIR}/include
+include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the default config
-                    ${PROJECT_SOURCE_DIR}/deps)
+                    ${PROJECT_SOURCE_DIR}/deps
+                    ${PROJECT_BINARY_DIR}
+                    ${PROJECT_BINARY_DIR}/src_generated)
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
@@ -473,6 +474,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           --internal-headers
                            --generate-ns0
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
                            --xml ${UA_NAMESPACE0_XML}

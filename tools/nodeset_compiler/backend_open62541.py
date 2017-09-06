@@ -153,7 +153,7 @@ def reorderNodesMinDependencies(nodeset):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, typesArray=[]):
+def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[]):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = open(outfilename + ".h", r"w+")
@@ -179,7 +179,9 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 
 #ifndef %s_H_
 #define %s_H_
-
+""" % (outfilebase.upper(), outfilebase.upper()))
+    if internal_headers:
+        writeh("""
 #ifdef UA_NO_AMALGAMATION
 #include "ua_types.h"
 #include "ua_server.h"
@@ -188,12 +190,16 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
 #else
 #include "open62541.h"
 #endif
-    
+""" % (additionalHeaders))
+    else:
+        writeh("""
+#include "open62541.h"
+""")
+    writeh("""
 extern UA_StatusCode %s(UA_Server *server);
 
 #endif /* %s_H_ */""" % \
-           (outfilebase.upper(), outfilebase.upper(), additionalHeaders,
-            outfilebase, outfilebase.upper()))
+           (outfilebase, outfilebase.upper()))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
