@@ -123,8 +123,7 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new(config);
 
     /* add a static variable node to the server */
-    UA_VariableAttributes myVar;
-    UA_VariableAttributes_init(&myVar);
+    UA_VariableAttributes myVar = UA_VariableAttributes_default;
     myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -142,8 +141,7 @@ int main(int argc, char** argv) {
     UA_DataSource dateDataSource;
     dateDataSource.read = readTimeData;
     dateDataSource.write = NULL;
-    UA_VariableAttributes v_attr;
-    UA_VariableAttributes_init(&v_attr);
+    UA_VariableAttributes v_attr = UA_VariableAttributes_default;
     v_attr.description = UA_LOCALIZEDTEXT("en-US","current time");
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US","current time");
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -172,8 +170,7 @@ int main(int argc, char** argv) {
     outputArguments.name = UA_STRING("greeting");
     outputArguments.valueRank = -1;
 
-    UA_MethodAttributes addmethodattributes;
-    UA_MethodAttributes_init(&addmethodattributes);
+    UA_MethodAttributes addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "Hello World");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
@@ -192,8 +189,7 @@ int main(int argc, char** argv) {
 #define MATRIXID 50003
 #define DEPTHID 50004
 
-    UA_ObjectAttributes object_attr;
-    UA_ObjectAttributes_init(&object_attr);
+    UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
     object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Demo");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
@@ -227,8 +223,7 @@ int main(int argc, char** argv) {
         if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
             continue;
 
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.valueRank = -2;
         attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPENAMES
@@ -326,7 +321,7 @@ int main(int argc, char** argv) {
 #ifdef UA_ENABLE_METHODCALLS
     /* adding some more method nodes to pass CTT */
     /* Method without arguments */
-    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "noarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
@@ -338,7 +333,7 @@ int main(int argc, char** argv) {
         0, NULL, 0, NULL, NULL, NULL);
 
     /* Method with in arguments */
-    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
@@ -357,7 +352,7 @@ int main(int argc, char** argv) {
         1, &inputArguments, 0, NULL, NULL, NULL);
 
     /* Method with out arguments */
-    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "outarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
@@ -376,7 +371,7 @@ int main(int argc, char** argv) {
         0, NULL, 1, &outputArguments, NULL, NULL);
 
     /* Method with inout arguments */
-    UA_MethodAttributes_init(&addmethodattributes);
+    addmethodattributes = UA_MethodAttributes_default;
     addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inoutarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;

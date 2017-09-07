@@ -81,8 +81,7 @@ int main(int argc, char **argv) {
     UA_DataSource dateDataSource;
     dateDataSource.read = readInteger;
     dateDataSource.write = writeInteger;
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", "the answer");
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
 
