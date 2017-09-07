@@ -1,6 +1,18 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2017-09-07 jpfr <julius.pfrommer at web.de>
+
+ * Make Client Highlevel Interface consistent
+
+   Two methods in the client highlevel interface were not conformant with the
+   API convention that array sizes are given before the array pointer. This
+   changes the signature of UA_Client_writeArrayDimensionsAttribute and
+   UA_Client_readArrayDimensionsAttribute.
+
+   The API changes are detected by the type-matching in the compiler. So there
+   is little risk for bugs due to unaligned implementations.
+
 2017-08-16 jpfr <julius.pfrommer at web.de>
 
  * Default Attribute Values for Node Attributes
