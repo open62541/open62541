@@ -364,13 +364,12 @@ int main(void) {
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
     tcase_add_test(tc_addnodes, InstantiateObjectType);
+    suite_add_tcase(s, tc_addnodes);
 
     TCase *tc_deletenodes = tcase_create("deletenodes");
     tcase_add_checked_fixture(tc_deletenodes, setup, teardown);
     tcase_add_test(tc_deletenodes, DeleteObjectWithDestructor);
     tcase_add_test(tc_deletenodes, DeleteObjectAndReferences);
-
-    suite_add_tcase(s, tc_addnodes);
     suite_add_tcase(s, tc_deletenodes);
 
     SRunner *sr = srunner_create(s);
