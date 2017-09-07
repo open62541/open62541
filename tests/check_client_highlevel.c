@@ -859,15 +859,17 @@ START_TEST(Node_ReadWrite_ArrayDimensions) {
 
     UA_UInt32 *arrayDimsRead;
     size_t arrayDimsReadSize;
-    UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric, &arrayDimsRead , &arrayDimsReadSize);
+    UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
+                                                                  &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 0);
 
     UA_UInt32 arrayDimsNew[] = {3};
-    retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, arrayDimsNew , 1);
+    retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric, &arrayDimsRead , &arrayDimsReadSize);
+    retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
+                                                    &arrayDimsReadSize, &arrayDimsRead);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(arrayDimsReadSize, 1);
     ck_assert_int_eq(arrayDimsRead[0], 3);

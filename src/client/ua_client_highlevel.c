@@ -308,8 +308,8 @@ __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
 
 UA_StatusCode
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_UInt32 *newArrayDimensions,
-                                        size_t newArrayDimensionsSize) {
+                                        size_t newArrayDimensionsSize,
+                                        const UA_UInt32 *newArrayDimensions) {
     if(!newArrayDimensions)
       return UA_STATUSCODE_BADTYPEMISMATCH;
 
@@ -430,8 +430,8 @@ processReadArrayDimensionsResult(UA_ReadResponse *response,
 
 UA_StatusCode
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_UInt32 **outArrayDimensions,
-                                       size_t *outArrayDimensionsSize) {
+                                       size_t *outArrayDimensionsSize,
+                                       UA_UInt32 **outArrayDimensions) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = nodeId;
