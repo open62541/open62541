@@ -377,7 +377,7 @@ START_TEST(Client_filter_locale) {
         UA_STRING("Anmeldungsserver")
     };
     const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
-    // even if we request en_US, the server will return de_DE because it only has that name.
+    // even if we request en-US, the server will return de-DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
 }

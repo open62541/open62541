@@ -120,8 +120,8 @@ int main(int argc, char **argv) {
     dateDataSource.read = readInteger;
     dateDataSource.write = writeInteger;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.description = UA_LOCALIZEDTEXT("en_US", "the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
+    attr.description = UA_LOCALIZEDTEXT("en-US", "the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
 
     UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),

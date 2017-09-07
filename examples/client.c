@@ -179,9 +179,9 @@ int main(int argc, char *argv[]) {
     /* New ReferenceType */
     UA_NodeId ref_id;
     UA_ReferenceTypeAttributes ref_attr = UA_ReferenceTypeAttributes_default;
-    ref_attr.displayName = UA_LOCALIZEDTEXT("en_US", "NewReference");
-    ref_attr.description = UA_LOCALIZEDTEXT("en_US", "References something that might or might not exist");
-    ref_attr.inverseName = UA_LOCALIZEDTEXT("en_US", "IsNewlyReferencedBy");
+    ref_attr.displayName = UA_LOCALIZEDTEXT("en-US", "NewReference");
+    ref_attr.description = UA_LOCALIZEDTEXT("en-US", "References something that might or might not exist");
+    ref_attr.inverseName = UA_LOCALIZEDTEXT("en-US", "IsNewlyReferencedBy");
     retval = UA_Client_addReferenceTypeNode(client,
                                             UA_NODEID_NUMERIC(1, 12133),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -194,8 +194,8 @@ int main(int argc, char *argv[]) {
     /* New ObjectType */
     UA_NodeId objt_id;
     UA_ObjectTypeAttributes objt_attr = UA_ObjectTypeAttributes_default;
-    objt_attr.displayName = UA_LOCALIZEDTEXT("en_US", "TheNewObjectType");
-    objt_attr.description = UA_LOCALIZEDTEXT("en_US", "Put innovative description here");
+    objt_attr.displayName = UA_LOCALIZEDTEXT("en-US", "TheNewObjectType");
+    objt_attr.description = UA_LOCALIZEDTEXT("en-US", "Put innovative description here");
     retval = UA_Client_addObjectTypeNode(client,
                                          UA_NODEID_NUMERIC(1, 12134),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
@@ -208,8 +208,8 @@ int main(int argc, char *argv[]) {
     /* New Object */
     UA_NodeId obj_id;
     UA_ObjectAttributes obj_attr = UA_ObjectAttributes_default;
-    obj_attr.displayName = UA_LOCALIZEDTEXT("en_US", "TheNewGreatNode");
-    obj_attr.description = UA_LOCALIZEDTEXT("de_DE", "Hier koennte Ihre Webung stehen!");
+    obj_attr.displayName = UA_LOCALIZEDTEXT("en-US", "TheNewGreatNode");
+    obj_attr.description = UA_LOCALIZEDTEXT("de-DE", "Hier koennte Ihre Webung stehen!");
     retval = UA_Client_addObjectNode(client,
                                      UA_NODEID_NUMERIC(1, 0),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -223,9 +223,9 @@ int main(int argc, char *argv[]) {
     /* New Integer Variable */
     UA_NodeId var_id;
     UA_VariableAttributes var_attr = UA_VariableAttributes_default;
-    var_attr.displayName = UA_LOCALIZEDTEXT("en_US", "TheNewVariableNode");
+    var_attr.displayName = UA_LOCALIZEDTEXT("en-US", "TheNewVariableNode");
     var_attr.description =
-        UA_LOCALIZEDTEXT("en_US", "This integer is just amazing - it has digits and everything.");
+        UA_LOCALIZEDTEXT("en-US", "This integer is just amazing - it has digits and everything.");
     UA_Int32 int_value = 1234;
     /* This does not copy the value */
     UA_Variant_setScalar(&var_attr.value, &int_value, &UA_TYPES[UA_TYPES_INT32]);

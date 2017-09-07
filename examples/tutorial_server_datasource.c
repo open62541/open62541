@@ -41,7 +41,7 @@ static void
 addCurrentTimeVariable(UA_Server *server) {
     UA_DateTime now = 0;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "Current time");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&attr.value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
 
@@ -133,7 +133,7 @@ writeCurrentTime(UA_Server *server,
 static void
 addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "Current time - data source");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time - data source");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-datasource");

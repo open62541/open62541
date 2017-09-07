@@ -28,8 +28,8 @@ addVariable(size_t size) {
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
 
     char name[] = "my.variable";
-    attr.description = UA_LOCALIZEDTEXT("en_US", name);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.description = UA_LOCALIZEDTEXT("en-US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 
     /* Add the variable node to the information model */

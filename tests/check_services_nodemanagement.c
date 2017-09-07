@@ -50,8 +50,8 @@ START_TEST(AddVariableNode) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -67,8 +67,8 @@ START_TEST(AddVariableNode) {
 START_TEST(AddComplexTypeWithInheritance) {
     /* add a variable node to the address space */
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
-    attr.description = UA_LOCALIZEDTEXT("en_US","fakeServerStruct");
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","fakeServerStruct");
+    attr.description = UA_LOCALIZEDTEXT("en-US","fakeServerStruct");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","fakeServerStruct");
   
     UA_NodeId myObjectNodeId = UA_NODEID_STRING(1, "the.fake.Server.Struct");
     UA_QualifiedName myObjectName = UA_QUALIFIEDNAME(1, "the.fake.Server.Struct");
@@ -88,8 +88,8 @@ START_TEST(AddNodeTwiceGivesError) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT("en_US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","the answer");
+    attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -122,7 +122,7 @@ START_TEST(AddObjectWithConstructor) {
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","my objecttype");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my objecttype");
     UA_StatusCode res =
         UA_Server_addObjectTypeNode(server, objecttypeid,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
@@ -140,7 +140,7 @@ START_TEST(AddObjectWithConstructor) {
 
     /* Add an object of the type */
     UA_ObjectAttributes attr2 = UA_ObjectAttributes_default;
-    attr2.displayName = UA_LOCALIZEDTEXT("en_US","my object");
+    attr2.displayName = UA_LOCALIZEDTEXT("en-US","my object");
     res = UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -166,7 +166,7 @@ START_TEST(DeleteObjectWithDestructor) {
     /* Add an object type */
     UA_NodeId objecttypeid = UA_NODEID_NUMERIC(0, 13371337);
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","my objecttype");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my objecttype");
     UA_StatusCode res =
         UA_Server_addObjectTypeNode(server, objecttypeid,
                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
@@ -184,7 +184,7 @@ START_TEST(DeleteObjectWithDestructor) {
     /* Add an object of the type */
     UA_NodeId objectid = UA_NODEID_NUMERIC(0, 23372337);
     UA_ObjectAttributes attr2 = UA_ObjectAttributes_default;
-    attr2.displayName = UA_LOCALIZEDTEXT("en_US","my object");
+    attr2.displayName = UA_LOCALIZEDTEXT("en-US","my object");
     res = UA_Server_addObjectNode(server, objectid,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -202,7 +202,7 @@ START_TEST(DeleteObjectWithDestructor) {
 START_TEST(DeleteObjectAndReferences) {
     /* Add an object of the type */
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","my object");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my object");
     UA_NodeId objectid = UA_NODEID_NUMERIC(0, 23372337);
     UA_StatusCode res;
     res = UA_Server_addObjectNode(server, objectid,
@@ -246,7 +246,7 @@ START_TEST(DeleteObjectAndReferences) {
 
     /* Add an object the second time */
     attr = UA_ObjectAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US","my object");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","my object");
     objectid = UA_NODEID_NUMERIC(0, 23372337);
     res = UA_Server_addObjectNode(server, objectid,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
@@ -279,7 +279,7 @@ START_TEST(InstantiateObjectType) {
     /* Define the object type for "Device" */
     UA_NodeId deviceTypeId; /* get the nodeid assigned by the server */
     UA_ObjectTypeAttributes dtAttr = UA_ObjectTypeAttributes_default;
-    dtAttr.displayName = UA_LOCALIZEDTEXT("en_US", "DeviceType");
+    dtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DeviceType");
     retval = UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -288,7 +288,7 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
-    mnAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ManufacturerName");
+    mnAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ManufacturerName");
     UA_NodeId manufacturerNameId;
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -303,7 +303,7 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
-    modelAttr.displayName = UA_LOCALIZEDTEXT("en_US", "ModelName");
+    modelAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ModelName");
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                        UA_QUALIFIEDNAME(1, "ModelName"),
@@ -313,7 +313,7 @@ START_TEST(InstantiateObjectType) {
 
     /* Define the object type for "Pump" */
     UA_ObjectTypeAttributes ptAttr = UA_ObjectTypeAttributes_default;
-    ptAttr.displayName = UA_LOCALIZEDTEXT("en_US", "PumpType");
+    ptAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PumpType");
     retval = UA_Server_addObjectTypeNode(server, pumpTypeId, deviceTypeId,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                          UA_QUALIFIEDNAME(1, "PumpType"), ptAttr,
@@ -321,7 +321,7 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
-    statusAttr.displayName = UA_LOCALIZEDTEXT("en_US", "Status");
+    statusAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
     statusAttr.valueRank = -1;
     UA_NodeId statusId;
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
@@ -338,7 +338,7 @@ START_TEST(InstantiateObjectType) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
-    rpmAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MotorRPM");
+    rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
     rpmAttr.valueRank = -1;
     retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -349,7 +349,7 @@ START_TEST(InstantiateObjectType) {
 
     /* Instantiate the variable */
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT("en_US", "MyPump");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MyPump");
     retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),

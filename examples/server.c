@@ -124,8 +124,8 @@ int main(int argc, char** argv) {
 
     /* add a static variable node to the server */
     UA_VariableAttributes myVar = UA_VariableAttributes_default;
-    myVar.description = UA_LOCALIZEDTEXT("en_US", "the answer");
-    myVar.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
+    myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
+    myVar.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     myVar.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -142,8 +142,8 @@ int main(int argc, char** argv) {
     dateDataSource.read = readTimeData;
     dateDataSource.write = NULL;
     UA_VariableAttributes v_attr = UA_VariableAttributes_default;
-    v_attr.description = UA_LOCALIZEDTEXT("en_US","current time");
-    v_attr.displayName = UA_LOCALIZEDTEXT("en_US","current time");
+    v_attr.description = UA_LOCALIZEDTEXT("en-US","current time");
+    v_attr.displayName = UA_LOCALIZEDTEXT("en-US","current time");
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
     UA_NodeId dataSourceId;
@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
     UA_Argument inputArguments;
     UA_Argument_init(&inputArguments);
     inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    inputArguments.description = UA_LOCALIZEDTEXT("en_US", "Say your name");
+    inputArguments.description = UA_LOCALIZEDTEXT("en-US", "Say your name");
     inputArguments.name = UA_STRING("Name");
     inputArguments.valueRank = -1; /* scalar argument */
 
@@ -166,12 +166,12 @@ int main(int argc, char** argv) {
     outputArguments.arrayDimensionsSize = 0;
     outputArguments.arrayDimensions = NULL;
     outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "Receive a greeting");
+    outputArguments.description = UA_LOCALIZEDTEXT("en-US", "Receive a greeting");
     outputArguments.name = UA_STRING("greeting");
     outputArguments.valueRank = -1;
 
     UA_MethodAttributes addmethodattributes = UA_MethodAttributes_default;
-    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "Hello World");
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "Hello World");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
@@ -190,29 +190,29 @@ int main(int argc, char** argv) {
 #define DEPTHID 50004
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
-    object_attr.description = UA_LOCALIZEDTEXT("en_US", "Demo");
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Demo");
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Demo");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEMOID),
         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Demo"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
-    object_attr.description = UA_LOCALIZEDTEXT("en_US", "Scalar");
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Scalar");
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "Scalar");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Scalar");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALARID),
         UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
         UA_QUALIFIEDNAME(1, "Scalar"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
-    object_attr.description = UA_LOCALIZEDTEXT("en_US", "Array");
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Array");
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "Array");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, ARRAYID),
         UA_NODEID_NUMERIC(1, DEMOID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
         UA_QUALIFIEDNAME(1, "Array"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
 
-    object_attr.description = UA_LOCALIZEDTEXT("en_US", "Matrix");
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Matrix");
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "Matrix");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Matrix");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Matrix"),
         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
@@ -233,10 +233,10 @@ int main(int argc, char** argv) {
 #else
         sprintf(name, "%02d", type);
 #endif
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 #else
-        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US", UA_TYPES[type].typeName);
+        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", UA_TYPES[type].typeName);
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME_ALLOC(1, UA_TYPES[type].typeName);
 #endif
         attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -280,8 +280,8 @@ int main(int argc, char** argv) {
     /* Hierarchy of depth 10 for CTT testing with forward and inverse references */
     /* Enter node "depth 9" in CTT configuration - Project->Settings->Server
        Test->NodeIds->Paths->Starting Node 1 */
-    object_attr.description = UA_LOCALIZEDTEXT("en_US","DepthDemo");
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US","DepthDemo");
+    object_attr.description = UA_LOCALIZEDTEXT("en-US","DepthDemo");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US","DepthDemo");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DEPTHID),
                             UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "DepthDemo"),
@@ -295,8 +295,8 @@ int main(int argc, char** argv) {
 #else
         sprintf(name, "depth%i", i);
 #endif
-        object_attr.description = UA_LOCALIZEDTEXT("en_US",name);
-        object_attr.displayName = UA_LOCALIZEDTEXT("en_US",name);
+        object_attr.description = UA_LOCALIZEDTEXT("en-US",name);
+        object_attr.displayName = UA_LOCALIZEDTEXT("en-US",name);
         UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id+i),
                                 UA_NODEID_NUMERIC(1, i==1 ? DEPTHID : id+i-1), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                 UA_QUALIFIEDNAME(1, name),
@@ -311,7 +311,7 @@ int main(int argc, char** argv) {
                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), answer_nodeid, true);
 
     /* Example for manually setting an attribute within the server */
-    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en_US", "Objects");
+    UA_LocalizedText objectsName = UA_LOCALIZEDTEXT("en-US", "Objects");
     UA_Server_writeDisplayName(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), objectsName);
 
 #define NOARGID     60000
@@ -322,7 +322,7 @@ int main(int argc, char** argv) {
     /* adding some more method nodes to pass CTT */
     /* Method without arguments */
     addmethodattributes = UA_MethodAttributes_default;
-    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "noarg");
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "noarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, NOARGID),
@@ -334,13 +334,13 @@ int main(int argc, char** argv) {
 
     /* Method with in arguments */
     addmethodattributes = UA_MethodAttributes_default;
-    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "inarg");
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 
     UA_Argument_init(&inputArguments);
     inputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    inputArguments.description = UA_LOCALIZEDTEXT("en_US", "Input");
+    inputArguments.description = UA_LOCALIZEDTEXT("en-US", "Input");
     inputArguments.name = UA_STRING("Input");
     inputArguments.valueRank = -1; //uaexpert will crash if set to 0 ;)
 
@@ -353,13 +353,13 @@ int main(int argc, char** argv) {
 
     /* Method with out arguments */
     addmethodattributes = UA_MethodAttributes_default;
-    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "outarg");
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "outarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 
     UA_Argument_init(&outputArguments);
     outputArguments.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-    outputArguments.description = UA_LOCALIZEDTEXT("en_US", "Output");
+    outputArguments.description = UA_LOCALIZEDTEXT("en-US", "Output");
     outputArguments.name = UA_STRING("Output");
     outputArguments.valueRank = -1;
 
@@ -372,7 +372,7 @@ int main(int argc, char** argv) {
 
     /* Method with inout arguments */
     addmethodattributes = UA_MethodAttributes_default;
-    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en_US", "inoutarg");
+    addmethodattributes.displayName = UA_LOCALIZEDTEXT("en-US", "inoutarg");
     addmethodattributes.executable = true;
     addmethodattributes.userExecutable = true;
 

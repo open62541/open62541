@@ -187,7 +187,7 @@ static void
 addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
                 UA_Boolean isAbstract, UA_UInt32 parentid) {
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.isAbstract = isAbstract;
     UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, datatypeid),
                               UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
@@ -198,7 +198,7 @@ static void
 addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
                   UA_Boolean isAbstract, UA_UInt32 parentid) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.isAbstract = isAbstract;
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, objecttypeid),
                                 UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
@@ -209,7 +209,7 @@ static void
 addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
               UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
-    object_attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    object_attr.displayName = UA_LOCALIZEDTEXT("", name);
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
                             UA_NODEID_NUMERIC(0, parentid),
                             UA_NODEID_NUMERIC(0, referenceid),
@@ -223,11 +223,11 @@ static void
 addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32 referencetypeid,
                      UA_Boolean isabstract, UA_Boolean symmetric, UA_UInt32 parentid) {
     UA_ReferenceTypeAttributes reference_attr = UA_ReferenceTypeAttributes_default;
-    reference_attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    reference_attr.displayName = UA_LOCALIZEDTEXT("", name);
     reference_attr.isAbstract = isabstract;
     reference_attr.symmetric = symmetric;
     if(inverseName)
-        reference_attr.inverseName = UA_LOCALIZEDTEXT("en_US", inverseName);
+        reference_attr.inverseName = UA_LOCALIZEDTEXT("", inverseName);
     UA_Server_addReferenceTypeNode(server, UA_NODEID_NUMERIC(0, referencetypeid),
                                    UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                    UA_QUALIFIEDNAME(0, name), reference_attr, NULL, NULL);
@@ -238,7 +238,7 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                     UA_Boolean isAbstract, UA_Int32 valueRank, UA_UInt32 dataType,
                     const UA_DataType *type, UA_UInt32 parentid) {
     UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.dataType = UA_NODEID_NUMERIC(0, dataType);
     attr.isAbstract = isAbstract;
     attr.valueRank = valueRank;
@@ -257,7 +257,7 @@ addVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_Int32 valueR
                 const UA_NodeId *dataType, UA_Variant *value, UA_UInt32 parentid,
                 UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.valueRank = valueRank;
     attr.dataType = *dataType;
     if(value)
@@ -272,7 +272,7 @@ addDataSourceVariableNode(UA_Server *server, UA_UInt32 nodeid, char* name, UA_In
                           const UA_NodeId *dataType, UA_DataSource *dataSource, void *nodeContext,
                           UA_UInt32 parentid,UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.valueRank = valueRank;
     attr.dataType = *dataType;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NUMERIC(0, nodeid), UA_NODEID_NUMERIC(0, parentid),
@@ -292,18 +292,18 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Bootstrap References and HasSubtype */
     UA_ReferenceTypeAttributes references_attr = UA_ReferenceTypeAttributes_default;
-    references_attr.displayName = UA_LOCALIZEDTEXT("en_US", "References");
+    references_attr.displayName = UA_LOCALIZEDTEXT("", "References");
     references_attr.isAbstract = true;
     references_attr.symmetric = true;
-    references_attr.inverseName = UA_LOCALIZEDTEXT("en_US", "References");
+    references_attr.inverseName = UA_LOCALIZEDTEXT("", "References");
     UA_Server_addReferenceTypeNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES),
                                          UA_QUALIFIEDNAME(0, "References"), references_attr, NULL, NULL);
 
     UA_ReferenceTypeAttributes hassubtype_attr = UA_ReferenceTypeAttributes_default;
-    hassubtype_attr.displayName = UA_LOCALIZEDTEXT("en_US", "HasSubtype");
+    hassubtype_attr.displayName = UA_LOCALIZEDTEXT("", "HasSubtype");
     hassubtype_attr.isAbstract = false;
     hassubtype_attr.symmetric = false;
-    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("en_US", "SubtypeOf");
+    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "SubtypeOf");
     UA_Server_addReferenceTypeNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                          UA_QUALIFIEDNAME(0, "HasSubtype"), hassubtype_attr, NULL, NULL);
 
@@ -364,7 +364,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Bootstrap BaseDataType */
     UA_DataTypeAttributes basedatatype_attr = UA_DataTypeAttributes_default;
-    basedatatype_attr.displayName = UA_LOCALIZEDTEXT("en_US", "BaseDataType");
+    basedatatype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataType");
     basedatatype_attr.isAbstract = true;
     UA_Server_addDataTypeNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE),
                                     UA_QUALIFIEDNAME(0, "BaseDataType"), basedatatype_attr, NULL, NULL);
@@ -408,7 +408,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Bootstrap BaseVariableType */
     UA_VariableTypeAttributes basevar_attr = UA_VariableTypeAttributes_default;
-    basevar_attr.displayName = UA_LOCALIZEDTEXT("en_US", "BaseVariableType");
+    basevar_attr.displayName = UA_LOCALIZEDTEXT("", "BaseVariableType");
     basevar_attr.isAbstract = true;
     basevar_attr.valueRank = -2;
     basevar_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
@@ -435,7 +435,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Bootstrap BaseObjectType */
     UA_ObjectTypeAttributes baseobj_attr = UA_ObjectTypeAttributes_default;
-    baseobj_attr.displayName = UA_LOCALIZEDTEXT("en_US", "BaseObjectType");
+    baseobj_attr.displayName = UA_LOCALIZEDTEXT("", "BaseObjectType");
     UA_Server_addObjectTypeNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                       UA_QUALIFIEDNAME(0, "BaseObjectType"), baseobj_attr, NULL, NULL);
 
@@ -459,7 +459,7 @@ void UA_Server_createNS0(UA_Server *server) {
     /******************/
 
     UA_ObjectAttributes root_attr = UA_ObjectAttributes_default;
-    root_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Root");
+    root_attr.displayName = UA_LOCALIZEDTEXT("", "Root");
     UA_Server_addObjectNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
                                   UA_QUALIFIEDNAME(0, "Root"), root_attr, NULL, NULL);
     addReferenceInternal(server, UA_NS0ID_ROOTFOLDER, UA_NS0ID_HASTYPEDEFINITION,
@@ -516,7 +516,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Begin Server object */ 
     UA_ObjectAttributes server_attr = UA_ObjectAttributes_default;
-    server_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Server");
+    server_attr.displayName = UA_LOCALIZEDTEXT("", "Server");
     UA_Server_addObjectNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                                   UA_QUALIFIEDNAME(0, "Server"), server_attr, NULL, NULL);
 
@@ -529,7 +529,7 @@ void UA_Server_createNS0(UA_Server *server) {
     
     /* NamespaceArray */
     UA_VariableAttributes nsarray_attr = UA_VariableAttributes_default;
-    nsarray_attr.displayName = UA_LOCALIZEDTEXT("en_US", "NamespaceArray");
+    nsarray_attr.displayName = UA_LOCALIZEDTEXT("", "NamespaceArray");
     nsarray_attr.valueRank = 1;
     nsarray_attr.minimumSamplingInterval = 50.0;
     nsarray_attr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
@@ -546,7 +546,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Begin ServerCapabilities */
     UA_ObjectAttributes servercap_attr = UA_ObjectAttributes_default;
-    servercap_attr.displayName = UA_LOCALIZEDTEXT("en_US", "ServerCapabilities");
+    servercap_attr.displayName = UA_LOCALIZEDTEXT("", "ServerCapabilities");
     UA_Server_addObjectNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES),
                                   UA_QUALIFIEDNAME(0, "ServerCapabilities"), servercap_attr, NULL, NULL);
     
@@ -621,7 +621,7 @@ void UA_Server_createNS0(UA_Server *server) {
 
     /* Begin ServerDiagnostics */
     UA_ObjectAttributes serverdiag_attr = UA_ObjectAttributes_default;
-    serverdiag_attr.displayName = UA_LOCALIZEDTEXT("en_US", "ServerDiagnostics");
+    serverdiag_attr.displayName = UA_LOCALIZEDTEXT("", "ServerDiagnostics");
     UA_Server_addObjectNode_begin(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS),
                                   UA_QUALIFIEDNAME(0, "ServerDiagnostics"), serverdiag_attr, NULL, NULL);
     

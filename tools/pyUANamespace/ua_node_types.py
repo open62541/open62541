@@ -847,7 +847,7 @@ class opcua_node_referenceType_t(opcua_node_t):
     if self.symmetric():
       code.append(self.getCodePrintableID() + "->symmetric  = true;")
     if self.__reference_inverseName__ != "":
-      code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + self.__reference_inverseName__ + "\");")
+      code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"\", \"" + self.__reference_inverseName__ + "\");")
     return code;
 
 

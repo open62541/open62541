@@ -88,7 +88,7 @@ int main(int argc, char** argv)
     /* Add a variable node */
     /* 1) Define the node attributes */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
 

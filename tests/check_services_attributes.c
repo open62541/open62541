@@ -67,8 +67,8 @@ static void setup(void) {
     UA_DataSource temperatureDataSource;
     temperatureDataSource.read = readCPUTemperature;
     temperatureDataSource.write = NULL;
-    vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
-    vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
+    vattr.description = UA_LOCALIZEDTEXT("en-US","temperature");
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US","temperature");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -99,8 +99,8 @@ static void setup(void) {
 
     /* ObjectNode */
     UA_ObjectAttributes obj_attr = UA_ObjectAttributes_default;
-    obj_attr.description = UA_LOCALIZEDTEXT("en_US","Demo");
-    obj_attr.displayName = UA_LOCALIZEDTEXT("en_US","Demo");
+    obj_attr.description = UA_LOCALIZEDTEXT("en-US","Demo");
+    obj_attr.displayName = UA_LOCALIZEDTEXT("en-US","Demo");
     retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -111,8 +111,8 @@ static void setup(void) {
 
     /* ViewNode */
     UA_ViewAttributes view_attr = UA_ViewAttributes_default;
-    view_attr.description = UA_LOCALIZEDTEXT("en_US", "Viewtest");
-    view_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Viewtest");
+    view_attr.description = UA_LOCALIZEDTEXT("en-US", "Viewtest");
+    view_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Viewtest");
     retval = UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -122,8 +122,8 @@ static void setup(void) {
 #ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
     UA_MethodAttributes ma = UA_MethodAttributes_default;
-    ma.description = UA_LOCALIZEDTEXT("en_US", "Methodtest");
-    ma.displayName = UA_LOCALIZEDTEXT("en_US", "Methodtest");
+    ma.description = UA_LOCALIZEDTEXT("en-US", "Methodtest");
+    ma.displayName = UA_LOCALIZEDTEXT("en-US", "Methodtest");
     retval = UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
                                      UA_NODEID_NUMERIC(0, 3),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
@@ -335,7 +335,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
-    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en_US", "OrganizedBy");
+    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "OrganizedBy");
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
@@ -597,7 +597,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
 START_TEST(WriteSingleAttributeDisplayName) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
@@ -609,7 +609,7 @@ START_TEST(WriteSingleAttributeDisplayName) {
 START_TEST(WriteSingleAttributeDescription) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
@@ -660,7 +660,7 @@ START_TEST(WriteSingleAttributeSymmetric) {
 START_TEST(WriteSingleAttributeInverseName) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_US", "not.the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-US", "not.the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;

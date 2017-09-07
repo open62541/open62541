@@ -291,9 +291,9 @@ class open62541_MacroHelper():
       else:
         code.append(node.getCodePrintableID() + "->browseName = UA_QUALIFIEDNAME_ALLOC(0, \"" + node.browseName() + "\");")
     if not "displayname" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.displayName() + "\");")
+      code.append(node.getCodePrintableID() + "->displayName = UA_LOCALIZEDTEXT_ALLOC(\"\", \"" +  node.displayName() + "\");")
     if not "description" in self.supressGenerationOfAttribute:
-      code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" +  node.description() + "\");")
+      code.append(node.getCodePrintableID() + "->description = UA_LOCALIZEDTEXT_ALLOC(\"\", \"" +  node.description() + "\");")
 
     if not "writemask" in self.supressGenerationOfAttribute:
         if node.__node_writeMask__ != 0:
