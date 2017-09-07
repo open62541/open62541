@@ -152,14 +152,21 @@ int main(void) {
                    endpoint->transportProfileUri.data);
             printf("\n\t\tSecurity Mode: ");
             switch (endpoint->securityMode) {
-                case UA_MESSAGESECURITYMODE_INVALID:
-                    printf("Invalid");
-                case UA_MESSAGESECURITYMODE_NONE:
-                    printf("None");
-                case UA_MESSAGESECURITYMODE_SIGN:
-                    printf("Sign");
-                case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
-                    printf("Sign and Encrypt");
+            case UA_MESSAGESECURITYMODE_INVALID:
+                printf("Invalid");
+                break;
+            case UA_MESSAGESECURITYMODE_NONE:
+                printf("None");
+                break;
+            case UA_MESSAGESECURITYMODE_SIGN:
+                printf("Sign");
+                break;
+            case UA_MESSAGESECURITYMODE_SIGNANDENCRYPT:
+                printf("Sign and Encrypt");
+                break;
+            default:
+                printf("No valid security mode");
+                break;
             }
             printf("\n\t\tSecurity profile URI: %.*s", (int) endpoint->securityPolicyUri.length,
                    endpoint->securityPolicyUri.data);
