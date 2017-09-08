@@ -83,6 +83,10 @@ compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
     if(UA_NodeId_isNull(constraintDataType))
         return true;
 
+    /* Same datatypes */
+    if (UA_NodeId_equal(dataType, constraintDataType))
+        return true;
+
     /* Variant allows any subtype */
     if(UA_NodeId_equal(constraintDataType, &UA_TYPES[UA_TYPES_VARIANT].typeId))
         return true;
