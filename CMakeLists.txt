@@ -15,6 +15,8 @@ set(OPEN62541_VER_MINOR 2)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
+
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
   execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
