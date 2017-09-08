@@ -178,3 +178,4 @@ SimpleAttributeOperand
 EventNotificationList
 EventFieldList
 StatusChangeNotification
+Duration

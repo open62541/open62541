@@ -26,9 +26,9 @@ typedef struct {
 } UA_UInt32Range;
 
 typedef struct {
-    UA_Double min;
-    UA_Double max;
-} UA_DoubleRange;
+    UA_Duration min;
+    UA_Duration max;
+} UA_DurationRange;
 
 struct UA_ServerConfig {
     UA_UInt16 nThreads; /* only if multithreading is enabled */
@@ -70,14 +70,14 @@ struct UA_ServerConfig {
     UA_Double maxSessionTimeout; /* in ms */
 
     /* Limits for Subscriptions */
-    UA_DoubleRange publishingIntervalLimits;
+    UA_DurationRange publishingIntervalLimits;
     UA_UInt32Range lifeTimeCountLimits;
     UA_UInt32Range keepAliveCountLimits;
     UA_UInt32 maxNotificationsPerPublish;
     UA_UInt32 maxRetransmissionQueueSize; /* 0 -> unlimited size */
 
     /* Limits for MonitoredItems */
-    UA_DoubleRange samplingIntervalLimits;
+    UA_DurationRange samplingIntervalLimits;
     UA_UInt32Range queueSizeLimits; /* Negotiated with the client */
 
     /* Discovery */
