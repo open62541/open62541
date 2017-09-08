@@ -15,8 +15,8 @@ static void stopHandler(int sig) {
 static void
 add3PointDataType(UA_Server *server) {
     UA_VariableTypeAttributes dattr = UA_VariableTypeAttributes_default;
-    dattr.description = UA_LOCALIZEDTEXT("en_US", "3D Point");
-    dattr.displayName = UA_LOCALIZEDTEXT("en_US", "3D Point");
+    dattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
+    dattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     dattr.dataType = PointType.typeId;
     dattr.valueRank = -1;
 
@@ -45,8 +45,8 @@ add3DPointVariable(UA_Server *server) {
     p.y = 4.0;
     p.z = 5.0;
     UA_VariableAttributes vattr = UA_VariableAttributes_default;
-    vattr.description = UA_LOCALIZEDTEXT("en_US", "3D Point");
-    vattr.displayName = UA_LOCALIZEDTEXT("en_US", "3D Point");
+    vattr.description = UA_LOCALIZEDTEXT("en-US", "3D Point");
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point");
     vattr.dataType = PointType.typeId;
     vattr.valueRank = -1;
     UA_Variant_setScalar(&vattr.value, &p, &PointType);
