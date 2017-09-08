@@ -164,7 +164,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Check valueRank against the vt */
     retval = compatibleValueRanks(node->valueRank, vt->valueRank);
-    if(retval != UA_STATUSCODE_GOOD)
+    if (retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Check array dimensions against the vt */
@@ -336,7 +336,7 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-copyChildNodes(UA_Server *server, UA_Session *session, 
+copyChildNodes(UA_Server *server, UA_Session *session,
                const UA_NodeId *sourceNodeId,
                const UA_NodeId *destinationNodeId);
 
@@ -351,7 +351,7 @@ addReference(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 copyChildNode(UA_Server *server, UA_Session *session,
-              const UA_NodeId *destinationNodeId, 
+              const UA_NodeId *destinationNodeId,
               const UA_ReferenceDescription *rd) {
     UA_NodeId existingChild = UA_NODEID_NULL;
     UA_StatusCode retval =
@@ -429,7 +429,7 @@ copyChildNode(UA_Server *server, UA_Session *session,
 
 /* Copy any children of Node sourceNodeId to another node destinationNodeId. */
 static UA_StatusCode
-copyChildNodes(UA_Server *server, UA_Session *session, 
+copyChildNodes(UA_Server *server, UA_Session *session,
                const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId) {
     /* Browse to get all children of the source */
     UA_BrowseDescription bd;
@@ -1181,7 +1181,7 @@ static const UA_NodeId propertytype =
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
-                               UA_MethodCallback method, 
+                               UA_MethodCallback method,
                                size_t inputArgumentsSize, const UA_Argument* inputArguments,
                                size_t outputArgumentsSize, const UA_Argument* outputArguments) {
     /* Browse to see which argument nodes exist */
@@ -1283,7 +1283,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method,
-                        size_t inputArgumentsSize, const UA_Argument* inputArguments, 
+                        size_t inputArgumentsSize, const UA_Argument* inputArguments,
                         size_t outputArgumentsSize, const UA_Argument* outputArguments,
                         void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_NodeId newId;
@@ -1351,7 +1351,7 @@ setNodeTypeLifecycle(UA_Server *server, UA_Session *session,
         vt->lifecycle = *lifecycle;
         return UA_STATUSCODE_GOOD;
     }
-    
+
     return UA_STATUSCODE_BADNODECLASSINVALID;
 }
 
