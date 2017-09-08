@@ -396,10 +396,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-types DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
-        ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_handling.h
+                  ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h)
 
 # transport data types
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -408,13 +408,16 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --namespace=1 --selected_types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
-                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport
+                          --namespace=1
+                          --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                          --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                          --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
+                          --no-builtin
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+                          ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
+                          ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                          ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -446,13 +449,15 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                    COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                            ${OPEN62541_VER_COMMIT} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                            ${internal_headers} ${lib_sources} ${default_plugin_sources}
-                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${lib_sources})
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers}
+                           ${lib_sources})
 
 add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
 add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
 
-add_dependencies(open62541-amalgamation-source open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
 add_dependencies(open62541-amalgamation-header open62541-generator-types)
+add_dependencies(open62541-amalgamation-source open62541-generator-types
+                 open62541-generator-transport open62541-generator-statuscode)
 
 # generated namespace 0
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
@@ -492,8 +497,12 @@ if(UA_ENABLE_AMALGAMATION)
     # and thus may overwrite the amalgamation result during multiprocessor compilation
     # the header is already a dependency of open62541 target itself
     add_dependencies(open62541-object
-            open62541-amalgamation-header
-            open62541-amalgamation-source)
+                     open62541-amalgamation-header
+                     open62541-generator-types
+                     open62541-generator-transport
+                     open62541-generator-statuscode
+                     open62541-amalgamation-source
+                     )
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
@@ -504,14 +513,14 @@ else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     add_dependencies(open62541-object
-            open62541-amalgamation-header
-            open62541-generator-types
-            open62541-generator-transport
-            open62541-generator-statuscode)
+                     open62541-amalgamation-header
+                     open62541-generator-types
+                     open62541-generator-transport
+                     open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types)
+    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
