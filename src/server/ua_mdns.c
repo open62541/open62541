@@ -25,18 +25,18 @@
 #   include <netdb.h> // for recvfrom in cygwin
 #  endif
 
-#ifndef STRDUP
+#ifndef UA_STRDUP
 # if defined(__MINGW32__)
 static char *ua_strdup(const char *s) {
     char *p = UA_malloc(strlen(s) + 1);
     if(p) { strcpy(p, s); }
     return p;
 }
-# define STRDUP ua_strdup
+# define UA_STRDUP ua_strdup
 # elif defined(_WIN32)
-# define STRDUP _strdup
+# define UA_STRDUP _strdup
 # else
-# define STRDUP strdup
+# define UA_STRDUP strdup
 # endif
 #endif
 
@@ -180,7 +180,7 @@ setTxt(const struct resource *r,
         if (!entry->srvSet) {
             /* txt arrived before SRV, thus cache path entry */
             // todo: malloc in strdup may fail: return a statuscode
-            entry->pathTmp = STRDUP(path);
+            entry->pathTmp = UA_STRDUP(path);
         } else {
             /* SRV already there and discovery URL set. Add path to discovery URL */
             mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
@@ -311,7 +311,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
         // path does not contain slash, so add it here
         if (path[0] == '/')
             // todo: malloc in strdup may fail: return a statuscode
-            allocPath = STRDUP(path);
+            allocPath = UA_STRDUP(path);
         else {
             // todo: malloc may fail: return a statuscode
             allocPath = (char*)UA_malloc(strlen(path) + 2);
