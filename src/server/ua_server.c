@@ -4,12 +4,6 @@
 
 #include "ua_types.h"
 #include "ua_server_internal.h"
-#include "ua_securechannel_manager.h"
-#include "ua_session_manager.h"
-#include "ua_util.h"
-#include "ua_services.h"
-#include "ua_types_generated.h"
-#include "ua_types_generated_handling.h"
 
 #ifdef UA_ENABLE_GENERATE_NAMESPACE0
 #include "ua_namespaceinit_generated.h"
@@ -164,6 +158,10 @@ UA_Server_cleanup(UA_Server *server, void *_) {
     UA_Discovery_cleanupTimedOut(server, nowMonotonic);
 #endif
 }
+
+/********************/
+/* Server Lifecycle */
+/********************/
 
 UA_Server *
 UA_Server_new(const UA_ServerConfig *config) {
