@@ -121,13 +121,6 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 #define MIN(A,B) (A > B ? B : A)
 #define MAX(A,B) (A > B ? A : B)
 
-/* The typename string can be disabled to safe memory */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
-
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif

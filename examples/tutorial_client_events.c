@@ -1,9 +1,14 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include <signal.h>
 #include "open62541.h"
 
-#include <signal.h>
+static UA_Boolean running = true;
+static void stopHandler(int sig) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    running = false;
+}
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
@@ -25,21 +30,14 @@ handler_events(const UA_UInt32 monId, const size_t nEventFields, const UA_Varian
     }
 }
 
-static UA_Boolean running = true;
-static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
-    running = false;
-}
-
 const size_t nSelectClauses = 2;
 
 static UA_SimpleAttributeOperand *
-setupSelectClauses(void)
-{
-    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand *)UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    if(!selectClauses){
+setupSelectClauses(void) {
+    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
+        UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    if(!selectClauses)
         return NULL;
-    }
 
     for(size_t i =0; i<nSelectClauses; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
