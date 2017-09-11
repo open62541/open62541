@@ -106,7 +106,9 @@ END_TEST
 
 START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     //Skip test for void*
-    if (_i == UA_TYPES_DISCOVERYCONFIGURATION || _i == UA_TYPES_FILTEROPERAND || _i == UA_TYPES_MONITORINGFILTER)
+    if (_i == UA_TYPES_DISCOVERYCONFIGURATION ||
+            _i == UA_TYPES_FILTEROPERAND ||
+            _i == UA_TYPES_MONITORINGFILTER)
         return;
     // given
     UA_ByteString msg1;

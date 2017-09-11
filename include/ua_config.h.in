@@ -64,19 +64,18 @@ extern "C" {
 
 #include <stddef.h>
 
-/* Include stdint.h or workaround for older Visual Studios */
+/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
+# include <stdbool.h> /* C99 Boolean */
 #else
 # include "ms_stdint.h"
-#endif
-
-#ifndef __cplusplus
-# include <stdbool.h> /* C99 Boolean */
-/* Manual Boolean:
-typedef uint8_t bool;
+#if !(defined(__bool_true_false_are_defined))
+#define bool short
 #define true 1
-#define false 0 */
+#define false 0
+#define __bool_true_false_are_defined
+#endif
 #endif
 
 /**

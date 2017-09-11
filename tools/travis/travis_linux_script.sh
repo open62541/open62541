@@ -60,6 +60,8 @@ if [ $ANALYZE = "true" ]; then
         if [ -s cppcheck.txt ]; then
             echo "====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt
+            # flush output
+            sleep 5
             exit 1
         fi
     fi
@@ -197,13 +199,6 @@ else
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_valgrind\\r'
-
-    # without valgrind
-    # echo -e "\r\n== Debug build and unit tests without valgrind ==" && echo -en 'travis_fold:start:script.build.unit_test\\r'
-    # cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
-    # make -j && make test ARGS="-V"
-    # (./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
-    # echo -en 'travis_fold:end:script.build.unit_test\\r'
 
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
