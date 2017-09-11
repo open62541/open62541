@@ -3,6 +3,10 @@
 
 #include "ua_nodestore_default.h"
 
+/* container_of */
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+
 #ifdef UA_ENABLE_MULTITHREADING
 #include <pthread.h>
 #define BEGIN_CRITSECT(NODEMAP) pthread_mutex_lock(&(NODEMAP)->mutex)

@@ -11,19 +11,11 @@
 extern "C" {
 #endif
 
-/* Assert */
-#include <assert.h>
-#define UA_assert(ignore) assert(ignore)
-
 /* BSD Queue Macros */
 #include "queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
-
-/* container_of */
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
 
 #ifdef UA_ENABLE_MULTITHREADING
 /* Thread Local Storage */

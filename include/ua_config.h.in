@@ -78,6 +78,14 @@ extern "C" {
 #endif
 
 /**
+ * Standard Macros
+ * --------------- */
+
+/* Assert */
+#include <assert.h>
+#define UA_assert(ignore) assert(ignore)
+
+/**
  * Memory Management
  * ---------------
  * The default malloc implementation from ``stdlib.h`` is used internally.
