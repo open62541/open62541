@@ -169,6 +169,7 @@ START_TEST(Server_publishCallback) {
     /* Sleep until the publishing interval times out */
     UA_sleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
+    UA_realsleep(100);
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
