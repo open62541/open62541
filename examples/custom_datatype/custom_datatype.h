@@ -14,7 +14,7 @@ typedef struct {
 static UA_DataTypeMember Point_members[3] = {
         /* x */
         {
-                "x", /* .memberName */
+                UA_TYPENAME("x") /* .memberName */
                 UA_TYPES_FLOAT,  /* .memberTypeIndex, points into UA_TYPES since namespaceZero is true */
                 0,               /* .padding */
                 true,            /* .namespaceZero, see .memberTypeIndex */
@@ -23,19 +23,19 @@ static UA_DataTypeMember Point_members[3] = {
 
         /* y */
         {
-                "y",
+                UA_TYPENAME("y")
                 UA_TYPES_FLOAT, Point_padding_y, true, false
         },
 
         /* z */
         {
-                "y",
+                UA_TYPENAME("z")
                 UA_TYPES_FLOAT, Point_padding_z, true, false
         }
 };
 
 static const UA_DataType PointType = {
-        "Point",             /* .typeName */
+        UA_TYPENAME("Point")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         sizeof(Point),                   /* .memSize */
         0,                               /* .typeIndex, in the array of custom types */

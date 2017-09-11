@@ -275,9 +275,9 @@ extern "C" {
 #endif
 
 /**
- * Static Assert
- * ^^^^^^^^^^^^^
- * Outputs an error message at compile time if the assert fails.
+ * Utility Definitions
+ * ^^^^^^^^^^^^^^^^^^^ */
+/* Outputs an error message at compile time if the assert fails.
  * Example usage:
  * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
  * See: https://stackoverflow.com/a/4815532/869402 */
@@ -293,8 +293,15 @@ extern "C" {
         int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
-# define UA_STATIC_ASSERT(cond,msg) \
-    typedef char static_assertion_##msg[(cond)?1:-1]
+# define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
+
+/* To generate smaller binaries, descriptive strings can be excluded from the
+ * datatype description */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
 #endif
 
 #ifdef __cplusplus

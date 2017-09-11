@@ -26,6 +26,8 @@ static void teardown(void) {
     UA_ServerConfig_delete(config);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 UA_UInt32 subscriptionId;
 UA_UInt32 monitoredItemId;
 
@@ -301,11 +303,13 @@ START_TEST(Server_deleteMonitoredItems) {
 }
 END_TEST
 
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription");
     TCase *tc_server = tcase_create("Server Subscription Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_createSubscription);
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
@@ -317,6 +321,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_deleteSubscription);
     tcase_add_test(tc_server, Server_republish_invalid);
     tcase_add_test(tc_server, Server_publishCallback);
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 
     return s;

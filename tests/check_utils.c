@@ -135,7 +135,6 @@ END_TEST
 
 START_TEST(StatusCode_msg) {
 #ifndef UA_ENABLE_STATUSCODE_DESCRIPTIONS
-    ck_assert_str_eq(UA_StatusCode_msg(UA_STATUSCODE_GOOD), "StatusCode descriptions not available");
     return;
 #endif
         // first element in table
