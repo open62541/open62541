@@ -76,8 +76,7 @@ typedef struct {
     UA_NodeReferenceKind *references;           \
                                                 \
     /* Members specific to open62541 */         \
-    void *context;                              \
-    UA_Boolean constructed; /* don't run the constructors twice on a node */
+    void *context;
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES

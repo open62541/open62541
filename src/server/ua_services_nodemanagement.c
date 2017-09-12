@@ -21,29 +21,19 @@ UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
     return UA_STATUSCODE_GOOD;
 }
 
-struct SetNodeContext {
-    void *context;
-    UA_Boolean setConstructed;
-};
-
 static UA_StatusCode
 editNodeContext(UA_Server *server, UA_Session* session,
-                UA_Node* node, struct SetNodeContext *ctx) {
-    node->context = ctx->context;
-    if(ctx->setConstructed)
-        node->constructed = true;
+                UA_Node* node, void *context) {
+    node->context = context;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext) {
-    struct SetNodeContext ctx;
-    ctx.context = nodeContext;
-    ctx.setConstructed = false; /* Only "constructNode" can set this */
     UA_StatusCode retval =
         UA_Server_editNode(server, &adminSession, &nodeId,
-                           (UA_EditNodeCallback)editNodeContext, &ctx);
+                           (UA_EditNodeCallback)editNodeContext, nodeContext);
     return retval;
 }
 
@@ -459,9 +449,10 @@ addChildren(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-static UA_StatusCode
-callConstructors(UA_Server *server, UA_Session *session,
-                 const UA_Node *node, const UA_Node *type) {
+/* Calls the global destructor internally of the global constructor succeeds and
+ * the type-level constructor fails. */
+static UA_StatusCode callConstructors(UA_Server *server, UA_Session *session,
+                                      const UA_Node *node, const UA_Node *type) {
     /* Get the node type constructor */
     const UA_NodeTypeLifecycle *lifecycle = NULL;
     if(node->nodeClass == UA_NODECLASS_OBJECT) {
@@ -487,15 +478,12 @@ callConstructors(UA_Server *server, UA_Session *session,
                                         type->context, &node->nodeId, &context);
 
     /* Set the context *and* mark the node as constructed */
-    if(retval == UA_STATUSCODE_GOOD) {
-        struct SetNodeContext ctx;
-        ctx.context = context;
-        ctx.setConstructed = true;
+    if(retval == UA_STATUSCODE_GOOD)
         retval = UA_Server_editNode(server, &adminSession, &node->nodeId,
-                                    (UA_EditNodeCallback)editNodeContext, &ctx);
-    }
+                                    (UA_EditNodeCallback)editNodeContext,
+                                    context);
 
-    /* Destruct the node. (It will be deleted outside of this function) */
+    /* Fail. Call the global destructor. */
     if(retval != UA_STATUSCODE_GOOD && server->config.nodeLifecycle.destructor)
         server->config.nodeLifecycle.destructor(server, &session->sessionId,
                                                 session->sessionHandle,
@@ -614,6 +602,10 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session,
     return retval;
 }
 
+static void
+removeDeconstructedNode(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_Boolean removeTargetRefs);
+
 static const UA_NodeId hasSubtype = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}};
 
 UA_StatusCode
@@ -710,8 +702,9 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
     }
 
     /* Instantiate variables and objects */
-    if(type && (node->nodeClass == UA_NODECLASS_VARIABLE ||
-                node->nodeClass == UA_NODECLASS_OBJECT)) {
+    if(node->nodeClass == UA_NODECLASS_VARIABLE ||
+       node->nodeClass == UA_NODECLASS_OBJECT) {
+        UA_assert(type != NULL); /* see above */
         /* Add (mandatory) child nodes from the type definition */
         retval = addChildren(server, session, node, type);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -744,17 +737,18 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
 
     /* Call the constructor(s) */
     retval = callConstructors(server, session, node, type);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
                             "AddNodes: Calling the node constructor(s) failed "
                             "with status code %s", UA_StatusCode_name(retval));
+    }
 
  cleanup:
-    UA_Nodestore_release(server, node);
     if(type)
         UA_Nodestore_release(server, type);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_Server_deleteNode(server, *nodeId, true);
+        removeDeconstructedNode(server, session, node, true);
+    UA_Nodestore_release(server, node);
     return retval;
 }
 
@@ -866,71 +860,119 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
     }
 }
 
-static UA_StatusCode
-deleteNode(UA_Server *server, UA_Session *session,
-           const UA_DeleteNodesItem *item, UA_StatusCode *result) {
+static void
+deconstructNode(UA_Server *server, UA_Session *session,
+                const UA_Node *node) {
+    /* Call the type-level destructor */
+    void *context = node->context; /* No longer needed after this function */
+    if(node->nodeClass == UA_NODECLASS_OBJECT ||
+       node->nodeClass == UA_NODECLASS_VARIABLE) {
+        const UA_Node *type = getNodeType(server, node);
+        if(type) {
+            const UA_NodeTypeLifecycle *lifecycle;
+            if(node->nodeClass == UA_NODECLASS_OBJECT)
+                lifecycle = &((const UA_ObjectTypeNode*)type)->lifecycle;
+            else
+                lifecycle = &((const UA_VariableTypeNode*)type)->lifecycle;
+            if(lifecycle->destructor)
+                lifecycle->destructor(server,
+                                      &session->sessionId, session->sessionHandle,
+                                      &type->nodeId, type->context,
+                                      &node->nodeId, &context);
+            UA_Nodestore_release(server, type);
+        }
+    }
+
+    /* Call the global destructor */
+    if(server->config.nodeLifecycle.destructor)
+        server->config.nodeLifecycle.destructor(server, &session->sessionId,
+                                                session->sessionHandle,
+                                                &node->nodeId, context);
+}
+
+static void
+deleteNodeOperation(UA_Server *server, UA_Session *session,
+                    const UA_DeleteNodesItem *item, UA_StatusCode *result);
+
+static void
+removeChildren(UA_Server *server, UA_Session *session,
+               const UA_Node *node) {
+    /* Browse to get all children of the node */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = node->nodeId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    bd.includeSubtypes = true;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    bd.resultMask = UA_BROWSERESULTMASK_NONE;
+
+    UA_BrowseResult br;
+    UA_BrowseResult_init(&br);
+    Service_Browse_single(server, session, NULL, &bd, 0, &br);
+    if(br.statusCode != UA_STATUSCODE_GOOD)
+        return;
+
+    UA_DeleteNodesItem item;
+    item.deleteTargetReferences = true;
+
+    /* Remove every child */
+    for(size_t i = 0; i < br.referencesSize; ++i) {
+        UA_ReferenceDescription *rd = &br.references[i];
+        item.nodeId = rd->nodeId.nodeId;
+        UA_StatusCode retval;
+        deleteNodeOperation(server, session, &item, &retval);
+    }
+
+    UA_BrowseResult_deleteMembers(&br);
+}
+
+static void
+removeDeconstructedNode(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_Boolean removeTargetRefs) {
+    /* Remove all children of the node */
+    removeChildren(server, session, node);
+    
+    /* Remove references to the node (not the references going out, as the node
+     * will be deleted anyway) */
+    if(removeTargetRefs)
+        removeIncomingReferences(server, session, node);
+
+    /* Remove the node in the nodestore */
+    UA_Nodestore_remove(server, &node->nodeId);
+}
+
+static void
+deleteNodeOperation(UA_Server *server, UA_Session *session,
+                    const UA_DeleteNodesItem *item, UA_StatusCode *result) {
     /* Do not check access for server */
     if(session != &adminSession && server->config.accessControl.allowDeleteNode &&
        !server->config.accessControl.allowDeleteNode(&session->sessionId, session->sessionHandle, item)) {
         *result = UA_STATUSCODE_BADUSERACCESSDENIED;
-        return *result;
+        return;
     }
 
     const UA_Node *node = UA_Nodestore_get(server, &item->nodeId);
-    if(!node)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    /* TODO: Check if the information model consistency is violated */
-    /* TODO: Check if the node is a mandatory child of an object */
+    if(!node) {
+        *result = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
 
     if(UA_Node_hasSubTypeOrInstances(node)) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "Delete Nodes: Cannot delete a node with active instances");
+                            "Delete Nodes: Cannot delete a type node "
+                            "with active instances or subtypes");
         UA_Nodestore_release(server, node);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        *result = UA_STATUSCODE_BADINTERNALERROR;
+        return;
     }
 
-    /* Call the node type destructor if the constructor has been run */
-    if(node->constructed) {
-        void *context = node->context; /* No longer needed after this function */
-        if(node->nodeClass == UA_NODECLASS_OBJECT) {
-            /* Call the destructor from the object type */
-            const UA_ObjectTypeNode *type =
-                (const UA_ObjectTypeNode*)getNodeType(server, node);
-            if(type) {
-                if(type->lifecycle.destructor)
-                    type->lifecycle.destructor(server, &session->sessionId,
-                                               session->sessionHandle, &type->nodeId,
-                                               type->context, &item->nodeId, &context);
-                UA_Nodestore_release(server, (const UA_Node*)type);
-            }
-        } else if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-            const UA_VariableTypeNode *type =
-                (const UA_VariableTypeNode*)getNodeType(server, node);
-            if(type) {
-                if(type->lifecycle.destructor)
-                    type->lifecycle.destructor(server, &session->sessionId,
-                                               session->sessionHandle, &type->nodeId,
-                                               type->context, &item->nodeId, &context);
-                UA_Nodestore_release(server, (const UA_Node*)type);
-            }
-        }
+    /* TODO: Check if the information model consistency is violated */
+    /* TODO: Check if the node is a mandatory child of a parent */
 
-        /* Call the global destructor */
-        if(server->config.nodeLifecycle.destructor)
-            server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                    session->sessionHandle,
-                                                    &item->nodeId, context);
-    }
-
-    /* Remove references to the node (not the references in the node that will
-     * be deleted anyway) */
-    if(item->deleteTargetReferences)
-        removeIncomingReferences(server, session, node);
-
-    /* Remove the node in the nodestore */
+    deconstructNode(server, session, node);
+    removeDeconstructedNode(server, session, node, item->deleteTargetReferences);
     UA_Nodestore_release(server, node);
-    return UA_Nodestore_remove(server, &item->nodeId);
 }
 
 void Service_DeleteNodes(UA_Server *server, UA_Session *session,
@@ -940,7 +982,7 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          "Processing DeleteNodesRequest");
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation) deleteNode,
+                                           (UA_ServiceOperation)deleteNodeOperation,
                                            &request->nodesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                            &response->resultsSize,
@@ -954,7 +996,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
     item.deleteTargetReferences = deleteReferences;
     item.nodeId = nodeId;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval = deleteNode(server, &adminSession, &item, &retval);
+    deleteNodeOperation(server, &adminSession, &item, &retval);
     return retval;
 }
 
