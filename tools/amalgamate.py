@@ -29,7 +29,7 @@ guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ 
 
 print ("Starting amalgamating file "+ args.outfile)
 
-file = io.open(args.outfile, 'w', encoding='utf8', errors='replace')
+file = io.open(args.outfile, 'wt', encoding='utf8', errors='replace')
 file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
