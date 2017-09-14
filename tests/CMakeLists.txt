@@ -14,6 +14,10 @@ endif()
 
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
+  link_directories("/usr/local/lib")
+endif()
+
 # Build the plugins used for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/tests/testing_clock.c
@@ -25,7 +29,7 @@ add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 
 # Workaround some clang warnings in the uni tests
-if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     add_definitions(-Wno-sign-conversion)
 endif()
 
