@@ -55,6 +55,7 @@ typedef UA_UInt32 u32;
 typedef UA_Int32 i32;
 typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
+typedef UA_StatusCode status;
 
 /* Atomic Operations
  * -----------------
