@@ -29,16 +29,16 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime = server->startTime;
-    status->currentTime = UA_DateTime_now();
-    status->state = UA_SERVERSTATE_RUNNING;
-    status->secondsTillShutdown = 0;
-    UA_BuildInfo_copy(&server->config.buildInfo, &status->buildInfo);
+    UA_ServerStatusDataType *statustype = UA_ServerStatusDataType_new();
+    statustype->startTime = server->startTime;
+    statustype->currentTime = UA_DateTime_now();
+    statustype->state = UA_SERVERSTATE_RUNNING;
+    statustype->secondsTillShutdown = 0;
+    UA_BuildInfo_copy(&server->config.buildInfo, &statustype->buildInfo);
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
     value->value.arrayLength = 0;
-    value->value.data = status;
+    value->value.data = statustype;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
     value->hasValue = true;
