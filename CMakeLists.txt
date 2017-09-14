@@ -28,8 +28,6 @@ set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For examp
 
 set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
 
-set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
-
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
