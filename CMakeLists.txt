@@ -15,6 +15,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+set(LIB_INSTALL_DIR /usr/lib CACHE PATH "Installation path of libraries")
+
 ###########
 # Version #
 ###########
@@ -621,7 +623,7 @@ add_dependencies(lint open62541)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install lib/cmake)
+set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake3)
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
 set(open62541_tools_dir share/open62541/tools)
 set(open62541_deps_dir include/open62541/deps)
@@ -629,10 +631,10 @@ set(open62541_deps_dir include/open62541/deps)
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
         EXPORT open62541Targets
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib
-        RUNTIME DESTINATION bin
-        INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
+        INCLUDES DESTINATION ${INCLUDE_INSTALL_DIR}/open62541 ${open62541_deps_dir})
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541-config.cmake.in"
@@ -658,7 +660,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cmake/open62541-config.cmake"
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
-            DESTINATION lib/pkgconfig)
+            DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
 endif()
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 if(UA_ENABLE_AMALGAMATION)
