@@ -154,6 +154,10 @@ struct UA_Server {
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
+    /* For bootstrapping, omit some consistency checks, creating a reference to
+       the parent and member instantiation */
+    UA_Boolean bootstrapNS0;
+
     /* Config is the last element so that MSVC allows the usernamePasswordLogins
      * field with zero-sized array */
     UA_ServerConfig config;
@@ -455,9 +459,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 /* Create Namespace 0 */
 /**********************/
 
-#ifndef UA_ENABLE_GENERATE_NAMESPACE0
-void UA_Server_createNS0(UA_Server *server);
-#endif
+UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -3,8 +3,6 @@ pyUANamespace
 
 pyUANamespace is a collection of python 2 scripts that can parse OPC UA XML Namespace definition files and transform them into a class representation. This facilitates both reprinting the namespace in a different non-XML format (such as C-Code or DOT) and analysis of the namespace structure.
 
-
-
 ### Documentation
 
 The pyUANamespace implementation has been contributed by a research project of the chair for Process Control Systems Engineering of the TU Dresden. It was not strictly speaking created as a C generator, but could be easily modified to fullfill this role for open62541.
@@ -80,7 +78,7 @@ Further attributes may be added at a later point depending on demand.
 
 OPC UA node types, base data types and references are described in ua_node_types.py and ua_builtin_types.py. These classes are primarily intended to act as part of an AST to parse OPC UA Namespace description files. They implement a hierarchic/rekursive parsing of XML DOM objects, supplementing their respective properties from the XML description.
 
-A manager class called ua_namespace is included in the respective source file. This class does _not_ correspond to a OPC UA Namespace. It is an aggregator and manager for nodes and references which may belong to any number of namespaces. This class includes extensive parsing/validation to ensure that a complete and consistent namespace is generated.
+A manager class called NodeSet is included in the respective source file. This class does _not_ correspond to a OPC UA Namespace. It is an aggregator and manager for nodes and references which may belong to any number of namespaces. This class includes extensive parsing/validation to ensure that a complete and consistent namespace is generated.
 
 ## Namespace compilation internals
 
@@ -92,15 +90,15 @@ Compiling a namespace consists of the following steps:
 - Parse/Allocate variable values according to their dataType definitions
 
 
-Reading and parsing XML files is handled by ua_namespace.parseXML(/path/to/file.xml). It is the first part of a multipass compiler that will create all nodes contained in the XML description.
+Reading and parsing XML files is handled by NodeSet.parseXML(/path/to/file.xml). It is the first part of a multipass compiler that will create all nodes contained in the XML description.
 
 During the reading of XML files, nodes will attempt to parse any attributes they own, but not refer to any other nodes. References will be kept as XML descriptions. Any number of XML files can be read in this phase. __NOTE__: In the open62541 (this) implementation, duplicate nodes (same NodeId) are allowed. The last definition encountered will be kept. This allows overwriting specific nodes of a much larger XML file to with implementation specific nodes.
 
-The next phase of the compilation is to link all references. The phase is called by ua_namespace.linkOpenPointers(). All references will attempt to locate their target() node in the namespace and point to it.
+The next phase of the compilation is to link all references. The phase is called by NodeSet.linkOpenPointers(). All references will attempt to locate their target() node in the namespace and point to it.
 
-During the sanitation phase called by ua_namespace.sanitize(), nodes check themselves for invalid attributes. Most notably any references that could not be resolved to a node will be removed from the nodes.
+During the sanitation phase called by NodeSet.sanitize(), nodes check themselves for invalid attributes. Most notably any references that could not be resolved to a node will be removed from the nodes.
 
-When calling ua_namespace.buildEncodingRules(), dataType nodes are examined to determine if and how the can be encoded as a serialization of OPC UA builtin types as well as their aliases.
+When calling NodeSet.buildEncodingRules(), dataType nodes are examined to determine if and how the can be encoded as a serialization of OPC UA builtin types as well as their aliases.
 
 The following fragment of a variable value can illustrate the necessity for determining encoding rules:
 ```xml
@@ -123,7 +121,7 @@ LastMethodOutputArguments : Argument -> i=296
 
 DataTypes that cannot be encoded as a definite serial object (e.g. by having a member of NumericType, but not a specific one), will have their isEncodable() attribute disabled. All dataTypes that complete this node can be used to effectively determine the size and serialization properties of any variables.
 
-Having encoding rules means that data can now be parsed when a <Value> tag is encountered in a description. Calling ua_namespace.allocateVariables() will do just that for any variable node that holds XML Values.
+Having encoding rules means that data can now be parsed when a <Value> tag is encountered in a description. Calling NodeSet.allocateVariables() will do just that for any variable node that holds XML Values.
 
 The result of this compilation is a completely linked and instantiated OPC UA namespace.
 
@@ -131,7 +129,7 @@ An example compiler can be built as follows:
 ```python
 class testing:
   def __init__(self):
-    self.namespace = opcua_namespace("testing")
+    self.namespace = NodeSet("testing")
 
     log(self, "Phase 1: Reading XML file nodessets")
     self.namespace.parseXML("Opc.Ua.NodeSet2.xml")

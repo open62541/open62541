@@ -25,6 +25,8 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
 
 size_t UA_calcSizeBinary(void *p, const UA_DataType *type);
 
+const UA_DataType *UA_findDataTypeByBinary(const UA_NodeId *typeId);
+
 #ifdef __cplusplus
 }
 #endif

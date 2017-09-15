@@ -5,10 +5,6 @@
 #include "ua_types.h"
 #include "ua_server_internal.h"
 
-#ifdef UA_ENABLE_GENERATE_NAMESPACE0
-#include "ua_namespaceinit_generated.h"
-#endif
-
 #if defined(UA_ENABLE_MULTITHREADING) && !defined(NDEBUG)
 UA_THREAD_LOCAL bool rcu_locked = false;
 #endif
@@ -242,12 +238,16 @@ UA_Server_new(const UA_ServerConfig *config) {
     server->serverOnNetworkCallbackData = NULL;
 #endif
 
-    /* Initialize Namespace 0 */
-#ifndef UA_ENABLE_GENERATE_NAMESPACE0
-    UA_Server_createNS0(server);
-#else
-    ua_namespaceinit_generated(server);
-#endif
+    /* Initialize namespace 0*/
+    UA_StatusCode retVal = UA_Server_initNS0(server);
+    if (retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logger,
+                     UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+        UA_Server_delete(server);
+        return NULL;
+    }
 
     return server;
 }

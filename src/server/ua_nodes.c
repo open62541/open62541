@@ -4,6 +4,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_nodes.h"
+#include "ua_types_encoding_binary.h"
 
 /* There is no UA_Node_new() method here. Creating nodes is part of the
  * NodeStore layer */
@@ -253,7 +254,39 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
     /* Copy the value */
     node->valueSource = UA_VALUESOURCE_DATA;
-    retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
+    UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
+     * we need to decode it and set the decoded value instead of the encoded object */
+    UA_Boolean valueSet = false;
+    if (attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+        const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
+        if (obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+
+            const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
+
+            if (type) {
+                void *dst = UA_Array_new(attr->value.arrayLength, type);
+                uint8_t *tmpPos = (uint8_t *)dst;
+
+                for (size_t i=0; i<attr->value.arrayLength; i++) {
+                    size_t offset =0;
+                    const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
+                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
+                    if (ret != UA_STATUSCODE_GOOD) {
+                        return ret;
+                    }
+                    tmpPos += type->memSize;
+                }
+
+                UA_Variant_setArray(&node->value.data.value.value, dst, attr->value.arrayLength, type);
+                valueSet = true;
+            }
+        }
+    }
+
+    if (!valueSet)
+        retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
+
     node->value.data.value.hasValue = true;
 
     return retval;

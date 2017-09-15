@@ -85,7 +85,7 @@ else
     echo -e "\r\n== Full Namespace 0 Generation ==" && echo -en 'travis_fold:start:script.build.ns0\\r'
     mkdir -p build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_GENERATE_NAMESPACE0=On -DUA_BUILD_EXAMPLES=ON  ..
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_NAMESPACE0_XML=../tools/schema/namespace0/Opc.Ua.NodeSet2.xml -DUA_DATATYPES_FILE=../tools/schema/datatypes_full.txt -DUA_BUILD_EXAMPLES=ON  ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -194,8 +194,11 @@ else
     echo -en 'travis_fold:end:script.build.multithread\\r'
 
     echo -e "\r\n== Debug build and unit tests (64 bit) ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
+    git clone --depth 1 https://github.com/OPCFoundation/UA-Nodeset.git tests/ua-nodeset
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
+    cmake -DUA_NAMESPACE0_XML=../tools/schema/namespace0/Opc.Ua.NodeSet2.xml -DUA_DATATYPES_FILE= \
+    -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+    -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
     echo -en 'travis_fold:end:script.build.unit_test_valgrind\\r'

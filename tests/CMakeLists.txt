@@ -190,3 +190,102 @@ add_test_valgrind(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_su
 add_executable(check_client_highlevel check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
 add_test_valgrind(check_client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+
+#############################
+#                           #
+# Test for Nodeset Compiler #
+#                           #
+#############################
+
+# Generate types for DI namespace
+set(UA_TYPES_OUT "ua_types_di")
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.c
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.h
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_handling.h
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_encoding_binary.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                   --namespace=2
+                   --type-csv=${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/OpcUaDiModel.csv
+                   --type-bsd=${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/Opc.Ua.Di.Types.bsd
+                   --no-builtin
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/OpcUaDiModel.csv
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/Opc.Ua.Di.Types.bsd)
+
+# Generate types for ADI namespace
+set(UA_TYPES_OUT "ua_types_adi")
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.c
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.h
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_handling.h
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated_encoding_binary.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                   --namespace=3
+                   --type-csv=${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/OpcUaAdiModel.csv
+                   --type-bsd=${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd
+                   --no-builtin
+                   ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/OpcUaAdiModel.csv
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/Opc.Ua.Adi.Types.bsd)
+
+# generate DI namespace
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
+                   ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   --internal-headers
+                   --types-array=UA_TYPES
+                   --types-array=UA_TYPES_DI
+                   --existing ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
+                   --xml ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
+                   ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di
+                   DEPENDS ${UA_NAMESPACE0_XML}
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
+                   )
+
+
+# generate ADI namespace based on DI and ADI
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi.c
+                   ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   --internal-headers
+                   --types-array=UA_TYPES
+                   --types-array=UA_TYPES_DI
+                   --types-array=UA_TYPES_ADI
+                   --existing ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
+                   --existing ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
+                   --xml ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml
+                   ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi
+                   DEPENDS ${UA_NAMESPACE0_XML}
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                   ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
+                   ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
+                   ${PROJECT_SOURCE_DIR}/tests/ua-nodeset/ADI/Opc.Ua.Adi.NodeSet2.xml
+                   )
+
+add_executable(check_nodeset_compiler
+               check_nodeset_compiler.c
+               ${PROJECT_BINARY_DIR}/src_generated/ua_types_di_generated.c
+               ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
+               ${PROJECT_BINARY_DIR}/src_generated/ua_types_adi_generated.c
+               ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_adi.c
+               $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_nodeset_compiler ${LIBS})
+add_test_valgrind(check_nodeset_compiler ${TESTS_BINARY_DIR}/check_nodeset_compiler)

@@ -73,32 +73,29 @@ add_example(server_inheritance server_inheritance.c)
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
 add_example(custom_datatype_server custom_datatype/server_types_custom.c)
 
-if(UA_BUILD_EXAMPLES_NODESET_COMPILER)
-  if(BUILD_SHARED_LIBS)
-    message(FATAL_ERROR "The nodeset compiler currently requires static linking to access internal API")
-  endif()
+# generate namespace from XML file
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_namespace.c
+                          ${PROJECT_BINARY_DIR}/src_generated/example_namespace.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           --types-array=UA_TYPES
+                           --existing ${UA_NAMESPACE0_XML}
+                           --xml ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
+                           ${PROJECT_BINARY_DIR}/src_generated/example_namespace
+                   DEPENDS ${UA_NAMESPACE0_XML}
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py
+                           ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
+                   )
 
-  # example information model from nodeset xml
-  add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-                    PRE_BUILD
-                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                                                 -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                                                 ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
-                                                 ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
-                                                 ${PROJECT_BINARY_DIR}/src_generated/nodeset
-                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                            ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-
-  # needs internal methods which are not exported in the dynamic lib
-  add_example(server_nodeset ${PROJECT_BINARY_DIR}/src_generated/nodeset.c server_nodeset.c)
-  target_include_directories(server_nodeset PRIVATE ${PROJECT_SOURCE_DIR}/src ${PROJECT_SOURCE_DIR}/deps) # needs an internal header
-  set_target_properties(server_nodeset PROPERTIES COMPILE_FLAGS "-Wno-pedantic -Wno-sign-conversion")
+add_example(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/example_namespace.c)
+if(UA_COMPILE_AS_CXX)
+	set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/example_namespace.c PROPERTIES LANGUAGE CXX)
 endif()
 
 if(UA_BUILD_SELFSIGNED_CERTIFICATE)
