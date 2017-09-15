@@ -191,7 +191,7 @@ class EnumerationType(Type):
         else:
             values = self.elements.items()
         return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
-                                                            " = " + kv[1], values)) + \
+                                                           " = " + kv[1], values)) + \
                ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(self.name.upper()) + "} " + \
                "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(self.name)
 
