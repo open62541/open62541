@@ -113,7 +113,7 @@ mark_as_advanced(UA_COMPILE_AS_CXX)
 list(APPEND open62541_LIBRARIES "")
 if(NOT WIN32)
   list(APPEND open62541_LIBRARIES pthread)
-  if (NOT APPLE)
+  if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
     list(APPEND open62541_LIBRARIES rt)
   endif()
 else()
@@ -128,8 +128,8 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
                     -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare
                     -Wmultichar -Wstrict-overflow -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
-    if(NOT WIN32 AND NOT CYGWIN)
+                    -Winit-self -Wformat-security -Wformat-nonliteral)
+    if(NOT WIN32 AND NOT CYGWIN AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     endif()
 
