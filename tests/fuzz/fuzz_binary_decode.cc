@@ -21,7 +21,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	size_t ptrSize = size;
 
 	// get some random type
-	uint8_t typeIndex = ptr[0];
+	uint16_t typeIndex = ptr[0];
 	ptr++;
 	ptrSize--;
 
