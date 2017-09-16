@@ -15,6 +15,8 @@ set(OPEN62541_VER_MINOR 2)
 set(OPEN62541_VER_PATCH 0)
 set(OPEN62541_VER_LABEL "dev") # Appended to the X.Y.Z version format. For example "-rc1" or an empty string
 
+set(LIB_INSTALL_DIR lib CACHE PATH "Installation path of libraries")
+
 # Set OPEN62541_VER_COMMIT
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --tags
@@ -504,8 +506,8 @@ add_dependencies(lint open62541)
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
-        LIBRARY DESTINATION lib
-        ARCHIVE DESTINATION lib)
+        LIBRARY DESTINATION ${LIB_INSTALL_DIR} 
+        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}) 
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 
