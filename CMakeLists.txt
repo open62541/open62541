@@ -394,7 +394,14 @@ if(UA_ENABLE_AMALGAMATION)
     # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
     # and thus may overwrite the amalgamation result during multiprocessor compilation
     # the header is already a dependency of open62541 target itself
-    add_dependencies(open62541-object open62541-amalgamation-source)
+    add_dependencies(open62541-object
+                     open62541-amalgamation-header
+                     open62541-generator-types
+                     open62541-generator-transport
+                     open62541-generator-statuscode
+                     open62541-amalgamation-source
+                     )
+
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
@@ -404,11 +411,15 @@ if(UA_ENABLE_AMALGAMATION)
 else()
     add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
-    add_dependencies(open62541-object open62541-generator-types open62541-generator-transport open62541-generator-statuscode)
+    add_dependencies(open62541-object
+                     open62541-amalgamation-header
+                     open62541-generator-types
+                     open62541-generator-transport
+                     open62541-generator-statuscode)
     target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_library(open62541-plugins OBJECT ${default_plugin_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types)
+    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
