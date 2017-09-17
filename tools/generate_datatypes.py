@@ -448,9 +448,9 @@ def iter_types(v):
     else:
         l = list(v.values())
     if len(selected_types) > 0:
-        l = filter(lambda t: t.name in selected_types, l)
+        l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
-        l = filter(lambda t: type(t) != BuiltinType, l)
+        l = list(filter(lambda t: type(t) != BuiltinType, l))
     return l
 
 ################
