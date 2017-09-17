@@ -691,6 +691,17 @@ static void
 Service_AddNodes_single(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, UA_AddNodesResult *result,
                         void *nodeContext) {
+
+    /* Do not check access for server */
+    if (session != &adminSession &&
+        server->config.accessControl.allowAddNode &&
+        !server->config.accessControl.allowAddNode(&session->sessionId, session->sessionHandle,
+            item))
+    {
+        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     /* AddNodes_begin */
     Service_AddNode_begin(server, session, item, result, nodeContext);
     if(result->statusCode != UA_STATUSCODE_GOOD)
@@ -728,7 +739,7 @@ void Service_AddNodes(UA_Server *server, UA_Session *session,
 
     response->resultsSize = size;
     for(size_t i = 0; i < size; ++i) {
-            Service_AddNodes_single(server, session, &request->nodesToAdd[i],
+        Service_AddNodes_single(server, session, &request->nodesToAdd[i],
                                     &response->results[i], NULL);
     }
 }
@@ -844,6 +855,17 @@ removeIncomingReferences(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 deleteNode(UA_Server *server, UA_Session *session,
            const UA_DeleteNodesItem *item, UA_StatusCode *result) {
+
+    /* Do not check access for server */
+    if (session != &adminSession &&
+        server->config.accessControl.allowDeleteNode &&
+        !server->config.accessControl.allowDeleteNode(&session->sessionId, session->sessionHandle,
+            item))
+    {
+        *result = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return *result;
+    }
+
     UA_RCU_LOCK();
     const UA_Node *node = UA_NodeStore_get(server->nodestore, &item->nodeId);
     UA_RCU_UNLOCK();
@@ -908,7 +930,7 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          "Processing DeleteNodesRequest");
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)deleteNode,
+                                           (UA_ServiceOperation) deleteNode,
                                            &request->nodesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                            &response->resultsSize,
@@ -946,6 +968,17 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 static void
 addReference(UA_Server *server, UA_Session *session,
              const UA_AddReferencesItem *item, UA_StatusCode *retval) {
+
+    /* Do not check access for server */
+    if (session != &adminSession &&
+        server->config.accessControl.allowAddReference &&
+        !server->config.accessControl.allowAddReference(&session->sessionId, session->sessionHandle,
+            item))
+    {
+        *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     /* Currently no expandednodeids are allowed */
     if(item->targetServerUri.length > 0) {
         *retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1032,6 +1065,17 @@ static void
 deleteReference(UA_Server *server, UA_Session *session,
                 const UA_DeleteReferencesItem *item,
                 UA_StatusCode *retval) {
+
+    /* Do not check access for server */
+    if (session != &adminSession &&
+        server->config.accessControl.allowDeleteReference &&
+        !server->config.accessControl.allowDeleteReference(&session->sessionId, session->sessionHandle,
+            item))
+    {
+        *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     // TODO: Check consistency constraints, remove the references.
     *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
                                  (UA_EditNodeCallback)deleteOneWayReference, item);
@@ -1060,7 +1104,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          "Processing DeleteReferencesRequest");
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)deleteReference,
+                                           (UA_ServiceOperation) deleteReference,
                                            &request->referencesToDeleteSize,
                                            &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                            &response->resultsSize,
