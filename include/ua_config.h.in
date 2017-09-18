@@ -270,16 +270,24 @@ extern "C" {
 /**
  * Static Assert
  * ^^^^^^^^^^^^^
- *
  * Outputs an error message at compile time if the assert fails.
  * Example usage:
- * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke) *
+ * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
  * See: https://stackoverflow.com/a/4815532/869402 */
-#define UA_CTASTR2(pre,post) pre ## post
-#define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
-#define UA_STATIC_ASSERT(cond,msg) \
-    typedef struct { int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); } \
-        UA_CTASTR(static_assertion_failed_,__COUNTER__)
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 */
+# define UA_STATIC_ASSERT(cond,msg) \
+    _Static_assert(cond, msg)
+#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
+# define UA_CTASTR2(pre,post) pre ## post
+# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# define UA_STATIC_ASSERT(cond,msg)                             \
+    typedef struct {                                            \
+        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
+#else /* Everybody else */
+# define UA_STATIC_ASSERT(cond,msg) \
+    typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
 
 #ifdef __cplusplus
 } // extern "C"
