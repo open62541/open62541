@@ -90,9 +90,7 @@ mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
-set(UA_NAMESPACE0_XML ${CMAKE_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.Minimal.xml CACHE FILEPATH "Namespace Zero definition XML file")
-set(UA_DATATYPES_FILE ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt CACHE FILEPATH "File containing the list of datatypes added to the server")
-mark_as_advanced(UA_DATATYPES_FILE)
+option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
@@ -377,6 +375,14 @@ endif()
 # Generate source files #
 #########################
 
+if (UA_ENABLE_FULL_NS0)
+    set(UA_NAMESPACE0_XML ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    set(UA_DATATYPES_FILE "")
+else()
+    set(UA_NAMESPACE0_XML ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    set(UA_DATATYPES_FILE "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+endif()
+
 if (UA_DATATYPES_FILE STREQUAL "")
     set(SELECTED_TYPES_TMP "")
 else()
@@ -389,14 +395,14 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
+                           --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv
                            ${SELECTED_TYPES_TMP}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
                            ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                           ${SELECTED_TYPES})
+                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv
+                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
+                           ${UA_DATATYPES_FILE})
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-types DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -413,13 +419,13 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                            --namespace=1
                            --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
                            --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                            --no-builtin
                            ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
                            ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
