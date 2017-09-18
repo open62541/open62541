@@ -318,6 +318,9 @@ def parseTypeDescriptions(f, namespaceid):
     input_str = f.read()
     input_str = input_str.replace('\r','')
     rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
+
+    delay_init = []
+
     for index, row in enumerate(rows):
         if len(row) < 3:
             continue
@@ -328,10 +331,12 @@ def parseTypeDescriptions(f, namespaceid):
                 baseType = m.group(1)
                 if baseType not in types:
                     continue
-                if m.group(2) == "Xml":
-                    definitions[baseType].xmlEncodingId = row[1]
-                else:
-                    definitions[baseType].binaryEncodingId = row[1]
+
+                delay_init.append({
+                    "baseType": baseType,
+                    "encoding": m.group(2),
+                    "id": row[1]
+                })
             continue
         if row[2] != "DataType":
             continue
@@ -343,6 +348,13 @@ def parseTypeDescriptions(f, namespaceid):
             continue
         else:
             definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
+    for i in delay_init:
+        if i["baseType"] not in definitions:
+            raise Exception("Type {} not found in definitions file.".format(i["baseType"]))
+        if i["encoding"] == "Xml":
+            definitions[i["baseType"]].xmlEncodingId = i["id"]
+        else:
+            definitions[i["baseType"]].binaryEncodingId = i["id"]
     return definitions
 
 def merge_dicts(*dict_args):
