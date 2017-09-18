@@ -41,9 +41,19 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
                                         UA_DateTime nowMonotonic);
 
 UA_StatusCode
+UA_SecureChannelManager_open_temporary(UA_SecureChannelManager* const cm,
+                                       UA_SecureChannel** const pp_channel,
+                                       UA_Connection* const connection);
+
+UA_StatusCode
+UA_SecureChannelManager_close_temporary(UA_SecureChannelManager* const cm,
+                                        UA_SecureChannel* const channel);
+
+UA_StatusCode
 UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
                              const UA_OpenSecureChannelRequest *request,
-                             UA_OpenSecureChannelResponse *response);
+                             UA_OpenSecureChannelResponse *response,
+                             UA_SecureChannel* tmpChannel);
 
 UA_StatusCode
 UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,

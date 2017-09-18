@@ -92,6 +92,7 @@ START_TEST(parseCustomScalar) {
     const UA_Byte *end = &buf.data[buf.length];
     retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
                              &pos, &end, NULL, NULL);
+
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;
@@ -167,6 +168,7 @@ START_TEST(parseCustomArray) {
     const UA_Byte *end = &buf.data[buf.length];
     retval = UA_encodeBinary(&var, &UA_TYPES[UA_TYPES_VARIANT],
                              &pos, &end, NULL, NULL);
+
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant var2;

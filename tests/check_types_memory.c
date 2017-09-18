@@ -66,6 +66,7 @@ START_TEST(encodeShallYieldDecode) {
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
     retval = UA_encodeBinary(obj1, &UA_TYPES[_i],
@@ -114,6 +115,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     UA_ByteString msg1;
     void *obj1 = UA_new(&UA_TYPES[_i]);
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
+
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
     retval |= UA_encodeBinary(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
@@ -220,9 +222,11 @@ START_TEST(calcSizeBinaryShallBeCorrect) {
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
     retval = UA_encodeBinary(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+
     if(retval)
         printf("%i\n",_i);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);

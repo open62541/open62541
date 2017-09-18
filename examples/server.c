@@ -116,11 +116,21 @@ outargMethod(UA_Server *server,
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ByteString certificate = loadCertificate();
-    UA_ServerConfig *config =
-        UA_ServerConfig_new_minimal(4840, &certificate);
-    UA_ByteString_deleteMembers(&certificate);
+    UA_ByteString cert = loadCertificate();
+
+    UA_ServerConfig *config = UA_ServerConfig_new_minimal(16664, &cert);
+    UA_ByteString_deleteMembers(&cert);
+
+    if(config == NULL)
+        return -1;
+
     UA_Server *server = UA_Server_new(config);
+
+    if (server == NULL)
+    {
+        UA_ServerConfig_delete(config);
+        return -1;
+    }
 
     /* add a static variable node to the server */
     UA_VariableAttributes myVar = UA_VariableAttributes_default;
@@ -385,8 +395,10 @@ int main(int argc, char** argv) {
 #endif
 
     /* run server */
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running); /* run until ctrl-c is received */
+
     UA_Server_delete(server);
+
     UA_ServerConfig_delete(config);
     return (int)retval;
 }

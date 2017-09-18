@@ -28,7 +28,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing_clock.c)
+                        ${PROJECT_SOURCE_DIR}/tests/testing_clock.c
+						${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
@@ -39,7 +40,9 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
 endif()
 
 # Unit Test Definition Macro
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full)
+# For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
+# This also requires to disable the phtread cache with no-nptl-pthread-stackcache
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_VALGRIND_UNIT_TESTS)
         add_test(${TEST_NAME} valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} ${ARGN})

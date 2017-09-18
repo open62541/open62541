@@ -6,11 +6,10 @@
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
 
-void
-Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
-                          const UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
-    /* TODO: if(request->clientProtocolVersion != protocolVersion) */
+void Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
+                               const UA_OpenSecureChannelRequest *request,
+                               UA_OpenSecureChannelResponse *response,
+                               UA_SecureChannel* preparedChannel) {
 
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_RENEW) {
         /* Renew the channel */
@@ -41,7 +40,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_Connection *connection,
     /* Open the channel */
     response->responseHeader.serviceResult =
         UA_SecureChannelManager_open(&server->secureChannelManager,
-                                     connection, request, response);
+                                     connection, request, response, preparedChannel);
 
     /* Logging */
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {

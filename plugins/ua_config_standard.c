@@ -6,7 +6,10 @@
 #include "ua_network_tcp.h"
 #include "ua_accesscontrol_default.h"
 #include "ua_types_generated.h"
+#include "ua_securitypolicy_none.h"
 #include "ua_types.h"
+#include "ua_types_generated_handling.h"
+#include "ua_client_highlevel.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -57,7 +60,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
                                  const UA_ByteString *cert) {
     UA_EndpointDescription_init(&endpoint->endpointDescription);
 
-    endpoint->securityPolicy = NULL;
+    endpoint->securityPolicy = &UA_SecurityPolicy_None;
     endpoint->endpointDescription.securityMode = UA_MESSAGESECURITYMODE_NONE;
     endpoint->endpointDescription.securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#None");
@@ -197,14 +200,14 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     conf->networkLayersSize = 1;
 
     /* Allocate the endpoint */
-    conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint));
+    conf->endpoints.count = 1;
+    conf->endpoints.endpoints = (UA_Endpoint*)UA_malloc(sizeof(UA_Endpoint) * conf->endpoints.count);
     if(!conf->endpoints.endpoints) {
         conf->networkLayers[0].deleteMembers(&conf->networkLayers[0]);
         UA_free(conf->networkLayers);
         UA_free(conf);
         return NULL;
     }
-    conf->endpoints.count = 1;
 
     /* Populate the endpoint */
     UA_StatusCode retval =
@@ -216,6 +219,14 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
         UA_free(conf->endpoints.endpoints);
         UA_free(conf);
         return NULL;
+    }
+
+    // Initialize policy contexts
+    for(size_t i = 0; i < conf->endpoints.count; ++i) {
+        UA_SecurityPolicy *const policy = conf->endpoints.endpoints[i].securityPolicy;
+        policy->logger = conf->logger;
+
+        policy->policyContext.newContext(policy, NULL, NULL, &conf->endpoints.endpoints[i].securityContext);
     }
 
     return conf;
@@ -251,8 +262,13 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     /* config->networkLayers = NULL; */
     /* config->networkLayersSize = 0; */
 
-    for(size_t i = 0; i < config->endpoints.count; ++i)
+    for(size_t i = 0; i < config->endpoints.count; ++i) {
+        UA_SecurityPolicy *const policy = config->endpoints.endpoints[i].securityPolicy;
+
+        policy->policyContext.deleteContext(config->endpoints.endpoints[i].securityContext);
+
         UA_EndpointDescription_deleteMembers(&config->endpoints.endpoints[i].endpointDescription);
+    }
     UA_free(config->endpoints.endpoints);
     /* config->endpoints.endpoints = NULL; */
     /* config->endpoints.count = 0; */

@@ -34,7 +34,11 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     UA_ServerConfig *config = UA_ServerConfig_new_default();
+
     UA_Server *server = UA_Server_new(config);
+
+    if (server == NULL)
+        return -1;
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
