@@ -451,7 +451,7 @@ END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-    const UA_String expectedUris[] = {
+    const UA_String expectedUris[2] = {
         UA_STRING("urn:open62541.test.local_discovery_server"),
         UA_STRING("urn:open62541.test.server_register")
     };
