@@ -274,9 +274,10 @@ extern "C" {
  * Example usage:
  * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
  * See: https://stackoverflow.com/a/4815532/869402 */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 */
-# define UA_STATIC_ASSERT(cond,msg) \
-    _Static_assert(cond, msg)
+#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
+# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
+# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
 #elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
 # define UA_CTASTR2(pre,post) pre ## post
 # define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
