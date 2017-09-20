@@ -307,7 +307,8 @@ processOPN(UA_Server *server, UA_Connection *connection,
     retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &r);
 
     /* Error occured */
-    if(retval != UA_STATUSCODE_GOOD || requestType.identifier.numeric != 446) {
+    if(retval != UA_STATUSCODE_GOOD ||
+            requestType.identifier.numeric != UA_NS0ID_OPENSECURECHANNELREQUEST_ENCODING_DEFAULTBINARY) {
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
         UA_NodeId_deleteMembers(&requestType);
         UA_OpenSecureChannelRequest_deleteMembers(&r);
