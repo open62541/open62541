@@ -30,7 +30,7 @@ from backend_open62541 import generateOpen62541Code
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('-e', '--existing',
                     metavar="<existingNodeSetXML>",
-                    type=argparse.FileType('r'),
+                    type=argparse.FileType('rb'),
                     dest="existing",
                     action='append',
                     default=[],
@@ -38,7 +38,7 @@ parser.add_argument('-e', '--existing',
 
 parser.add_argument('-x', '--xml',
                     metavar="<nodeSetXML>",
-                    type=argparse.FileType('r'),
+                    type=argparse.FileType('rb'),
                     action='append',
                     dest="infiles",
                     default=[],

@@ -26,6 +26,8 @@ import xml.dom.minidom as dom
 from constants import *
 from base64 import *
 
+import six
+
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
@@ -178,7 +180,7 @@ class Value(object):
         if len(enc) == 1:
             # 0: ['BuiltinType']          either builtin type
             # 1: [ [ 'Alias', [...], n] ] or single alias for possible multipart
-            if isinstance(enc[0], basestring):
+            if isinstance(enc[0], six.string_types):
                 # 0: 'BuiltinType'
                 if alias != None:
                     if not xmlvalue.localName == alias:
@@ -200,7 +202,7 @@ class Value(object):
                 # 1: ['Alias', [...], n]
                 # Let the next elif handle this
                 return self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, alias=alias, encodingPart=enc[0])
-        elif len(enc) == 3 and isinstance(enc[0], basestring):
+        elif len(enc) == 3 and isinstance(enc[0], six.string_types):
             # [ 'Alias', [...], 0 ]          aliased multipart
             if alias == None:
                 alias = enc[0]
@@ -432,7 +434,7 @@ class String(Value):
         if xmlvalue.firstChild == None:
             self.value = ""  # Catch XML <String /> by setting the value to a default
         else:
-            self.value = str(unicode(xmlvalue.firstChild.data))
+            self.value = unicode(xmlvalue.firstChild.data)
 
 class XmlElement(String):
     def __init__(self, xmlelement=None):
@@ -453,7 +455,7 @@ class ByteString(Value):
         if xmlvalue.firstChild == None:
             self.value = []  # Catch XML <ByteString /> by setting the value to a default
         else:
-            self.value = b64decode(xmlvalue.firstChild.data)
+            self.value = b64decode(xmlvalue.firstChild.data).decode("utf-8")
 
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):

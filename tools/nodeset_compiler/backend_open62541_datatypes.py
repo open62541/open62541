@@ -79,7 +79,8 @@ def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_lengt
     elif type(node) == XmlElement:
         return generateXmlElementCode(node.value, asIndirect, max_string_length)
     elif type(node) == ByteString:
-        return generateByteStringCode(re.sub(r"[\r\n]+", "", node.value), asIndirect, max_string_length)
+        # replace whitespaces between tags and remove newlines
+        return generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), asIndirect, max_string_length)
     elif type(node) == LocalizedText:
         return generateLocalizedTextCode(node, asIndirect, max_string_length)
     elif type(node) == NodeId:

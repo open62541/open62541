@@ -14,6 +14,20 @@
 #include "ua_util.h"
 #include "check.h"
 
+// Define types to a dummy value if they are not available (e.g. not built with NS0 full)
+#ifndef UA_TYPES_UNION
+#define UA_TYPES_UNION UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_HISTORYREADDETAILS
+#define UA_TYPES_HISTORYREADDETAILS UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_NOTIFICATIONDATA
+#define UA_TYPES_NOTIFICATIONDATA UA_TYPES_COUNT
+#endif
+#ifndef UA_TYPES_MONITORINGFILTERRESULT
+#define UA_TYPES_MONITORINGFILTERRESULT UA_TYPES_COUNT
+#endif
+
 START_TEST(newAndEmptyObjectShallBeDeleted) {
     // given
     void *obj = UA_new(&UA_TYPES[_i]);

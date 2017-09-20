@@ -18,7 +18,9 @@ matrix:
   include:
     - os: linux
       compiler: gcc
-      env: ANALYZE=false
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
     - os: linux
       compiler: gcc
       env: ANALYZE=true
@@ -29,7 +31,14 @@ matrix:
         - docker
     - os: linux
       compiler: clang
-      env: ANALYZE=false
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
+      compiler: clang
+      env:
+        - ANALYZE=false
+        - PYTHON=python3
     - os: linux
       compiler: clang
       env: ANALYZE=true
@@ -62,6 +71,8 @@ addons:
       - libsubunit-dev
       - libx11-dev
       - mingw-w64
+      - python-six
+      - python3-six
       - texlive-fonts-recommended
       - texlive-latex-extra
       - texlive-latex-recommended

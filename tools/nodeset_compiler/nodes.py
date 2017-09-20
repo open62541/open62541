@@ -18,7 +18,6 @@
 
 import sys
 import logging
-from sets import Set
 from datatypes import *
 from constants import *
 
@@ -67,8 +66,8 @@ class Node(object):
         self.symbolicName = String()
         self.writeMask = 0
         self.userWriteMask = 0
-        self.references = Set()
-        self.inverseReferences = Set()
+        self.references = set()
+        self.inverseReferences = set()
         self.hidden = False
 
     def __str__(self):
