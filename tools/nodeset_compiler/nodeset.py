@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
+import codecs
 
 ####################
 # Helper Functions #
@@ -201,7 +202,13 @@ class NodeSet(object):
 
     def addNodeSet(self, xmlfile, hidden=False, typesArray="UA_TYPES"):
         # Extract NodeSet DOM
-        nodesets = dom.parse(xmlfile).getElementsByTagName("UANodeSet")
+
+        fileContent = xmlfile.read()
+        # Remove BOM since the dom parser cannot handle it on python 3 windows
+        if fileContent.startswith( codecs.BOM_UTF8 ):
+            fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
+
+        nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
         if len(nodesets) == 0 or len(nodesets) > 1:
             raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
         nodeset = nodesets[0]
@@ -296,7 +303,7 @@ class NodeSet(object):
         return node
                 
     def getDataTypeNode(self, dataType):
-        if isinstance(dataType, basestring):
+        if isinstance(dataType, six.string_types):
             if not valueIsInternalType(dataType):
                 logger.error("Not a valid dataType string: " + dataType)
                 return None
@@ -321,4 +328,4 @@ class NodeSet(object):
                                         self.getNodeByBrowseName("HasEncoding"),
                                         [])
         relevant_types = map(lambda x: x.id, relevant_types)
-        return relevant_types
+        return list(relevant_types)
