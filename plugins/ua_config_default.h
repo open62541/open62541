@@ -32,8 +32,18 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_default;
  * @param certificate Optional certificate for the server endpoint. Can be
  *        ``NULL``. */
 UA_EXPORT UA_ServerConfig *
-UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
-                            const UA_ByteString *certificate);
+UA_ServerConfig_new_minimal(UA_UInt16 portNumber, const UA_ByteString *certificate);
+
+#ifdef UA_ENABLE_ENCRYPTION
+UA_EXPORT UA_ServerConfig *
+UA_ServerConfig_new_basic128rsa15(UA_UInt16 portNumber,
+                                  const UA_ByteString *certificate,
+                                  const UA_ByteString *privateKey,
+                                  const UA_ByteString *trustList,
+                                  size_t trustListSize,
+                                  const UA_ByteString *revocationList,
+                                  size_t revocationListSize);
+#endif
 
 /* Creates a server config on the default port 4840 with no server
  * certificate. */
