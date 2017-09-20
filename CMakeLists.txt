@@ -494,6 +494,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+
+# stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
+set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
