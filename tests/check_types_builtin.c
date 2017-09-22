@@ -411,7 +411,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_uint_eq(pos, 5);
     ck_assert_uint_eq(pos, UA_calcSizeBinary(&dst, &UA_TYPES[UA_TYPES_VARIANT]));
     //ck_assert_ptr_eq((const void *)dst.type, (const void *)&UA_TYPES[UA_TYPES_INT32]); //does not compile in gcc 4.6
-    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
+    ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]);
     ck_assert_int_eq(dst.arrayLength, 0);
     ck_assert_int_ne((uintptr_t)dst.data, 0);
     UA_assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
@@ -1176,8 +1176,7 @@ END_TEST
 
 START_TEST(UA_QualifiedName_copyShallWorkOnInputExample) {
     // given
-    UA_String srcName = (UA_String){8, (UA_Byte*)"tEsT123!"};
-    UA_QualifiedName src = {5, srcName};
+    UA_QualifiedName src = UA_QUALIFIEDNAME(5, "tEsT123!");
     UA_QualifiedName dst;
 
     // when
