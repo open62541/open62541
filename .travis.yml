@@ -40,6 +40,11 @@ matrix:
         - ANALYZE=false
         - PYTHON=python3
     - os: linux
+      compiler: tcc
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
       compiler: clang
       env: ANALYZE=true
     - os: linux
@@ -73,6 +78,7 @@ addons:
       - mingw-w64
       - python-six
       - python3-six
+      - tcc
       - texlive-fonts-recommended
       - texlive-latex-extra
       - texlive-latex-recommended
