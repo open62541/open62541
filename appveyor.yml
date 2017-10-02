@@ -69,6 +69,7 @@ install:
   - if exist c:\miktex\texmfs\install\miktex\bin\icudt58.dll rd /s /q c:\miktex\texmfs\install\miktex\bin\icudt58.dll
   - if exist c:\miktex\texmfs\install\miktex\bin\a5toa4.exe rd /s /q c:\miktex\texmfs\install\miktex\bin\a5toa4.exe
   - pip install --user sphinx sphinx_rtd_theme
+  - cinst graphviz.portable
 
 before_build:
   # use MinGW64
