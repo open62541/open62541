@@ -281,7 +281,7 @@ typedef struct {
  * --------------
  *
  * ObjectTypes provide definitions for Objects. Abstract objects cannot be
- * instantiated. See :ref:`object-lifecycle` for the use of constructor and
+ * instantiated. See :ref:`node-lifecycle` for the use of constructor and
  * destructor callbacks. */
 
 typedef struct {
