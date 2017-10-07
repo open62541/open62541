@@ -162,7 +162,7 @@ extern "C" {
 /**
  * Function attributes
  * ------------------- */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
@@ -176,7 +176,7 @@ extern "C" {
 # define UA_FORMAT(X,Y)
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # define UA_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER)
 # define UA_DEPRECATED __declspec(deprecated)

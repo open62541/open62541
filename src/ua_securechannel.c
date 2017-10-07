@@ -126,14 +126,15 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *const channel) {
     const UA_ByteString remoteIv = { symmetricModule->encryptionBlockSize,
                                     buffer.data + symmetricModule->signingKeyLength +
                                     encryptionKeyLength };
-    retval = channelModule->setRemoteSymSigningKey(channel->channelContext, &remoteSigningKey);
+    retval  = channelModule->setRemoteSymSigningKey(channel->channelContext, &remoteSigningKey);
     retval |= channelModule->setRemoteSymEncryptingKey(channel->channelContext, &remoteEncryptingKey);
     retval |= channelModule->setRemoteSymIv(channel->channelContext, &remoteIv);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Local keys */
-    symmetricModule->generateKey(securityPolicy, &channel->remoteNonce, &channel->localNonce, &buffer);
+    retval = symmetricModule->generateKey(securityPolicy, &channel->remoteNonce,
+                                          &channel->localNonce, &buffer);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     const UA_ByteString localSigningKey = { symmetricModule->signingKeyLength, buffer.data };
@@ -142,7 +143,7 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *const channel) {
     const UA_ByteString localIv = { symmetricModule->encryptionBlockSize,
                                     buffer.data + symmetricModule->signingKeyLength +
                                     encryptionKeyLength };
-    retval = channelModule->setLocalSymSigningKey(channel->channelContext, &localSigningKey);
+    retval  = channelModule->setLocalSymSigningKey(channel->channelContext, &localSigningKey);
     retval |= channelModule->setLocalSymEncryptingKey(channel->channelContext, &localEncryptingKey);
     retval |= channelModule->setLocalSymIv(channel->channelContext, &localIv);
     return retval;
@@ -360,8 +361,12 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
         size_t sigsize = securityPolicy->asymmetricModule.cryptoModule.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
         UA_ByteString signature = { sigsize, buf.data + pre_sig_length };
-        securityPolicy->asymmetricModule.cryptoModule.
+        retval = securityPolicy->asymmetricModule.cryptoModule.
             sign(securityPolicy, channel->channelContext, &dataToSign, &signature);
+        if(retval != UA_STATUSCODE_GOOD) {
+            connection->releaseSendBuffer(connection, &buf);
+            return retval;
+        }
     }
 
     /* Encrypt message if mode not none */
@@ -371,8 +376,12 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength;
         UA_ByteString dataToEncrypt = { total_length - unencrypted_length,
                                        &buf.data[unencrypted_length] };
-        securityPolicy->asymmetricModule.cryptoModule.
+        retval = securityPolicy->asymmetricModule.cryptoModule.
             encrypt(securityPolicy, channel->channelContext, &dataToEncrypt);
+        if(retval != UA_STATUSCODE_GOOD) {
+            connection->releaseSendBuffer(connection, &buf);
+            return retval;
+        }
     }
 
     /* Send the message, the buffer is freed in the network layer */
@@ -493,8 +502,12 @@ sendChunkSymmetric(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
         signature.length = securityPolicy->symmetricModule.cryptoModule.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
         signature.data = *buf_pos;
-        securityPolicy->symmetricModule.cryptoModule.
+        ci->errorCode = securityPolicy->symmetricModule.cryptoModule.
             sign(securityPolicy, channel->channelContext, &dataToSign, &signature);
+        if(ci->errorCode != UA_STATUSCODE_GOOD) {
+            connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
+            return ci->errorCode;
+        }
     }
 
     /* Encrypt message */
@@ -502,8 +515,12 @@ sendChunkSymmetric(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
         UA_ByteString dataToEncrypt;
         dataToEncrypt.data = ci->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
         dataToEncrypt.length = total_length - UA_SECUREMH_AND_SYMALGH_LENGTH;
-        securityPolicy->symmetricModule.cryptoModule.
+        ci->errorCode = securityPolicy->symmetricModule.cryptoModule.
             encrypt(securityPolicy, channel->channelContext, &dataToEncrypt);
+        if(ci->errorCode != UA_STATUSCODE_GOOD) {
+            connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
+            return ci->errorCode;
+        }
     }
 
     /* Send the chunk, the buffer is freed in the network layer */
