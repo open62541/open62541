@@ -204,7 +204,7 @@ Operation_Read(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_USERWRITEMASK: {
         UA_UInt32 userWriteMask = getUserWriteMask(server, session, node);
-        UA_Variant_setScalarCopy(&v->value, &userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
+        retval = UA_Variant_setScalarCopy(&v->value, &userWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
         break; }
     case UA_ATTRIBUTEID_ISABSTRACT:
         retval = readIsAbstractAttribute(node, &v->value);
