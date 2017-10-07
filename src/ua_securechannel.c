@@ -422,8 +422,10 @@ sendChunkSymmetric(UA_ChunkInfo* ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
     if(ci->chunksSoFar > connection->remoteConf.maxChunkCount &&
        connection->remoteConf.maxChunkCount != 0)
         ci->errorCode = UA_STATUSCODE_BADRESPONSETOOLARGE;
-    if(ci->errorCode != UA_STATUSCODE_GOOD)
+    if(ci->errorCode != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
         return ci->errorCode;
+    }
 
     /* Pad the message. The bytes for the padding and signature were removed
      * from buf_end before encoding the payload. So we don't check here. */
