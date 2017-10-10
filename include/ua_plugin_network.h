@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-#include "ua_types.h"
+#include "ua_server.h"
 
 /* Forward declarations */
 struct UA_Connection;
@@ -17,9 +17,6 @@ typedef struct UA_Connection UA_Connection;
 
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
 
 struct UA_ServerNetworkLayer;
 typedef struct UA_ServerNetworkLayer UA_ServerNetworkLayer;
@@ -53,7 +50,7 @@ typedef enum {
                                 * is not done */
     UA_CONNECTION_ESTABLISHED, /* The socket is open and the connection
                                 * configured */
-    UA_CONNECTION_CLOSED,      /* The socket has been closed and the connection
+    UA_CONNECTION_CLOSED       /* The socket has been closed and the connection
                                 * will be deleted */
 } UA_ConnectionState;
 
@@ -187,10 +184,14 @@ struct UA_ServerNetworkLayer {
  * Client Network Layer
  * --------------------
  * The client has only a single connection. The connection is used for both
- * sending and receiving binary messages. */
+ * sending and receiving binary messages.
+ * @param localConf the connection config for this client
+ * @param endpointUrl to where to connect
+ * @param timeout in ms until the connection try times out if remote not reachable
+ * */
 
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl, const UA_UInt32 timeout);
 
 /**
  * Endpoint URL Parser

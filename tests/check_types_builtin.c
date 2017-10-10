@@ -851,12 +851,12 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
     // given
     UA_String src;
     src.length = 11;
-    UA_Byte   mem[11] = "ACPLT OPCUA";
-    src.data   = mem;
+    UA_Byte mem[12] = "ACPLT OPCUA";
+    src.data = mem;
 
-    UA_Byte data[] = {  0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
-                        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
-                        0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
     UA_ByteString dst = { 24, data };
     UA_Byte *pos = dst.data;
     const UA_Byte *end = &dst.data[dst.length];
@@ -1050,7 +1050,7 @@ START_TEST(UA_Array_copyByteArrayShallWorkOnExample) {
     UA_Byte  *dstArray;
     UA_Int32  size = 5;
     UA_Int32  i    = 0;
-    testString.data = UA_malloc(size);
+    testString.data = (UA_Byte*)UA_malloc(size);
     testString.data[0] = 'O';
     testString.data[1] = 'P';
     testString.data[2] = 'C';
@@ -1076,7 +1076,7 @@ END_TEST
 START_TEST(UA_Array_copyUA_StringShallWorkOnExample) {
     // given
     UA_Int32   i, j;
-    UA_String *srcArray = UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
+    UA_String *srcArray = (UA_String*)UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
     UA_String *dstArray;
 
     srcArray[0] = UA_STRING_ALLOC("open");
@@ -1292,15 +1292,32 @@ START_TEST(UA_Variant_copyShallWorkOnSingleValueExample) {
 }
 END_TEST
 
+START_TEST(UA_Variant_copyShallWorkOnByteStringIndexRange) {
+    UA_ByteString text = UA_BYTESTRING("My xml");
+    UA_Variant src;
+    UA_Variant_setScalar(&src, &text, &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    UA_NumericRangeDimension d1 = {0, 8388607};
+    UA_NumericRange nr;
+    nr.dimensionsSize = 1;
+    nr.dimensions = &d1;
+
+    UA_Variant dst;
+    UA_StatusCode retval = UA_Variant_copyRange(&src, &dst, nr);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&dst);
+}
+END_TEST
+
 START_TEST(UA_Variant_copyShallWorkOn1DArrayExample) {
     // given
-    UA_String *srcArray = UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
+    UA_String *srcArray = (UA_String*)UA_Array_new(3, &UA_TYPES[UA_TYPES_STRING]);
     srcArray[0] = UA_STRING_ALLOC("__open");
     srcArray[1] = UA_STRING_ALLOC("_62541");
     srcArray[2] = UA_STRING_ALLOC("opc ua");
 
     UA_UInt32 *dimensions;
-    dimensions = UA_malloc(sizeof(UA_UInt32));
+    dimensions = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32));
     dimensions[0] = 3;
 
     UA_Variant value, copiedValue;
@@ -1342,7 +1359,7 @@ END_TEST
 
 START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
     // given
-    UA_Int32 *srcArray = UA_Array_new(6, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Int32 *srcArray = (UA_Int32*)UA_Array_new(6, &UA_TYPES[UA_TYPES_INT32]);
     srcArray[0] = 0;
     srcArray[1] = 1;
     srcArray[2] = 2;
@@ -1350,7 +1367,7 @@ START_TEST(UA_Variant_copyShallWorkOn2DArrayExample) {
     srcArray[4] = 4;
     srcArray[5] = 5;
 
-    UA_UInt32 *dimensions = UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_UInt32 *dimensions = (UA_UInt32*)UA_Array_new(2, &UA_TYPES[UA_TYPES_INT32]);
     UA_UInt32 dim1 = 3;
     UA_UInt32 dim2 = 2;
     dimensions[0] = dim1;
@@ -1515,6 +1532,8 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnSingleValueExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn1DArrayExample);
     tcase_add_test(tc_copy, UA_Variant_copyShallWorkOn2DArrayExample);
+    tcase_add_test(tc_copy, UA_Variant_copyShallWorkOnByteStringIndexRange);
+
     tcase_add_test(tc_copy, UA_DiagnosticInfo_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_ApplicationDescription_copyShallWorkOnExample);
     tcase_add_test(tc_copy, UA_QualifiedName_copyShallWorkOnInputExample);

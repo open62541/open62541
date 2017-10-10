@@ -26,7 +26,7 @@
 #include <fcntl.h>
 
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "check.h"
 #include "testing_clock.h"
@@ -37,8 +37,8 @@
 #define checkWait registerTimeout + 11
 
 UA_Server *server_lds;
+UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
-UA_ServerNetworkLayer nl_lds;
 pthread_t server_thread_lds;
 
 static void * serverloop_lds(void *_) {
@@ -51,24 +51,24 @@ static void setup_lds(void) {
     // start LDS server
     running_lds = UA_Boolean_new();
     *running_lds = true;
-    UA_ServerConfig config_lds = UA_ServerConfig_standard;
-    config_lds.applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
-    config_lds.applicationDescription.applicationUri =
-        UA_String_fromChars("urn:open62541.test.local_discovery_server");
-    config_lds.applicationDescription.applicationName.locale = UA_String_fromChars("en");
-    config_lds.applicationDescription.applicationName.text = UA_String_fromChars("LDS Server");
-    config_lds.mdnsServerName = UA_String_fromChars("LDS_test");
-    config_lds.serverCapabilitiesSize = 1;
+    config_lds = UA_ServerConfig_new_default();
+    config_lds->applicationDescription.applicationType = UA_APPLICATIONTYPE_DISCOVERYSERVER;
+    UA_String_deleteMembers(&config_lds->applicationDescription.applicationUri);
+    config_lds->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.test.local_discovery_server");
+    UA_LocalizedText_deleteMembers(&config_lds->applicationDescription.applicationName);
+    config_lds->applicationDescription.applicationName
+        = UA_LOCALIZEDTEXT_ALLOC("en", "LDS Server");
+    config_lds->mdnsServerName = UA_String_fromChars("LDS_test");
+    config_lds->serverCapabilitiesSize = 1;
     UA_String *caps = UA_String_new();
     *caps = UA_String_fromChars("LDS");
-    config_lds.serverCapabilities = caps;
-    config_lds.discoveryCleanupTimeout = registerTimeout;
-    nl_lds = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config_lds.networkLayers = &nl_lds;
-    config_lds.networkLayersSize = 1;
+    config_lds->serverCapabilities = caps;
+    config_lds->discoveryCleanupTimeout = registerTimeout;
     server_lds = UA_Server_new(config_lds);
     UA_Server_run_startup(server_lds);
     pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
+
     // wait until LDS started
     UA_sleep(1000);
     sleep(1);
@@ -79,19 +79,13 @@ static void teardown_lds(void) {
     pthread_join(server_thread_lds, NULL);
     UA_Server_run_shutdown(server_lds);
     UA_Boolean_delete(running_lds);
-    UA_String_deleteMembers(&server_lds->config.applicationDescription.applicationUri);
-    UA_LocalizedText_deleteMembers(&server_lds->config.applicationDescription.applicationName);
-    UA_String_deleteMembers(&server_lds->config.mdnsServerName);
-    UA_Array_delete(server_lds->config.serverCapabilities,
-                    server_lds->config.serverCapabilitiesSize,
-                    &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_delete(server_lds);
-    nl_lds.deleteMembers(&nl_lds);
+    UA_ServerConfig_delete(config_lds);
 }
 
 UA_Server *server_register;
+UA_ServerConfig *config_register;
 UA_Boolean *running_register;
-UA_ServerNetworkLayer nl_register;
 pthread_t server_thread_register;
 
 UA_UInt64 periodicRegisterCallbackId;
@@ -106,15 +100,14 @@ static void setup_register(void) {
     // start register server
     running_register = UA_Boolean_new();
     *running_register = true;
-    UA_ServerConfig config_register = UA_ServerConfig_standard;
-    config_register.applicationDescription.applicationUri =
+    config_register = UA_ServerConfig_new_minimal(16664, NULL);
+    UA_String_deleteMembers(&config_register->applicationDescription.applicationUri);
+    config_register->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.test.server_register");
-    config_register.applicationDescription.applicationName.locale = UA_String_fromChars("de");
-    config_register.applicationDescription.applicationName.text = UA_String_fromChars("Anmeldungsserver");
-    config_register.mdnsServerName = UA_String_fromChars("Register_test");
-    nl_register = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config_register.networkLayers = &nl_register;
-    config_register.networkLayersSize = 1;
+    UA_LocalizedText_deleteMembers(&config_register->applicationDescription.applicationName);
+    config_register->applicationDescription.applicationName =
+        UA_LOCALIZEDTEXT_ALLOC("de", "Anmeldungsserver");
+    config_register->mdnsServerName = UA_String_fromChars("Register_test");
     server_register = UA_Server_new(config_register);
     UA_Server_run_startup(server_register);
     pthread_create(&server_thread_register, NULL, serverloop_register, NULL);
@@ -125,11 +118,8 @@ static void teardown_register(void) {
     pthread_join(server_thread_register, NULL);
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);
-    UA_String_deleteMembers(&server_register->config.applicationDescription.applicationUri);
-    UA_LocalizedText_deleteMembers(&server_register->config.applicationDescription.applicationName);
-    UA_String_deleteMembers(&server_register->config.mdnsServerName);
     UA_Server_delete(server_register);
-    nl_register.deleteMembers(&nl_register);
+    UA_ServerConfig_delete(config_register);
 }
 
 START_TEST(Server_register) {
@@ -191,7 +181,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
              const UA_String expectedNames[],
              const char *filterUri,
              const char *filterLocale) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
@@ -201,7 +191,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
     if(filterUri) {
         serverUrisSize = 1;
-        serverUris = UA_malloc(sizeof(UA_String));
+        serverUris = UA_String_new();
         serverUris[0] = UA_String_fromChars(filterUri);
     }
 
@@ -210,7 +200,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
     if(filterLocale) {
         localeIdsSize = 1;
-        localeIds = UA_malloc(sizeof(UA_String));
+        localeIds = UA_String_new();
         localeIds[0] = UA_String_fromChars(filterLocale);
     }
 
@@ -251,11 +241,13 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
     UA_Client_delete(client);
 }
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
 static void
 FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
                       const char *filterUri, const char *filterLocale,
                       const char** filterCapabilities, size_t filterCapabilitiesSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
@@ -266,7 +258,7 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
 
     if(filterCapabilitiesSize) {
         serverCapabilityFilterSize = filterCapabilitiesSize;
-        serverCapabilityFilter = UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
+        serverCapabilityFilter = (UA_String*)UA_malloc(sizeof(UA_String) * filterCapabilitiesSize);
         for(size_t i = 0; i < filterCapabilitiesSize; i++)
             serverCapabilityFilter[i] = UA_String_fromChars(filterCapabilities[i]);
     }
@@ -314,7 +306,7 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
     request.endpointUrl = *endpointUrl; // assume the endpointurl outlives the service call
     if (filterTransportProfileUri) {
         request.profileUrisSize = 1;
-        request.profileUris = UA_malloc(sizeof(UA_String));
+        request.profileUris = (UA_String*)UA_malloc(sizeof(UA_String));
         request.profileUris[0] = UA_String_fromChars(filterTransportProfileUri);
     }
 
@@ -341,11 +333,10 @@ GetEndpoints(UA_Client *client, const UA_String* endpointUrl,
     return UA_STATUSCODE_GOOD;
 }
 
-
 static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String expectedEndpointUrls[], size_t expectedEndpointUrlsSize) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
 
@@ -368,13 +359,6 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
     UA_Client_delete(client);
 }
 
-// Test if discovery server lists himself as registered server, before any other registration.
-START_TEST(Client_find_discovery) {
-    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
-    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
-}
-END_TEST
-
 // Test if discovery server lists himself as registered server if it is filtered by his uri
 START_TEST(Client_filter_discovery) {
     const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
@@ -393,19 +377,9 @@ START_TEST(Client_filter_locale) {
         UA_STRING("Anmeldungsserver")
     };
     const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
-    // even if we request en_US, the server will return de_DE because it only has that name.
+    // even if we request en-US, the server will return de-DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
-}
-END_TEST
-
-// Test if registered server is returned from LDS
-START_TEST(Client_find_registered) {
-    const UA_String expectedUris[] = {
-        UA_STRING("urn:open62541.test.local_discovery_server"),
-        UA_STRING("urn:open62541.test.server_register")
-    };
-    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 END_TEST
 
@@ -466,6 +440,25 @@ START_TEST(Client_get_endpoints) {
 }
 END_TEST
 
+#endif
+
+// Test if discovery server lists himself as registered server, before any other registration.
+START_TEST(Client_find_discovery) {
+    const UA_String expectedUris[] = {UA_STRING("urn:open62541.test.local_discovery_server")};
+    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
+}
+END_TEST
+
+// Test if registered server is returned from LDS
+START_TEST(Client_find_registered) {
+    const UA_String expectedUris[2] = {
+        UA_STRING("urn:open62541.test.local_discovery_server"),
+        UA_STRING("urn:open62541.test.server_register")
+    };
+    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
+}
+END_TEST
+
 START_TEST(Util_start_lds) {
     setup_lds();
 }
@@ -483,11 +476,13 @@ START_TEST(Util_wait_timeout) {
 }
 END_TEST
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Util_wait_mdns) {
     UA_sleep(1000);
     sleep(1);
 }
 END_TEST
+#endif
 
 START_TEST(Util_wait_startup) {
     UA_sleep(1000);

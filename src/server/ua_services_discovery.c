@@ -246,19 +246,19 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
     }
 
     /* test if the supported binary profile shall be returned */
-    size_t reSize = sizeof(UA_Boolean) * server->endpointDescriptionsSize;
+    size_t reSize = sizeof(UA_Boolean) * server->config.endpointsSize;
     UA_Boolean *relevant_endpoints = (UA_Boolean *)UA_alloca(reSize);
-    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->endpointDescriptionsSize);
+    memset(relevant_endpoints, 0, sizeof(UA_Boolean) * server->config.endpointsSize);
     size_t relevant_count = 0;
     if(request->profileUrisSize == 0) {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j)
+        for(size_t j = 0; j < server->config.endpointsSize; ++j)
             relevant_endpoints[j] = true;
-        relevant_count = server->endpointDescriptionsSize;
+        relevant_count = server->config.endpointsSize;
     } else {
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
             for(size_t i = 0; i < request->profileUrisSize; ++i) {
                 if(!UA_String_equal(&request->profileUris[i],
-                                    &server->endpointDescriptions[j].transportProfileUri))
+                                    &server->config.endpoints[j].endpointDescription.transportProfileUri))
                     continue;
                 relevant_endpoints[j] = true;
                 ++relevant_count;
@@ -294,10 +294,10 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < clone_times; ++i) {
         if(nl_endpointurl)
             endpointUrl = &server->config.networkLayers[i].discoveryUrl;
-        for(size_t j = 0; j < server->endpointDescriptionsSize; ++j) {
+        for(size_t j = 0; j < server->config.endpointsSize; ++j) {
             if(!relevant_endpoints[j])
                 continue;
-            retval |= UA_EndpointDescription_copy(&server->endpointDescriptions[j],
+            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j].endpointDescription,
                                                   &response->endpoints[k]);
             retval |= UA_String_copy(endpointUrl, &response->endpoints[k].endpointUrl);
             ++k;
@@ -316,10 +316,12 @@ void Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
 freeEntry(UA_Server *server, void *entry) {
     UA_free(entry);
 }
+#endif
 
 static void
 process_RegisterServer(UA_Server *server, UA_Session *session,
@@ -384,8 +386,14 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(requestServer->semaphoreFilePath.length) {
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        // todo: malloc may fail: return a statuscode
-        char* filePath = (char *)UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        char* filePath = (char*)
+            UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
+        if (!filePath) {
+            UA_LOG_ERROR_SESSION(server->config.logger, session,
+                                   "Cannot allocate memory for semaphore path. Out of memory.");
+            responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
         memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(access( filePath, 0 ) == -1) {
@@ -421,7 +429,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             UA_LOG_WARNING_SESSION(server->config.logger, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
-            responseHeader->serviceResult = UA_STATUSCODE_BADNOTFOUND;
+            responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
             return;
         }
 
@@ -477,7 +485,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServerRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServerRequest");
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
                            NULL, &response->responseHeader, 0, NULL, 0, NULL);
 }
@@ -485,7 +494,8 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Processing RegisterServer2Request");
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Processing RegisterServer2Request");
     process_RegisterServer(server, session, &request->requestHeader, &request->server,
                            request->discoveryConfigurationSize, request->discoveryConfiguration,
                            &response->responseHeader, &response->configurationResultsSize,
@@ -513,18 +523,22 @@ void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
             size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
             // todo: malloc may fail: return a statuscode
             char* filePath = (char *)UA_malloc(fpSize);
-            memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
-                   current->registeredServer.semaphoreFilePath.length );
-            filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
+            if (filePath) {
+                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
+                       current->registeredServer.semaphoreFilePath.length );
+                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
 #ifdef UNDER_CE
-           FILE *fp = fopen(filePath,"rb");
-           semaphoreDeleted = (fp==NULL);
-           if(fp)
-             fclose(fp);
+                FILE *fp = fopen(filePath,"rb");
+                semaphoreDeleted = (fp==NULL);
+                if(fp)
+                    fclose(fp);
 #else
-           semaphoreDeleted = access( filePath, 0 ) == -1;
+                semaphoreDeleted = access( filePath, 0 ) == -1;
 #endif
-           UA_free(filePath);
+                UA_free(filePath);
+            } else {
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Cannot check registration semaphore. Out of memory");
+            }
         }
 #endif
 
@@ -640,12 +654,6 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_UInt32 intervalMs,
                                             UA_UInt32 delayFirstRegisterMs,
                                             UA_UInt64 *periodicCallbackId) {
-    /* There can be only one callback atm */
-    if(server->periodicServerRegisterCallback) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "There is already a register callback in place");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* No valid server URL */
     if(!discoveryServerUrl) {
@@ -654,13 +662,29 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+
+    /* check if we are already registering with the given discovery url and remove the old periodic call */
+    {
+        periodicServerRegisterCallback_entry *rs, *rs_tmp;
+        LIST_FOREACH_SAFE(rs, &server->periodicServerRegisterCallbacks, pointers, rs_tmp) {
+            if (strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
+                UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                            "There is already a register callback for '%s' in place. Removing the older one.", discoveryServerUrl);
+                UA_Server_removeRepeatedCallback(server, rs->callback->id);
+                LIST_REMOVE(rs, pointers);
+                UA_free(rs->callback);
+                UA_free(rs);
+                break;
+            }
+        }
+    }
+
     /* Allocate and initialize */
     struct PeriodicServerRegisterCallback* cb =
         (struct PeriodicServerRegisterCallback*)
         UA_malloc(sizeof(struct PeriodicServerRegisterCallback));
     if(!cb)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    server->periodicServerRegisterCallback = cb;
 
     /* Start repeating a failed register after 1s, then increase the delay. Set
      * to 500ms, as the delay is doubled before changing the callback
@@ -670,6 +694,8 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     cb->registered = false;
     cb->discovery_server_url = discoveryServerUrl;
 
+
+
     /* Add the callback */
     UA_StatusCode retval =
         UA_Server_addRepeatedCallback(server, periodicServerRegister,
@@ -678,10 +704,22 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. "
                      "StatusCode %s", UA_StatusCode_name(retval));
-        UA_free(server->periodicServerRegisterCallback);
-        server->periodicServerRegisterCallback = NULL;
+        UA_free(cb);
         return retval;
     }
+
+#ifndef __clang_analyzer__
+    // the analyzer reports on LIST_INSERT_HEAD a use after free false positive
+    periodicServerRegisterCallback_entry *newEntry =
+            (periodicServerRegisterCallback_entry *)UA_malloc(sizeof(periodicServerRegisterCallback_entry));
+    if(!newEntry) {
+        UA_Server_removeRepeatedCallback(server, cb->id);
+        UA_free(cb);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    newEntry->callback = cb;
+    LIST_INSERT_HEAD(&server->periodicServerRegisterCallbacks, newEntry, pointers);
+#endif
 
     if(periodicCallbackId)
         *periodicCallbackId = cb->id;

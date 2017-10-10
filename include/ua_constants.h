@@ -149,6 +149,9 @@ typedef enum {
 #define UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID 0x802b0000 // The timestamps to return parameter is invalid.
 #define UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT 0x802c0000 // The request was cancelled by the client.
 #define UA_STATUSCODE_BADTOOMANYARGUMENTS 0x80e50000 // Too many arguments were provided.
+#define UA_STATUSCODE_BADLICENSEEXPIRED 0x810E0000 // The server requires a license to operate in general or to perform a service or operation, but existing license is expired.
+#define UA_STATUSCODE_BADLICENSELIMITSEXCEEDED 0x810F0000 // The server has limits on number of allowed operations / objects, based on installed licenses, and these limits where exceeded.
+#define UA_STATUSCODE_BADLICENSENOTAVAILABLE 0x81100000 // The server does not have a license which is required to operate in general or to perform a service or operation.
 #define UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED 0x002d0000 // The subscription was transferred to another session.
 #define UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY 0x002e0000 // The processing will complete asynchronously.
 #define UA_STATUSCODE_GOODOVERLOAD 0x002f0000 // Sampling has slowed down due to resource limitations.

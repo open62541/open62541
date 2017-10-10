@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -693,13 +693,7 @@ class opcua_node_t:
             unPrintedReferences.remove(ref)
     # Otherwise use the "Bootstrapping" method and we will get registered with other nodes later.
     else:
-      code = code + self.printOpen62541CCode_SubtypeEarly(bootstrapping = True)
-      code = code + codegen.getCreateNodeBootstrap(self)
-      code = code + self.printOpen62541CCode_Subtype(unPrintedReferences = unPrintedReferences, bootstrapping = True)
-      code.append("// Parent node does not exist yet. This node will be bootstrapped and linked later.")
-      code.append("UA_RCU_LOCK();")
-      code.append("UA_NodeStore_insert(server->nodestore, (UA_Node*) " + self.getCodePrintableID() + ");")
-      code.append("UA_RCU_UNLOCK();")
+      code.append("/* Omit bootstrapping the node %s */" % str(self.id()))
 
     # Try to print all references to nodes that already exist
     # Note: we know the reference types exist, because the namespace class made sure they were
@@ -847,7 +841,7 @@ class opcua_node_referenceType_t(opcua_node_t):
     if self.symmetric():
       code.append(self.getCodePrintableID() + "->symmetric  = true;")
     if self.__reference_inverseName__ != "":
-      code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"en_US\", \"" + self.__reference_inverseName__ + "\");")
+      code.append(self.getCodePrintableID() + "->inverseName  = UA_LOCALIZEDTEXT_ALLOC(\"\", \"" + self.__reference_inverseName__ + "\");")
     return code;
 
 
@@ -1084,7 +1078,7 @@ class opcua_node_variable_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = (UA_Variant*)UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
 
@@ -1338,7 +1332,7 @@ class opcua_node_variableType_t(opcua_node_t):
           code = code + self.value().printOpen62541CCode(bootstrapping)
           return code
     if(bootstrapping):
-      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = UA_alloca(sizeof(UA_Variant));")
+      code.append("UA_Variant *" + self.getCodePrintableID() + "_variant = (UA_Variant*)UA_alloca(sizeof(UA_Variant));")
       code.append("UA_Variant_init(" + self.getCodePrintableID() + "_variant);")
     return code
 

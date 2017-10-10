@@ -11,6 +11,18 @@ if ! [ -z ${DOCKER+x} ]; then
     exit 0
 fi
 
+# Fuzzer build test
+if ! [ -z ${FUZZER+x} ]; then
+	mkdir -p build && cd build
+	export CC=clang-3.9
+	export CXX=clang++-3.9
+	cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_FUZZING=ON ..
+	make && make run_fuzzer
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+	cd .. && rm build -rf
+    exit 0
+fi
+
 if [ $ANALYZE = "true" ]; then
     echo "=== Running static code analysis ===" && echo -en 'travis_fold:start:script.analyze\\r'
     if [ "$CC" = "clang" ]; then
@@ -48,6 +60,8 @@ if [ $ANALYZE = "true" ]; then
         if [ -s cppcheck.txt ]; then
             echo "====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt
+            # flush output
+            sleep 5
             exit 1
         fi
     fi
@@ -179,19 +193,22 @@ else
     cd .. && rm build -rf
     echo -en 'travis_fold:end:script.build.multithread\\r'
 
-    echo -e "\r\n== Debug build and unit tests (64 bit) ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind\\r'
+    echo -e "\r\n== Debug build and unit tests (64 bit, python 2) ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind_python2\\r'
     mkdir -p build && cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
+    # Force to use python2 to test compilation with python2
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python2 -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
     if [ $? -ne 0 ] ; then exit 1 ; fi
-    echo -en 'travis_fold:end:script.build.unit_test_valgrind\\r'
+    cd .. && rm build -rf
+    echo -en 'travis_fold:end:script.build.unit_test_valgrind_python2\\r'
 
-    # without valgrind
-    # echo -e "\r\n== Debug build and unit tests without valgrind ==" && echo -en 'travis_fold:start:script.build.unit_test\\r'
-    # cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=OFF ..
-    # make -j && make test ARGS="-V"
-    # (./bin/examples/server & export pid=$!; sleep 2; kill -INT $pid; wait $pid);
-    # echo -en 'travis_fold:end:script.build.unit_test\\r'
+    echo -e "\r\n== Debug build and unit tests (64 bit, python 3) ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind_python3\\r'
+    mkdir -p build && cd build
+    # Force to use python3 to test compilation with python3
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python3 -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
+    make -j && make test ARGS="-V"
+    if [ $? -ne 0 ] ; then exit 1 ; fi
+    echo -en 'travis_fold:end:script.build.unit_test_valgrind_python3\\r'
 
     # only run coveralls on main repo, otherwise it fails uploading the files
     echo -e "\r\n== -> Current repo: ${TRAVIS_REPO_SLUG} =="
@@ -201,4 +218,5 @@ else
         echo -en 'travis_fold:end:script.build.coveralls\\r'
     fi
     cd .. && rm build -rf
+
 fi

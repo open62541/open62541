@@ -4,21 +4,24 @@
 
 #include "ua_server.h"
 #include "server/ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #include "check.h"
 #include "testing_clock.h"
 
 UA_Server *server = NULL;
+UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    server = UA_Server_new(UA_ServerConfig_standard);
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
 
 UA_Boolean *executed;
@@ -40,7 +43,7 @@ START_TEST(Server_addRemoveRepeatedCallback) {
     UA_Server_run_iterate(server, false);
 
     /* Wait a bit longer until the workers have picked up the dispatched callback */
-    UA_sleep(15);
+    UA_realsleep(100);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedCallback(server, id);

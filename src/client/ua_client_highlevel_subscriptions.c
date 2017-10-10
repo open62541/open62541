@@ -49,14 +49,20 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     return UA_STATUSCODE_GOOD;
 }
 
-/* remove the subscription remotely */
-UA_StatusCode
-UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
-    UA_Client_Subscription *sub;
+static UA_Client_Subscription *findSubscription(const UA_Client *client, UA_UInt32 subscriptionId)
+{
+    UA_Client_Subscription *sub = NULL;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         if(sub->subscriptionID == subscriptionId)
             break;
     }
+    return sub;
+}
+
+/* remove the subscription remotely */
+UA_StatusCode
+UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -106,15 +112,98 @@ UA_Client_Subscriptions_forceDelete(UA_Client *client,
 }
 
 UA_StatusCode
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
+                                         const UA_NodeId nodeId, const UA_UInt32 attributeID,
+                                         UA_SimpleAttributeOperand *selectClause,
+                                         const size_t nSelectClauses,
+                                         UA_ContentFilterElement *whereClause,
+                                         const size_t nWhereClauses,
+                                         const UA_MonitoredEventHandlingFunction hf,
+                                         void *hfContext, UA_UInt32 *newMonitoredItemId) {
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
+    if(!sub)
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+
+    /* Send the request */
+    UA_CreateMonitoredItemsRequest request;
+    UA_CreateMonitoredItemsRequest_init(&request);
+    request.subscriptionId = subscriptionId;
+
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = nodeId;
+    item.itemToMonitor.attributeId = attributeID;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    item.requestedParameters.clientHandle = ++(client->monitoredItemHandles);
+    item.requestedParameters.samplingInterval = 0;
+    item.requestedParameters.discardOldest = false;
+
+    UA_EventFilter *evFilter = UA_EventFilter_new();
+    if(!evFilter) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    UA_EventFilter_init(evFilter);
+    evFilter->selectClausesSize = nSelectClauses;
+    evFilter->selectClauses = selectClause;
+    evFilter->whereClause.elementsSize = nWhereClauses;
+    evFilter->whereClause.elements = whereClause;
+
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    item.requestedParameters.filter.content.decoded.data = evFilter;
+
+    request.itemsToCreate = &item;
+    request.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse response = UA_Client_Service_createMonitoredItems(client, request);
+
+    // slight misuse of retval here to check if the deletion was successfull.
+    UA_StatusCode retval;
+    if(response.resultsSize == 0)
+        retval = response.responseHeader.serviceResult;
+    else
+        retval = response.results[0].statusCode;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_EventFilter_delete(evFilter);
+        return retval;
+    }
+
+    /* Create the handler */
+    UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)UA_malloc(sizeof(UA_Client_MonitoredItem));
+    if(!newMon) {
+        UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+        UA_EventFilter_delete(evFilter);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    newMon->monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
+    newMon->attributeID = attributeID;
+    newMon->clientHandle = client->monitoredItemHandles;
+    newMon->samplingInterval = 0;
+    newMon->queueSize = 0;
+    newMon->discardOldest = false;
+
+    newMon->handlerEvents = hf;
+    newMon->handlerEventsContext = hfContext;
+    newMon->monitoredItemId = response.results[0].monitoredItemId;
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+    *newMonitoredItemId = newMon->monitoredItemId;
+
+    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                 "Created a monitored item with client handle %u", client->monitoredItemHandles);
+
+    UA_EventFilter_delete(evFilter);
+    UA_CreateMonitoredItemsResponse_deleteMembers(&response);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_MonitoredItemHandlingFunction hf,
                                          void *hfContext, UA_UInt32 *newMonitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -179,11 +268,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
 UA_StatusCode
 UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                             UA_UInt32 monitoredItemId) {
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
@@ -227,18 +312,9 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
-    /* Find the subscription */
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if(sub->subscriptionID == response->subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         return;
-
-    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Processing a publish response on subscription %u with %u notifications",
-                 sub->subscriptionID, response->notificationMessage.notificationDataSize);
 
     /* Check if the server has acknowledged any of the sent ACKs */
     for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
@@ -267,24 +343,43 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         if(msg->notificationData[k].encoding != UA_EXTENSIONOBJECT_DECODED)
             continue;
 
-        /* Currently only dataChangeNotifications are supported */
-        if(msg->notificationData[k].content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION])
-            continue;
-
-        UA_DataChangeNotification *dataChangeNotification = (UA_DataChangeNotification *)msg->notificationData[k].content.decoded.data;
-        for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
-            UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
-            UA_Client_MonitoredItem *mon;
-            LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-                if(mon->clientHandle == mitemNot->clientHandle) {
-                    mon->handler(mon->monitoredItemId, &mitemNot->value, mon->handlerContext);
-                    break;
+        if(msg->notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGENOTIFICATION]) {
+            UA_DataChangeNotification *dataChangeNotification = (UA_DataChangeNotification *)msg->notificationData[k].content.decoded.data;
+            for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
+                UA_MonitoredItemNotification *mitemNot = &dataChangeNotification->monitoredItems[j];
+                UA_Client_MonitoredItem *mon;
+                LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+                    if(mon->clientHandle == mitemNot->clientHandle) {
+                        mon->handler(mon->monitoredItemId, &mitemNot->value, mon->handlerContext);
+                        break;
+                    }
                 }
+                if(!mon)
+                    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                                 "Could not process a notification with clienthandle %u on subscription %u",
+                                 mitemNot->clientHandle, sub->subscriptionID);
             }
-            if(!mon)
-                UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                             "Could not process a notification with clienthandle %u on subscription %u",
-                             mitemNot->clientHandle, sub->subscriptionID);
+        }
+        else if(msg->notificationData[k].content.decoded.type == &UA_TYPES[UA_TYPES_EVENTNOTIFICATIONLIST]) {
+            UA_EventNotificationList *eventNotificationList = (UA_EventNotificationList *)msg->notificationData[k].content.decoded.data;
+            for (size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
+                UA_EventFieldList *eventFieldList = &eventNotificationList->events[j];
+                UA_Client_MonitoredItem *mon;
+                LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+                    if(mon->clientHandle == eventFieldList->clientHandle) {
+                        mon->handlerEvents(mon->monitoredItemId, eventFieldList->eventFieldsSize,
+                                           eventFieldList->eventFields, mon->handlerContext);
+                        break;
+                    }
+                }
+                if(!mon)
+                    UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                                 "Could not process a notification with clienthandle %u on subscription %u",
+                                 eventFieldList->clientHandle, sub->subscriptionID);
+            }
+        }
+        else {
+            continue; // no other types are supported
         }
     }
 
@@ -304,7 +399,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
 UA_StatusCode
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
-    if (client->state == UA_CLIENTSTATE_ERRORED)
+    if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_Boolean moreNotifications = true;
@@ -317,10 +412,10 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
             ++request.subscriptionAcknowledgementsSize;
         if(request.subscriptionAcknowledgementsSize > 0) {
-            request.subscriptionAcknowledgements =
-                (UA_SubscriptionAcknowledgement *)UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
+            request.subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
             if(!request.subscriptionAcknowledgements)
-                return UA_STATUSCODE_GOOD;
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
 
         int i = 0;

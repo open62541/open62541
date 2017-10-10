@@ -5,9 +5,17 @@
 #ifndef TESTING_NETWORKLAYERS_H_
 #define TESTING_NETWORKLAYERS_H_
 
-#include "ua_server.h"
+#include "ua_server_config.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /** @brief Create the TCP networklayer and listen to the specified port */
 UA_Connection createDummyConnection(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* TESTING_NETWORKLAYERS_H_ */

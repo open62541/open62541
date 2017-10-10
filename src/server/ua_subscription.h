@@ -8,7 +8,6 @@
 #include "ua_util.h"
 #include "ua_types.h"
 #include "ua_types_generated.h"
-#include "ua_nodes.h"
 #include "ua_session.h"
 
 /*****************/
@@ -134,7 +133,6 @@ UA_StatusCode
 UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequenceNumber);
 
 void
-UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
-                                                    UA_NodeId *sessionToken);
+UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 
 #endif /* UA_SUBSCRIPTION_H_ */

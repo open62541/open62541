@@ -4,7 +4,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
@@ -20,7 +20,7 @@ register_server_with_discovery_server(UA_Server *server,
     }
 
     /* Create the client */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     if(!client)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -80,7 +80,6 @@ register_server_with_discovery_server(UA_Server *server,
     UA_MdnsDiscoveryConfiguration mdnsConfig;
     UA_MdnsDiscoveryConfiguration_init(&mdnsConfig);
 
-    request.discoveryConfigurationSize = 0;
     request.discoveryConfigurationSize = 1;
     request.discoveryConfiguration = UA_ExtensionObject_new();
     UA_ExtensionObject_init(&request.discoveryConfiguration[0]);

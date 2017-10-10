@@ -41,12 +41,17 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm,
                                         UA_DateTime nowMonotonic);
 
 UA_StatusCode
-UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_Connection *conn,
+UA_SecureChannelManager_create(UA_SecureChannelManager *const cm, UA_Connection *const connection,
+                               const UA_SecurityPolicy *const securityPolicy,
+                               const UA_AsymmetricAlgorithmSecurityHeader *const asymHeader);
+
+UA_StatusCode
+UA_SecureChannelManager_open(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                              const UA_OpenSecureChannelRequest *request,
                              UA_OpenSecureChannelResponse *response);
 
 UA_StatusCode
-UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_Connection *conn,
+UA_SecureChannelManager_renew(UA_SecureChannelManager *cm, UA_SecureChannel *channel,
                               const UA_OpenSecureChannelRequest *request,
                               UA_OpenSecureChannelResponse *response);
 

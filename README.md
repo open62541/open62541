@@ -8,10 +8,11 @@ open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 l
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
-[![Build Status](https://travis-ci.org/open62541/open62541.png?branch=0.2)](https://travis-ci.org/open62541/open62541)
-[![MSVS build status](https://ci.appveyor.com/api/projects/status/kkxppc28ek5t6yk8/branch/0.2?svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
-[![Coverage Status](https://coveralls.io/repos/open62541/open62541/badge.png?branch=0.2)](https://coveralls.io/r/open62541/open62541?branch=0.2)
-[![Coverity Scan Build Status](https://scan.coverity.com/projects/12248/badge.svg)](https://scan.coverity.com/projects/open62541-open62541)
+[![Build Status](https://img.shields.io/travis/open62541/open62541/0.2.svg)](https://travis-ci.org/open62541/open62541)
+[![MSVS build status](https://img.shields.io/appveyor/ci/open62541/open62541/0.2.svg)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
+[![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
+[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/0.2.svg)](https://coveralls.io/r/open62541/open62541?branch=0.2)
+[![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
 ### Features
 
@@ -80,18 +81,14 @@ int main(int argc, char** argv)
 {
     signal(SIGINT, signalHandler); /* catch ctrl-c */
 
-    /* Create a server with one network layer listening on port 4840 */
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 4840);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    /* Create a server listening on port 4840 */
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     /* Add a variable node */
     /* 1) Define the node attributes */
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "the answer");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
@@ -109,7 +106,7 @@ int main(int argc, char** argv)
     /* Run the server loop */
     UA_StatusCode status = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
     return status;
 }
 ```
@@ -122,7 +119,7 @@ int main(int argc, char** argv)
 int main(int argc, char *argv[])
 {
     /* Create a client and connect */
-    UA_Client *client = UA_Client_new(UA_ClientConfig_standard);
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(status != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);

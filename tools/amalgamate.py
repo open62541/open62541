@@ -1,12 +1,14 @@
+#!/usr/bin/env python
+
 # coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from __future__ import print_function
-import re
 import argparse
 import os.path
+import re
 import io
 
 parser = argparse.ArgumentParser()
@@ -27,7 +29,7 @@ guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ 
 
 print ("Starting amalgamating file "+ args.outfile)
 
-file = io.open(args.outfile, 'w')
+file = io.open(args.outfile, 'w', encoding='utf8', errors='replace')
 file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
@@ -56,13 +58,10 @@ if is_c:
 else:
     file.write(u'''#ifndef %s
 #define %s
-
-#ifdef __cplusplus
-extern "C" {
-#endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
+''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
-    with io.open(fname, encoding="utf8") as infile:
+    with io.open(fname, encoding='utf8', errors='replace') as infile:
         file.write(u"\n/*********************************** amalgamated original file \"" + fname + u"\" ***********************************/\n\n")
         print ("Integrating file '" + fname + "'...", end=""),
         for line in infile:
@@ -76,12 +75,7 @@ for fname in args.inputs:
         print ("done."),
 
 if not is_c:
-    file.write(u'''
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /* %s */\n''' % (outname.upper() + u"_H_"))
+    file.write(u"#endif /* %s */\n" % (outname.upper() + u"_H_"))
 
 # Ensure file is written to disk.
 # See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close

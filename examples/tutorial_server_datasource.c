@@ -40,9 +40,9 @@ updateCurrentTime(UA_Server *server) {
 static void
 addCurrentTimeVariable(UA_Server *server) {
     UA_DateTime now = 0;
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "Current time");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     UA_Variant_setScalar(&attr.value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
 
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
@@ -68,9 +68,10 @@ addCurrentTimeVariable(UA_Server *server) {
  * write operation. */
 
 static void
-beforeReadTime(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-               const UA_NumericRange *range) {
-    UA_Server *server = (UA_Server*)handle;
+beforeReadTime(UA_Server *server,
+               const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeid, void *nodeContext, 
+               const UA_NumericRange *range, const UA_DataValue *data) {
     UA_DateTime now = UA_DateTime_now();
     UA_Variant value;
     UA_Variant_setScalar(&value, &now, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -79,8 +80,10 @@ beforeReadTime(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
 }
 
 static void
-afterWriteTime(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-               const UA_NumericRange *range) {
+afterWriteTime(UA_Server *server,
+               const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeId, void *nodeContext,
+               const UA_NumericRange *range, const UA_DataValue *data) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "The variable was updated");
 }
@@ -89,7 +92,6 @@ static void
 addValueCallbackToCurrentTimeVariable(UA_Server *server) {
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time");
     UA_ValueCallback callback ;
-    callback.handle = server;
     callback.onRead = beforeReadTime;
     callback.onWrite = afterWriteTime;
     UA_Server_setVariableNode_valueCallback(server, currentNodeId, callback);
@@ -106,8 +108,11 @@ addValueCallbackToCurrentTimeVariable(UA_Server *server) {
  * own memory management. */
 
 static UA_StatusCode
-readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                const UA_NumericRange *range, UA_DataValue *dataValue) {
+readCurrentTime(UA_Server *server,
+                const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *nodeId, void *nodeContext,
+                UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
+                UA_DataValue *dataValue) {
     UA_DateTime now = UA_DateTime_now();
     UA_Variant_setScalarCopy(&dataValue->value, &now,
                              &UA_TYPES[UA_TYPES_DATETIME]);
@@ -116,8 +121,10 @@ readCurrentTime(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp
 }
 
 static UA_StatusCode
-writeCurrentTime(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
-                 const UA_NumericRange *range) {
+writeCurrentTime(UA_Server *server,
+                 const UA_NodeId *sessionId, void *sessionContext,
+                 const UA_NodeId *nodeId, void *nodeContext,
+                 const UA_NumericRange *range, const UA_DataValue *data) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Changing the system time is not implemented");
     return UA_STATUSCODE_BADINTERNALERROR;
@@ -125,9 +132,9 @@ writeCurrentTime(void *handle, const UA_NodeId nodeid, const UA_Variant *data,
 
 static void
 addCurrentTimeDataSourceVariable(UA_Server *server) {
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", "Current time - data source");
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "Current time - data source");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-datasource");
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-datasource");
@@ -136,13 +143,12 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
     UA_NodeId variableTypeNodeId = UA_NODEID_NULL;
 
     UA_DataSource timeDataSource;
-    timeDataSource.handle = NULL;
     timeDataSource.read = readCurrentTime;
     timeDataSource.write = writeCurrentTime;
     UA_Server_addDataSourceVariableNode(server, currentNodeId, parentNodeId,
                                         parentReferenceNodeId, currentName,
                                         variableTypeNodeId, attr,
-                                        timeDataSource, NULL);
+                                        timeDataSource, NULL, NULL);
 }
 
 /** It follows the main server code, making use of the above definitions. */
@@ -157,21 +163,17 @@ int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl =
-        UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     addCurrentTimeVariable(server);
     addValueCallbackToCurrentTimeVariable(server);
     addCurrentTimeDataSourceVariable(server);
 
-    UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-    return 0;
+    UA_ServerConfig_delete(config);
+    return (int)retval;
 }
 
 /**

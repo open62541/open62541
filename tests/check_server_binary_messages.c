@@ -8,7 +8,7 @@
 
 #include "ua_server.h"
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "testing_networklayers.h"
 
@@ -24,7 +24,7 @@ static UA_ByteString readFile(char *filename) {
         fseek(f, 0, SEEK_END);
         length = ftell(f);
         rewind(f);
-        buf.data = malloc(length);
+        buf.data = (UA_Byte*)UA_malloc(length);
         fread(buf.data, sizeof(char), length, f);
         buf.length = length;
         fclose(f);
@@ -35,18 +35,16 @@ static UA_ByteString readFile(char *filename) {
 
 START_TEST(processMessage) {
     UA_Connection c = createDummyConnection();
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    config.logger = UA_Log_Stdout;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
-        UA_Boolean reallocated;
-        UA_StatusCode retval = UA_Connection_completeMessages(&c, &msg, &reallocated);
-        if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
-            UA_Server_processBinaryMessage(server, &c, &msg);
+        UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);
 }
 END_TEST

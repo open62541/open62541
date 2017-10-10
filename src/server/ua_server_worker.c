@@ -55,7 +55,6 @@ workerLoop(UA_Worker *worker) {
     /* Initialize the (thread local) random seed with the ram address
      * of the worker. Not for security-critical entropy! */
     UA_random_seed((uintptr_t)worker);
-    rcu_register_thread();
 
     while(*running) {
         UA_atomic_add(counter, 1);
@@ -76,15 +75,10 @@ workerLoop(UA_Worker *worker) {
             continue;
         }
         
-        UA_RCU_LOCK();
         dc->callback(server, dc->data);
         UA_free(dc);
-        UA_RCU_UNLOCK();
     }
 
-    UA_ASSERT_RCU_UNLOCKED();
-    rcu_barrier();
-    rcu_unregister_thread();
     UA_LOG_DEBUG(server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Worker shut down");
     return NULL;
@@ -119,7 +113,7 @@ UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback,
     callback(server, data);
 #else
     /* Execute immediately if memory could not be allocated */
-    WorkerCallback *dc = UA_malloc(sizeof(WorkerCallback));
+    WorkerCallback *dc = (WorkerCallback*)UA_malloc(sizeof(WorkerCallback));
     if(!dc) {
         callback(server, data);
         return;
@@ -195,7 +189,7 @@ UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback,
                           void *data) {
     size_t dcsize = sizeof(WorkerCallback) +
         (sizeof(UA_UInt32) * server->config.nThreads);
-    WorkerCallback *dc = UA_malloc(dcsize);
+    WorkerCallback *dc = (WorkerCallback*)UA_malloc(dcsize);
     if(!dc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -286,7 +280,7 @@ UA_Server_run_startup(UA_Server *server) {
                 "Spinning up %u worker thread(s)", server->config.nThreads);
     pthread_cond_init(&server->dispatchQueue_condition, 0);
     pthread_mutex_init(&server->dispatchQueue_mutex, 0);
-    server->workers = UA_malloc(server->config.nThreads * sizeof(UA_Worker));
+    server->workers = (UA_Worker*)UA_malloc(server->config.nThreads * sizeof(UA_Worker));
     if(!server->workers)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     for(size_t i = 0; i < server->config.nThreads; ++i) {
@@ -344,10 +338,10 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         // need to use select with timeout on the multicast socket
         // server->mdnsSocket (see example in mdnsd library) on higher level.
         UA_DateTime multicastNextRepeat = 0;
-        UA_Boolean hasNext =
+        UA_StatusCode hasNext =
             iterateMulticastDiscoveryServer(server, &multicastNextRepeat,
                                             UA_TRUE);
-        if(hasNext && multicastNextRepeat < nextRepeated)
+        if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
 #endif
@@ -389,9 +383,6 @@ UA_Server_run_shutdown(UA_Server *server) {
      * This also executes the delayed callbacks. */
     emptyDispatchQueue(server);
     
-    /* Wait for all scheduled call_rcu work to complete */
-    UA_ASSERT_RCU_UNLOCKED();
-    rcu_barrier();
 #endif
 
     /* Stop multicast discovery */

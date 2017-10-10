@@ -35,21 +35,17 @@ extern "C" {
 #cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
-#cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
 #cmakedefine UA_ENABLE_DISCOVERY
 #cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
+#cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
  * Standard Includes
  * ----------------- */
 #ifndef _XOPEN_SOURCE
- #if defined(__QNX__) || defined(__QNXNTO__)
-  # define _XOPEN_SOURCE 600
- #else
-  # define _XOPEN_SOURCE 500
- #endif
+# define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
 # define _DEFAULT_SOURCE
@@ -61,34 +57,40 @@ extern "C" {
 #endif
 
 // Disable deprecation warnings for sprintf, strncpy, strerror
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stddef.h>
 
-/* Include stdint.h or workaround for older Visual Studios */
+/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
+# include <stdbool.h> /* C99 Boolean */
 #else
 # include "ms_stdint.h"
-#endif
-
-#ifndef __cplusplus
-# include <stdbool.h> /* C99 Boolean */
-/* Manual Boolean:
-typedef uint8_t bool;
+#if !(defined(__bool_true_false_are_defined))
+#define bool short
 #define true 1
-#define false 0 */
+#define false 0
+#define __bool_true_false_are_defined
+#endif
 #endif
 
-#include <stdlib.h>
+/**
+ * Standard Macros
+ * --------------- */
+
+/* Assert */
+#include <assert.h>
+#define UA_assert(ignore) assert(ignore)
 
 /**
  * Memory Management
  * ---------------
  * The default malloc implementation from ``stdlib.h`` is used internally.
  * Override if required. */
+#include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
 #endif
@@ -160,19 +162,21 @@ typedef uint8_t bool;
 /**
  * Function attributes
  * ------------------- */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+# define UA_FORMAT(X,Y)
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # define UA_DEPRECATED __attribute__((deprecated))
 #elif defined(_MSC_VER)
 # define UA_DEPRECATED __declspec(deprecated)
@@ -268,6 +272,36 @@ typedef uint8_t bool;
 
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
+#endif
+
+/**
+ * Utility Definitions
+ * ^^^^^^^^^^^^^^^^^^^ */
+/* Outputs an error message at compile time if the assert fails.
+ * Example usage:
+ * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
+ * See: https://stackoverflow.com/a/4815532/869402 */
+#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
+# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
+# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
+#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
+# define UA_CTASTR2(pre,post) pre ## post
+# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# define UA_STATIC_ASSERT(cond,msg)                             \
+    typedef struct {                                            \
+        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
+#else /* Everybody else */
+# define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
+
+/* To generate smaller binaries, descriptive strings can be excluded from the
+ * datatype description */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
 #endif
 
 #ifdef __cplusplus

@@ -127,26 +127,13 @@ typedef double UA_Double;
  * specific code. */
 typedef uint32_t UA_StatusCode;
 
-typedef struct {
-    UA_StatusCode code;      /* The numeric value of the StatusCode */
-    const char* name;        /* The symbolic name */
-    const char* explanation; /* Short message explaining the StatusCode */
-} UA_StatusCodeDescription;
-
-/* Returns the description of the StatusCode. Never returns NULL, but a generic
- * description for invalid StatusCodes instead. */
-UA_EXPORT const UA_StatusCodeDescription *
-UA_StatusCode_description(UA_StatusCode code);
-
-static UA_INLINE const char *
-UA_StatusCode_name(UA_StatusCode code) {
-    return UA_StatusCode_description(code)->name;
-}
-
-static UA_INLINE const char *
-UA_StatusCode_explanation(UA_StatusCode code) {
-    return UA_StatusCode_description(code)->explanation;
-}
+/* Returns the human-readable name of the StatusCode. If no matching StatusCode
+ * is found, a default string for "Unknown" is returned. This feature might be
+ * disabled to create a smaller binary with the
+ * UA_ENABLE_STATUSCODE_DESCRIPTIONS build-flag. Then the function returns an
+ * empty string for every StatusCode. */
+UA_EXPORT const char *
+UA_StatusCode_name(UA_StatusCode code);
 
 /**
  * String
@@ -190,6 +177,9 @@ typedef int64_t UA_DateTime;
 #define UA_USEC_TO_DATETIME 10LL
 #define UA_MSEC_TO_DATETIME (UA_USEC_TO_DATETIME * 1000LL)
 #define UA_SEC_TO_DATETIME (UA_MSEC_TO_DATETIME * 1000LL)
+#define UA_DATETIME_TO_USEC (1/10.0)
+#define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
+#define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
 
 /* Datetime of 1 Jan 1970 00:00 UTC */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
@@ -358,6 +348,8 @@ typedef struct {
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
 
+UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+
 /** The following functions are shorthand for creating ExpandedNodeIds. */
 static UA_INLINE UA_ExpandedNodeId
 UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
@@ -508,7 +500,7 @@ typedef struct UA_DataType UA_DataType;
 typedef enum {
     UA_VARIANT_DATA,          /* The data has the same lifecycle as the
                                  variant */
-    UA_VARIANT_DATA_NODELETE, /* The data is "borrowed" by the variant and
+    UA_VARIANT_DATA_NODELETE /* The data is "borrowed" by the variant and
                                  shall not be deleted at the end of the
                                  variant's lifecycle. */
 } UA_VariantStorageType;
@@ -895,6 +887,31 @@ UA_Guid UA_EXPORT UA_Guid_random(void);     /* no cryptographic entropy */
  * .. toctree::
  *
  *    types_generated */
+
+/**
+ * Deprecated Data Types API
+ * -------------------------
+ * The following definitions are deprecated and will be removed in future
+ * releases of open62541. */
+
+typedef struct {
+    UA_StatusCode code;      /* The numeric value of the StatusCode */
+    const char* name;        /* The symbolic name */
+    const char* explanation; /* Short message explaining the StatusCode */
+} UA_StatusCodeDescription;
+
+UA_EXPORT extern const UA_StatusCodeDescription statusCodeExplanation_default;
+
+UA_DEPRECATED static UA_INLINE const UA_StatusCodeDescription *
+UA_StatusCode_description(UA_StatusCode code) {
+    return &statusCodeExplanation_default;
+}
+
+UA_DEPRECATED static UA_INLINE const char *
+UA_StatusCode_explanation(UA_StatusCode code) {
+    return statusCodeExplanation_default.name;
+}
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

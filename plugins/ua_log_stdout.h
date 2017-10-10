@@ -10,7 +10,7 @@
 extern "C" {
 #endif
 
-UA_EXPORT void
+void UA_EXPORT
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args);
 

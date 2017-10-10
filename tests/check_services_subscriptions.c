@@ -6,22 +6,27 @@
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
 #include "server/ua_subscription.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #include "check.h"
 #include "testing_clock.h"
 
-UA_Server *server = NULL;
+static UA_Server *server = NULL;
+static UA_ServerConfig *config = NULL;
 
 static void setup(void) {
-    server = UA_Server_new(UA_ServerConfig_standard);
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
     UA_Server_run_startup(server);
 }
 
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
 }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 
 UA_UInt32 subscriptionId;
 UA_UInt32 monitoredItemId;
@@ -53,7 +58,6 @@ START_TEST(Server_modifySubscription) {
     request.requestedMaxKeepAliveCount = 1000;
     request.maxNotificationsPerPublish = 1;
     request.priority = 10;
-        
 
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
@@ -97,7 +101,6 @@ START_TEST(Server_republish) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
 
     UA_RepublishResponse_deleteMembers(&response);
-
 }
 END_TEST
 
@@ -115,7 +118,6 @@ START_TEST(Server_republish_invalid) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     UA_RepublishResponse_deleteMembers(&response);
-
 }
 END_TEST
 
@@ -169,6 +171,7 @@ START_TEST(Server_publishCallback) {
     /* Sleep until the publishing interval times out */
     UA_sleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
+    UA_realsleep(100);
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry)
         ck_assert_uint_eq(sub->currentKeepAliveCount, sub->maxKeepAliveCount+1);
@@ -194,7 +197,6 @@ START_TEST(Server_publishCallback) {
 END_TEST
 
 START_TEST(Server_createMonitoredItems) {
-
     UA_CreateMonitoredItemsRequest request;
     UA_CreateMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -214,7 +216,6 @@ START_TEST(Server_createMonitoredItems) {
     request.itemsToCreateSize = 1;
     request.itemsToCreate = &item;
 
-
     UA_CreateMonitoredItemsResponse response;
     UA_CreateMonitoredItemsResponse_init(&response);
 
@@ -226,7 +227,6 @@ START_TEST(Server_createMonitoredItems) {
     monitoredItemId = response.results[0].monitoredItemId;
 
     UA_MonitoredItemCreateRequest_deleteMembers(&item);
-
     UA_CreateMonitoredItemsResponse_deleteMembers(&response);
 }
 END_TEST
@@ -250,7 +250,6 @@ START_TEST(Server_modifyMonitoredItems) {
     request.itemsToModifySize = 1;
     request.itemsToModify = &item;
 
-
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
@@ -260,7 +259,6 @@ START_TEST(Server_modifyMonitoredItems) {
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
 
     UA_MonitoredItemModifyRequest_deleteMembers(&item);
-
     UA_ModifyMonitoredItemsResponse_deleteMembers(&response);
 }
 END_TEST
@@ -281,7 +279,6 @@ START_TEST(Server_setMonitoringMode) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-
     UA_SetMonitoringModeResponse_deleteMembers(&response);
 }
 END_TEST
@@ -301,17 +298,18 @@ START_TEST(Server_deleteMonitoredItems) {
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
 
-
     UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
 
 }
 END_TEST
 
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription");
     TCase *tc_server = tcase_create("Server Subscription Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_server, Server_createSubscription);
     tcase_add_test(tc_server, Server_modifySubscription);
     tcase_add_test(tc_server, Server_setPublishingMode);
@@ -323,6 +321,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_deleteSubscription);
     tcase_add_test(tc_server, Server_republish_invalid);
     tcase_add_test(tc_server, Server_publishCallback);
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 
     return s;

@@ -2,8 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef UA_NODES_H_
-#define UA_NODES_H_
+#ifndef UA_SERVER_NODES_H_
+#define UA_SERVER_NODES_H_
+
+/* !!! Warning !!!
+ *
+ * If you are not developing a nodestore plugin, then you should not work with
+ * the definitions from this file directly. The underlying node structures are
+ * not meant to be used directly by end users. Please use the public server API
+ * / OPC UA services to interact with the information model. */
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,10 +39,11 @@ extern "C" {
  * section on :ref:`ReferenceTypes <referencetypenode>` for more details on
  * possible references and their semantics.
  *
- * The structures defined in this section are *not user-facing*. The interaction
- * with the information model is possible only via the OPC UA :ref:`services`.
- * Still, we reproduce how nodes are represented internally so that users may
- * have a clear mental model.
+ * **Warning!!** The structures defined in this section are only relevant for
+ * the developers of custom Nodestores. The interaction with the information
+ * model is possible only via the OPC UA :ref:`services`. So the following
+ * sections are purely informational so that users may have a clear mental
+ * model of the underlying representation.
  *
  * Base Node Attributes
  * --------------------
@@ -48,6 +56,7 @@ extern "C" {
  * Internally, open62541 uses ``UA_Node`` in places where the exact node type is
  * not known or not important. The ``nodeClass`` attribute is used to ensure the
  * correctness of casting from ``UA_Node`` to a specific node type. */
+
 /* List of reference targets with the same reference type and direction */
 typedef struct {
     UA_NodeId referenceTypeId;
@@ -64,11 +73,46 @@ typedef struct {
     UA_LocalizedText description;               \
     UA_UInt32 writeMask;                        \
     size_t referencesSize;                      \
-    UA_NodeReferenceKind *references;
+    UA_NodeReferenceKind *references;           \
+                                                \
+    /* Members specific to open62541 */         \
+    void *context;
 
 typedef struct {
     UA_NODE_BASEATTRIBUTES
 } UA_Node;
+
+/* The following methods specialize internally for the different node classes
+ * (distinguished by the nodeClass member) */
+
+/* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
+ * and so on). The attributes are copied. Note that the attributes structs do
+ * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
+ * to be correctly set before calling this method. UA_Node_deleteMembers is
+ * called on the node when an error occurs internally. */
+UA_StatusCode UA_EXPORT
+UA_Node_setAttributes(UA_Node *node, const void *attributes,
+                      const UA_DataType *attributeType);
+
+/* Reset the destination node and copy the content of the source */
+UA_StatusCode UA_EXPORT
+UA_Node_copy(const UA_Node *src, UA_Node *dst);
+
+/* Add a single reference to the node */
+UA_StatusCode UA_EXPORT
+UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item);
+
+/* Delete a single reference from the node */
+UA_StatusCode UA_EXPORT
+UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
+
+/* Delete all references of the node */
+void UA_EXPORT
+UA_Node_deleteReferences(UA_Node *node);
+
+/* Remove all malloc'ed members of the node */
+void UA_EXPORT
+UA_Node_deleteMembers(UA_Node *node);
 
 /**
  * VariableNode
@@ -135,6 +179,7 @@ typedef struct {
  *
  * Consistency between the array dimensions attribute in the variable and its
  * :ref:`variabletypenode` is ensured. */
+
 /* Indicates whether a variable contains data inline or whether it points to an
  * external data source */
 typedef enum {
@@ -179,10 +224,14 @@ typedef struct {
  * variable type may provide semantic information. For example, an instance from
  * ``MotorTemperatureVariableType`` is more meaningful than a float variable
  * instantiated from ``BaseDataVariable``. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_NODE_VARIABLEATTRIBUTES
     UA_Boolean isAbstract;
+
+    /* Members specific to open62541 */
+    UA_NodeTypeLifecycle lifecycle;
 } UA_VariableTypeNode;
 
 /**
@@ -201,15 +250,14 @@ typedef struct {
  *
  * Note that the same MethodNode may be referenced from several objects (and
  * object types). For this, the NodeId of the method *and of the object
- * providing context* is part of a Call request message.
- */
+ * providing context* is part of a Call request message. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean executable;
 
     /* Members specific to open62541 */
-    void *methodHandle;
-    UA_MethodCallback attachedMethod;
+    UA_MethodCallback method;
 } UA_MethodNode;
 
 /**
@@ -220,12 +268,10 @@ typedef struct {
  * and software objects. Objects are instances of an :ref:`object
  * type<objecttypenode>` and may contain variables, methods and further
  * objects. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Byte eventNotifier;
-
-    /* Members specific to open62541 */
-    void *instanceHandle;
 } UA_ObjectNode;
 
 /**
@@ -235,14 +281,15 @@ typedef struct {
  * --------------
  *
  * ObjectTypes provide definitions for Objects. Abstract objects cannot be
- * instantiated. See :ref:`object-lifecycle` for the use of constructor and
+ * instantiated. See :ref:`node-lifecycle` for the use of constructor and
  * destructor callbacks. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
 
     /* Members specific to open62541 */
-    UA_ObjectLifecycleManagement lifecycleManagement;
+    UA_NodeTypeLifecycle lifecycle;
 } UA_ObjectTypeNode;
 
 /**
@@ -347,6 +394,7 @@ typedef struct {
  * electrical and information related connections. A client can then learn the
  * layout of a (physical) system represented in an OPC UA information model
  * based on a common understanding of just two custom reference types. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
@@ -368,6 +416,7 @@ typedef struct {
  * Abstract DataTypes (e.g. ``Number``) cannot be the type of actual values.
  * They are used to constrain values to possible child DataTypes (e.g.
  * ``UInt32``). */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Boolean isAbstract;
@@ -382,14 +431,79 @@ typedef struct {
  * references only. ViewNodes can be created and be interacted with. But their
  * use in the :ref:`Browse<view-services>` service is currently unsupported in
  * open62541. */
+
 typedef struct {
     UA_NODE_BASEATTRIBUTES
     UA_Byte eventNotifier;
     UA_Boolean containsNoLoops;
 } UA_ViewNode;
 
+/**
+ * Nodestore
+ * =========
+ * The following definitions are used for implementing node storage plugins.
+ * Most users will want to use one of the predefined Nodestores.
+ *
+ * Warning! Endusers should not manually edit nodes. Please use the server API
+ * for that. Otherwise, the consistency checks of the server are omitted. This
+ * can crash the application eventually. */
+
+typedef void
+(*UA_NodestoreVisitor)(void *visitorContext, const UA_Node *node);
+
+typedef struct {
+    /* Nodestore context and lifecycle */
+    void *context;
+    void (*deleteNodestore)(void *nodestoreContext);
+
+    /* For non-multithreaded access, some nodestores allow that nodes are edited
+     * without a copy/replace. This is not possible when the node is only an
+     * intermediate representation and stored e.g. in a database backend. */
+    UA_Boolean inPlaceEditAllowed;
+
+    /* The following definitions are used to create empty nodes of the different
+     * node types. The memory is managed by the nodestore. Therefore, the node
+     * has to be removed via a special deleteNode function. (If the new node is
+     * not added to the nodestore.) */
+    UA_Node * (*newNode)(void *nodestoreContext, UA_NodeClass nodeClass);
+
+    void (*deleteNode)(void *nodestoreContext, UA_Node *node);
+
+    /* ``Get`` returns a pointer to an immutable node. ``Release`` indicates
+     * that the pointer is no longer accessed afterwards. */
+
+    const UA_Node * (*getNode)(void *nodestoreContext, const UA_NodeId *nodeId);
+
+    void (*releaseNode)(void *nodestoreContext, const UA_Node *node);
+
+    /* Returns an editable copy of a node (needs to be deleted with the
+     * deleteNode function or inserted / replaced into the nodestore). */
+    UA_StatusCode (*getNodeCopy)(void *nodestoreContext, const UA_NodeId *nodeId,
+                                 UA_Node **outNode);
+
+    /* Inserts a new node into the nodestore. If the NodeId is zero, then a
+     * fresh numeric NodeId is assigned. If insertion fails, the node is
+     * deleted. */
+    UA_StatusCode (*insertNode)(void *nodestoreContext, UA_Node *node,
+                                UA_NodeId *addedNodeId);
+
+    /* To replace a node, get an editable copy of the node, edit and replace
+     * with this function. If the node was already replaced since the copy was
+     * made, UA_STATUSCODE_BADINTERNALERROR is returned. If the NodeId is not
+     * found, UA_STATUSCODE_BADNODEIDUNKNOWN is returned. In both error cases,
+     * the editable node is deleted. */
+    UA_StatusCode (*replaceNode)(void *nodestoreContext, UA_Node *node);
+
+    /* Removes a node from the nodestore. */
+    UA_StatusCode (*removeNode)(void *nodestoreContext, const UA_NodeId *nodeId);
+
+    /* Execute a callback for every node in the nodestore. */
+    void (*iterate)(void *nodestoreContext, void* visitorContext,
+                    UA_NodestoreVisitor visitor);
+} UA_Nodestore;
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif /* UA_NODES_H_ */
+#endif /* UA_SERVER_NODES_H_ */

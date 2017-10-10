@@ -25,18 +25,18 @@
 #   include <netdb.h> // for recvfrom in cygwin
 #  endif
 
-#ifndef STRDUP
+#ifndef UA_STRDUP
 # if defined(__MINGW32__)
 static char *ua_strdup(const char *s) {
     char *p = UA_malloc(strlen(s) + 1);
     if(p) { strcpy(p, s); }
     return p;
 }
-# define STRDUP ua_strdup
+# define UA_STRDUP ua_strdup
 # elif defined(_WIN32)
-# define STRDUP _strdup
+# define UA_STRDUP _strdup
 # else
-# define STRDUP strdup
+# define UA_STRDUP strdup
 # endif
 #endif
 
@@ -111,10 +111,12 @@ mdns_record_add_or_get(UA_Server *server, const char *record, const char *server
     return listEntry;
 }
 
+#ifdef UA_ENABLE_MULTITHREADING
 static void
 delayedFree(UA_Server *server, void *data) {
     UA_free(data);
 }
+#endif
 
 static void
 mdns_record_remove(UA_Server *server, const char *record,
@@ -178,7 +180,7 @@ setTxt(const struct resource *r,
         if (!entry->srvSet) {
             /* txt arrived before SRV, thus cache path entry */
             // todo: malloc in strdup may fail: return a statuscode
-            entry->pathTmp = STRDUP(path);
+            entry->pathTmp = UA_STRDUP(path);
         } else {
             /* SRV already there and discovery URL set. Add path to discovery URL */
             mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, path);
@@ -271,7 +273,7 @@ void mdns_record_received(const struct resource *r, void *data) {
     if(r->ttl == 0) {
         UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Multicast DNS: remove server (TTL=0): %.*s",
-                    entry->serverOnNetwork.discoveryUrl.length,
+                    (int)entry->serverOnNetwork.discoveryUrl.length,
                     entry->serverOnNetwork.discoveryUrl.data);
         mdns_record_remove(server, r->name, entry);
         return;
@@ -309,7 +311,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain, const cha
         // path does not contain slash, so add it here
         if (path[0] == '/')
             // todo: malloc in strdup may fail: return a statuscode
-            allocPath = STRDUP(path);
+            allocPath = UA_STRDUP(path);
         else {
             // todo: malloc may fail: return a statuscode
             allocPath = (char*)UA_malloc(strlen(path) + 2);
