@@ -328,9 +328,9 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
     #  0: x-dim | x>0
     #  n: n-dim | n>0
     if (len(node.value) == 0):
-        return ""
+        return ["", ""]
     if not isinstance(node.value[0], Value):
-        return ""
+        return ["", ""]
 
     if parentNode.valueRank != -1 and (parentNode.valueRank >= 0
                                        or (len(node.value) > 1

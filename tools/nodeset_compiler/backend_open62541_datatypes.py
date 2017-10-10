@@ -19,6 +19,7 @@ def splitStringLiterals(value, splitLength=500, max_string_length=0):
     If maxLength is set and the string is longer than maxLength, then an
     empty string will be returned.
     """
+    value = value.strip()
     if max_string_length > 0 and len(value) > max_string_length:
         logger.info("String is longer than {}. Returning empty string.".format(max_string_length))
         return "\"\""

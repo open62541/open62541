@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 ###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 13
+### Authors:
+### - Chris Iatrou (ichrispa@core-vector.net)
+### - Julius Pfrommer
+### - Stefan Profanter (profanter@fortiss.org)
 ###
 ### This program was created for educational purposes and has been
 ### contributed to the open62541 project by the author. All licensing
@@ -170,8 +172,7 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
         for arr in set(typesArray):
             if arr == "UA_TYPES":
                 continue
-            additionalHeaders += """#include "%s_generated.h"
-                                 """ % arr.lower()
+            additionalHeaders += """#include "%s_generated.h"\n""" % arr.lower()
 
     # Print the preamble of the generated code
     writeh("""/* WARNING: This is a generated file.
@@ -183,7 +184,6 @@ def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[],
     if internal_headers:
         writeh("""
 #ifdef UA_NO_AMALGAMATION
-#include "ua_types.h"
 #include "ua_server.h"
 #include "ua_types_encoding_binary.h"
 %s

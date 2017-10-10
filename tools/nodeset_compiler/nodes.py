@@ -555,8 +555,14 @@ class DataTypeNode(Node):
                     enumDict.append((fname, enumVal))
                     continue
                 else:
+                    if fdtype == "":
+                        # If no datatype given use base datatype
+                        fdtype = "i=24"
+
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
+                    if not NodeId(fdtype) in nodeset.nodes:
+                        raise Exception("Node {} not found in nodeset".format(NodeId(fdtype)))
                     dtnode = nodeset.nodes[NodeId(fdtype)]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable

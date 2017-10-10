@@ -6,8 +6,10 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ###
-### Author:  Chris Iatrou (ichrispa@core-vector.net)
-### Version: rev 14
+### Authors:
+### - Chris Iatrou (ichrispa@core-vector.net)
+### - Julius Pfrommer
+### - Stefan Profanter (profanter@fortiss.org)
 ###
 ### This program was created for educational purposes and has been
 ### contributed to the open62541 project by the author. All licensing

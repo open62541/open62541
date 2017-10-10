@@ -3,13 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 #include "ua_namespace_di.h"
-#include "ua_namespace_adi.h"
+#include "ua_namespace_plc.h"
 
 #include "check.h"
 #include "testing_clock.h"
+
+#include "unistd.h"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -33,18 +35,18 @@ START_TEST(Server_addDiNodeset) {
 }
 END_TEST
 
-START_TEST(Server_addAdiNodeset) {
-    UA_StatusCode retval = ua_namespace_adi(server);
+START_TEST(Server_addPlcNodeset) {
+    UA_StatusCode retval = ua_namespace_plc(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");
-    TCase *tc_server = tcase_create("Server DI and ADI nodeset");
+    TCase *tc_server = tcase_create("Server DI and PLCopen nodeset");
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_addDiNodeset);
-    tcase_add_test(tc_server, Server_addAdiNodeset);
+    tcase_add_test(tc_server, Server_addPlcNodeset);
     suite_add_tcase(s, tc_server);
     return s;
 }

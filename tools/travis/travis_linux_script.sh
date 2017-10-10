@@ -85,7 +85,7 @@ else
     echo -e "\r\n== Full Namespace 0 Generation ==" && echo -en 'travis_fold:start:script.build.ns0\\r'
     mkdir -p build
     cd build
-    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_NAMESPACE0_XML=../tools/schema/namespace0/Opc.Ua.NodeSet2.xml -DUA_DATATYPES_FILE=../tools/schema/datatypes_full.txt -DUA_BUILD_EXAMPLES=ON  ..
+    cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_FULL_NS0=ON -DUA_BUILD_EXAMPLES=ON  ..
     make -j
     if [ $? -ne 0 ] ; then exit 1 ; fi
     cd .. && rm build -rf
@@ -194,10 +194,9 @@ else
     echo -en 'travis_fold:end:script.build.multithread\\r'
 
     echo -e "\r\n== Debug build and unit tests (64 bit, python 2) ==" && echo -en 'travis_fold:start:script.build.unit_test_valgrind_python2\\r'
-    git clone --depth 1 https://github.com/OPCFoundation/UA-Nodeset.git tests/ua-nodeset
     mkdir -p build && cd build
     # Force to use python2 to test compilation with python2
-    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python2 -DUA_NAMESPACE0_XML=../tools/schema/namespace0/Opc.Ua.NodeSet2.xml -DUA_DATATYPES_FILE= \
+    cmake -DPYTHON_EXECUTABLE:FILEPATH=/usr/bin/python2 -DUA_ENABLE_FULL_NS0=ON \
     -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
     -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_COVERAGE=ON -DUA_ENABLE_VALGRIND_UNIT_TESTS=ON ..
     make -j && make test ARGS="-V"
