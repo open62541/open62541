@@ -383,6 +383,15 @@ START_TEST(Node_ReadWrite)
         ck_assert_int_eq(value, 5679);
         UA_Variant_delete(val);
 
+        /* Read an empty Variable */
+        UA_Variant v;
+        UA_Variant_init(&v);
+        retval = UA_Client_writeValueAttribute(client, nodeIntId, &v);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        retval = UA_Client_readValueAttribute(client, nodeIntId, &v);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
         /* Write Array Dimensions */
         UA_UInt32 arrayDimsNew[] = {3};
         retval = UA_Client_writeArrayDimensionsAttribute(client, nodeArrayId, arrayDimsNew , 1);
