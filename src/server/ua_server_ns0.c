@@ -10,7 +10,7 @@
 /* Node Creation */
 /*****************/
 
-static void
+static UA_StatusCode
 addNode_begin(UA_Server *server, UA_NodeClass nodeClass,
               UA_UInt32 nodeId, char *name, void *attributes,
               const UA_DataType *attributesType) {
@@ -22,10 +22,10 @@ addNode_begin(UA_Server *server, UA_NodeClass nodeClass,
     item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
     item.nodeAttributes.content.decoded.data = attributes;
     item.nodeAttributes.content.decoded.type = attributesType;
-    Operation_addNode_begin(server, &adminSession, &item, NULL, NULL);
+    return Operation_addNode_begin(server, &adminSession, &item, NULL, NULL);
 }
 
-static void
+static UA_StatusCode
 addNode_finish(UA_Server *server, UA_UInt32 nodeId,
                UA_UInt32 parentNodeId, UA_UInt32 referenceTypeId,
                UA_UInt32 typeDefinitionId) {
@@ -33,38 +33,38 @@ addNode_finish(UA_Server *server, UA_UInt32 nodeId,
     UA_NodeId parentNode = UA_NODEID_NUMERIC(0, parentNodeId);
     UA_NodeId referenceType = UA_NODEID_NUMERIC(0, referenceTypeId);
     UA_NodeId typeDefinition = UA_NODEID_NUMERIC(0, typeDefinitionId);
-    Operation_addNode_finish(server, &adminSession, &node, &parentNode,
+    return Operation_addNode_finish(server, &adminSession, &node, &parentNode,
                              &referenceType, &typeDefinition);
 }
 
-static void
+static UA_StatusCode
 addDataTypeNode(UA_Server *server, char* name, UA_UInt32 datatypeid,
                 UA_Boolean isAbstract, UA_UInt32 parentid) {
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.isAbstract = isAbstract;
-    UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, datatypeid),
+    return UA_Server_addDataTypeNode(server, UA_NODEID_NUMERIC(0, datatypeid),
                               UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                               UA_QUALIFIEDNAME(0, name), attr, NULL, NULL);
 }
 
-static void
+static UA_StatusCode
 addObjectTypeNode(UA_Server *server, char* name, UA_UInt32 objecttypeid,
                   UA_Boolean isAbstract, UA_UInt32 parentid) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("", name);
     attr.isAbstract = isAbstract;
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, objecttypeid),
+    return UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(0, objecttypeid),
                                 UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                 UA_QUALIFIEDNAME(0, name), attr, NULL, NULL);
 }
 
-static void
+static UA_StatusCode
 addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
               UA_UInt32 parentid, UA_UInt32 referenceid, UA_UInt32 type_id) {
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", name);
-    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
+    return UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(0, objectid),
                             UA_NODEID_NUMERIC(0, parentid),
                             UA_NODEID_NUMERIC(0, referenceid),
                             UA_QUALIFIEDNAME(0, name),
@@ -72,7 +72,7 @@ addObjectNode(UA_Server *server, char* name, UA_UInt32 objectid,
                             object_attr, NULL, NULL);
 }
 
-static void
+static UA_StatusCode
 addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32 referencetypeid,
                      UA_Boolean isabstract, UA_Boolean symmetric, UA_UInt32 parentid) {
     UA_ReferenceTypeAttributes reference_attr = UA_ReferenceTypeAttributes_default;
@@ -81,12 +81,12 @@ addReferenceTypeNode(UA_Server *server, char* name, char *inverseName, UA_UInt32
     reference_attr.symmetric = symmetric;
     if(inverseName)
         reference_attr.inverseName = UA_LOCALIZEDTEXT("", inverseName);
-    UA_Server_addReferenceTypeNode(server, UA_NODEID_NUMERIC(0, referencetypeid),
+    return UA_Server_addReferenceTypeNode(server, UA_NODEID_NUMERIC(0, referencetypeid),
                                    UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                    UA_QUALIFIEDNAME(0, name), reference_attr, NULL, NULL);
 }
 
-static void
+static UA_StatusCode
 addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
                     UA_Boolean isAbstract, UA_Int32 valueRank, UA_UInt32 dataType,
                     const UA_DataType *type, UA_UInt32 parentid) {
@@ -100,7 +100,7 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
         UA_init(val, type);
         UA_Variant_setScalar(&attr.value, val, type);
     }
-    UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
+    return UA_Server_addVariableTypeNode(server, UA_NODEID_NUMERIC(0, variabletypeid),
                                   UA_NODEID_NUMERIC(0, parentid), UA_NODEID_NULL,
                                   UA_QUALIFIEDNAME(0, name), UA_NODEID_NULL, attr, NULL, NULL);
 }
@@ -112,9 +112,10 @@ addVariableTypeNode(UA_Server *server, char* name, UA_UInt32 variabletypeid,
 /* Creates the basic nodes which are expected by the nodeset compiler to be
  * already created. This is necessary to reduce the dependencies for the nodeset
  * compiler. */
-static void
+static UA_StatusCode
 UA_Server_createNS0_base(UA_Server *server) {
 
+	UA_StatusCode ret = UA_STATUSCODE_GOOD;
     /*********************************/
     /* Bootstrap reference hierarchy */
     /*********************************/
@@ -125,7 +126,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     references_attr.isAbstract = true;
     references_attr.symmetric = true;
     references_attr.inverseName = UA_LOCALIZEDTEXT("", "References");
-    addNode_begin(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_REFERENCES, "References",
+    ret |= addNode_begin(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_REFERENCES, "References",
                   &references_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
     UA_ReferenceTypeAttributes hassubtype_attr = UA_ReferenceTypeAttributes_default;
@@ -133,57 +134,57 @@ UA_Server_createNS0_base(UA_Server *server) {
     hassubtype_attr.isAbstract = false;
     hassubtype_attr.symmetric = false;
     hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "SubtypeOf");
-    addNode_begin(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
+	ret |= addNode_begin(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
                   &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
-    addReferenceTypeNode(server, "HierarchicalReferences", NULL,
+	ret |= addReferenceTypeNode(server, "HierarchicalReferences", NULL,
                          UA_NS0ID_HIERARCHICALREFERENCES,
                          true, false, UA_NS0ID_REFERENCES);
 
-    addReferenceTypeNode(server, "NonHierarchicalReferences", NULL,
+	ret |= addReferenceTypeNode(server, "NonHierarchicalReferences", NULL,
                          UA_NS0ID_NONHIERARCHICALREFERENCES,
                          true, false, UA_NS0ID_REFERENCES);
 
-    addReferenceTypeNode(server, "HasChild", NULL, UA_NS0ID_HASCHILD,
+    ret |= addReferenceTypeNode(server, "HasChild", NULL, UA_NS0ID_HASCHILD,
                          true, false, UA_NS0ID_HIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "Organizes", "OrganizedBy", UA_NS0ID_ORGANIZES,
+    ret |= addReferenceTypeNode(server, "Organizes", "OrganizedBy", UA_NS0ID_ORGANIZES,
                          false, false, UA_NS0ID_HIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "HasEventSource", "EventSourceOf", UA_NS0ID_HASEVENTSOURCE,
+    ret |= addReferenceTypeNode(server, "HasEventSource", "EventSourceOf", UA_NS0ID_HASEVENTSOURCE,
                          false, false, UA_NS0ID_HIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "HasModellingRule", "ModellingRuleOf", UA_NS0ID_HASMODELLINGRULE,
+    ret |= addReferenceTypeNode(server, "HasModellingRule", "ModellingRuleOf", UA_NS0ID_HASMODELLINGRULE,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "HasEncoding", "EncodingOf", UA_NS0ID_HASENCODING,
+    ret |= addReferenceTypeNode(server, "HasEncoding", "EncodingOf", UA_NS0ID_HASENCODING,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "HasDescription", "DescriptionOf", UA_NS0ID_HASDESCRIPTION,
+    ret |= addReferenceTypeNode(server, "HasDescription", "DescriptionOf", UA_NS0ID_HASDESCRIPTION,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "HasTypeDefinition", "TypeDefinitionOf", UA_NS0ID_HASTYPEDEFINITION,
+    ret |= addReferenceTypeNode(server, "HasTypeDefinition", "TypeDefinitionOf", UA_NS0ID_HASTYPEDEFINITION,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "GeneratesEvent", "GeneratedBy", UA_NS0ID_GENERATESEVENT,
+    ret |= addReferenceTypeNode(server, "GeneratesEvent", "GeneratedBy", UA_NS0ID_GENERATESEVENT,
                          false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
-    addReferenceTypeNode(server, "Aggregates", "AggregatedBy", UA_NS0ID_AGGREGATES,
+    ret |= addReferenceTypeNode(server, "Aggregates", "AggregatedBy", UA_NS0ID_AGGREGATES,
                          false, false, UA_NS0ID_HASCHILD);
 
     /* Complete bootstrap of HasSubtype */
-    addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE, 0);
+	ret |= addNode_finish(server, UA_NS0ID_HASSUBTYPE, UA_NS0ID_HASCHILD, UA_NS0ID_HASSUBTYPE, 0);
 
-    addReferenceTypeNode(server, "HasProperty", "PropertyOf", UA_NS0ID_HASPROPERTY,
+    ret |= addReferenceTypeNode(server, "HasProperty", "PropertyOf", UA_NS0ID_HASPROPERTY,
                          false, false, UA_NS0ID_AGGREGATES);
 
-    addReferenceTypeNode(server, "HasComponent", "ComponentOf", UA_NS0ID_HASCOMPONENT,
+    ret |= addReferenceTypeNode(server, "HasComponent", "ComponentOf", UA_NS0ID_HASCOMPONENT,
                          false, false, UA_NS0ID_AGGREGATES);
 
-    addReferenceTypeNode(server, "HasNotifier", "NotifierOf", UA_NS0ID_HASNOTIFIER,
+    ret |= addReferenceTypeNode(server, "HasNotifier", "NotifierOf", UA_NS0ID_HASNOTIFIER,
                          false, false, UA_NS0ID_HASEVENTSOURCE);
 
-    addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
+    ret |= addReferenceTypeNode(server, "HasOrderedComponent", "OrderedComponentOf",
                          UA_NS0ID_HASORDEREDCOMPONENT, false, false, UA_NS0ID_HASCOMPONENT);
 
     /**************/
@@ -194,48 +195,39 @@ UA_Server_createNS0_base(UA_Server *server) {
     UA_DataTypeAttributes basedatatype_attr = UA_DataTypeAttributes_default;
     basedatatype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseDataType");
     basedatatype_attr.isAbstract = true;
-    addNode_begin(server, UA_NODECLASS_DATATYPE, UA_NS0ID_BASEDATATYPE, "BaseDataType",
+	ret |= addNode_begin(server, UA_NODECLASS_DATATYPE, UA_NS0ID_BASEDATATYPE, "BaseDataType",
                   &basedatatype_attr, &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES]);
 
-    addDataTypeNode(server, "Boolean", UA_NS0ID_BOOLEAN, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "Number", UA_NS0ID_NUMBER, true, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "Float", UA_NS0ID_FLOAT, false, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "Double", UA_NS0ID_DOUBLE, false, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "Integer", UA_NS0ID_INTEGER, true, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "SByte", UA_NS0ID_SBYTE, false, UA_NS0ID_INTEGER);
-    addDataTypeNode(server, "Int16", UA_NS0ID_INT16, false, UA_NS0ID_INTEGER);
-    addDataTypeNode(server, "Int32", UA_NS0ID_INT32, false, UA_NS0ID_INTEGER);
-    addDataTypeNode(server, "Int64", UA_NS0ID_INT64, false, UA_NS0ID_INTEGER);
-    addDataTypeNode(server, "UInteger", UA_NS0ID_UINTEGER, true, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "Byte", UA_NS0ID_BYTE, false, UA_NS0ID_UINTEGER);
-    addDataTypeNode(server, "UInt16", UA_NS0ID_UINT16, false, UA_NS0ID_UINTEGER);
-    addDataTypeNode(server, "UInt32", UA_NS0ID_UINT32, false, UA_NS0ID_UINTEGER);
-    addDataTypeNode(server, "UInt64", UA_NS0ID_UINT64, false, UA_NS0ID_UINTEGER);
-    addDataTypeNode(server, "Decimal128", UA_NS0ID_DECIMAL128, false, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "String", UA_NS0ID_STRING, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "DateTime", UA_NS0ID_DATETIME, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "Guid", UA_NS0ID_GUID, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "ByteString", UA_NS0ID_BYTESTRING, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "XmlElement", UA_NS0ID_XMLELEMENT, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "NodeId", UA_NS0ID_NODEID, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "ExpandedNodeId", UA_NS0ID_EXPANDEDNODEID, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "StatusCode", UA_NS0ID_STATUSCODE, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "QualifiedName", UA_NS0ID_QUALIFIEDNAME, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "LocalizedText", UA_NS0ID_LOCALIZEDTEXT, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "DataValue", UA_NS0ID_DATAVALUE, false, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "DiagnosticInfo", UA_NS0ID_DIAGNOSTICINFO, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "Number", UA_NS0ID_NUMBER, true, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "Integer", UA_NS0ID_INTEGER, true, UA_NS0ID_NUMBER);
+	ret |= addDataTypeNode(server, "UInteger", UA_NS0ID_UINTEGER, true, UA_NS0ID_NUMBER);
+	ret |= addDataTypeNode(server, "Boolean", UA_NS0ID_BOOLEAN, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "SByte", UA_NS0ID_SBYTE, false, UA_NS0ID_INTEGER);
+	ret |= addDataTypeNode(server, "Byte", UA_NS0ID_BYTE, false, UA_NS0ID_UINTEGER);
+	ret |= addDataTypeNode(server, "Int16", UA_NS0ID_INT16, false, UA_NS0ID_INTEGER);
+	ret |= addDataTypeNode(server, "UInt16", UA_NS0ID_UINT16, false, UA_NS0ID_UINTEGER);
+	ret |= addDataTypeNode(server, "Int32", UA_NS0ID_INT32, false, UA_NS0ID_INTEGER);
+	ret |= addDataTypeNode(server, "UInt32", UA_NS0ID_UINT32, false, UA_NS0ID_UINTEGER);
+	ret |= addDataTypeNode(server, "Int64", UA_NS0ID_INT64, false, UA_NS0ID_INTEGER);
+	ret |= addDataTypeNode(server, "UInt64", UA_NS0ID_UINT64, false, UA_NS0ID_UINTEGER);
+	ret |= addDataTypeNode(server, "Float", UA_NS0ID_FLOAT, false, UA_NS0ID_NUMBER);
+	ret |= addDataTypeNode(server, "Double", UA_NS0ID_DOUBLE, false, UA_NS0ID_NUMBER);
+	ret |= addDataTypeNode(server, "DateTime", UA_NS0ID_DATETIME, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "String", UA_NS0ID_STRING, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "ByteString", UA_NS0ID_BYTESTRING, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "Guid", UA_NS0ID_GUID, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "XmlElement", UA_NS0ID_XMLELEMENT, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "NodeId", UA_NS0ID_NODEID, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "ExpandedNodeId", UA_NS0ID_EXPANDEDNODEID, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "QualifiedName", UA_NS0ID_QUALIFIEDNAME, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "LocalizedText", UA_NS0ID_LOCALIZEDTEXT, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "StatusCode", UA_NS0ID_STATUSCODE, false, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "Structure", UA_NS0ID_STRUCTURE, true, UA_NS0ID_BASEDATATYPE);
+	ret |= addDataTypeNode(server, "Decimal128", UA_NS0ID_DECIMAL128, false, UA_NS0ID_NUMBER);
 
-    addDataTypeNode(server, "Structure", UA_NS0ID_STRUCTURE, true, UA_NS0ID_BASEDATATYPE);
-    addDataTypeNode(server, "Enumeration", UA_NS0ID_ENUMERATION, true, UA_NS0ID_BASEDATATYPE);
-
-    addDataTypeNode(server, "Decimal128", UA_NS0ID_DECIMAL128, false, UA_NS0ID_NUMBER);
-    addDataTypeNode(server, "Duration", UA_NS0ID_DURATION, false, UA_NS0ID_DOUBLE);
-    addDataTypeNode(server, "UtcTime", UA_NS0ID_UTCTIME, false, UA_NS0ID_DATETIME);
-
-    addDataTypeNode(server, "LocaleId", UA_NS0ID_LOCALEID, false, UA_NS0ID_STRING);
-    addDataTypeNode(server, "ServerStatusDataType", UA_NS0ID_SERVERSTATUSDATATYPE, false, UA_NS0ID_STRUCTURE);
-    addDataTypeNode(server, "BuildInfo", UA_NS0ID_BUILDINFO, false, UA_NS0ID_STRUCTURE);
-    addDataTypeNode(server, "ServerState", UA_NS0ID_SERVERSTATE, false, UA_NS0ID_ENUMERATION);
+	ret |= addDataTypeNode(server, "Duration", UA_NS0ID_DURATION, false, UA_NS0ID_DOUBLE);
+	ret |= addDataTypeNode(server, "UtcTime", UA_NS0ID_UTCTIME, false, UA_NS0ID_DATETIME);
+	ret |= addDataTypeNode(server, "LocaleId", UA_NS0ID_LOCALEID, false, UA_NS0ID_STRING);
 
     /*****************/
     /* VariableTypes */
@@ -247,96 +239,68 @@ UA_Server_createNS0_base(UA_Server *server) {
     basevar_attr.isAbstract = true;
     basevar_attr.valueRank = -2;
     basevar_attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
-    addNode_begin(server, UA_NODECLASS_VARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
+	ret |= addNode_begin(server, UA_NODECLASS_VARIABLETYPE, UA_NS0ID_BASEVARIABLETYPE, "BaseVariableType",
                   &basevar_attr, &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES]);
 
-    addVariableTypeNode(server, "BaseDataVariableType", UA_NS0ID_BASEDATAVARIABLETYPE,
+    ret |= addVariableTypeNode(server, "BaseDataVariableType", UA_NS0ID_BASEDATAVARIABLETYPE,
                         false, -2, UA_NS0ID_BASEDATATYPE, NULL, UA_NS0ID_BASEVARIABLETYPE);
 
-    addVariableTypeNode(server, "PropertyType", UA_NS0ID_PROPERTYTYPE,
-                        false, -2, UA_NS0ID_BASEDATATYPE, NULL, UA_NS0ID_BASEVARIABLETYPE);
+	/***************/
+	/* ObjectTypes */
+	/***************/
 
-    addVariableTypeNode(server, "BuildInfoType", UA_NS0ID_BUILDINFOTYPE,
-                        false, -1, UA_NS0ID_BUILDINFO, &UA_TYPES[UA_TYPES_BUILDINFO],
-                        UA_NS0ID_BASEDATAVARIABLETYPE);
+	/* Bootstrap BaseObjectType */
+	UA_ObjectTypeAttributes baseobj_attr = UA_ObjectTypeAttributes_default;
+	baseobj_attr.displayName = UA_LOCALIZEDTEXT("", "BaseObjectType");
+	ret |= addNode_begin(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEOBJECTTYPE, "BaseObjectType",
+				  &baseobj_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
 
-    addVariableTypeNode(server, "ServerStatusType", UA_NS0ID_SERVERSTATUSTYPE,
-                        false, -1, UA_NS0ID_SERVERSTATUSDATATYPE,
-                        &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE],
-                        UA_NS0ID_BASEDATAVARIABLETYPE);
+	ret |= addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
+					  false, UA_NS0ID_BASEOBJECTTYPE);
 
-    /***************/
-    /* ObjectTypes */
-    /***************/
-
-    /* Bootstrap BaseObjectType */
-    UA_ObjectTypeAttributes baseobj_attr = UA_ObjectTypeAttributes_default;
-    baseobj_attr.displayName = UA_LOCALIZEDTEXT("", "BaseObjectType");
-    addNode_begin(server, UA_NODECLASS_OBJECTTYPE, UA_NS0ID_BASEOBJECTTYPE, "BaseObjectType",
-                  &baseobj_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
-
-    addObjectTypeNode(server, "ModellingRuleType", UA_NS0ID_MODELLINGRULETYPE,
-                      false, UA_NS0ID_BASEOBJECTTYPE);
-
-    addObjectTypeNode(server, "FolderType", UA_NS0ID_FOLDERTYPE,
-                      false, UA_NS0ID_BASEOBJECTTYPE);
-
-    addObjectTypeNode(server, "ServerType", UA_NS0ID_SERVERTYPE,
-                      false, UA_NS0ID_BASEOBJECTTYPE);
-
-    addObjectTypeNode(server, "ServerDiagnosticsType", UA_NS0ID_SERVERDIAGNOSTICSTYPE,
-                      false,  UA_NS0ID_BASEOBJECTTYPE);
-
-    addObjectTypeNode(server, "ServerCapatilitiesType", UA_NS0ID_SERVERCAPABILITIESTYPE,
-                      false, UA_NS0ID_BASEOBJECTTYPE);
-    
     /******************/
     /* Root and below */
     /******************/
 
-    addObjectNode(server, "Root", UA_NS0ID_ROOTFOLDER, 0, 0, UA_NS0ID_FOLDERTYPE);
+    ret |= addObjectNode(server, "Root", UA_NS0ID_ROOTFOLDER, 0, 0, UA_NS0ID_FOLDERTYPE);
 
-    addObjectNode(server, "Objects", UA_NS0ID_OBJECTSFOLDER, UA_NS0ID_ROOTFOLDER,
+    ret |= addObjectNode(server, "Objects", UA_NS0ID_OBJECTSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    addObjectNode(server, "Types", UA_NS0ID_TYPESFOLDER, UA_NS0ID_ROOTFOLDER,
+    ret |= addObjectNode(server, "Types", UA_NS0ID_TYPESFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    addObjectNode(server, "ReferenceTypes", UA_NS0ID_REFERENCETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
+    ret |= addObjectNode(server, "ReferenceTypes", UA_NS0ID_REFERENCETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    addNode_finish(server, UA_NS0ID_REFERENCES, UA_NS0ID_REFERENCETYPESFOLDER,
+	ret |= addNode_finish(server, UA_NS0ID_REFERENCES, UA_NS0ID_REFERENCETYPESFOLDER,
                    UA_NS0ID_ORGANIZES, 0);
 
-    addObjectNode(server, "DataTypes", UA_NS0ID_DATATYPESFOLDER, UA_NS0ID_TYPESFOLDER,
+    ret |= addObjectNode(server, "DataTypes", UA_NS0ID_DATATYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    addNode_finish(server, UA_NS0ID_BASEDATATYPE, UA_NS0ID_DATATYPESFOLDER,
+
+	ret |= addNode_finish(server, UA_NS0ID_BASEDATATYPE, UA_NS0ID_DATATYPESFOLDER,
                    UA_NS0ID_ORGANIZES, 0);
 
-    addObjectNode(server, "VariableTypes", UA_NS0ID_VARIABLETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
+    ret |= addObjectNode(server, "VariableTypes", UA_NS0ID_VARIABLETYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    addNode_finish(server, UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER,
+
+	ret |= addNode_finish(server, UA_NS0ID_BASEVARIABLETYPE, UA_NS0ID_VARIABLETYPESFOLDER,
                    UA_NS0ID_ORGANIZES, 0);
 
-    addObjectNode(server, "ObjectTypes", UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
+    ret |= addObjectNode(server, "ObjectTypes", UA_NS0ID_OBJECTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
-    addNode_finish(server, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER,
+	ret |= addNode_finish(server, UA_NS0ID_BASEOBJECTTYPE, UA_NS0ID_OBJECTTYPESFOLDER,
                    UA_NS0ID_ORGANIZES, 0);
 
-    addObjectNode(server, "EventTypes", UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
+    ret |= addObjectNode(server, "EventTypes", UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_TYPESFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
+    ret |= addObjectNode(server, "Views", UA_NS0ID_VIEWSFOLDER, UA_NS0ID_ROOTFOLDER,
                   UA_NS0ID_ORGANIZES, UA_NS0ID_FOLDERTYPE);
 
-    /*******************/
-    /* Modelling Rules */
-    /*******************/
-
-    addObjectNode(server, "Mandatory", UA_NS0ID_MODELLINGRULE_MANDATORY,
-                  0, 0, UA_NS0ID_MODELLINGRULETYPE);
-
-    addObjectNode(server, "Optional", UA_NS0ID_MODELLINGRULE_OPTIONAL,
-                  0, 0, UA_NS0ID_MODELLINGRULETYPE);
+	if (ret != UA_STATUSCODE_GOOD)
+		return UA_STATUSCODE_BADINTERNALERROR;
+	return UA_STATUSCODE_GOOD;
 }
 
 /****************/
@@ -566,11 +530,15 @@ UA_Server_initNS0(UA_Server *server) {
 
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */
-    UA_Server_createNS0_base(server);
+	server->bootstrapNS0 = true;
+	UA_StatusCode retVal = UA_Server_createNS0_base(server);
+	server->bootstrapNS0 = false;
+	if (retVal != UA_STATUSCODE_GOOD)
+		return retVal;
 
     /* Load nodes and references generated from the XML ns0 definition */
-    server->bootstrapNS0 = true;
-    UA_StatusCode retVal = ua_namespace0(server);
+	server->bootstrapNS0 = true;
+    retVal = ua_namespace0(server);
     server->bootstrapNS0 = false;
     if (retVal != UA_STATUSCODE_GOOD)
         return retVal;
