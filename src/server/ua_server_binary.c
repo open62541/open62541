@@ -314,6 +314,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
     }
+	UA_NodeId_deleteMembers(&requestType);
 
     /* Call the service */
     UA_OpenSecureChannelResponse openScResponse;
