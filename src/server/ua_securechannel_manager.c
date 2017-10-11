@@ -180,6 +180,11 @@ UA_StatusCode
 UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *channel,
                               const UA_OpenSecureChannelRequest* request,
                               UA_OpenSecureChannelResponse* response) {
+    if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
+        UA_LOG_ERROR_CHANNEL(cm->server->config.logger, channel,
+                             "Called renew on channel which is not open");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     /* If no security token is already issued */
     if(channel->nextSecurityToken.tokenId == 0) {
         channel->nextSecurityToken.channelId = channel->securityToken.channelId;
