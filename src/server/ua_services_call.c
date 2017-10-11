@@ -116,7 +116,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
      * every reference between the parent object and the method node if there is
      * a hasComponent (or subtype) reference */
     UA_Boolean found = false;
-    for(size_t i = 0; i < object->referencesSize; ++i) {
+    for(size_t i = 0; i < object->referencesSize && !found; ++i) {
         UA_NodeReferenceKind *rk = &object->references[i];
         if(rk->isInverse)
             continue;
