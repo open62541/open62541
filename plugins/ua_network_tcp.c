@@ -144,8 +144,8 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
-    response->data =
-        (UA_Byte*)UA_malloc(connection->localConf.recvBufferSize);
+    response->data = (UA_Byte*)
+        UA_malloc(connection->localConf.recvBufferSize);
     if(!response->data) {
         response->length = 0;
         return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
@@ -245,8 +245,8 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
     UA_free(connection);
 }
 
-/* This performs only 'shutdown'. 'close' is called when the shutdown socket is
- * returned from select. */
+/* This performs only 'shutdown'. 'close' is called when the shutdown
+ * socket is returned from select. */
 static void
 ServerNetworkLayerTCP_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
@@ -254,8 +254,7 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
-                          UA_Int32 newsockfd,
+ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
                           struct sockaddr_storage *remote) {
     /* Set nonblocking */
     socket_set_nonblocking(newsockfd);
@@ -291,6 +290,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer,
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
     if(!e)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
     UA_Connection *c = &e->connection;
     memset(c, 0, sizeof(UA_Connection));
     c->sockfd = newsockfd;
@@ -675,10 +675,10 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     UA_DateTime connStart = UA_DateTime_nowMonotonic();
     SOCKET clientsockfd;
 
-    /* On linux connect may immediately return with ECONNREFUSED but we still want to try to connect */
-    /* Thus use a loop and retry until timeout is reached */
+    /* On linux connect may immediately return with ECONNREFUSED but we still
+     * want to try to connect. So use a loop and retry until timeout is
+     * reached. */
     do {
-
         /* Get a socket */
         clientsockfd = socket(server->ai_family,
                               server->ai_socktype,
@@ -722,12 +722,10 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
         /* Use select to wait and check if connected */
         if (error == -1 && (errno__ == ERR_CONNECTION_PROGRESS)) {
             /* connection in progress. Wait until connected using select */
-
-
-            UA_UInt32 timeSinceStart = (UA_UInt32) ((UA_Double)(UA_DateTime_nowMonotonic() - connStart) * UA_DATETIME_TO_MSEC);
-            if (timeSinceStart > timeout) {
+            UA_UInt32 timeSinceStart = (UA_UInt32)
+                ((UA_Double)(UA_DateTime_nowMonotonic() - connStart) * UA_DATETIME_TO_MSEC);
+            if(timeSinceStart > timeout)
                 break;
-            }
 
             fd_set fdset;
             FD_ZERO(&fdset);
@@ -740,7 +738,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
                                     NULL, &tmptv);
 
             if (resultsize == 1) {
-                /* Windows does not have any getsockopt equivalent and it is not needed there */
+                /* Windows does not have any getsockopt equivalent and it is not
+                 * needed there */
 #ifdef _WIN32
                 connected = true;
                 break;
