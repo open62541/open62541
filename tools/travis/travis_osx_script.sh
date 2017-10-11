@@ -5,8 +5,7 @@ echo "\n=== Building ==="
 export OPENSSL_ROOT_DIR="/usr/local/opt/openssl"
 export PATH="/Users/travis/Library/Python/2.7/bin:$PATH"
 
-
-echo "Documentation and certificate build"  && echo -en 'travis_fold:start:script.build.doc\\r'
+echo "Documentation and certificate build" && echo -en 'travis_fold:start:script.build.doc\\r'
 mkdir -p build && cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DUA_BUILD_EXAMPLES=ON -DUA_BUILD_SELFSIGNED_CERTIFICATE=ON ..
 make selfsigned
@@ -15,7 +14,7 @@ cp examples/server_cert.der ../
 cd .. && rm -rf build
 echo -en 'travis_fold:end:script.build.doc\\r'
 
-echo "Full Namespace 0 Generation"  && echo -en 'travis_fold:start:script.build.ns0\\r'
+echo "Full Namespace 0 Generation" && echo -en 'travis_fold:start:script.build.ns0\\r'
 mkdir -p build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_FULL_NS0=ON -DUA_BUILD_EXAMPLES=ON  ..
