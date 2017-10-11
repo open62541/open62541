@@ -303,8 +303,15 @@ class VariableTypeNode(VariableNode):
     def __init__(self, xmlelement=None):
         VariableNode.__init__(self)
         self.nodeClass = NODE_CLASS_VARIABLETYPE
+        self.isAbstract = False
         if xmlelement:
             self.parseXML(xmlelement)
+
+    def parseXML(self, xmlelement):
+        Node.parseXML(self, xmlelement)
+        for (at, av) in xmlelement.attributes.items():
+            if at == "IsAbstract":
+                self.isAbstract = "false" not in av.lower()
 
 class MethodNode(Node):
     def __init__(self, xmlelement=None):

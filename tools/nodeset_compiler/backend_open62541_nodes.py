@@ -148,6 +148,8 @@ def generateVariableTypeNodeCode(node, nodeset, max_string_length):
     code.append("UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;")
     if node.historizing:
         code.append("attr.historizing = true;")
+    if node.isAbstract:
+        code.append("attr.isAbstract = true;")
     code.append("attr.valueRank = (UA_Int32)%s;" % str(node.valueRank))
     if node.dataType is not None:
         if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
@@ -286,8 +288,13 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
     code = []
     valueName = generateNodeIdPrintable(parentNode) + "_variant_DataContents"
 
-    typeArr = dataTypeNode.typesArray + "[" + dataTypeNode.typesArray + "_" + dataTypeNode.browseName.name.upper() + "]"
-    typeStr = "UA_" + dataTypeNode.browseName.name
+    typeBrowseNode = dataTypeNode.browseName.name
+    if typeBrowseNode == "NumericRange":
+        # in the stack we define a separate structure for the numeric range, but the value itself is just a string
+        typeBrowseNode = "String"
+
+    typeArr = dataTypeNode.typesArray + "[" + dataTypeNode.typesArray + "_" + typeBrowseNode.upper() + "]"
+    typeStr = "UA_" + typeBrowseNode
 
     if parentNode.valueRank > 0:
         code.append(typeStr + " *" + valueName + " = (" + typeStr + "*) UA_alloca(" + typeArr + ".memSize * " + str(parentNode.valueRank) + ");")
