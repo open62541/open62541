@@ -74,9 +74,7 @@ START_TEST(Misc_NamespaceGetIndex) {
     ns = UA_STRING(CUSTOM_NS_UPPER);
     retval = UA_Client_NamespaceGetIndex(client, &ns, &idx);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
-}
-END_TEST
-
+} END_TEST
 
 UA_NodeId newReferenceTypeId;
 UA_NodeId newObjectTypeId;
@@ -115,7 +113,6 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-
     // Create Int128 DataType within Integer Datatype
     {
         UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
@@ -127,7 +124,6 @@ START_TEST(Node_Add) {
                                            UA_QUALIFIEDNAME(1, "Int128"), attr, &newDataTypeId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
-
 
     // Create PointType VariableType within BaseDataVariableType
     {
@@ -161,7 +157,6 @@ START_TEST(Node_Add) {
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &newObjectId);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
-
 
     // create Variable 'Top' within Coordinates Object
     {
@@ -445,8 +440,6 @@ START_TEST(Node_AddReadWriteNodes) {
 
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
-
-
 
     // create Method 'Dummy' within Coordinates Object.
     {
