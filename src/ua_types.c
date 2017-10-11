@@ -296,7 +296,8 @@ UA_NodeId_hash(const UA_NodeId *n) {
     switch(n->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
     default:
-        return (u32)(n->namespaceIndex + (n->identifier.numeric * 2654435761)); /*  Knuth's multiplicative hashing */
+        // shift knuth multiplication to use highest 32 bits and after addition make sure we don't have an integer overflow
+        return (u32)((n->namespaceIndex + ((n->identifier.numeric * (u64)2654435761) >> (32))) & UINT32_C(4294967295)); /*  Knuth's multiplicative hashing */
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
         return fnv32(n->namespaceIndex, n->identifier.string.data, n->identifier.string.length);
