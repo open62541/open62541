@@ -156,6 +156,33 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
+START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
+    UA_Server *server = makeTestSequence();
+
+    UA_Variant empty;
+    UA_Variant_init(&empty);
+    UA_StatusCode ret =
+        UA_Server_writeValue(server, UA_NODEID_STRING(1, "the.answer"), empty);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    // read 1
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, resp.status);
+    ck_assert_int_eq(true, resp.hasValue);
+    UA_DataValue_deleteMembers(&resp);
+
+    // read 2
+    ret = UA_Server_readValue(server, rvi.nodeId, &empty);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
+
+    UA_Server_delete(server);
+} END_TEST
+
 START_TEST(ReadSingleAttributeValueRangeWithoutTimestamp) {
     UA_Server *server = makeTestSequence();
 
@@ -1016,6 +1043,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeExecutableWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserExecutableWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
 
