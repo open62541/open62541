@@ -14,6 +14,15 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securitypolicy_none.h"
 
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+// store the authentication token and session ID so we can help fuzzing by setting
+// these values in the next request automatically
+UA_NodeId unsafe_fuzz_authenticationToken = {
+        0, UA_NODEIDTYPE_NUMERIC, {0}
+};
+#endif
+
 /********************/
 /* Helper Functions */
 /********************/
@@ -394,8 +403,20 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         Service_CreateSession(server, channel,
             (const UA_CreateSessionRequest *)request,
                               (UA_CreateSessionResponse *)response);
+        #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+		// store the authentication token and session ID so we can help fuzzing by setting
+        // these values in the next request automatically
+        UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)response;
+        UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
+		#endif
         goto send_response;
     }
+
+    #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	// set the authenticationToken from the create session request to help fuzzing cover more lines
+    if (!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
+    #endif
 
     /* Find the matching session */
     session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
@@ -492,6 +513,14 @@ send_response:
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
+
+	#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+	// when using the forced anonymous session there may be some members added to the
+    // session which will not be cleaned up in the normal way.
+	if (session && session->sessionId.identifierType == UA_NODEIDTYPE_GUID &&
+            UA_Guid_equal(&session->sessionId.identifier.guid, &UA_GUID_NULL))
+        UA_Session_deleteMembersCleanup(session, server);
+	#endif
     return retval;
 }
 

@@ -821,13 +821,11 @@ checkAsymHeader(UA_SecureChannel *const channel,
 static UA_StatusCode
 checkSymHeader(UA_SecureChannel *const channel,
                const UA_UInt32 tokenId) {
-    #ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     if(tokenId != channel->securityToken.tokenId) {
         if(tokenId != channel->nextSecurityToken.tokenId)
             return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN;
         return UA_SecureChannel_revolveTokens(channel);
     }
-    #endif
 
     return UA_STATUSCODE_GOOD;
 }
@@ -883,6 +881,11 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
                                                                   &symmetricSecurityHeader);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
+
+        #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        // let's help fuzzing by setting the correct tokenId
+        symmetricSecurityHeader.tokenId = channel->securityToken.tokenId;
+        #endif
 
         retval = checkSymHeader(channel, symmetricSecurityHeader.tokenId);
         if(retval != UA_STATUSCODE_GOOD)
