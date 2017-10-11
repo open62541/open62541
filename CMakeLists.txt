@@ -132,6 +132,10 @@ endif()
 # Force compilation with as C++
 option(UA_COMPILE_AS_CXX "Force compilation with a C++ compiler" OFF)
 mark_as_advanced(UA_COMPILE_AS_CXX)
+if (UA_COMPILE_AS_CXX)
+    # We need the UINT32_C define
+    add_definitions(-D__STDC_CONSTANT_MACROS)
+endif()
 
 #####################
 # Compiler Settings #
