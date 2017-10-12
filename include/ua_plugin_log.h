@@ -49,6 +49,8 @@ typedef enum {
 typedef void (*UA_Logger)(UA_LogLevel level, UA_LogCategory category,
                           const char *msg, va_list args);
 
+#if 0
+
 static UA_INLINE UA_FORMAT(3,4) void
 UA_LOG_TRACE(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #if UA_LOGLEVEL <= 100
@@ -102,6 +104,18 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
     va_end(args);
 #endif
 }
+
+#else
+
+
+#define UA_LOG_TRACE(...) do {} while (0)
+#define UA_LOG_DEBUG(...) do {} while (0)
+#define UA_LOG_INFO(...) do {} while (0)
+#define UA_LOG_WARNING(...) do {} while (0)
+#define UA_LOG_ERROR(...) do {} while (0)
+#define UA_LOG_FATAL(...) do {} while (0)
+
+#endif
 
 /**
  * Convenience macros for complex types

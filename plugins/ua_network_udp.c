@@ -13,13 +13,17 @@
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
 # include <strings.h> //bzero
-# include <sys/select.h>
-# include <netinet/in.h>
-# include <netinet/tcp.h>
-# include <sys/socketvar.h>
-# include <sys/ioctl.h>
-# include <unistd.h> // read, write, close
-# include <arpa/inet.h>
+
+# include <lwip/opt.h>
+# include <lwip/sockets.h>
+# include <lwip/api.h>
+# include <lwip/sys.h>
+# include <lwip/igmp.h>
+# include <lwip/inet.h>
+# include <lwip/tcp.h>
+# include <lwip/raw.h>
+# include <lwip/udp.h>
+# include <lwip/tcpip.h>
 #ifdef __QNX__
 #include <sys/socket.h>
 #endif
