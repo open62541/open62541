@@ -24,6 +24,7 @@ UA_Session adminSession = {
     UA_UINT32_MAX, /* .maxResponseMessageSize */
     (UA_Double)UA_INT64_MAX, /* .timeout */
     UA_INT64_MAX, /* .validTill */
+    {0, NULL},
     NULL, /* .channel */
     UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
     {NULL}, /* .continuationPoints */
@@ -40,6 +41,7 @@ void UA_Session_init(UA_Session *session) {
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
     UA_String_init(&session->sessionName);
+    UA_ByteString_init(&session->serverNonce);
     session->maxRequestMessageSize  = 0;
     session->maxResponseMessageSize = 0;
     session->timeout = 0;
@@ -59,6 +61,7 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
+    UA_ByteString_deleteMembers(&session->serverNonce);
     struct ContinuationPointEntry *cp, *temp;
     LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
         LIST_REMOVE(cp, pointers);

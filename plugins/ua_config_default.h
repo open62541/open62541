@@ -1,16 +1,16 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifndef UA_CONFIG_STANDARD_H_
-#define UA_CONFIG_STANDARD_H_
+#ifndef UA_CONFIG_DEFAULT_H_
+#define UA_CONFIG_DEFAULT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "ua_server.h"
+#include "ua_server_config.h"
 #include "ua_client.h"
-#include "ua_client_highlevel.h"
 
 /**********************/
 /* Default Connection */
@@ -35,7 +35,7 @@ UA_EXPORT UA_ServerConfig *
 UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
                             const UA_ByteString *certificate);
 
-/* Creates a server config on the standard port 4840 with no server
+/* Creates a server config on the default port 4840 with no server
  * certificate. */
 static UA_INLINE UA_ServerConfig *
 UA_ServerConfig_new_default(void) {
@@ -56,4 +56,4 @@ extern const UA_EXPORT UA_ClientConfig UA_ClientConfig_default;
 }
 #endif
 
-#endif /* UA_CONFIG_STANDARD_H_ */
+#endif /* UA_CONFIG_DEFAULT_H_ */

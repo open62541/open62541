@@ -26,7 +26,7 @@
 #include <fcntl.h>
 
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "check.h"
 #include "testing_clock.h"
@@ -377,7 +377,7 @@ START_TEST(Client_filter_locale) {
         UA_STRING("Anmeldungsserver")
     };
     const UA_String expectedLocales[] = {UA_STRING("en"), UA_STRING("de")};
-    // even if we request en_US, the server will return de_DE because it only has that name.
+    // even if we request en-US, the server will return de-DE because it only has that name.
     FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 
 }
@@ -451,7 +451,7 @@ END_TEST
 
 // Test if registered server is returned from LDS
 START_TEST(Client_find_registered) {
-    const UA_String expectedUris[] = {
+    const UA_String expectedUris[2] = {
         UA_STRING("urn:open62541.test.local_discovery_server"),
         UA_STRING("urn:open62541.test.server_register")
     };

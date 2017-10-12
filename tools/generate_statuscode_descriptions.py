@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -18,7 +20,7 @@ f = open(args.statuscodes)
 input_str = f.read()
 f.close()
 input_str = input_str.replace('\r','')
-rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
+rows = list(map(lambda x:tuple(x.split(',')), input_str.split('\n')))
 
 fc = open(args.outfile + ".c",'w')
 def printc(string):
@@ -34,9 +36,7 @@ printc('''/**********************************************************
 
 #include "ua_types.h"''')
 
-count = 2
-for row in rows:
-    count += 1
+count = 2 + len(rows)
 
 printc('''
 

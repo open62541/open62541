@@ -4,7 +4,7 @@
 
 #include <ua_types.h>
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_types_encoding_binary.h"
 
@@ -21,7 +21,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	size_t ptrSize = size;
 
 	// get some random type
-	uint8_t typeIndex = ptr[0];
+	uint16_t typeIndex = ptr[0];
 	ptr++;
 	ptrSize--;
 

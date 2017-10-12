@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # WARNING: This is till work in progress
 #
 # Load into gdb with 'source ../tools/gdb-prettyprint.py'

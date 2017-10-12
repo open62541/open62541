@@ -177,6 +177,9 @@ typedef int64_t UA_DateTime;
 #define UA_USEC_TO_DATETIME 10LL
 #define UA_MSEC_TO_DATETIME (UA_USEC_TO_DATETIME * 1000LL)
 #define UA_SEC_TO_DATETIME (UA_MSEC_TO_DATETIME * 1000LL)
+#define UA_DATETIME_TO_USEC (1/10.0)
+#define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
+#define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
 
 /* Datetime of 1 Jan 1970 00:00 UTC */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
@@ -344,6 +347,8 @@ typedef struct {
     UA_String namespaceUri;
     UA_UInt32 serverIndex;
 } UA_ExpandedNodeId;
+
+UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
 static UA_INLINE UA_ExpandedNodeId

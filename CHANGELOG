@@ -1,6 +1,39 @@
 This changelog reports changes to the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2017-09-07 jpfr <julius.pfrommer at web.de>
+
+ * Make Client Highlevel Interface consistent
+
+   Two methods in the client highlevel interface were not conformant with the
+   API convention that array sizes are given before the array pointer. This
+   changes the signature of UA_Client_writeArrayDimensionsAttribute and
+   UA_Client_readArrayDimensionsAttribute.
+
+   The API changes are detected by the type-matching in the compiler. So there
+   is little risk for bugs due to unaligned implementations.
+
+2017-08-16 jpfr <julius.pfrommer at web.de>
+
+ * Default Attribute Values for Node Attributes
+
+   The AddNodes service takes a structure with the attributes of the new node as
+   input. We began checking the consistency of the attributes more closely. You
+   can now use constant global definitions with default values as a starting
+   point. For example UA_VariableAttributes_default for adding a variable node.
+
+ * All nodes have a context pointer
+
+   All nodes now carry a context pointer. The context pointer is initially set
+   to a user-defined memory location. The context pointer is passed to all
+   user-visible callbacks involving the node.
+
+ * Global and node-type constructor/destructor
+
+   The constructors are fine-grained mechanisms to control the instantiation and
+   deletion of nodes. Constructors receive the node context pointer and can also
+   replace it.
+
 2017-08-13 Infinity95 <mark.giraud at student.kit.edu>
 
  * New/Delete methods for the server configuration
@@ -19,7 +52,7 @@ fixes are not reported here.
 
    The TCP port in the default configuration is 4840. This is the recommended
    port for OPC UA and now used throughout all examples.
-   
+
 2017-07-04 jpfr <julius.pfrommer at web.de>
 
  * Return partially overlapping ranges

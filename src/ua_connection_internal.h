@@ -10,10 +10,17 @@ extern "C" {
 #endif
 
 #include "ua_plugin_network.h"
+#include "ua_transport_generated.h"
+
+/* The application can be the client or the server */
+typedef UA_StatusCode (*UA_Connection_processChunk)(void *application,
+                                                    UA_Connection *connection,
+                                                    UA_ByteString *chunk);
 
 /* The network layer may receive chopped up messages since TCP is a streaming
- * protocol. Furthermore, the networklayer may operate on ringbuffers or
- * statically assigned memory.
+ * protocol. This method calls the processChunk callback on all full chunks that
+ * were received. Dangling half-complete chunks are buffered in the connection
+ * and considered for the next received packet.
  *
  * If an entire chunk is received, it is forwarded directly. But the memory
  * needs to be freed with the networklayer-specific mechanism. If a half message
@@ -21,36 +28,39 @@ extern "C" {
  * needs to be used.
  *
  * @param connection The connection
- * @param message The received packet. The content may be replaced when a chunk
- *        is completed with previously received packets.
- * @param realloced The Boolean value is set to true if the outgoing message has
- *        been reallocated from the network layer.
+ * @param application The client or server application
+ * @param processCallback The function pointer for processing each chunk
+ * @param packet The received packet.
  * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
  *         the ingoing message and the current buffer in the connection are
  *         freed. */
 UA_StatusCode
-UA_Connection_completeChunks(UA_Connection *connection,
-                               UA_ByteString * UA_RESTRICT message,
-                               UA_Boolean * UA_RESTRICT realloced);
+UA_Connection_processChunks(UA_Connection *connection, void *application,
+                            UA_Connection_processChunk processCallback,
+                            const UA_ByteString *packet);
 
 /* Try to receive at least one complete chunk on the connection. This blocks the
  * current thread up to the given timeout.
  *
  * @param connection The connection
- * @param chunk The received chunk. The memory is allocated either by the
- *        networklayer or internally.
- * @param realloced The Boolean value is set to true if the chunk has been
- *        reallocated from the network layer.
+ * @param application The client or server application
+ * @param processCallback The function pointer for processing each chunk
  * @param timeout The timeout (in milliseconds) the method will block at most.
- * @return Returns UA_STATUSCODE_GOOD or an error code. When an error occurs,
- *         the chunk buffer is returned empty. Upon a timeout,
- *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned.
- */
+ * @return Returns UA_STATUSCODE_GOOD or an error code. When an timeout occurs,
+ *         UA_STATUSCODE_GOODNONCRITICALTIMEOUT is returned. */
 UA_StatusCode
-UA_Connection_receiveChunksBlocking(UA_Connection *connection,
-                                    UA_ByteString *chunks,
-                                    UA_Boolean *realloced,
+UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application,
+                                    UA_Connection_processChunk processCallback,
                                     UA_UInt32 timeout);
+
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_Connection_sendError(UA_Connection *connection,
+                        UA_TcpErrorMessage *error);
 
 void UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_Connection_attachSecureChannel(UA_Connection *connection,

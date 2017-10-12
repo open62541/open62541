@@ -7,11 +7,10 @@
 #include <time.h>
 
 #include "check.h"
-#include "server/ua_nodestore.h"
 #include "server/ua_services.h"
 #include "ua_client.h"
 #include "ua_types.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "server/ua_server_internal.h"
 
 #ifdef __clang__
@@ -24,8 +23,11 @@ static UA_Server *server = NULL;
 static UA_ServerConfig *config = NULL;
 
 static UA_StatusCode
-readCPUTemperature(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
-                   const UA_NumericRange *range, UA_DataValue *dataValue) {
+readCPUTemperature(UA_Server *server_,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeId, void *nodeContext,
+                   UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
+                   UA_DataValue *dataValue) {
     UA_Float temp = 20.5f;
     UA_Variant_setScalarCopy(&dataValue->value, &temp, &UA_TYPES[UA_TYPES_FLOAT]);
     dataValue->hasValue = true;
@@ -43,8 +45,7 @@ static void setup(void) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */
-    UA_VariableAttributes vattr;
-    UA_VariableAttributes_init(&vattr);
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     vattr.description = UA_LOCALIZEDTEXT("locale","the answer");
@@ -56,24 +57,28 @@ static void setup(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                        parentReferenceNodeId, myIntegerName,
-                                       UA_NODEID_NULL, vattr, NULL, NULL);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vattr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* DataSource VariableNode */
-    UA_VariableAttributes_init(&vattr);
-    UA_DataSource temperatureDataSource =
-        (UA_DataSource) {.handle = NULL, .read = readCPUTemperature, .write = NULL};
-    vattr.description = UA_LOCALIZEDTEXT("en_US","temperature");
-    vattr.displayName = UA_LOCALIZEDTEXT("en_US","temperature");
+    vattr = UA_VariableAttributes_default;
+    UA_DataSource temperatureDataSource;
+    temperatureDataSource.read = readCPUTemperature;
+    temperatureDataSource.write = NULL;
+    vattr.description = UA_LOCALIZEDTEXT("en-US","temperature");
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US","temperature");
     retval = UA_Server_addDataSourceVariableNode(server, UA_NODEID_STRING(1, "cpu.temperature"),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                                  UA_QUALIFIEDNAME(1, "cpu temperature"),
-                                                 UA_NODEID_NULL, vattr, temperatureDataSource, NULL);
+                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                 vattr, temperatureDataSource,
+                                                 NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* VariableNode with array */
-    UA_VariableAttributes_init(&vattr);
+    vattr = UA_VariableAttributes_default;
     UA_Int32 myIntegerArray[9] = {1,2,3,4,5,6,7,8,9};
     UA_Variant_setArray(&vattr.value, &myIntegerArray, 9, &UA_TYPES[UA_TYPES_INT32]);
     vattr.valueRank = -2;
@@ -87,14 +92,14 @@ static void setup(void) {
     parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                        parentReferenceNodeId, myIntegerName,
-                                       UA_NODEID_NULL, vattr, NULL, NULL);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vattr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* ObjectNode */
-    UA_ObjectAttributes obj_attr;
-    UA_ObjectAttributes_init(&obj_attr);
-    obj_attr.description = UA_LOCALIZEDTEXT("en_US","Demo");
-    obj_attr.displayName = UA_LOCALIZEDTEXT("en_US","Demo");
+    UA_ObjectAttributes obj_attr = UA_ObjectAttributes_default;
+    obj_attr.description = UA_LOCALIZEDTEXT("en-US","Demo");
+    obj_attr.displayName = UA_LOCALIZEDTEXT("en-US","Demo");
     retval = UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 50),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -104,10 +109,9 @@ static void setup(void) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     /* ViewNode */
-    UA_ViewAttributes view_attr;
-    UA_ViewAttributes_init(&view_attr);
-    view_attr.description = UA_LOCALIZEDTEXT("en_US", "Viewtest");
-    view_attr.displayName = UA_LOCALIZEDTEXT("en_US", "Viewtest");
+    UA_ViewAttributes view_attr = UA_ViewAttributes_default;
+    view_attr.description = UA_LOCALIZEDTEXT("en-US", "Viewtest");
+    view_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Viewtest");
     retval = UA_Server_addViewNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWNODE),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -116,21 +120,22 @@ static void setup(void) {
 
 #ifdef UA_ENABLE_METHODCALLS
     /* MethodNode */
-    UA_MethodAttributes ma;
-    UA_MethodAttributes_init(&ma);
-    ma.description = UA_LOCALIZEDTEXT("en_US", "Methodtest");
-    ma.displayName = UA_LOCALIZEDTEXT("en_US", "Methodtest");
+    UA_MethodAttributes ma = UA_MethodAttributes_default;
+    ma.description = UA_LOCALIZEDTEXT("en-US", "Methodtest");
+    ma.displayName = UA_LOCALIZEDTEXT("en-US", "Methodtest");
     retval = UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_METHODNODE),
                                      UA_NODEID_NUMERIC(0, 3),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                      UA_QUALIFIEDNAME(0, "Methodtest"), ma,
-                                     NULL, NULL, 0, NULL, 0, NULL, NULL);
+                                     NULL, 0, NULL, 0, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 #endif
 }
 
 static UA_VariableNode* makeCompareSequence(void) {
-    UA_VariableNode *node = UA_NodeStore_newVariableNode();
+    UA_VariableNode *node = (UA_VariableNode*)
+        config->nodestore.newNode(config->nodestore.context,
+                                  UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
@@ -242,7 +247,7 @@ START_TEST(ReadSingleAttributeDisplayNameWithoutTimestamp) {
     ck_assert(UA_String_equal(&comp.text, &respval->text));
     ck_assert(UA_String_equal(&compNode->displayName.locale, &respval->locale));
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
+    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
@@ -260,7 +265,7 @@ START_TEST(ReadSingleAttributeDescriptionWithoutTimestamp) {
     ck_assert(UA_String_equal(&compNode->description.locale, &respval->locale));
     ck_assert(UA_String_equal(&compNode->description.text, &respval->text));
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
+    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeWriteMaskWithoutTimestamp) {
@@ -331,7 +336,7 @@ START_TEST(ReadSingleAttributeInverseNameWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     UA_LocalizedText* respval = (UA_LocalizedText*) resp.value.data;
-    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("en_US", "OrganizedBy");
+    const UA_LocalizedText comp = UA_LOCALIZEDTEXT("", "OrganizedBy");
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_LOCALIZEDTEXT],resp.value.type);
     ck_assert(UA_String_equal(&comp.text, &respval->text));
@@ -437,13 +442,11 @@ START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Uncommented since the accesslevel is always 0xff for the local admin user */
-    /* UA_RCU_LOCK(); */
     /* const UA_VariableNode* compNode = */
     /*     (const UA_VariableNode*)UA_NodeStore_get(server->nodestore, &rvi.nodeId); */
     /* ck_assert_int_eq(0, resp.value.arrayLength); */
     /* ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BYTE], resp.value.type); */
     /* ck_assert_int_eq(*(UA_Byte*)resp.value.data, compNode->accessLevel & 0xFF); // 0xFF is the default userAccessLevel */
-    /* UA_RCU_UNLOCK(); */
     UA_DataValue_deleteMembers(&resp);
 } END_TEST
 
@@ -462,7 +465,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_DOUBLE], resp.value.type);
     ck_assert(*respval == comp);
     UA_DataValue_deleteMembers(&resp);
-    UA_NodeStore_deleteNode((UA_Node*)compNode);
+    config->nodestore.deleteNode(config->nodestore.context, (UA_Node*)compNode);
 } END_TEST
 
 START_TEST(ReadSingleAttributeHistorizingWithoutTimestamp) {
@@ -491,7 +494,7 @@ START_TEST(ReadSingleAttributeExecutableWithoutTimestamp) {
     ck_assert_int_eq(true, resp.hasValue);
     ck_assert_int_eq(0, resp.value.arrayLength);
     ck_assert_ptr_eq(&UA_TYPES[UA_TYPES_BOOLEAN], resp.value.type);
-    ck_assert(*(UA_Boolean*)resp.value.data==false);
+    ck_assert(*(UA_Boolean*)resp.value.data==true);
     UA_DataValue_deleteMembers(&resp);
 #endif
 } END_TEST
@@ -593,7 +596,7 @@ START_TEST(WriteSingleAttributeBrowseName) {
 START_TEST(WriteSingleAttributeDisplayName) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
@@ -605,7 +608,7 @@ START_TEST(WriteSingleAttributeDisplayName) {
 START_TEST(WriteSingleAttributeDescription) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
@@ -656,7 +659,7 @@ START_TEST(WriteSingleAttributeSymmetric) {
 START_TEST(WriteSingleAttributeInverseName) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en_US", "not.the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-US", "not.the.answer");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_INVERSENAME;

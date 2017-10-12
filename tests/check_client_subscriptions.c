@@ -10,7 +10,7 @@
 #include "ua_server.h"
 #include "ua_client.h"
 #include "ua_client_highlevel.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_network_tcp.h"
 
 #include "check.h"
@@ -46,6 +46,8 @@ static void teardown(void) {
     UA_ServerConfig_delete(config);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+
 UA_Boolean notificationReceived;
 
 static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
@@ -74,6 +76,13 @@ START_TEST(Client_subscription) {
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
+
+    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+
+    retval = UA_Client_Subscriptions_remove(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -130,15 +139,23 @@ START_TEST(Client_methodcall) {
 }
 END_TEST
 
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
 static Suite* testSuite_Client(void) {
-    Suite *s = suite_create("Client Subscription");
     TCase *tc_client = tcase_create("Client Subscription Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client, Client_subscription);
-    suite_add_tcase(s,tc_client);
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
     tcase_add_checked_fixture(tc_client2, setup, teardown);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client2, Client_methodcall);
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
+    Suite *s = suite_create("Client Subscription");
+    suite_add_tcase(s,tc_client);
     suite_add_tcase(s,tc_client2);
     return s;
 }

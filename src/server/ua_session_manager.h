@@ -45,7 +45,10 @@ UA_StatusCode
 UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token);
 
 UA_Session *
-UA_SessionManager_getSession(UA_SessionManager *sm, const UA_NodeId *token);
+UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token);
+
+UA_Session *
+UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId);
 
 #ifdef __cplusplus
 } // extern "C"

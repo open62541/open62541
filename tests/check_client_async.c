@@ -9,7 +9,7 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "check.h"
 #include "testing_clock.h"

@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 #include "testing_networklayers.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
@@ -26,12 +26,10 @@ dummySend(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
-    UA_ByteString_deleteMembers(buf);
 }
 
 static void
 dummyClose(UA_Connection *connection) {
-    return;
 }
 
 UA_Connection createDummyConnection(void) {

@@ -27,8 +27,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/plugin_network.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -46,8 +45,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
-          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
-          ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
@@ -73,8 +71,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
           ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
           ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
-          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
-          ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ev
+set -e
 
 echo "\n=== Building ==="
 export OPENSSL_ROOT_DIR="/usr/local/opt/openssl"

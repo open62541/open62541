@@ -305,9 +305,9 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                          "Subscription %u | Sending out a publish response "
                          "with %u notifications", sub->subscriptionID,
                          (UA_UInt32)notifications);
-    UA_SecureChannel_sendBinaryMessage(sub->session->channel,
-                                       pre->requestId, response,
-                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    UA_SecureChannel_sendSymmetricMessage(sub->session->channel, pre->requestId,
+                                          UA_MESSAGETYPE_MSG, response,
+                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Reset subscription state to normal. */
     sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
@@ -379,9 +379,9 @@ UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         response->responseHeader.timestamp = UA_DateTime_now();
-        UA_SecureChannel_sendBinaryMessage(session->channel,
-                                           pre->requestId, response,
-                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+                                              UA_MESSAGETYPE_MSG, response,
+                                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_deleteMembers(response);
         UA_free(pre);
     }

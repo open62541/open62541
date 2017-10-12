@@ -171,3 +171,11 @@ FindServersOnNetworkResponse
 DataChangeTrigger
 DeadbandType
 DataChangeFilter
+MonitoringFilter
+EventFilter
+FilterOperand
+SimpleAttributeOperand
+EventNotificationList
+EventFieldList
+StatusChangeNotification
+Duration

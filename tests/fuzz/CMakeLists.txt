@@ -17,11 +17,11 @@ if (NOT UA_BUILD_OSS_FUZZ)
 
     # oss-fuzz builds already include these flags
     if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address")
     else()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize-coverage=trace-pc-guard,trace-cmp")
     endif()
     set(LIBS Fuzzer)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
@@ -37,8 +37,10 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
         ${PROJECT_SOURCE_DIR}/tests/testing_networklayers.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-        ${PROJECT_SOURCE_DIR}/plugins/ua_config_standard.c
-        ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c)
+        ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
 
 add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
 add_dependencies(open62541-fuzzplugins open62541)

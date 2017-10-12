@@ -11,19 +11,11 @@
 extern "C" {
 #endif
 
-/* Assert */
-#include <assert.h>
-#define UA_assert(ignore) assert(ignore)
-
 /* BSD Queue Macros */
 #include "../deps/queue.h"
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
-
-/* container_of */
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
 
 #ifdef UA_ENABLE_MULTITHREADING
 /* Thread Local Storage */
@@ -55,6 +47,7 @@ typedef UA_UInt32 u32;
 typedef UA_Int32 i32;
 typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
+typedef UA_StatusCode status;
 
 /* Atomic Operations
  * -----------------
@@ -127,13 +120,6 @@ size_t UA_readNumber(u8 *buf, size_t buflen, u32 *number);
 
 #define MIN(A,B) (A > B ? B : A)
 #define MAX(A,B) (A > B ? A : B)
-
-/* The typename string can be disabled to safe memory */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
 
 #ifdef UA_DEBUG_DUMP_PKGS
 void UA_EXPORT UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);

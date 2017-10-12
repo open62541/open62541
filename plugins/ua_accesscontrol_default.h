@@ -13,43 +13,42 @@ extern "C" {
 UA_StatusCode UA_EXPORT
 activateSession_default(const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
-                        void **sessionHandle);
+                        void **sessionContext);
 
 void UA_EXPORT
-closeSession_default(const UA_NodeId *sessionId, void *sessionHandle);
+closeSession_default(const UA_NodeId *sessionId, void *sessionContext);
 
 UA_UInt32 UA_EXPORT
-getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionHandle,
-                          const UA_NodeId *nodeId);
+getUserRightsMask_default(const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *nodeId, void *nodeContext);
 
 UA_Byte UA_EXPORT
-getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionHandle,
-                           const UA_NodeId *nodeId);
+getUserAccessLevel_default(const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *nodeId, void *nodeContext);
 
 UA_Boolean UA_EXPORT
-getUserExecutable_default(const UA_NodeId *sessionId, void *sessionHandle,
-                          const UA_NodeId *nodeId);
+getUserExecutable_default(const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *methodId, void *methodContext);
 
 UA_Boolean UA_EXPORT
-getUserExecutableOnObject_default(const UA_NodeId *sessionId,
-                                  void *sessionHandle,
-                                  const UA_NodeId *methodId,
-                                  const UA_NodeId *objectId);
+getUserExecutableOnObject_default(const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *methodId, void *methodContext,
+                                  const UA_NodeId *objectId, void *objectContext);
 
 UA_Boolean UA_EXPORT
-allowAddNode_default(const UA_NodeId *sessionId, void *sessionHandle,
+allowAddNode_default(const UA_NodeId *sessionId, void *sessionContext,
                      const UA_AddNodesItem *item);
 
 UA_Boolean UA_EXPORT
-allowAddReference_default(const UA_NodeId *sessionId, void *sessionHandle,
+allowAddReference_default(const UA_NodeId *sessionId, void *sessionContext,
                           const UA_AddReferencesItem *item);
 
 UA_Boolean UA_EXPORT
-allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionHandle,
+allowDeleteNode_default(const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item);
 
 UA_Boolean UA_EXPORT
-allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionHandle,
+allowDeleteReference_default(const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item);
 
 #ifdef __cplusplus

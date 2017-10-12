@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "ua_plugin_log.h"
 #include "testing_networklayers.h"
@@ -28,6 +28,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_Server_processBinaryMessage(server, &c, &msg);
 	// if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_deleteMembers(&msg);
+	UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);

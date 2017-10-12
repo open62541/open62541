@@ -152,8 +152,8 @@ UA_Client_readValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_StatusCode UA_EXPORT
 UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_UInt32 **outArrayDimensions,
-                                       size_t *outArrayDimensionsSize);
+                                       size_t *outArrayDimensionsSize,
+                                       UA_UInt32 **outArrayDimensions);
 
 static UA_INLINE UA_StatusCode
 UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
@@ -333,8 +333,8 @@ UA_Client_writeValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_StatusCode UA_EXPORT
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_UInt32 *newArrayDimensions,
-                                        size_t newArrayDimensionsSize);
+                                        size_t newArrayDimensionsSize,
+                                        const UA_UInt32 *newArrayDimensions);
 
 static UA_INLINE UA_StatusCode
 UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
@@ -586,6 +586,21 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
+
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+                                                  const size_t nEventFields,
+                                                  const UA_Variant *eventFields,
+                                                  void *context);
+
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
+                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
+                                          UA_SimpleAttributeOperand *selectClause,
+                                          const size_t nSelectClauses,
+                                          UA_ContentFilterElement *whereClause,
+                                          const size_t nWhereClauses,
+                                          const UA_MonitoredEventHandlingFunction hf,
+                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
 
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
                                                  UA_DataValue *value,

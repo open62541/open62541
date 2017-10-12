@@ -12,15 +12,13 @@
 static pthread_mutex_t printf_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-const char *LogLevelNames[6] = {"trace", "debug", "info", "warning", "error", "fatal"};
-const char *LogCategoryNames[7] = {"network", "channel", "session", "server", "client", "userland", "securitypolicy"};
+const char *logLevelNames[6] = {"trace", "debug", "info", "warn", "error", "fatal"};
+const char *logCategoryNames[7] = {"network", "channel", "session", "server",
+                                   "client", "userland", "securitypolicy"};
 
-#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || \
-    defined(__clang__)
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#ifdef __clang__
+__attribute__((__format__(__printf__, 3 , 0)))
 #endif
-
 void
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args) {
@@ -28,7 +26,7 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_lock(&printf_mutex);
 #endif
-    printf("[%.23s] %s/%s\t", t.data, LogLevelNames[level], LogCategoryNames[category]);
+    printf("[%.23s] %s/%s\t", t.data, logLevelNames[level], logCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
@@ -37,8 +35,3 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
 #endif
     UA_ByteString_deleteMembers(&t);
 }
-
-#if (defined(__GNUC__) && defined(__GNUC_MINOR__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6) || \
-    defined(__clang__)
-# pragma GCC diagnostic pop
-#endif

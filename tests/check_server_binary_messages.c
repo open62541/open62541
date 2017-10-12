@@ -8,7 +8,7 @@
 
 #include "ua_server.h"
 #include "ua_server_internal.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
 #include "ua_log_stdout.h"
 #include "testing_networklayers.h"
 
@@ -39,12 +39,10 @@ START_TEST(processMessage) {
     UA_Server *server = UA_Server_new(config);
     for(size_t i = 0; i < files; i++) {
         UA_ByteString msg = readFile(filenames[i]);
-        UA_Boolean reallocated;
-        UA_StatusCode retval = UA_Connection_completeChunks(&c, &msg, &reallocated);
-        if(retval == UA_STATUSCODE_GOOD && msg.length > 0)
-            UA_Server_processBinaryMessage(server, &c, &msg);
+        UA_Server_processBinaryMessage(server, &c, &msg);
         UA_ByteString_deleteMembers(&msg);
     }
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     UA_Connection_deleteMembers(&c);

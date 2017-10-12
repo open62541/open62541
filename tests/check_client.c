@@ -9,7 +9,8 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
+#include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "check.h"
 
@@ -28,8 +29,8 @@ addVariable(size_t size) {
     UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
 
     char name[] = "my.variable";
-    attr.description = UA_LOCALIZEDTEXT("en_US", name);
-    attr.displayName = UA_LOCALIZEDTEXT("en_US", name);
+    attr.description = UA_LOCALIZEDTEXT("en-US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
 
     /* Add the variable node to the information model */
@@ -39,7 +40,8 @@ addVariable(size_t size) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              attr, NULL, NULL);
 
     UA_free(array);
 }
@@ -97,6 +99,42 @@ START_TEST(Client_read) {
 }
 END_TEST
 
+
+START_TEST(Client_reconnect) {
+        UA_ClientConfig clientConfig = UA_ClientConfig_default;
+        clientConfig.timeout = 100;
+        UA_Client *client = UA_Client_new(clientConfig);
+        setup();
+        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        UA_Variant val;
+        UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_deleteMembers(&val);
+
+        // restart server to test reconnect
+        teardown();
+        setup();
+
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+        retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        retval = UA_Client_readValueAttribute(client, nodeId, &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_deleteMembers(&val);
+
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+
+        teardown();
+    }
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -104,6 +142,9 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_read);
     suite_add_tcase(s,tc_client);
+    TCase *tc_client_reconnect = tcase_create("Client Reconnect");
+    tcase_add_test(tc_client_reconnect, Client_reconnect);
+    suite_add_tcase(s,tc_client_reconnect);
     return s;
 }
 

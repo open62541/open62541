@@ -1,4 +1,4 @@
-#!/usr/bin/env/python
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -647,12 +647,10 @@ class opcua_namespace():
     header.append('#ifndef '+outfilename.upper()+'_H_')
     header.append('#define '+outfilename.upper()+'_H_')
     header.append('')
-    header.append('#include "server/ua_server_internal.h"')
-    header.append('#include "server/ua_nodes.h"')
-    header.append('#include "ua_util.h"')
+    header.append('#include "ua_server.h"')
+    header.append('#include "ua_plugin_nodestore.h"')
     header.append('#include "ua_types_encoding_binary.h"')
     header.append('#include "ua_types_generated_encoding_binary.h"')
-    header.append('#include "ua_transport_generated_encoding_binary.h"')
     header.append('')
     header.append('/* Definition that (in userspace models) may be ')
     header.append(' * - not included in the amalgamated header or')
@@ -663,18 +661,9 @@ class opcua_namespace():
     header.append('#ifndef UA_ENCODINGOFFSET_BINARY')
     header.append('#  define UA_ENCODINGOFFSET_BINARY 2')
     header.append('#endif')
-    header.append('#ifndef NULL')
-    header.append('  #define NULL ((void *)0)')
-    header.append('#endif')
-    header.append('#ifndef UA_malloc')
-    header.append('  #define UA_malloc(_p_size) malloc(_p_size)')
-    header.append('#endif')
-    header.append('#ifndef UA_free')
-    header.append('  #define UA_free(_p_ptr) free(_p_ptr)')
-    header.append('#endif')
     
     code.append('#include "'+outfilename+'.h"')
-    code.append("UA_INLINE UA_StatusCode "+outfilename+"(UA_Server *server) {")
+    code.append("UA_INLINE UA_StatusCode "+outfilename+"(UA_Server *server) {\n")
     code.append('UA_StatusCode retval = UA_STATUSCODE_GOOD; ')
     code.append('if(retval == UA_STATUSCODE_GOOD){retval = UA_STATUSCODE_GOOD;} //ensure that retval is used');
 

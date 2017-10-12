@@ -9,7 +9,8 @@
 
 #include "ua_server.h"
 #include "ua_client.h"
-#include "ua_config_standard.h"
+#include "ua_config_default.h"
+#include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "check.h"
 
@@ -57,7 +58,7 @@ static void teardown(void) {
 
 START_TEST(Misc_State) {
     UA_ClientState state = UA_Client_getState(client);
-    ck_assert_uint_eq(state, UA_CLIENTSTATE_CONNECTED);
+    ck_assert_uint_eq(state, UA_CLIENTSTATE_SESSION);
 }
 END_TEST
 
@@ -91,10 +92,9 @@ START_TEST(Node_Add) {
 
     // Create custom reference type 'HasSubSubType' as child of HasSubtype
     {
-        UA_ReferenceTypeAttributes attr;
-        UA_ReferenceTypeAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Some HasSubSubType");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "HasSubSubType");
+        UA_ReferenceTypeAttributes attr = UA_ReferenceTypeAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some HasSubSubType");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "HasSubSubType");
         retval = UA_Client_addReferenceTypeNode(client, UA_NODEID_NULL,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -105,10 +105,9 @@ START_TEST(Node_Add) {
 
     // Create TestObjectType SubType within BaseObjectType
     {
-        UA_ObjectTypeAttributes attr;
-        UA_ObjectTypeAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Some TestObjectType");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "TestObjectType");
+        UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some TestObjectType");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObjectType");
         retval = UA_Client_addObjectTypeNode(client, UA_NODEID_NULL,
                                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -119,10 +118,9 @@ START_TEST(Node_Add) {
 
     // Create Int128 DataType within Integer Datatype
     {
-        UA_DataTypeAttributes attr;
-        UA_DataTypeAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Some Int128");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int128");
+        UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some Int128");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int128");
         retval = UA_Client_addDataTypeNode(client, UA_NODEID_NULL,
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_INTEGER),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -133,14 +131,13 @@ START_TEST(Node_Add) {
 
     // Create PointType VariableType within BaseDataVariableType
     {
-        UA_VariableTypeAttributes attr;
-        UA_VariableTypeAttributes_init(&attr);
+        UA_VariableTypeAttributes attr = UA_VariableTypeAttributes_default;
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
         attr.valueRank = 1; /* array with one dimension */
         UA_UInt32 arrayDims[1] = {2};
         attr.arrayDimensions = arrayDims;
         attr.arrayDimensionsSize = 1;
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "PointType");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "PointType");
 
         /* a matching default value is required */
         UA_Double zero[2] = {0.0, 0.0};
@@ -154,10 +151,9 @@ START_TEST(Node_Add) {
 
     // create Coordinates Object within ObjectsFolder
     {
-        UA_ObjectAttributes attr;
-        UA_ObjectAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Some Coordinates");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Coordinates");
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some Coordinates");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Coordinates");
         retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -169,10 +165,9 @@ START_TEST(Node_Add) {
 
     // create Variable 'Top' within Coordinates Object
     {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Top Coordinate");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Top");
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Top Coordinate");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Top");
         UA_Int32 values[2] = {10, 20};
         UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
         attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
@@ -188,14 +183,11 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
-    // create Method 'Dummy' within Coordinates Object. Fails with BADNODECLASSINVALID
+    // create Method 'Dummy' within Coordinates Object.
     {
-        // creating a method from a client does not yet make much sense since the corresponding
-        // action code can not be set from the client side
-        UA_MethodAttributes attr;
-        UA_MethodAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Dummy method");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Dummy");
+        UA_MethodAttributes attr = UA_MethodAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Dummy method");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Dummy");
         attr.executable = true;
         attr.userExecutable = true;
         retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
@@ -203,15 +195,14 @@ START_TEST(Node_Add) {
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
                                          UA_QUALIFIEDNAME(1, "Dummy"),
                                          attr, &newMethodId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODECLASSINVALID);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
     // create View 'AllTopCoordinates' whithin Views Folder
     {
-        UA_ViewAttributes attr;
-        UA_ViewAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "List of all top coordinates");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "AllTopCoordinates");
+        UA_ViewAttributes attr = UA_ViewAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "AllTopCoordinates");
         retval = UA_Client_addViewNode(client, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
@@ -220,19 +211,19 @@ START_TEST(Node_Add) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
+    UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NULL;
+    target.nodeId = newObjectId;
 
     // Add 'Top' to view
     retval = UA_Client_addReference(client, newViewId, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                    UA_TRUE, UA_STRING_NULL,
-                                    UA_EXPANDEDNODEID_NUMERIC(1, newObjectId.identifier.numeric),
-                                    UA_NODECLASS_VARIABLE);
+                                    UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_VARIABLE);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // Delete 'Top' from view
     retval = UA_Client_deleteReference(client, newViewId,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_TRUE,
-                                       UA_EXPANDEDNODEID_NUMERIC(1, newObjectId.identifier.numeric), UA_TRUE);
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       true, target, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // Delete 'AllTopCoordinates' view
@@ -242,7 +233,7 @@ START_TEST(Node_Add) {
 END_TEST
 
 unsigned int iteratedNodeCount = 0;
-UA_NodeId iteratedNodes[2];
+UA_NodeId iteratedNodes[4];
 
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
@@ -250,138 +241,13 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
                       referenceTypeId.identifier.numeric == UA_NS0ID_HASTYPEDEFINITION))
         return UA_STATUSCODE_GOOD;
 
-    if (iteratedNodeCount >= 2)
+    if (iteratedNodeCount >= 4)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
     UA_NodeId_copy(&childId, &iteratedNodes[iteratedNodeCount]);
     iteratedNodeCount++;
     return UA_STATUSCODE_GOOD;
 }
-
-START_TEST(Node_ReadWrite) {
-    UA_StatusCode retval;
-    // Create a folder with two variables for testing
-
-    UA_NodeId unitTestNodeId;
-    UA_NodeId nodeArrayId;
-    UA_NodeId nodeIntId;
-
-    // create Coordinates Object within ObjectsFolder
-    {
-        UA_ObjectAttributes attr;
-        UA_ObjectAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "UnitTest");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "UnitTest");
-        retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                         UA_QUALIFIEDNAME(1, "UnitTest"),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &unitTestNodeId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-
-    // create Variable 'Top' within UnitTest Object
-    {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Array");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Array");
-        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-        attr.writeMask = UA_WRITEMASK_ARRRAYDIMENSIONS;
-
-        UA_Int32 values[2];
-        values[0] = 10;
-        values[1] = 20;
-
-        UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
-        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-        attr.valueRank = 1; /* array with one dimension */
-        UA_UInt32 arrayDims[1] = {2};
-        attr.arrayDimensions = arrayDims;
-        attr.arrayDimensionsSize = 1;
-
-        retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
-                                           unitTestNodeId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                           UA_QUALIFIEDNAME(1, "Array"),
-                                           UA_NODEID_NULL, attr, &nodeArrayId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-
-    // create Variable 'Bottom' within UnitTest Object
-    {
-        UA_VariableAttributes attr;
-        UA_VariableAttributes_init(&attr);
-        attr.description = UA_LOCALIZEDTEXT("en_US", "Int");
-        attr.displayName = UA_LOCALIZEDTEXT("en_US", "Int");
-        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-
-        UA_Int32 int_value = 5678;
-
-        UA_Variant_setScalar(&attr.value, &int_value, &UA_TYPES[UA_TYPES_INT32]);
-        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
-
-        retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
-                                           unitTestNodeId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                           UA_QUALIFIEDNAME(1, "Int"),
-                                           UA_NODEID_NULL, attr, &nodeIntId);
-
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-
-    // iterate over children
-    retval = UA_Client_forEachChildNodeCall(client, unitTestNodeId, nodeIter, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_NodeId_equal(&nodeArrayId, &iteratedNodes[0]));
-    ck_assert(UA_NodeId_equal(&nodeIntId, &iteratedNodes[1]));
-
-    /* Read attribute */
-    UA_Int32 value = 0;
-    UA_Variant *val = UA_Variant_new();
-    retval = UA_Client_readValueAttribute(client, nodeIntId, val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
-    value = *(UA_Int32*)val->data;
-    ck_assert_int_eq(value, 5678);
-    UA_Variant_delete(val);
-
-    /* Write attribute */
-    value++;
-    val = UA_Variant_new();
-    UA_Variant_setScalarCopy(val, &value, &UA_TYPES[UA_TYPES_INT32]);
-    retval = UA_Client_writeValueAttribute(client, nodeIntId, val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Variant_delete(val);
-
-    /* Read again to check value */
-    val = UA_Variant_new();
-    retval = UA_Client_readValueAttribute(client, nodeIntId, val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
-    value = *(UA_Int32*)val->data;
-    ck_assert_int_eq(value, 5679);
-    UA_Variant_delete(val);
-
-    // Disabled for now, we need a better unit test for this
-    /*UA_UInt32 arrayDimsNew[] = {3};
-      retval = UA_Client_writeArrayDimensionsAttribute(client, nodeArrayId, arrayDimsNew , 1);
-      ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-
-      UA_UInt32 *arrayDimsRead;
-      size_t arrayDimsReadSize;
-      retval = UA_Client_readArrayDimensionsAttribute(client, nodeArrayId, &arrayDimsRead , &arrayDimsReadSize);
-      ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-      ck_assert_int_eq(arrayDimsReadSize, 1);
-      ck_assert_int_eq(arrayDimsRead[0], 3);
-      UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);*/
-
-}
-END_TEST
 
 START_TEST(Node_Browse) {
     // Browse node in server folder
@@ -482,6 +348,676 @@ START_TEST(Node_Register) {
 END_TEST
 
 
+
+// NodeIds for ReadWrite testing
+UA_NodeId nodeReadWriteUnitTest;
+UA_NodeId nodeReadWriteArray;
+UA_NodeId nodeReadWriteInt;
+UA_NodeId nodeReadWriteGeneric;
+UA_NodeId nodeReadWriteTestObjectType;
+UA_NodeId nodeReadWriteTestHasSubSubType;
+UA_NodeId nodeReadWriteView;
+UA_NodeId nodeReadWriteMethod;
+
+
+
+START_TEST(Node_AddReadWriteNodes) {
+    UA_StatusCode retval;
+    // Create a folder with two variables for testing
+
+    // create Coordinates Object within ObjectsFolder
+    {
+        UA_ObjectAttributes attr = UA_ObjectAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "UnitTest");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "UnitTest");
+        retval = UA_Client_addObjectNode(client, UA_NODEID_NULL,
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                         UA_QUALIFIEDNAME(1, "UnitTest"),
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &nodeReadWriteUnitTest);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    // create Variable 'Top' within UnitTest Object
+    {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Array");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Array");
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = UA_WRITEMASK_ARRRAYDIMENSIONS;
+
+        UA_Int32 values[2];
+        values[0] = 10;
+        values[1] = 20;
+
+        UA_Variant_setArray(&attr.value, values, 2, &UA_TYPES[UA_TYPES_INT32]);
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+        attr.valueRank = 1; /* array with one dimension */
+        UA_UInt32 arrayDims[1] = {2};
+        attr.arrayDimensions = arrayDims;
+        attr.arrayDimensionsSize = 1;
+
+        retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                           nodeReadWriteUnitTest,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                           UA_QUALIFIEDNAME(1, "Array"),
+                                           UA_NODEID_NULL, attr, &nodeReadWriteArray);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    // create Variable 'Int' within UnitTest Object
+    {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Int");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int");
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = 0xFFFFFFFF;
+
+        UA_Int32 int_value = 5678;
+        UA_Variant_setScalar(&attr.value, &int_value, &UA_TYPES[UA_TYPES_INT32]);
+        attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+
+        retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                           nodeReadWriteUnitTest,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                           UA_QUALIFIEDNAME(1, "Int"),
+                                           UA_NODEID_NULL, attr, &nodeReadWriteInt);
+
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    // create Variable 'Generic' within UnitTest Object
+    {
+        UA_VariableAttributes attr = UA_VariableAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Generic");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Generic");
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.writeMask = 0xFFFFFFFF;
+
+        // generic datatype
+        attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATATYPE);
+
+        retval = UA_Client_addVariableNode(client, UA_NODEID_NULL,
+                                           nodeReadWriteUnitTest,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                           UA_QUALIFIEDNAME(1, "Generic"),
+                                           UA_NODEID_NULL, attr, &nodeReadWriteGeneric);
+
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+
+
+    // create Method 'Dummy' within Coordinates Object.
+    {
+        UA_MethodAttributes attr = UA_MethodAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Dummy method");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "Dummy");
+        attr.executable = true;
+        attr.userExecutable = true;
+        attr.writeMask = 0xFFFFFFFF;
+        retval = UA_Client_addMethodNode(client, UA_NODEID_NULL,
+                                         nodeReadWriteUnitTest,
+                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASORDEREDCOMPONENT),
+                                         UA_QUALIFIEDNAME(1, "Dummy"),
+                                         attr, &nodeReadWriteMethod);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    // Create TestObjectType SubType within BaseObjectType
+    {
+        UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some TestObjectType");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObjectType");
+        attr.writeMask = 0xFFFFFFFF;
+        retval = UA_Client_addObjectTypeNode(client, UA_NODEID_NULL,
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                             UA_QUALIFIEDNAME(1, "TestObjectType"), attr, &nodeReadWriteTestObjectType);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    // Create custom reference type 'HasSubSubType' as child of HasSubtype
+    {
+        UA_ReferenceTypeAttributes attr = UA_ReferenceTypeAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "Some HasSubSubType");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "HasSubSubType");
+        attr.inverseName = UA_LOCALIZEDTEXT("en-US", "HasParentParentType");
+        attr.writeMask = 0xFFFFFFFF;
+        retval = UA_Client_addReferenceTypeNode(client, UA_NODEID_NULL,
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                                UA_QUALIFIEDNAME(1, "HasSubSubType"), attr,
+                                                &nodeReadWriteTestHasSubSubType);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+
+    // create View 'AllTopCoordinates' whithin Views Folder
+    {
+        UA_ViewAttributes attr = UA_ViewAttributes_default;
+        attr.description = UA_LOCALIZEDTEXT("en-US", "List of all top coordinates");
+        attr.displayName = UA_LOCALIZEDTEXT("en-US", "AllTopCoordinates");
+        attr.writeMask = 0xFFFFFFFF;
+        retval = UA_Client_addViewNode(client, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_QUALIFIEDNAME(1, "AllTopCoordinates"),
+                                       attr, &nodeReadWriteView);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+        
+    // iterate over children
+    retval = UA_Client_forEachChildNodeCall(client, nodeReadWriteUnitTest, nodeIter, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_NodeId_equal(&nodeReadWriteArray, &iteratedNodes[0]));
+    ck_assert(UA_NodeId_equal(&nodeReadWriteInt, &iteratedNodes[1]));
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_Id) {
+    UA_NodeId newNodeId;
+
+    // read to check if node id was changed
+    UA_StatusCode retval = UA_Client_readNodeIdAttribute(client, nodeReadWriteInt, &newNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_NodeId_equal(&newNodeId, &nodeReadWriteInt));
+
+    newNodeId.identifier.numeric = 900;
+    retval = UA_Client_writeNodeIdAttribute(client, nodeReadWriteInt, &newNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+
+}
+END_TEST
+
+static void checkNodeClass(UA_Client *clientNc, const UA_NodeId nodeId, const UA_NodeClass expectedClass) {
+    UA_NodeClass nodeClass = UA_NODECLASS_UNSPECIFIED;
+    UA_StatusCode retval = UA_Client_readNodeClassAttribute(clientNc, nodeId, &nodeClass);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nodeClass, expectedClass);
+}
+
+START_TEST(Node_ReadWrite_Class) {
+    checkNodeClass(client, nodeReadWriteInt, UA_NODECLASS_VARIABLE);
+    checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), UA_NODECLASS_OBJECT);
+    checkNodeClass(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), UA_NODECLASS_METHOD);
+
+    UA_NodeClass newClass = UA_NODECLASS_METHOD;
+    UA_StatusCode retval = UA_Client_writeNodeClassAttribute(client, nodeReadWriteInt, &newClass);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_BrowseName) {
+
+    UA_QualifiedName browseName;
+    UA_StatusCode retval = UA_Client_readBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName orig = UA_QUALIFIEDNAME(1, "Int");
+    ck_assert_int_eq(browseName.namespaceIndex, orig.namespaceIndex);
+    ck_assert(UA_String_equal(&browseName.name, &orig.name));
+
+    UA_QualifiedName_deleteMembers(&browseName);
+
+    browseName = UA_QUALIFIEDNAME(1,"Int-Changed");
+
+    retval = UA_Client_writeBrowseNameAttribute(client, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), &browseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    retval = UA_Client_writeBrowseNameAttribute(client, nodeReadWriteInt, &browseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_QualifiedName browseNameChangedRead;
+    retval = UA_Client_readBrowseNameAttribute(client, nodeReadWriteInt, &browseNameChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(browseName.namespaceIndex, browseNameChangedRead.namespaceIndex);
+    ck_assert(UA_String_equal(&browseName.name, &browseNameChangedRead.name));
+
+    UA_QualifiedName_deleteMembers(&browseNameChangedRead);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_DisplayName) {
+
+    UA_LocalizedText displayName;
+    UA_StatusCode retval = UA_Client_readDisplayNameAttribute(client, nodeReadWriteInt, &displayName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "Int");
+    ck_assert(UA_String_equal(&displayName.locale, &orig.locale));
+    ck_assert(UA_String_equal(&displayName.text, &orig.text));
+    UA_LocalizedText_deleteMembers(&displayName);
+
+    UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "Int-Changed");
+
+    retval = UA_Client_writeDisplayNameAttribute(client, nodeReadWriteInt, &newLocale);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText displayNameChangedRead;
+    retval = UA_Client_readDisplayNameAttribute(client, nodeReadWriteInt, &displayNameChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&newLocale.locale, &displayNameChangedRead.locale));
+    ck_assert(UA_String_equal(&newLocale.text, &displayNameChangedRead.text));
+    UA_LocalizedText_deleteMembers(&displayNameChangedRead);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_Description) {
+
+    UA_LocalizedText description;
+    UA_StatusCode retval = UA_Client_readDescriptionAttribute(client, nodeReadWriteInt, &description);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "Int");
+    ck_assert(UA_String_equal(&description.locale, &orig.locale));
+    ck_assert(UA_String_equal(&description.text, &orig.text));
+    UA_LocalizedText_deleteMembers(&description);
+
+    UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "Int-Changed");
+
+    retval = UA_Client_writeDescriptionAttribute(client, nodeReadWriteInt, &newLocale);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText descriptionChangedRead;
+    retval = UA_Client_readDescriptionAttribute(client, nodeReadWriteInt, &descriptionChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&newLocale.locale, &descriptionChangedRead.locale));
+    ck_assert(UA_String_equal(&newLocale.text, &descriptionChangedRead.text));
+    UA_LocalizedText_deleteMembers(&descriptionChangedRead);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_WriteMask) {
+
+    UA_UInt32 writeMask;
+    UA_StatusCode retval = UA_Client_readWriteMaskAttribute(client, nodeReadWriteInt, &writeMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(writeMask, 0xFFFFFFFF);
+
+    // Disable a random write mask bit
+    UA_UInt32 newMask = 0xFFFFFFFF & ~UA_WRITEMASK_BROWSENAME;
+
+    retval = UA_Client_writeWriteMaskAttribute(client, nodeReadWriteInt, &newMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 writeMaskChangedRead;
+    retval = UA_Client_readWriteMaskAttribute(client, nodeReadWriteInt, &writeMaskChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(writeMaskChangedRead, newMask);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_UserWriteMask) {
+
+    UA_UInt32 userWriteMask;
+    UA_StatusCode retval = UA_Client_readUserWriteMaskAttribute(client, nodeReadWriteInt, &userWriteMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(userWriteMask, 0xFFFFFFFF & ~UA_WRITEMASK_BROWSENAME);
+
+    // Disable a random write mask bit
+    UA_UInt32 newMask = 0xFFFFFFFF & ~UA_WRITEMASK_DISPLAYNAME;
+
+    retval = UA_Client_writeUserWriteMaskAttribute(client, nodeReadWriteInt, &newMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_IsAbstract) {
+
+    UA_Boolean isAbstract;
+    UA_StatusCode retval = UA_Client_readIsAbstractAttribute(client, nodeReadWriteInt, &isAbstract);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    retval = UA_Client_readIsAbstractAttribute(client, nodeReadWriteTestObjectType, &isAbstract);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(isAbstract, UA_FALSE);
+
+    UA_Boolean newIsAbstract = UA_TRUE;
+
+    retval = UA_Client_writeIsAbstractAttribute(client, nodeReadWriteTestObjectType, &newIsAbstract);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readIsAbstractAttribute(client, nodeReadWriteTestObjectType, &isAbstract);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(isAbstract, newIsAbstract);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_Symmetric) {
+
+    UA_Boolean symmetric;
+    UA_StatusCode retval = UA_Client_readSymmetricAttribute(client, nodeReadWriteInt, &symmetric);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    retval = UA_Client_readSymmetricAttribute(client, nodeReadWriteTestHasSubSubType, &symmetric);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(symmetric, UA_FALSE);
+
+    UA_Boolean newSymmetric = UA_TRUE;
+
+    retval = UA_Client_writeSymmetricAttribute(client, nodeReadWriteTestHasSubSubType, &newSymmetric);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readSymmetricAttribute(client, nodeReadWriteTestHasSubSubType, &symmetric);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(symmetric, newSymmetric);
+}
+END_TEST
+
+
+START_TEST(Node_ReadWrite_InverseName) {
+
+    UA_LocalizedText inverseName;
+    UA_StatusCode retval = UA_Client_readInverseNameAttribute(client, nodeReadWriteTestHasSubSubType, &inverseName);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText orig = UA_LOCALIZEDTEXT("en-US", "HasParentParentType");
+    ck_assert(UA_String_equal(&inverseName.locale, &orig.locale));
+    ck_assert(UA_String_equal(&inverseName.text, &orig.text));
+    UA_LocalizedText_deleteMembers(&inverseName);
+
+    UA_LocalizedText newLocale = UA_LOCALIZEDTEXT("en-US", "HasParentParentType-Changed");
+
+    retval = UA_Client_writeInverseNameAttribute(client, nodeReadWriteTestHasSubSubType, &newLocale);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText inverseNameChangedRead;
+    retval = UA_Client_readInverseNameAttribute(client, nodeReadWriteTestHasSubSubType, &inverseNameChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&newLocale.locale, &inverseNameChangedRead.locale));
+    ck_assert(UA_String_equal(&newLocale.text, &inverseNameChangedRead.text));
+    UA_LocalizedText_deleteMembers(&inverseNameChangedRead);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_ContainsNoLoops) {
+
+    UA_Boolean containsNoLoops;
+    UA_StatusCode retval = UA_Client_readContainsNoLoopsAttribute(client, nodeReadWriteTestHasSubSubType, &containsNoLoops);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    retval = UA_Client_readContainsNoLoopsAttribute(client, nodeReadWriteView, &containsNoLoops);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(containsNoLoops, UA_FALSE);
+
+    UA_Boolean newContainsNoLoops = UA_TRUE;
+
+    retval = UA_Client_writeContainsNoLoopsAttribute(client, nodeReadWriteView, &newContainsNoLoops);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readContainsNoLoopsAttribute(client, nodeReadWriteView, &containsNoLoops);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(containsNoLoops, newContainsNoLoops);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_EventNotifier) {
+
+    UA_Byte eventNotifier = 0;
+    UA_StatusCode retval = UA_Client_readEventNotifierAttribute(client, nodeReadWriteTestHasSubSubType, &eventNotifier);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADATTRIBUTEIDINVALID);
+    retval = UA_Client_readEventNotifierAttribute(client, nodeReadWriteView, &eventNotifier);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(eventNotifier, 0);
+
+    UA_Byte newEventNotifier = 1;
+
+    retval = UA_Client_writeEventNotifierAttribute(client, nodeReadWriteView, &newEventNotifier);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readEventNotifierAttribute(client, nodeReadWriteView, &eventNotifier);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(eventNotifier, newEventNotifier);
+}
+END_TEST
+
+
+START_TEST(Node_ReadWrite_Value) {
+
+    UA_Int32 value = 0;
+    UA_Variant *val = UA_Variant_new();
+    UA_StatusCode retval = UA_Client_readValueAttribute(client, nodeReadWriteInt, val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
+    value = *(UA_Int32*)val->data;
+    ck_assert_int_eq(value, 5678);
+    UA_Variant_delete(val);
+
+    /* Write attribute */
+    value++;
+    val = UA_Variant_new();
+    UA_Variant_setScalarCopy(val, &value, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteInt, val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_delete(val);
+
+    /* Read again to check value */
+    val = UA_Variant_new();
+    retval = UA_Client_readValueAttribute(client, nodeReadWriteInt, val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_Variant_isScalar(val) && val->type == &UA_TYPES[UA_TYPES_INT32]);
+    value = *(UA_Int32*)val->data;
+    ck_assert_int_eq(value, 5679);
+    UA_Variant_delete(val);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_DataType) {
+    UA_NodeId dataType;
+
+    // read to check if node id was changed
+    UA_StatusCode retval = UA_Client_readDataTypeAttribute(client, nodeReadWriteInt, &dataType);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_NodeId_equal(&dataType, &UA_TYPES[UA_TYPES_INT32].typeId));
+
+    UA_NodeId newDataType = UA_TYPES[UA_TYPES_VARIANT].typeId;
+    retval = UA_Client_writeDataTypeAttribute(client, nodeReadWriteGeneric, &newDataType);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readDataTypeAttribute(client, nodeReadWriteGeneric, &dataType);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(UA_NodeId_equal(&dataType, &newDataType));
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_ValueRank) {
+
+    UA_Int32 valueRank = 0;
+    UA_StatusCode retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(valueRank, -2);
+
+    // set the value to a scalar
+    UA_Double val = 0.0;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // we want an array
+    UA_Int32 newValueRank = 1;
+
+    // shall fail when the value is not compatible
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    // set the value to an array
+    UA_Double vec[3] = {0.0, 0.0, 0.0};
+    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // try again
+    retval = UA_Client_writeValueRankAttribute(client, nodeReadWriteGeneric, &newValueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readValueRankAttribute(client, nodeReadWriteGeneric, &valueRank);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(valueRank, newValueRank);
+
+
+    // set the value to no array
+    UA_Variant_init(&value);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
+
+START_TEST(Node_ReadWrite_ArrayDimensions) {
+    UA_UInt32 *arrayDimsRead;
+    size_t arrayDimsReadSize;
+    UA_StatusCode retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
+                                                                  &arrayDimsReadSize, &arrayDimsRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(arrayDimsReadSize, 0);
+
+    // writing the array dimensions shall fail at first
+    UA_UInt32 arrayDimsNew[] = {3};
+    retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    // Set a vector of size 3 as the value
+    UA_Double vec[3] = {0.0, 0.0, 0.0};
+    UA_Variant value;
+    UA_Variant_setArray(&value, vec, 3, &UA_TYPES[UA_TYPES_DOUBLE]);
+    retval = UA_Client_writeValueAttribute(client, nodeReadWriteGeneric, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Now we can set matching array-dimensions
+    retval = UA_Client_writeArrayDimensionsAttribute(client, nodeReadWriteGeneric, 1, arrayDimsNew);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readArrayDimensionsAttribute(client, nodeReadWriteGeneric,
+                                                    &arrayDimsReadSize, &arrayDimsRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(arrayDimsReadSize, 1);
+    ck_assert_int_eq(arrayDimsRead[0], 3);
+    UA_Array_delete(arrayDimsRead, arrayDimsReadSize, &UA_TYPES[UA_TYPES_UINT32]);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_AccessLevel) {
+
+    UA_Byte accessLevel;
+    UA_StatusCode retval = UA_Client_readAccessLevelAttribute(client, nodeReadWriteInt, &accessLevel);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(accessLevel, UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE);
+
+    UA_Byte newMask = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+
+    retval = UA_Client_writeAccessLevelAttribute(client, nodeReadWriteInt, &newMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte accessLevelChangedRead;
+    retval = UA_Client_readAccessLevelAttribute(client, nodeReadWriteInt, &accessLevelChangedRead);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(accessLevelChangedRead, newMask);
+
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_UserAccessLevel) {
+
+    UA_Byte userAccessLevel;
+    UA_StatusCode retval = UA_Client_readUserAccessLevelAttribute(client, nodeReadWriteInt, &userAccessLevel);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(userAccessLevel, UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD);
+
+    UA_Byte newMask = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+
+    retval = UA_Client_writeUserAccessLevelAttribute(client, nodeReadWriteInt, &newMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_MinimumSamplingInterval) {
+
+    UA_Double minimumSamplingInterval = 0;
+    UA_StatusCode retval = UA_Client_readMinimumSamplingIntervalAttribute(client, nodeReadWriteGeneric, &minimumSamplingInterval);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(minimumSamplingInterval == 0);
+
+    // we want an array
+    UA_Double newMinimumSamplingInterval = 1;
+
+    retval = UA_Client_writeMinimumSamplingIntervalAttribute(client, nodeReadWriteGeneric, &newMinimumSamplingInterval);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readMinimumSamplingIntervalAttribute(client, nodeReadWriteGeneric, &minimumSamplingInterval);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(minimumSamplingInterval == newMinimumSamplingInterval);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_Historizing) {
+
+    UA_Boolean historizing;
+    UA_StatusCode retval = UA_Client_readHistorizingAttribute(client, nodeReadWriteInt, &historizing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(historizing, UA_FALSE);
+
+    UA_Boolean newHistorizing = UA_TRUE;
+
+    retval = UA_Client_writeHistorizingAttribute(client, nodeReadWriteInt, &newHistorizing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readHistorizingAttribute(client, nodeReadWriteInt, &historizing);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(historizing, newHistorizing);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_Executable) {
+
+    UA_Boolean executable;
+    UA_StatusCode retval = UA_Client_readExecutableAttribute(client, nodeReadWriteMethod, &executable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(executable, UA_TRUE);
+
+    UA_Boolean newExecutable = UA_FALSE;
+
+    retval = UA_Client_writeExecutableAttribute(client, nodeReadWriteMethod, &newExecutable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Client_readExecutableAttribute(client, nodeReadWriteMethod, &executable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(executable, newExecutable);
+}
+END_TEST
+
+START_TEST(Node_ReadWrite_UserExecutable) {
+
+    UA_Boolean userExecutable;
+    UA_StatusCode retval = UA_Client_readUserExecutableAttribute(client, nodeReadWriteMethod, &userExecutable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(userExecutable, UA_FALSE);
+
+    UA_Boolean newUserExecutable = UA_TRUE;
+
+    retval = UA_Client_writeUserExecutableAttribute(client, nodeReadWriteMethod, &newUserExecutable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
+
+}
+END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Client Highlevel");
     TCase *tc_misc = tcase_create("Client Highlevel Misc");
@@ -494,9 +1030,37 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_nodes, setup, teardown);
     tcase_add_test(tc_nodes, Node_Add);
     tcase_add_test(tc_nodes, Node_Browse);
-    tcase_add_test(tc_nodes, Node_ReadWrite);
     tcase_add_test(tc_nodes, Node_Register);
     suite_add_tcase(s, tc_nodes);
+
+    TCase *tc_readwrite = tcase_create("Client Highlevel Read/Write");
+    tcase_add_unchecked_fixture(tc_readwrite, setup, teardown);
+    // first add some nodes where we test on
+    tcase_add_test(tc_readwrite, Node_AddReadWriteNodes);
+    // Now run all the read write tests
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Id);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Class);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_BrowseName);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_DisplayName);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Description);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_WriteMask);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_UserWriteMask);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_IsAbstract);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Symmetric);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_InverseName);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_ContainsNoLoops);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_EventNotifier);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Value);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_DataType);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_ValueRank);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_ArrayDimensions);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_AccessLevel);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_UserAccessLevel);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_MinimumSamplingInterval);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Historizing);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_Executable);
+    tcase_add_test(tc_readwrite, Node_ReadWrite_UserExecutable);
+    suite_add_tcase(s, tc_readwrite);
     return s;
 }
 

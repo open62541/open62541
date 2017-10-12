@@ -5,7 +5,7 @@
 #ifndef TESTING_NETWORKLAYERS_H_
 #define TESTING_NETWORKLAYERS_H_
 
-#include "ua_server.h"
+#include "ua_server_config.h"
 
 #ifdef __cplusplus
 extern "C" {
