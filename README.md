@@ -13,6 +13,10 @@ The library is [available](https://github.com/open62541/open62541/releases) in s
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
 [![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
+[![Quality Gate](https://sonarcloud.io/api/badges/gate?key=open62541-main:master)](https://sonarcloud.io/dashboard/index/open62541-main:master)
+[![SonarCloud Lines of Code (excl comments)](https://sonarcloud.io/api/badges/measure?key=open62541-main%3Amaster&metric=ncloc)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main%3Amaster)
+[![SonarCloud Duplicated lines](https://sonarcloud.io/api/badges/measure?key=open62541-main%3Amaster&metric=duplicated_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main%3Amaster)
+[![SonarCloud Percentage of comments](https://sonarcloud.io/api/badges/measure?key=open62541-main%3Amaster&metric=comment_lines_density)](https://sonarcloud.io/component_measures/metric/security_rating/list?id=open62541-main%3Amaster)
 
 ### Features
 
