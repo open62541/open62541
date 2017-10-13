@@ -68,6 +68,17 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
+    if(channel == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+
+    if(channel->connection == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_ByteString_equal(&request->clientCertificate,
@@ -88,6 +99,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
         return;
     }
+
+    ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
 
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription*)
@@ -139,11 +152,10 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
-    /* Todo: Copy from the session's endpoint */
-    /* if(server->config.endpointsSize > 0) */
-    /*     response->responseHeader.serviceResult |= */
-    /*     UA_ByteString_copy(&channel->endpoint->endpointDescription.serverCertificate, */
-    /*                        &response->serverCertificate); */
+    if(server->config.endpointsSize > 0)
+         response->responseHeader.serviceResult |=
+         UA_ByteString_copy(&channel->securityPolicy->localCertificate,
+                            &response->serverCertificate);
 
     /* Create a signed nonce */
     response->responseHeader.serviceResult =

@@ -47,6 +47,8 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     retval = UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
                                                    response, responseType);
     UA_RequestHeader_deleteMembers(&requestHeader);
+    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER, "Sent ServiceFault"
+                 "with error code %i", error);
     return retval;
 }
 
@@ -314,7 +316,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
     }
-	UA_NodeId_deleteMembers(&requestType);
+    UA_NodeId_deleteMembers(&requestType);
 
     /* Call the service */
     UA_OpenSecureChannelResponse openScResponse;
@@ -405,16 +407,16 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             (const UA_CreateSessionRequest *)request,
                               (UA_CreateSessionResponse *)response);
         #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-		// store the authentication token and session ID so we can help fuzzing by setting
+        // store the authentication token and session ID so we can help fuzzing by setting
         // these values in the next request automatically
         UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)response;
         UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
-		#endif
+        #endif
         goto send_response;
     }
 
     #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-	// set the authenticationToken from the create session request to help fuzzing cover more lines
+    // set the authenticationToken from the create session request to help fuzzing cover more lines
     if (!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
         UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
     #endif
@@ -443,6 +445,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
+
         if(sessionRequired) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Service request %i without a valid session",
@@ -451,6 +454,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
+
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
         anonymousSession.channel = channel;
