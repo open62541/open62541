@@ -762,6 +762,9 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if(offset + paddingSize + sigsize >= chunk->length)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     *requestId = sequenceHeader.requestId;
     *sequenceNumber = sequenceHeader.sequenceNumber;
     payload->data = chunk->data + offset;
