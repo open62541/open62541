@@ -121,6 +121,10 @@ struct UA_Server {
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
+    /* For bootstrapping, omit some consistency checks, creating a reference to
+     * the parent and member instantiation */
+    UA_Boolean bootstrapNS0;
+
     /* Config */
     UA_ServerConfig config;
 };
@@ -328,14 +332,13 @@ UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
 UA_StatusCode
 Operation_addNode_begin(UA_Server *server, UA_Session *session,
                         const UA_AddNodesItem *item, void *nodeContext,
-                        UA_NodeId *outNewNodeId, UA_Boolean overrideChecks);
+                        UA_NodeId *outNewNodeId);
 
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 Operation_addNode_finish(UA_Server *server, UA_Session *session,
                          const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
-                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId,
-                         UA_Boolean overrideChecks);
+                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
 
 UA_StatusCode
 UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
@@ -348,9 +351,7 @@ UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
 /* Create Namespace 0 */
 /**********************/
 
-#ifndef UA_ENABLE_GENERATE_NAMESPACE0
-void UA_Server_createNS0(UA_Server *server);
-#endif
+UA_StatusCode UA_Server_initNS0(UA_Server *server);
 
 #ifdef __cplusplus
 } // extern "C"

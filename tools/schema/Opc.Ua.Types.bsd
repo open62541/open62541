@@ -205,9 +205,18 @@
     <opc:Documentation>An image encoded in PNG format.</opc:Documentation>
   </opc:OpaqueType>
 
+  <opc:OpaqueType Name="AudioDataType">
+    <opc:Documentation>An image encoded in PNG format.</opc:Documentation>
+  </opc:OpaqueType>
+
   <opc:OpaqueType Name="BitFieldMaskDataType">
     <opc:Documentation>A mask of 32 bits that can be updated individually by using the top 32 bits as a mask.</opc:Documentation>
   </opc:OpaqueType>
+
+  <opc:StructuredType Name="KeyValuePair" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Key" TypeName="ua:QualifiedName" />
+    <opc:Field Name="Value" TypeName="ua:Variant" />
+  </opc:StructuredType>
 
   <opc:EnumeratedType Name="OpenFileMode" LengthInBits="32">
     <opc:EnumeratedValue Name="Read" Value="1" />
@@ -215,6 +224,20 @@
     <opc:EnumeratedValue Name="EraseExisting" Value="4" />
     <opc:EnumeratedValue Name="Append" Value="8" />
   </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="IdentityCriteriaType" LengthInBits="32">
+    <opc:EnumeratedValue Name="UserName" Value="1" />
+    <opc:EnumeratedValue Name="Thumbprint" Value="2" />
+    <opc:EnumeratedValue Name="Scope" Value="3" />
+    <opc:EnumeratedValue Name="GroupId" Value="4" />
+    <opc:EnumeratedValue Name="Anonymous" Value="5" />
+    <opc:EnumeratedValue Name="AuthenticatedUser" Value="6" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="IdentityMappingRuleType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="CriteriaType" TypeName="tns:IdentityCriteriaType" />
+    <opc:Field Name="Criteria" TypeName="opc:String" />
+  </opc:StructuredType>
 
   <opc:EnumeratedType Name="TrustListMasks" LengthInBits="32">
     <opc:EnumeratedValue Name="None" Value="0" />
@@ -237,6 +260,148 @@
     <opc:Field Name="IssuerCrls" TypeName="opc:ByteString" LengthField="NoOfIssuerCrls" />
   </opc:StructuredType>
 
+  <opc:StructuredType Name="DecimalDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Scale" TypeName="opc:Int16" />
+    <opc:Field Name="Value" TypeName="opc:ByteString" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ConfigurationVersionDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="MajorVersion" TypeName="opc:UInt32" />
+    <opc:Field Name="MinorVersion" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="DataSetMetaDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" />
+    <opc:Field Name="NoOfFields" TypeName="opc:Int32" />
+    <opc:Field Name="Fields" TypeName="tns:FieldMetaData" LengthField="NoOfFields" />
+    <opc:Field Name="DataSetClassId" TypeName="opc:Guid" />
+    <opc:Field Name="NoOfNamespaces" TypeName="opc:Int32" />
+    <opc:Field Name="Namespaces" TypeName="opc:String" LengthField="NoOfNamespaces" />
+    <opc:Field Name="NoOfStructureDataTypes" TypeName="opc:Int32" />
+    <opc:Field Name="StructureDataTypes" TypeName="tns:StructureDescription" LengthField="NoOfStructureDataTypes" />
+    <opc:Field Name="NoOfEnumDataTypes" TypeName="opc:Int32" />
+    <opc:Field Name="EnumDataTypes" TypeName="tns:EnumDescription" LengthField="NoOfEnumDataTypes" />
+    <opc:Field Name="ConfigurationVersion" TypeName="tns:ConfigurationVersionDataType" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="DataSetFieldFlags" LengthInBits="32">
+    <opc:EnumeratedValue Name="PromotedField" Value="1" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="FieldMetaData" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" />
+    <opc:Field Name="FieldFlags" TypeName="tns:DataSetFieldFlags" />
+    <opc:Field Name="BuiltInType" TypeName="opc:Byte" />
+    <opc:Field Name="DataType" TypeName="ua:NodeId" />
+    <opc:Field Name="ValueRank" TypeName="opc:Int32" />
+    <opc:Field Name="NoOfArrayDimensions" TypeName="opc:Int32" />
+    <opc:Field Name="ArrayDimensions" TypeName="opc:UInt32" LengthField="NoOfArrayDimensions" />
+    <opc:Field Name="MaxStringLength" TypeName="opc:UInt32" />
+    <opc:Field Name="DataSetFieldId" TypeName="opc:Guid" />
+    <opc:Field Name="NoOfProperties" TypeName="opc:Int32" />
+    <opc:Field Name="Properties" TypeName="tns:KeyValuePair" LengthField="NoOfProperties" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="DataTypeDescription" BaseType="ua:ExtensionObject">
+    <opc:Field Name="DataTypeId" TypeName="ua:NodeId" />
+    <opc:Field Name="Name" TypeName="ua:QualifiedName" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="StructureDescription" BaseType="tns:DataTypeDescription">
+    <opc:Field Name="DataTypeId" TypeName="ua:NodeId" SourceType="tns:DataTypeDescription" />
+    <opc:Field Name="Name" TypeName="ua:QualifiedName" SourceType="tns:DataTypeDescription" />
+    <opc:Field Name="StructureDefinition" TypeName="tns:StructureDefinition" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="EnumDescription" BaseType="tns:DataTypeDescription">
+    <opc:Field Name="DataTypeId" TypeName="ua:NodeId" SourceType="tns:DataTypeDescription" />
+    <opc:Field Name="Name" TypeName="ua:QualifiedName" SourceType="tns:DataTypeDescription" />
+    <opc:Field Name="EnumDefinition" TypeName="tns:EnumDefinition" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="DataSetMessageContentMask" LengthInBits="32">
+    <opc:EnumeratedValue Name="FieldStatusCode" Value="1" />
+    <opc:EnumeratedValue Name="FieldSourceTimestamp" Value="2" />
+    <opc:EnumeratedValue Name="FieldServerTimestamp" Value="4" />
+    <opc:EnumeratedValue Name="FieldSourcePicoSeconds" Value="8" />
+    <opc:EnumeratedValue Name="FieldServerPicoSeconds" Value="16" />
+    <opc:EnumeratedValue Name="FieldRawDataEncoding" Value="32" />
+    <opc:EnumeratedValue Name="HeaderTimestamp" Value="65536" />
+    <opc:EnumeratedValue Name="HeaderPicoSeconds" Value="131072" />
+    <opc:EnumeratedValue Name="HeaderStatusCode" Value="262144" />
+    <opc:EnumeratedValue Name="HeaderMajorVersion" Value="524288" />
+    <opc:EnumeratedValue Name="HeaderMinorVersion" Value="1048576" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="NetworkMessageContentMask" LengthInBits="32">
+    <opc:EnumeratedValue Name="PublisherId" Value="1" />
+    <opc:EnumeratedValue Name="GroupHeader" Value="2" />
+    <opc:EnumeratedValue Name="GroupId" Value="4" />
+    <opc:EnumeratedValue Name="GroupVersion" Value="8" />
+    <opc:EnumeratedValue Name="NetworkMessageNumber" Value="16" />
+    <opc:EnumeratedValue Name="SequenceNumber" Value="32" />
+    <opc:EnumeratedValue Name="PayloadHeader" Value="64" />
+    <opc:EnumeratedValue Name="Timestamp" Value="128" />
+    <opc:EnumeratedValue Name="Picoseconds" Value="256" />
+    <opc:EnumeratedValue Name="DataSetClassId" Value="512" />
+    <opc:EnumeratedValue Name="PromotedFields" Value="1024" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="PublishedVariableDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="PublishedVariable" TypeName="ua:NodeId" />
+    <opc:Field Name="AttributeId" TypeName="opc:UInt32" />
+    <opc:Field Name="SamplingIntervalHint" TypeName="opc:Double" />
+    <opc:Field Name="DeadbandType" TypeName="opc:UInt32" />
+    <opc:Field Name="DeadbandValue" TypeName="opc:Double" />
+    <opc:Field Name="IndexRange" TypeName="opc:String" />
+    <opc:Field Name="SubstituteValue" TypeName="ua:Variant" />
+    <opc:Field Name="NoOfMetaDataProperties" TypeName="opc:Int32" />
+    <opc:Field Name="MetaDataProperties" TypeName="ua:QualifiedName" LengthField="NoOfMetaDataProperties" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="FieldTargetDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="DataSetFieldId" TypeName="opc:Guid" />
+    <opc:Field Name="ReceiverIndexRange" TypeName="opc:String" />
+    <opc:Field Name="TargetNodeId" TypeName="ua:NodeId" />
+    <opc:Field Name="AttributeId" TypeName="opc:UInt32" />
+    <opc:Field Name="WriteIndexRange" TypeName="opc:String" />
+    <opc:Field Name="OverrideValueHandling" TypeName="tns:OverrideValueHandling" />
+    <opc:Field Name="OverrideValue" TypeName="ua:Variant" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="OverrideValueHandling" LengthInBits="32">
+    <opc:EnumeratedValue Name="Disabled" Value="0" />
+    <opc:EnumeratedValue Name="LastUseableValue" Value="1" />
+    <opc:EnumeratedValue Name="OverrideValue" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="PubSubState" LengthInBits="32">
+    <opc:EnumeratedValue Name="Disabled" Value="0" />
+    <opc:EnumeratedValue Name="Paused" Value="1" />
+    <opc:EnumeratedValue Name="Operational" Value="2" />
+    <opc:EnumeratedValue Name="Error" Value="3" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="DiagnosticsLevel" LengthInBits="32">
+    <opc:EnumeratedValue Name="Basic" Value="0" />
+    <opc:EnumeratedValue Name="Advanced" Value="1" />
+    <opc:EnumeratedValue Name="Info" Value="2" />
+    <opc:EnumeratedValue Name="Log" Value="3" />
+    <opc:EnumeratedValue Name="Debug" Value="4" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="PubSubDiagnosticsCounterClassification" LengthInBits="32">
+    <opc:EnumeratedValue Name="Information" Value="0" />
+    <opc:EnumeratedValue Name="Error" Value="1" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="DataSetOrderingType" LengthInBits="32">
+    <opc:EnumeratedValue Name="Undefined" Value="1" />
+    <opc:EnumeratedValue Name="AscendingWriterId" Value="2" />
+  </opc:EnumeratedType>
+
   <opc:EnumeratedType Name="IdType" LengthInBits="32">
     <opc:Documentation>The type of identifier used in a node id.</opc:Documentation>
     <opc:EnumeratedValue Name="Numeric" Value="0" />
@@ -258,6 +423,71 @@
     <opc:EnumeratedValue Name="View" Value="128" />
   </opc:EnumeratedType>
 
+  <opc:EnumeratedType Name="AccessLevelType" LengthInBits="32">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="CurrentRead" Value="1" />
+    <opc:EnumeratedValue Name="CurrentWrite" Value="2" />
+    <opc:EnumeratedValue Name="HistoryRead" Value="4" />
+    <opc:EnumeratedValue Name="HistoryWrite" Value="16" />
+    <opc:EnumeratedValue Name="StatusWrite" Value="32" />
+    <opc:EnumeratedValue Name="TimestampWrite" Value="64" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="AccessLevelExType" LengthInBits="32">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="CurrentRead" Value="1" />
+    <opc:EnumeratedValue Name="CurrentWrite" Value="2" />
+    <opc:EnumeratedValue Name="HistoryRead" Value="4" />
+    <opc:EnumeratedValue Name="HistoryWrite" Value="16" />
+    <opc:EnumeratedValue Name="StatusWrite" Value="32" />
+    <opc:EnumeratedValue Name="TimestampWrite" Value="64" />
+    <opc:EnumeratedValue Name="NonatomicRead" Value="65536" />
+    <opc:EnumeratedValue Name="NonatomicWrite" Value="131072" />
+    <opc:EnumeratedValue Name="WriteFullArrayOnly" Value="262144" />
+  </opc:EnumeratedType>
+
+  <opc:EnumeratedType Name="EventNotifierType" LengthInBits="32">
+    <opc:EnumeratedValue Name="None" Value="0" />
+    <opc:EnumeratedValue Name="SubscribeToEvents" Value="1" />
+    <opc:EnumeratedValue Name="HistoryRead" Value="4" />
+    <opc:EnumeratedValue Name="HistoryWrite" Value="8" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="RolePermissionType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="RoleId" TypeName="ua:NodeId" />
+    <opc:Field Name="Permissions" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+  <opc:EnumeratedType Name="StructureType" LengthInBits="32">
+    <opc:EnumeratedValue Name="Structure" Value="0" />
+    <opc:EnumeratedValue Name="StructureWithOptionalFields" Value="1" />
+    <opc:EnumeratedValue Name="Union" Value="2" />
+  </opc:EnumeratedType>
+
+  <opc:StructuredType Name="StructureField" BaseType="ua:ExtensionObject">
+    <opc:Field Name="Name" TypeName="opc:String" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" />
+    <opc:Field Name="DataType" TypeName="ua:NodeId" />
+    <opc:Field Name="ValueRank" TypeName="opc:Int32" />
+    <opc:Field Name="NoOfArrayDimensions" TypeName="opc:Int32" />
+    <opc:Field Name="ArrayDimensions" TypeName="opc:UInt32" LengthField="NoOfArrayDimensions" />
+    <opc:Field Name="MaxStringLength" TypeName="opc:UInt32" />
+    <opc:Field Name="IsOptional" TypeName="opc:Boolean" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="StructureDefinition" BaseType="tns:DataTypeDefinition">
+    <opc:Field Name="DefaultEncodingId" TypeName="ua:NodeId" />
+    <opc:Field Name="BaseDataType" TypeName="ua:NodeId" />
+    <opc:Field Name="StructureType" TypeName="tns:StructureType" />
+    <opc:Field Name="NoOfFields" TypeName="opc:Int32" />
+    <opc:Field Name="Fields" TypeName="tns:StructureField" LengthField="NoOfFields" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="EnumDefinition" BaseType="tns:DataTypeDefinition">
+    <opc:Field Name="NoOfFields" TypeName="opc:Int32" />
+    <opc:Field Name="Fields" TypeName="tns:EnumField" LengthField="NoOfFields" />
+  </opc:StructuredType>
+
   <opc:StructuredType Name="Node" BaseType="ua:ExtensionObject">
     <opc:Documentation>Specifies the attributes which belong to all nodes.</opc:Documentation>
     <opc:Field Name="NodeId" TypeName="ua:NodeId" />
@@ -267,6 +497,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
   </opc:StructuredType>
@@ -279,6 +514,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
   </opc:StructuredType>
@@ -291,6 +531,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
   </opc:StructuredType>
@@ -304,6 +549,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="EventNotifier" TypeName="opc:Byte" />
@@ -318,6 +568,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="IsAbstract" TypeName="opc:Boolean" />
@@ -332,6 +587,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="Value" TypeName="ua:Variant" />
@@ -343,6 +603,7 @@
     <opc:Field Name="UserAccessLevel" TypeName="opc:Byte" />
     <opc:Field Name="MinimumSamplingInterval" TypeName="opc:Double" />
     <opc:Field Name="Historizing" TypeName="opc:Boolean" />
+    <opc:Field Name="AccessLevelEx" TypeName="opc:UInt32" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="VariableTypeNode" BaseType="tns:TypeNode">
@@ -354,6 +615,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="Value" TypeName="ua:Variant" />
@@ -373,6 +639,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="IsAbstract" TypeName="opc:Boolean" />
@@ -389,6 +660,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="Executable" TypeName="opc:Boolean" />
@@ -403,6 +679,11 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="ContainsNoLoops" TypeName="opc:Boolean" />
@@ -417,9 +698,15 @@
     <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:Node" />
     <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:Node" />
+    <opc:Field Name="NoOfRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="RolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfRolePermissions" />
+    <opc:Field Name="NoOfUserRolePermissions" TypeName="opc:Int32" />
+    <opc:Field Name="UserRolePermissions" TypeName="tns:RolePermissionType" LengthField="NoOfUserRolePermissions" />
+    <opc:Field Name="AccessRestrictions" TypeName="opc:UInt16" SourceType="tns:Node" />
     <opc:Field Name="NoOfReferences" TypeName="opc:Int32" />
     <opc:Field Name="References" TypeName="tns:ReferenceNode" LengthField="NoOfReferences" />
     <opc:Field Name="IsAbstract" TypeName="opc:Boolean" />
+    <opc:Field Name="DataTypeDefinition" TypeName="ua:ExtensionObject" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="ReferenceNode" BaseType="ua:ExtensionObject">
@@ -444,6 +731,13 @@
     <opc:Field Name="Value" TypeName="opc:Int64" />
     <opc:Field Name="DisplayName" TypeName="ua:LocalizedText" />
     <opc:Field Name="Description" TypeName="ua:LocalizedText" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="EnumField" BaseType="tns:EnumValueType">
+    <opc:Field Name="Value" TypeName="opc:Int64" SourceType="tns:EnumValueType" />
+    <opc:Field Name="DisplayName" TypeName="ua:LocalizedText" SourceType="tns:EnumValueType" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:EnumValueType" />
+    <opc:Field Name="Name" TypeName="opc:String" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="OptionSet" BaseType="ua:ExtensionObject">
@@ -539,9 +833,32 @@
     <opc:Field Name="AdditionalHeader" TypeName="ua:ExtensionObject" />
   </opc:StructuredType>
 
+  <opc:OpaqueType Name="VersionTime">
+  </opc:OpaqueType>
+
   <opc:StructuredType Name="ServiceFault" BaseType="ua:ExtensionObject">
     <opc:Documentation>The response returned by all services when there is a service level error.</opc:Documentation>
     <opc:Field Name="ResponseHeader" TypeName="tns:ResponseHeader" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SessionlessInvokeRequestType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NoOfUrisVersion" TypeName="opc:Int32" />
+    <opc:Field Name="UrisVersion" TypeName="opc:UInt32" LengthField="NoOfUrisVersion" />
+    <opc:Field Name="NoOfNamespaceUris" TypeName="opc:Int32" />
+    <opc:Field Name="NamespaceUris" TypeName="opc:String" LengthField="NoOfNamespaceUris" />
+    <opc:Field Name="NoOfServerUris" TypeName="opc:Int32" />
+    <opc:Field Name="ServerUris" TypeName="opc:String" LengthField="NoOfServerUris" />
+    <opc:Field Name="NoOfLocaleIds" TypeName="opc:Int32" />
+    <opc:Field Name="LocaleIds" TypeName="opc:String" LengthField="NoOfLocaleIds" />
+    <opc:Field Name="ServiceId" TypeName="opc:UInt32" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="SessionlessInvokeResponseType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="NoOfNamespaceUris" TypeName="opc:Int32" />
+    <opc:Field Name="NamespaceUris" TypeName="opc:String" LengthField="NoOfNamespaceUris" />
+    <opc:Field Name="NoOfServerUris" TypeName="opc:Int32" />
+    <opc:Field Name="ServerUris" TypeName="opc:String" LengthField="NoOfServerUris" />
+    <opc:Field Name="ServiceId" TypeName="opc:UInt32" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="FindServersRequest" BaseType="ua:ExtensionObject">
@@ -882,15 +1199,18 @@
     <opc:EnumeratedValue Name="ValueRank" Value="524288" />
     <opc:EnumeratedValue Name="WriteMask" Value="1048576" />
     <opc:EnumeratedValue Name="Value" Value="2097152" />
-    <opc:EnumeratedValue Name="All" Value="4194303" />
-    <opc:EnumeratedValue Name="BaseNode" Value="1335396" />
-    <opc:EnumeratedValue Name="Object" Value="1335524" />
-    <opc:EnumeratedValue Name="ObjectTypeOrDataType" Value="1337444" />
-    <opc:EnumeratedValue Name="Variable" Value="4026999" />
-    <opc:EnumeratedValue Name="VariableType" Value="3958902" />
-    <opc:EnumeratedValue Name="Method" Value="1466724" />
-    <opc:EnumeratedValue Name="ReferenceType" Value="1371236" />
-    <opc:EnumeratedValue Name="View" Value="1335532" />
+    <opc:EnumeratedValue Name="DataTypeDefinition" Value="4194304" />
+    <opc:EnumeratedValue Name="RolePermissions" Value="8388608" />
+    <opc:EnumeratedValue Name="AccessRestrictions" Value="16777216" />
+    <opc:EnumeratedValue Name="All" Value="33554431" />
+    <opc:EnumeratedValue Name="BaseNode" Value="26501220" />
+    <opc:EnumeratedValue Name="Object" Value="26501348" />
+    <opc:EnumeratedValue Name="ObjectType" Value="26503268" />
+    <opc:EnumeratedValue Name="Variable" Value="26571383" />
+    <opc:EnumeratedValue Name="VariableType" Value="28600438" />
+    <opc:EnumeratedValue Name="Method" Value="26632548" />
+    <opc:EnumeratedValue Name="ReferenceType" Value="26537060" />
+    <opc:EnumeratedValue Name="View" Value="26501356" />
   </opc:EnumeratedType>
 
   <opc:StructuredType Name="NodeAttributes" BaseType="ua:ExtensionObject">
@@ -997,6 +1317,21 @@
     <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:NodeAttributes" />
     <opc:Field Name="ContainsNoLoops" TypeName="opc:Boolean" />
     <opc:Field Name="EventNotifier" TypeName="opc:Byte" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="GenericAttributeValue" BaseType="ua:ExtensionObject">
+    <opc:Field Name="AttributeId" TypeName="opc:UInt32" />
+    <opc:Field Name="Value" TypeName="ua:Variant" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="GenericAttributes" BaseType="tns:NodeAttributes">
+    <opc:Field Name="SpecifiedAttributes" TypeName="opc:UInt32" SourceType="tns:NodeAttributes" />
+    <opc:Field Name="DisplayName" TypeName="ua:LocalizedText" SourceType="tns:NodeAttributes" />
+    <opc:Field Name="Description" TypeName="ua:LocalizedText" SourceType="tns:NodeAttributes" />
+    <opc:Field Name="WriteMask" TypeName="opc:UInt32" SourceType="tns:NodeAttributes" />
+    <opc:Field Name="UserWriteMask" TypeName="opc:UInt32" SourceType="tns:NodeAttributes" />
+    <opc:Field Name="NoOfAttributeValues" TypeName="opc:Int32" />
+    <opc:Field Name="AttributeValues" TypeName="tns:GenericAttributeValue" LengthField="NoOfAttributeValues" />
   </opc:StructuredType>
 
   <opc:StructuredType Name="AddNodesItem" BaseType="ua:ExtensionObject">
@@ -1130,6 +1465,10 @@
     <opc:EnumeratedValue Name="ValueRank" Value="524288" />
     <opc:EnumeratedValue Name="WriteMask" Value="1048576" />
     <opc:EnumeratedValue Name="ValueForVariableType" Value="2097152" />
+    <opc:EnumeratedValue Name="DataTypeDefinition" Value="4194304" />
+    <opc:EnumeratedValue Name="RolePermissions" Value="8388608" />
+    <opc:EnumeratedValue Name="AccessRestrictions" Value="16777216" />
+    <opc:EnumeratedValue Name="AccessLevelEx" Value="33554432" />
   </opc:EnumeratedType>
 
   <opc:EnumeratedType Name="BrowseDirection" LengthInBits="32">
@@ -2327,6 +2666,25 @@
     <opc:Field Name="LastMethodInputArguments" TypeName="tns:Argument" LengthField="NoOfLastMethodInputArguments" />
     <opc:Field Name="NoOfLastMethodOutputArguments" TypeName="opc:Int32" />
     <opc:Field Name="LastMethodOutputArguments" TypeName="tns:Argument" LengthField="NoOfLastMethodOutputArguments" />
+    <opc:Field Name="LastMethodCallTime" TypeName="opc:DateTime" />
+    <opc:Field Name="LastMethodReturnStatus" TypeName="tns:StatusResult" />
+  </opc:StructuredType>
+
+  <opc:StructuredType Name="ProgramDiagnostic2DataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="CreateSessionId" TypeName="ua:NodeId" />
+    <opc:Field Name="CreateClientName" TypeName="opc:String" />
+    <opc:Field Name="InvocationCreationTime" TypeName="opc:DateTime" />
+    <opc:Field Name="LastTransitionTime" TypeName="opc:DateTime" />
+    <opc:Field Name="LastMethodCall" TypeName="opc:String" />
+    <opc:Field Name="LastMethodSessionId" TypeName="ua:NodeId" />
+    <opc:Field Name="NoOfLastMethodInputArguments" TypeName="opc:Int32" />
+    <opc:Field Name="LastMethodInputArguments" TypeName="tns:Argument" LengthField="NoOfLastMethodInputArguments" />
+    <opc:Field Name="NoOfLastMethodOutputArguments" TypeName="opc:Int32" />
+    <opc:Field Name="LastMethodOutputArguments" TypeName="tns:Argument" LengthField="NoOfLastMethodOutputArguments" />
+    <opc:Field Name="NoOfLastMethodInputValues" TypeName="opc:Int32" />
+    <opc:Field Name="LastMethodInputValues" TypeName="ua:Variant" LengthField="NoOfLastMethodInputValues" />
+    <opc:Field Name="NoOfLastMethodOutputValues" TypeName="opc:Int32" />
+    <opc:Field Name="LastMethodOutputValues" TypeName="ua:Variant" LengthField="NoOfLastMethodOutputValues" />
     <opc:Field Name="LastMethodCallTime" TypeName="opc:DateTime" />
     <opc:Field Name="LastMethodReturnStatus" TypeName="tns:StatusResult" />
   </opc:StructuredType>

@@ -90,10 +90,7 @@ mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
-option(UA_ENABLE_GENERATE_NAMESPACE0 "Generate and load UA XML Namespace 0 definition (experimental)" OFF)
-mark_as_advanced(UA_ENABLE_GENERATE_NAMESPACE0)
-set(UA_DATATYPES_FILE ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt CACHE FILEPATH "File containing the list of datatypes added to the server")
-mark_as_advanced(UA_DATATYPES_FILE)
+option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
@@ -114,7 +111,6 @@ option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
-option(UA_BUILD_EXAMPLES_NODESET_COMPILER "Generate an OPC UA information model from a nodeset XML (experimental)" OFF)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
@@ -249,10 +245,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config.h.in" "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h")
 endif()
 
-include_directories(${PROJECT_BINARY_DIR}/src_generated
-                    ${PROJECT_SOURCE_DIR}/include
+include_directories(${PROJECT_SOURCE_DIR}/include
                     ${PROJECT_SOURCE_DIR}/plugins # TODO: discovery depends on the default config
-                    ${PROJECT_SOURCE_DIR}/deps)
+                    ${PROJECT_SOURCE_DIR}/deps
+                    ${PROJECT_BINARY_DIR}
+                    ${PROJECT_BINARY_DIR}/src_generated)
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
@@ -288,6 +285,7 @@ set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
+                     ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
                      ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
 # TODO: make client optional
@@ -304,6 +302,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
+                ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_worker.c
@@ -356,13 +355,6 @@ if(UA_ENABLE_EMBEDDED_LIBC)
   list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
 endif()
 
-if(UA_ENABLE_GENERATE_NAMESPACE0)
-  set(GENERATE_NAMESPACE0_FILE "Opc.Ua.NodeSet2.xml" CACHE STRING "Namespace definition XML file")
-  set_property(CACHE GENERATE_NAMESPACE0_FILE PROPERTY STRINGS Opc.Ua.NodeSet2.xml Opc.Ua.NodeSet2.Minimal.xml)
-  list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
-  list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c)
-endif()
-
 if(UA_ENABLE_NONSTANDARD_UDP)
     list(APPEND exported_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_udp.h)
 endif()
@@ -388,10 +380,25 @@ endif()
 # Generate source files #
 #########################
 
-if(UA_DATATYPES_FILE STREQUAL "")
-  set(SELECTED_TYPES_TMP "")
+if (UA_ENABLE_FULL_NS0)
+    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    set(UA_FILE_DATATYPES "")
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
+    if(NOT EXISTS "${UA_FILE_NS0}")
+        MESSAGE(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+    endif()
 else()
-  set(SELECTED_TYPES_TMP "--selected-types=${UA_DATATYPES_FILE}")
+    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+endif()
+
+if (UA_FILE_DATATYPES STREQUAL "")
+    set(SELECTED_TYPES_TMP "")
+else()
+  set(SELECTED_TYPES_TMP "--selected-types=${UA_FILE_DATATYPES}")
 endif()
 
 # standard-defined data types
@@ -401,14 +408,14 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
+                           --type-csv=${UA_FILE_NODEIDS}
                            ${SELECTED_TYPES_TMP}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           --type-bsd=${UA_FILE_TYPES_BSD}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
-                           ${SELECTED_TYPES})
+                           ${UA_FILE_NODEIDS}
+                           ${UA_FILE_TYPES_BSD}
+                           ${UA_FILE_DATATYPES})
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-types DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -425,13 +432,13 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                            --namespace=1
                            --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           --type-bsd=${UA_FILE_TYPES_BSD}
                            --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                            --no-builtin
                            ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                           ${UA_FILE_TYPES_BSD}
                            ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
@@ -475,26 +482,40 @@ add_dependencies(open62541-amalgamation-header open62541-generator-types)
 add_dependencies(open62541-amalgamation-source open62541-generator-types
                  open62541-generator-transport open62541-generator-statuscode)
 
+
+set(NODESET_MAX_STR_LEN 0)
+if ( (MSVC) AND (MSVC_VERSION LESS 1600))
+    # Visual Studio 2008 has a maximum string length of 65535 bytes
+    set(NODESET_MAX_STR_LEN 65535)
+endif()
+
 # generated namespace 0
-add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h
-        PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-        -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt
-        -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt
-        ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
-        DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
+add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+                          ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h
+                   PRE_BUILD
+                   COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           --generate-ns0
+                           --internal-headers
+                           --max-string-length=${NODESET_MAX_STR_LEN}
+                           --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
+                           --xml ${UA_FILE_NS0}
+                           ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
+                   DEPENDS ${UA_FILE_NS0}
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/datatypes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_nodes.py
+                           ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
+
+# stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
+set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.c
-        ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
+        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.h)
 
 #####################
 # Build the Library #
@@ -550,12 +571,10 @@ else()
     endif()
 endif()
 
-if(UA_ENABLE_GENERATE_NAMESPACE0)
-    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-    if(NOT UA_ENABLE_AMALGAMATION)
-        add_dependencies(open62541-object open62541-generator-namespace)
-    endif()
+add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
+add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
+if(NOT UA_ENABLE_AMALGAMATION)
+    add_dependencies(open62541-object open62541-generator-namespace)
 endif()
 
 # Export Symbols
