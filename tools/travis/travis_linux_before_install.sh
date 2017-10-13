@@ -2,7 +2,7 @@
 set -ev
 
 
-if [ -z ${DOCKER+x} ]; then
+if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
 
 	echo "=== Installing from external package sources ===" && echo -en 'travis_fold:start:before_install.external\\r'
