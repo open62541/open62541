@@ -378,16 +378,16 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
-    if(*slot != newEntry->orig) {
+    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
+    if(*slot != newEntryContainer->orig) {
         /* The node was updated since the copy was made */
-        deleteEntry(newEntry);
+        deleteEntry(newEntryContainer);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     (*slot)->deleted = true;
     cleanupEntry(*slot);
-    *slot = newEntry;
+    *slot = newEntryContainer;
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }
