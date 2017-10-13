@@ -31,9 +31,15 @@ int main(int argc, char** argv) {
 
     /* create nodes from nodeset */
     UA_StatusCode retval = ua_namespace_di(server);
-    retval |= ua_namespace_plc(server);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the DI namespace failed. Please check previous error output.");
+        UA_Server_delete(server);
+        UA_ServerConfig_delete(config);
+        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    retval |= ua_namespace_plc(server);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the PLCopen namespace failed. Please check previous error output.");
         UA_Server_delete(server);
         UA_ServerConfig_delete(config);
         return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
