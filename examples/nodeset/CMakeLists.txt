@@ -12,10 +12,10 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/example_nodeset.c
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                    --types-array=UA_TYPES
-                   --existing ${UA_NAMESPACE0_XML}
+                   --existing ${UA_FILE_NS0}
                    --xml ${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml
                    ${PROJECT_BINARY_DIR}/src_generated/example_nodeset
-                   DEPENDS ${UA_NAMESPACE0_XML}
+                   DEPENDS ${UA_FILE_NS0}
                    ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                    ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
                    ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
@@ -66,7 +66,7 @@ if(UA_ENABLE_FULL_NS0)
                        --existing ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
                        --xml ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
                        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di
-                       DEPENDS ${UA_NAMESPACE0_XML}
+                       DEPENDS ${UA_FILE_NS0}
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
@@ -94,7 +94,7 @@ if(UA_ENABLE_FULL_NS0)
                        --existing ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
                        --xml ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml
                        ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc
-                       DEPENDS ${UA_NAMESPACE0_XML}
+                       DEPENDS ${UA_FILE_NS0}
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
                        ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py

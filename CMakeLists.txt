@@ -381,17 +381,24 @@ endif()
 #########################
 
 if (UA_ENABLE_FULL_NS0)
-    set(UA_NAMESPACE0_XML ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
-    set(UA_DATATYPES_FILE "")
+    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml)
+    set(UA_FILE_DATATYPES "")
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd)
+    if(NOT EXISTS "${UA_FILE_NS0}")
+        MESSAGE(FATAL_ERROR "File ${UA_FILE_NS0} not found. You probably need to initialize the git submodule for deps/ua-nodeset.")
+    endif()
 else()
-    set(UA_NAMESPACE0_XML ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
-    set(UA_DATATYPES_FILE "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Minimal.xml)
+    set(UA_FILE_DATATYPES "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt")
+    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 endif()
 
-if (UA_DATATYPES_FILE STREQUAL "")
+if (UA_FILE_DATATYPES STREQUAL "")
     set(SELECTED_TYPES_TMP "")
 else()
-  set(SELECTED_TYPES_TMP "--selected-types=${UA_DATATYPES_FILE}")
+  set(SELECTED_TYPES_TMP "--selected-types=${UA_FILE_DATATYPES}")
 endif()
 
 # standard-defined data types
@@ -401,14 +408,14 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated_encoding_binary.h
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
-                           --type-csv=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv
+                           --type-csv=${UA_FILE_NODEIDS}
                            ${SELECTED_TYPES_TMP}
-                           --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
+                           --type-bsd=${UA_FILE_TYPES_BSD}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_types
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
-                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/NodeIds.csv
-                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
-                           ${UA_DATATYPES_FILE})
+                           ${UA_FILE_NODEIDS}
+                           ${UA_FILE_TYPES_BSD}
+                           ${UA_FILE_DATATYPES})
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-types DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -425,13 +432,13 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                            --namespace=1
                            --selected-types=${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           --type-bsd=${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
+                           --type-bsd=${UA_FILE_TYPES_BSD}
                            --type-bsd=${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd
                            --no-builtin
                            ${PROJECT_BINARY_DIR}/src_generated/ua_transport
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
-                           ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.Types.bsd
+                           ${UA_FILE_TYPES_BSD}
                            ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
@@ -491,9 +498,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            --internal-headers
                            --max-string-length=${NODESET_MAX_STR_LEN}
                            --ignore ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt
-                           --xml ${UA_NAMESPACE0_XML}
+                           --xml ${UA_FILE_NS0}
                            ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0
-                   DEPENDS ${UA_NAMESPACE0_XML}
+                   DEPENDS ${UA_FILE_NS0}
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset_compiler.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodes.py
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/nodeset.py
