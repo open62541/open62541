@@ -443,7 +443,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
-		#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         if(sessionRequired) {
             UA_LOG_INFO_CHANNEL(server->config.logger, channel,
                                 "Service request %i without a valid session",
@@ -452,14 +451,12 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
-		#endif
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
         anonymousSession.channel = channel;
         session = &anonymousSession;
     }
 
-	#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Trying to use a non-activated session? */
     if(sessionRequired && !session->activated) {
         UA_LOG_INFO_SESSION(server->config.logger, session,
@@ -471,7 +468,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         return sendServiceFault(channel, msg, requestPos, responseType,
                                 requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
-	#endif
 
     /* The session is bound to another channel */
     if(session->channel != channel) {
@@ -515,13 +511,6 @@ send_response:
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
 
-	#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-	// when using the forced anonymous session there may be some members added to the
-    // session which will not be cleaned up in the normal way.
-	if (session && session->sessionId.identifierType == UA_NODEIDTYPE_GUID &&
-            UA_Guid_equal(&session->sessionId.identifier.guid, &UA_GUID_NULL))
-        UA_Session_deleteMembersCleanup(session, server);
-	#endif
     return retval;
 }
 
