@@ -53,6 +53,7 @@ if(UA_ENABLE_FULL_NS0)
                        DEPENDS ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/OpcUaDiModel.csv
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd)
+    add_custom_target(open62541-generator-types-di DEPENDS ${PROJECT_BINARY_DIR}/src_generated/${UA_TYPES_OUT}_generated.c)
 
     # generate DI namespace
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
@@ -76,6 +77,8 @@ if(UA_ENABLE_FULL_NS0)
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
                        )
+    add_custom_target(open62541-generator-ns-di DEPENDS ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c)
+    add_dependencies(open62541-generator-ns-di open62541-generator-types-di)
 
     # generate PLCopen namespace which is using DI
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c
@@ -103,11 +106,14 @@ if(UA_ENABLE_FULL_NS0)
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
                        ${PROJECT_SOURCE_DIR}/deps/ua-nodeset/PLCopen/Opc.Ua.Plc.NodeSet2.xml
                        )
+    add_custom_target(open62541-generator-ns-plc DEPENDS ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c)
+    add_dependencies(open62541-generator-ns-plc open62541-generator-ns-di)
 
     add_example(server_nodeset_plcopen server_nodeset_plcopen.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_di_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_di.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_namespace_plc.c)
+    add_dependencies(server_nodeset_plcopen open62541-generator-ns-plc)
     target_include_directories(server_nodeset_plcopen PRIVATE ${PROJECT_SOURCE_DIR}/src) # needs an internal header
 
     if(UA_COMPILE_AS_CXX)

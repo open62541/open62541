@@ -5,8 +5,8 @@
 #include "ua_server.h"
 #include "ua_config_default.h"
 
-#include "ua_namespace_di.h"
-#include "ua_namespace_adi.h"
+#include "tests/ua_namespace_di.h"
+#include "tests/ua_namespace_adi.h"
 
 #include "check.h"
 #include "testing_clock.h"
