@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ev
 
-if [ -z ${DOCKER+x} ]; then
+if [ -z ${DOCKER+x} ] && [ -z ${SONAR+x} ]; then
 	# Only on non-docker builds required
 
 	if [ "$ANALYZE" = "false" ] && [ "$CC" = "gcc" ] && [ "${TRAVIS_REPO_SLUG}" = "open62541/open62541" ]; then
