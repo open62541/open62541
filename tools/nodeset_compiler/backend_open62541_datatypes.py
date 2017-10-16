@@ -68,8 +68,8 @@ def generateExpandedNodeIdCode(value):
 
 def generateDateTimeCode(value):
     epoch = datetime.datetime.utcfromtimestamp(0)
-    mSecsSinceEpoch = (value - epoch).total_seconds() * 1000.0
-    return "( (" + str(mSecsSinceEpoch) + "f * UA_MSEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH)"
+    mSecsSinceEpoch = int((value - epoch).total_seconds() * 1000.0)
+    return "( (UA_DateTime)(" + str(mSecsSinceEpoch) + " * UA_MSEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH)"
 
 def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_length=0):
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:

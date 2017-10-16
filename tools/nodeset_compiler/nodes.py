@@ -537,6 +537,8 @@ class DataTypeNode(Node):
                 for at,av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
+                        if fdtype in nodeset.aliases:
+                            fdtype = nodeset.aliases[fdtype]
                         isEnum = False
                     elif at == "Name":
                         fname = str(av)

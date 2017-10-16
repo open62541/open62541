@@ -17,8 +17,8 @@
 ###
 
 import sys
-from time import strftime, strptime
 import logging
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 import xml.dom.minidom as dom
@@ -56,6 +56,7 @@ class Value(object):
         self.alias = None
         self.dataType = None
         self.encodingRule = []
+        self.isInternal = False
         if xmlelement:
             self.parseXML(xmlelement)
 
@@ -197,6 +198,7 @@ class Value(object):
                     else:
                         t = self.getTypeByString(enc[0], enc)
                         t.parseXML(xmlvalue)
+                        t.isInternal = True
                         return t
             else:
                 # 1: ['Alias', [...], n]
@@ -624,7 +626,7 @@ class DateTime(Value):
         self.checkXML(xmlvalue)
         if xmlvalue.firstChild == None:
             # Catch XML <DateTime /> by setting the value to a default
-            self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
+            self.value = datetime(2001, 1, 1)
         else:
             timestr = unicode(xmlvalue.firstChild.data)
             # .NET tends to create this garbage %Y-%m-%dT%H:%M:%S.0000z
@@ -635,14 +637,14 @@ class DateTime(Value):
             while len(timestr) > 0 and not timestr[-1] in "0123456789":
                 timestr = timestr[:-1]
             try:
-                self.value = strptime(timestr, "%Y-%m-%dT%H:%M:%S")
+                self.value = datetime.strptime(timestr, "%Y-%m-%dT%H:%M:%S")
             except:
                 try:
-                    self.value = strptime(timestr, "%Y-%m-%d")
+                    self.value = datetime.strptime(timestr, "%Y-%m-%d")
                 except:
                     logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23 or 2001-01-30, but got " + \
                                  timestr + " instead. Time will be defaultet to now()")
-                    self.value = strptime(strftime("%Y-%m-%dT%H:%M%S"), "%Y-%m-%dT%H:%M%S")
+                    self.value = datetime(2001, 1, 1)
 
 class QualifiedName(Value):
     def __init__(self, xmlelement=None):
