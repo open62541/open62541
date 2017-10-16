@@ -22,16 +22,15 @@ int main(int argc, char** argv) {
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
+    UA_StatusCode retval;
     /* create nodes from nodeset */
     if(example_nodeset(server) != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Namespace index for generated "
-                     "nodeset does not match. The call to the generated method has to be "
-                     "before any other namespace add calls.");
-        UA_Server_delete(server);
-        UA_ServerConfig_delete(config);
-        return (int)UA_STATUSCODE_BADUNEXPECTEDERROR;
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Could not add the example nodeset. "
+        "Check previous output for any error.");
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    } else {
+        retval = UA_Server_run(server, &running);
     }
-    UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     return (int)retval;

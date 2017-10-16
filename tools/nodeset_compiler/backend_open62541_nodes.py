@@ -311,7 +311,7 @@ def generateValueCodeDummy(dataTypeNode, parentNode, nodeset, bootstrapping=True
 
 def getTypesArrayForValue(nodeset, value):
     typeNode = nodeset.getNodeByBrowseName(value.__class__.__name__)
-    if typeNode is None:
+    if typeNode is None or value.isInternal:
         typesArray = "UA_TYPES"
     else:
         typesArray = typeNode.typesArray
@@ -345,8 +345,6 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
         if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_GUID:
             logger.warn("Don't know how to print array of GUID in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DATETIME:
-            logger.warn("Don't know how to print array of DateTime in node " + str(parentNode.id))
         elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
             logger.warn("Don't know how to print array of DiagnosticInfo in node " + str(parentNode.id))
         elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_STATUSCODE:
@@ -379,8 +377,6 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True, max_string_
         # User the following strategy for all directly mappable values a la 'UA_Type MyInt = (UA_Type) 23;'
         if node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_GUID:
             logger.warn("Don't know how to print scalar GUID in node " + str(parentNode.id))
-        elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DATETIME:
-            logger.warn("Don't know how to print scalar DateTime in node " + str(parentNode.id))
         elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_DIAGNOSTICINFO:
             logger.warn("Don't know how to print scalar DiagnosticInfo in node " + str(parentNode.id))
         elif node.value[0].numericRepresentation == BUILTINTYPE_TYPEID_STATUSCODE:
