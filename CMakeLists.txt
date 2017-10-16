@@ -484,8 +484,8 @@ add_dependencies(open62541-amalgamation-source open62541-generator-types
 
 
 set(NODESET_MAX_STR_LEN 0)
-if ( (MSVC) AND (MSVC_VERSION LESS 1600))
-    # Visual Studio 2008 has a maximum string length of 65535 bytes
+if (MSVC)
+    # Visual Studio has a maximum string length of 65535 bytes
     set(NODESET_MAX_STR_LEN 65535)
 endif()
 

@@ -111,6 +111,13 @@ build_script:
   - rd /s /q build
   - md build
   - cd build
+  - echo. && echo "##### Testing %CC_NAME% with full NS0 #####" && echo.
+  - cmake -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_FULL_NS0:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - '%MAKE%'
+  - cd ..
+  - rd /s /q build
+  - md build
+  - cd build
   - echo. && echo "##### Testing %CC_NAME% with amalgamation #####" && echo.
   - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_BUILD_EXAMPLES:BOOL=ON -DUA_ENABLE_AMALGAMATION:BOOL=ON -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -DBUILD_SHARED_LIBS:BOOL=OFF -G"%CC_NAME%" ..
   - '%MAKE%'
