@@ -170,8 +170,6 @@ START_TEST(ReadSingleAttributeValueWithoutTimestamp) {
 } END_TEST
 
 START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
-    UA_Server *server = makeTestSequence();
-
     UA_Variant empty;
     UA_Variant_init(&empty);
     UA_StatusCode ret =
@@ -192,8 +190,6 @@ START_TEST(ReadSingleDataSourceAttributeValueEmptyWithoutTimestamp) {
     // read 2
     ret = UA_Server_readValue(server, rvi.nodeId, &empty);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, ret);
-
-    UA_Server_delete(server);
 } END_TEST
 
 START_TEST(ReadSingleAttributeValueRangeWithoutTimestamp) {
