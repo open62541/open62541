@@ -178,6 +178,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
                     -Wmultichar
                     -Wundef
                     -Wc++-compat)
+
     if(NOT WIN32 AND NOT CYGWIN AND NOT QNXNTO)
         add_definitions(-Wshadow -Wconversion -fvisibility=hidden -fPIC)
     endif()
@@ -187,6 +188,7 @@ if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID
     endif()
 
     if(UA_VXWORKS_WRS_KERNEL)
+        # Disable flags for VXWORKS
         remove_definitions(-Werror -Wpedantic -Wno-static-in-inline -fPIC)
         add_definitions(-D_WRS_KERNEL)
     endif()
