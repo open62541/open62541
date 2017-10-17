@@ -1,8 +1,26 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+/* Disable some security warnings on MSVC */
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
+#endif
+
+/* Assume that Windows versions are newer than Windows XP */
 #if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
-/* Assume the target is newer than Windows XP */
 # undef WINVER
 # undef _WIN32_WINDOWS
 # undef _WIN32_WINNT

@@ -53,6 +53,24 @@ if is_c:
 # define MDNSD_DYNAMIC_LINKING
 #endif
 
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+/* Disable security warnings for BSD sockets on MSVC */
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include "%s.h"
 ''' % outname)
 else:

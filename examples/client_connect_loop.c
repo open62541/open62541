@@ -1,6 +1,19 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
 /**
  * Client disconnect handling
  * --------------------------
@@ -8,9 +21,7 @@
  * is shut down while the client is connected. You just need to call connect
  * again and the client will automatically reconnect.
  *
- * This example is very similar to the tutorial_client_firststeps.c
- */
-
+ * This example is very similar to the tutorial_client_firststeps.c. */
 
 #include "open62541.h"
 #include <signal.h>

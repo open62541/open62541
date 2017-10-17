@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 /**
- * Library Version
- * --------------- */
+ * open62541 Version
+ * ----------------- */
 #define UA_OPEN62541_VER_MAJOR ${OPEN62541_VER_MAJOR}
 #define UA_OPEN62541_VER_MINOR ${OPEN62541_VER_MINOR}
 #define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
@@ -19,17 +19,16 @@ extern "C" {
 #define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
 
 /**
- * Options
- * ------- */
+ * Feature Options
+ * ---------------
+ * Changing the feature options has no effect on a pre-compiled library. */
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
 
-/**
- * Advanced Options
- * ---------------- */
+/* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
 #cmakedefine UA_ENABLE_EMBEDDED_LIBC
@@ -42,54 +41,36 @@ extern "C" {
 #cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
- * Standard Includes
- * ----------------- */
-#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-// On older systems we need to define _BSD_SOURCE
-// _DEFAULT_SOURCE is an alias for that
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-// Disable deprecation warnings for sprintf, strncpy, strerror
-#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
-# define _CRT_SECURE_NO_WARNINGS
-#endif
-
-#include <stddef.h>
-
-/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
-# include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
-#else
-# include "ms_stdint.h"
-#if !(defined(__bool_true_false_are_defined))
-#define bool short
-#define true 1
-#define false 0
-#define __bool_true_false_are_defined
-#endif
-#endif
-
-/**
- * Standard Macros
- * --------------- */
-
-/* Assert */
+ * Assertions
+ * ---------- */
 #include <assert.h>
 #define UA_assert(ignore) assert(ignore)
 
+/* Outputs an error message at compile time if the assert fails.
+ * Example usage:
+ * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
+ * See: https://stackoverflow.com/a/4815532/869402 */
+#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
+# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
+# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
+#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
+# define UA_CTASTR2(pre,post) pre ## post
+# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# define UA_STATIC_ASSERT(cond,msg)                             \
+    typedef struct {                                            \
+        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
+#else /* Everybody else */
+# define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
+
 /**
  * Memory Management
- * ---------------
- * The default malloc implementation from ``stdlib.h`` is used internally.
- * Override if required. */
+ * -----------------
+ * The default is to use the malloc implementation from ``stdlib.h``. Override
+ * if required. Changing the settings has no effect on a pre-compiled
+ * library. */
 #include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
@@ -116,6 +97,7 @@ extern "C" {
  * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
  * import symbols from a DLL.*/
 #cmakedefine UA_DYNAMIC_LINKING
+
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
@@ -185,8 +167,8 @@ extern "C" {
 #endif
 
 /**
- * String Manipulation
- * -------------------
+ * Basic Libc Definitions
+ * ------------------------
  * The header ``string.h`` is defined in the C-standard. If no libc is provided
  * (e.g. on some embedded target), use the following definitions and the
  * implementation in ``/deps/libc_string.c`` */
@@ -200,8 +182,8 @@ extern "C" {
 #endif
 
 /**
- * Binary Encoding Overlays
- * ------------------------
+ * Detect Binary Overlaying for Encoding
+ * -------------------------------------
  * Integers and floating point numbers are transmitted in little-endian (IEEE 754
  * for floating point) encoding. If the target architecture uses the same
  * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
@@ -274,36 +256,6 @@ extern "C" {
 
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
-#endif
-
-/**
- * Utility Definitions
- * ^^^^^^^^^^^^^^^^^^^ */
-/* Outputs an error message at compile time if the assert fails.
- * Example usage:
- * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
- * See: https://stackoverflow.com/a/4815532/869402 */
-#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
-# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
-# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
-#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
-# define UA_CTASTR2(pre,post) pre ## post
-# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
-# define UA_STATIC_ASSERT(cond,msg)                             \
-    typedef struct {                                            \
-        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
-    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
-#else /* Everybody else */
-# define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
-#endif
-
-/* To generate smaller binaries, descriptive strings can be excluded from the
- * datatype description */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
 #endif
 
 #ifdef __cplusplus
