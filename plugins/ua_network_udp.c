@@ -13,7 +13,11 @@
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
 # include <strings.h> //bzero
-# include <sys/select.h>
+# ifndef _WRS_KERNEL
+#  include <sys/select.h>
+# else
+# include <selectLib.h>
+# endif
 # include <netinet/in.h>
 # include <netinet/tcp.h>
 # include <sys/socketvar.h>
