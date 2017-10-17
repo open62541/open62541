@@ -20,6 +20,7 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
+#include "ua_client.h"
 
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
@@ -539,6 +540,13 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      void* data);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+/* Get the client configuration from the configuration plugin. Used by the
+ * server when it needs client functionality to register to a discovery server.
+ *
+ * @return The client configuration structure */
+UA_ClientConfig UA_EXPORT
+UA_Server_getClientConfig(void);
 
 #endif /* UA_ENABLE_DISCOVERY */
 

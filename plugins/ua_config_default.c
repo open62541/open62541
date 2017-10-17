@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Julian Grothoff
@@ -652,3 +652,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
 
     10 /* .outStandingPublishRequests */
 };
+
+UA_ClientConfig UA_Server_getClientConfig(void)
+{
+    return UA_ClientConfig_default;
+}
