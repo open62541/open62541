@@ -1,7 +1,18 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "ua_types.h"
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
 
 #include <time.h>
 #ifdef _WIN32
@@ -26,6 +37,8 @@
 # include <mach/clock.h>
 # include <mach/mach.h>
 #endif
+
+#include "ua_types.h"
 
 UA_DateTime UA_DateTime_now(void) {
 #if defined(_WIN32)

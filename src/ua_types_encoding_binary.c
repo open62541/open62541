@@ -7,20 +7,9 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 
-/* Type Encoding
- * -------------
- * This file contains encoding functions for the builtin data types and generic
- * functions that operate on all types and arrays. This requires the type
- * description from a UA_DataType structure. Note that some internal (static)
- * deocidng functions may abort and leave the type in an inconsistent state. But
- * this is always handled in UA_decodeBinary, where the error is caught and the
- * type cleaned up.
- *
- * Breaking a message into chunks is integrated with the encoding. When the end
- * of a buffer is reached, a callback is executed that sends the current buffer
- * as a chunk and exchanges the encoding buffer "underneath" the ongoing
- * encoding. This enables fast sending of large messages as spurious copying is
- * avoided. */
+/**
+ * Throw a warning if numeric types cannot be overlayed
+ * ---------------------------------------------------- */
 
 #if defined(__clang__)
 # pragma GCC diagnostic push
@@ -28,18 +17,34 @@
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
-# warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
+# warning Integer endianness could not be detected to be little endian. \
+    Use slow generic encoding.
 #endif
 
-/* There is no robust way to detect float endianness in clang. This warning can be removed
- * if the target is known to be little endian with floats in the IEEE 754 format. */
+/* There is no robust way to detect float endianness in clang. This warning can
+ * be removed if the target is known to be little endian with floats in the IEEE
+ * 754 format. */
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
-# warning Float endianness could not be detected to be little endian in the IEEE 754 format. Use slow generic encoding.
+# warning Float endianness could not be detected to be little endian in the IEEE \
+    754 format. Use slow generic encoding.
 #endif
 
 #if defined(__clang__)
 # pragma GCC diagnostic pop
 #endif
+
+/**
+ * Type Encoding and Decoding
+ * --------------------------
+ * The following methods contain encoding and decoding functions for the builtin
+ * data types and generic functions that operate on all types and arrays. This
+ * requires the type description from a UA_DataType structure.
+ *
+ * Breaking a message into chunks is integrated with the encoding. When the end
+ * of a buffer is reached, a callback is executed that sends the current buffer
+ * as a chunk and exchanges the encoding buffer "underneath" the ongoing
+ * encoding. This enables fast sending of large messages as spurious copying is
+ * avoided. */
 
 /* Jumptables for de-/encoding and computing the buffer length. The methods in
  * the decoding jumptable do not all clean up their allocated memory when an
@@ -1524,9 +1529,11 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
     return ret;
 }
 
-/******************/
-/* CalcSizeBinary */
-/******************/
+/**
+ * Compute the Message Size
+ * ------------------------
+ * The following methods are used to compute the length of a datum in binary
+ * encoding. */
 
 static size_t
 Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {
