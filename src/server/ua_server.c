@@ -206,16 +206,16 @@ readStatus(void *handle, const UA_NodeId nodeid, UA_Boolean sourceTimeStamp,
     }
 
     UA_Server *server = (UA_Server*)handle;
-    UA_ServerStatusDataType *status = UA_ServerStatusDataType_new();
-    status->startTime = server->startTime;
-    status->currentTime = UA_DateTime_now();
-    status->state = UA_SERVERSTATE_RUNNING;
-    status->secondsTillShutdown = 0;
-    UA_BuildInfo_copy(&server->config.buildInfo, &status->buildInfo);
+    UA_ServerStatusDataType *retval = UA_ServerStatusDataType_new();
+    retval->startTime = server->startTime;
+    retval->currentTime = UA_DateTime_now();
+    retval->state = UA_SERVERSTATE_RUNNING;
+    retval->secondsTillShutdown = 0;
+    UA_BuildInfo_copy(&server->config.buildInfo, &retval->buildInfo);
 
     value->value.type = &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE];
     value->value.arrayLength = 0;
-    value->value.data = status;
+    value->value.data = retval;
     value->value.arrayDimensionsSize = 0;
     value->value.arrayDimensions = NULL;
     value->hasValue = true;
