@@ -1,0 +1,1 @@
+/usr/bin/cc  -g   CMakeFiles/discovery_server_lds.dir/discovery/server_lds.c.o  -o ../bin/examples/discovery_server_lds  ../bin/libopen62541.a -lpthread -lm -lrt 

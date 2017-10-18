@@ -7,7 +7,7 @@
 
 #include "ua_securechannel.h"
 #include "queue.h"
-
+#include "ua_timer.h"
 /**************************/
 /* Subscriptions Handling */
 /**************************/
@@ -66,8 +66,10 @@ typedef struct AsyncServiceCall {
     LIST_ENTRY(AsyncServiceCall) pointers;
     UA_UInt32 requestId;
     UA_ClientAsyncServiceCallback callback;
+    UA_ClientAsyncServiceCallback respGetter;
     const UA_DataType *responseType;
     void *userdata;
+    void *responsedata;
 } AsyncServiceCall;
 
 typedef enum {
@@ -82,9 +84,9 @@ typedef enum {
 } UA_Client_Authentication;
 
 struct UA_Client {
-	/*to dsynchronize hello & opening secure channel*/
-	ConnectState connectState;
-	ConnectState lastConnectState;
+    /*to dsynchronize hello & opening secure channel*/
+    ConnectState connectState;
+    ConnectState lastConnectState;
 
     /* State */
     UA_ClientState state;
@@ -117,7 +119,6 @@ struct UA_Client {
 
     /* Async Service */
     LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
-    
 
     /* Callbacks with a repetition interval */
     UA_Timer timer;
@@ -134,11 +135,36 @@ struct UA_Client {
 };
 
 UA_StatusCode
+__UA_Client_connect(UA_Client *client, const char *endpointUrl,
+UA_Boolean endpointsHandshake, UA_Boolean createSession);
+
+UA_StatusCode
+__UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
+                    UA_Boolean endpointsHandshake, UA_Boolean createSession, ConnectState *last_cs);
+
+UA_StatusCode
+__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
+                         UA_EndpointDescription** endpointDescriptions);
+UA_StatusCode
+__UA_Client_getEndpoints_async(UA_Client *client, size_t *requestId, size_t* endpointDescriptionsSize,
+UA_EndpointDescription** endpointDescriptions);
+
+UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSize,
                                UA_EndpointDescription** endpointDescriptions);
+
+UA_StatusCode
+receiveServiceResponse_async(UA_Client *client, void *response,
+                       const UA_DataType *responseType);
+void
+UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
+                         void *data);
+UA_StatusCode
+UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
+void *data);
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

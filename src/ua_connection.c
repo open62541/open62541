@@ -170,7 +170,7 @@ UA_Connection_processChunks(UA_Connection *connection, void *application,
     return retval;
 }
 
-/* In order to know whether a chunk was processed, we insert an indirection into
+/* In order to know whether a chunk was processed, we insert an redirection into
  * the callback. */
 struct completeChunkTrampolineData {
     UA_Boolean called;
@@ -221,6 +221,27 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
     }
+    return retval;
+}
+
+UA_StatusCode
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
+                                    UA_Connection_processChunk processCallback) {
+    struct completeChunkTrampolineData data;
+    data.called = false;
+    data.application = application;
+    data.processCallback = processCallback;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+	/* Listen for messages to arrive */
+	UA_ByteString packet = UA_BYTESTRING_NULL;
+	retval = connection->recv(connection, &packet, 1);
+
+	/* Try to process one complete chunk */
+	retval = UA_Connection_processChunks(connection, &data,
+										 completeChunkTrampoline, &packet);
+	connection->releaseRecvBuffer(connection, &packet);
+
     return retval;
 }
 

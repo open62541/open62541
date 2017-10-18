@@ -1,0 +1,1 @@
+/usr/bin/cc  -g   CMakeFiles/discovery_client_find_servers.dir/discovery/client_find_servers.c.o  -o ../bin/examples/discovery_client_find_servers  ../bin/libopen62541.a -lpthread -lm -lrt 

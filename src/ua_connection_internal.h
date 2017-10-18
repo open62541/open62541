@@ -38,7 +38,7 @@ UA_StatusCode
 UA_Connection_processChunks(UA_Connection *connection, void *application,
                             UA_Connection_processChunk processCallback,
                             const UA_ByteString *packet);
-
+/*
  * @param connection The connection
  * @param message The received message. The content may be overwritten when a
  *        previsouly received buffer is completed.
@@ -69,8 +69,8 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
                                     UA_UInt32 timeout);
 
 UA_StatusCode
-UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, UA_ByteString *chunks,
-                                    UA_Boolean *realloced);
+UA_Connection_receiveChunksNonBlocking(UA_Connection *connection, void *application,
+                                    UA_Connection_processChunk processCallback);
 
 /* When a fatal error occurs the Server shall send an Error Message to the
  * Client and close the socket. When a Client encounters one of these errors, it

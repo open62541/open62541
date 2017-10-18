@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_util.h"
+#include "ua_client.h"
 #include "ua_client_internal.h"
 
 #define UA_MAXTIMEOUT 50 /* Max timeout in ms between main-loop iterations */
@@ -320,6 +321,7 @@ UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal) {
         timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
     return timeout;
 }
+
 
 UA_StatusCode
 UA_Client_run_shutdown(UA_Client *client) {

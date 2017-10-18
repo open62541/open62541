@@ -37,6 +37,12 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
                           UA_AttributeId attributeId, void *out,
                           const UA_DataType *outDataType);
 
+UA_StatusCode UA_EXPORT
+__UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+                          UA_AttributeId attributeId, void *out,
+                          const UA_DataType *outDataType,
+                          UA_ClientAsyncServiceCallback callback, void *userdata);
+
 static UA_INLINE UA_StatusCode
 UA_Client_readNodeIdAttribute(UA_Client *client, const UA_NodeId nodeId,
                               UA_NodeId *outNodeId) {
@@ -134,6 +140,14 @@ UA_Client_readValueAttribute(UA_Client *client, const UA_NodeId nodeId,
                              UA_Variant *outValue) {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
                                      outValue, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                             UA_Variant *outValue, UA_ClientAsyncServiceCallback
+                             callback, void *userdata) {
+    return __UA_Client_readAttribute_async(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                     outValue, &UA_TYPES[UA_TYPES_VARIANT], callback, userdata);
 }
 
 static UA_INLINE UA_StatusCode

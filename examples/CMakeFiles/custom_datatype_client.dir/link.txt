@@ -1,0 +1,1 @@
+/usr/bin/cc  -g   CMakeFiles/custom_datatype_client.dir/custom_datatype/client_types_custom.c.o  -o ../bin/examples/custom_datatype_client  ../bin/libopen62541.a -lpthread -lm -lrt 

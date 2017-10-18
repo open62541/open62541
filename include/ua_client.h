@@ -93,6 +93,8 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async(UA_Client *client, const char *endpointUrl);
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -350,6 +352,8 @@ static UA_INLINE UA_CreateMonitoredItemsResponse
 UA_Client_Service_createMonitoredItems(UA_Client *client,
                                  const UA_CreateMonitoredItemsRequest request) {
     UA_CreateMonitoredItemsResponse response;
+
+
     __UA_Client_Service(client, &request,
                         &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST], &response,
                         &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
@@ -432,12 +436,19 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          void *userdata, UA_UInt32 *requestId);
 
 UA_StatusCode UA_EXPORT
+__UA_Client_AsyncService_withResponse(UA_Client *client, const void *request,
+                         const UA_DataType *requestType,
+                         UA_ClientAsyncServiceCallback callback,
+                         UA_ClientAsyncServiceCallback respGetter,
+                         const UA_DataType *responseType,
+                         void *userdata, void *responsedata, UA_UInt32 *requestId);
+
+UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
 
-UA_UInt16
+UA_UInt16 UA_EXPORT
 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal);
-
 
 UA_StatusCode
 UA_Client_run_shutdown(UA_Client *client);
@@ -446,12 +457,13 @@ UA_Client_run_shutdown(UA_Client *client);
 UA_StatusCode
 UA_Client_run(UA_Client *client, volatile UA_Boolean *running);
 
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Client_addAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType,
         UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType,
         void *userdata, UA_UInt32 *requestId);
+
 
 /**
  * .. toctree::

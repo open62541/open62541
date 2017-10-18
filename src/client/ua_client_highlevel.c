@@ -341,6 +341,84 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 /*******************/
 /* Read Attributes */
 /*******************/
+typedef struct outData{
+	UA_AttributeId attributeId;
+	void *out;
+	const UA_DataType *outDataType;
+}outData;
+
+static void getResponseCallback(UA_Client *client, void *outdata,
+		UA_UInt32 requestId, void *resp){
+//	UA_ReadResponse_init((UA_ReadResponse *)outdata);
+//	UA_copy(response,outdata, &UA_TYPES[UA_TYPES_READRESPONSE]);
+
+	UA_AttributeId attributeId = ((outData *)outdata)->attributeId;
+	void *out = ((outData *)outdata)->out;
+	const UA_DataType *outDataType = ((outData *)outdata)->outDataType;
+	//TODO: pass response type, should be in outData struct
+	UA_ReadResponse* response = (UA_ReadResponse*)resp;
+    UA_StatusCode retval = response->responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD) {
+        if(response->resultsSize == 1)
+            retval = response->results[0].status;
+        else
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ReadResponse_deleteMembers(response);
+    }
+    /* Set the StatusCode */
+    UA_DataValue *res = response->results;
+    if(res->hasStatus)
+        retval = res->status;
+
+    /* Return early of no value is given */
+    if(!res->hasValue) {
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        UA_ReadResponse_deleteMembers(response);
+    }
+
+    /* Copy value into out */
+    if(attributeId == UA_ATTRIBUTEID_VALUE) {
+        memcpy(out, &res->value, sizeof(UA_Variant));
+        UA_Variant_init(&res->value);
+    } else if(attributeId == UA_ATTRIBUTEID_NODECLASS) {
+        memcpy(out, (UA_NodeClass*)res->value.data, sizeof(UA_NodeClass));
+    } else if(UA_Variant_isScalar(&res->value) &&
+              res->value.type == outDataType) {
+        memcpy(out, res->value.data, res->value.type->memSize);
+        UA_free(res->value.data);
+        res->value.data = NULL;
+    } else {
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
+
+    UA_ReadResponse_deleteMembers(response);
+}
+
+UA_StatusCode
+__UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+                          UA_AttributeId attributeId, void *out,
+                          const UA_DataType *outDataType,
+                          UA_ClientAsyncServiceCallback callback, void *userdata) {
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = *nodeId;
+    item.attributeId = attributeId;
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.nodesToRead = &item;
+    request.nodesToReadSize = 1;
+    outData outdata = {.attributeId = attributeId, .out = out, .outDataType = outDataType};
+
+    size_t reqId;
+	__UA_Client_AsyncService_withResponse(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+						callback, getResponseCallback, &UA_TYPES[UA_TYPES_READRESPONSE],
+						userdata, &outdata, &reqId);
+	//TODO: how often?
+	return UA_Client_run_iterate(client,true);
+}
 
 UA_StatusCode
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,

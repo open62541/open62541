@@ -1,0 +1,1 @@
+/usr/bin/cc  -g   CMakeFiles/client_async.dir/client_async.c.o  -o ../bin/examples/client_async  ../bin/libopen62541.a -lpthread -lm -lrt 

@@ -16,13 +16,9 @@ UA_Client_getEndpoints_async(UA_Client *client, const char *serverUrl,
     }
 
     UA_StatusCode retval;
-
 	retval = UA_Client_connect_async(client, serverUrl);
-
-	size_t reqId;
     if(retval == UA_STATUSCODE_GOOD){
-    	retval = __UA_Client_getEndpoints_async(client,&reqId,  endpointDescriptionsSize, endpointDescriptions);
-    	//retval = __UA_Client_getEndpoints_async(client,&reqId);
+    	retval = UA_Client_getEndpointsInternal(client, endpointDescriptionsSize, endpointDescriptions);
     }
     UA_Client_disconnect(client);
     UA_Client_reset(client);
@@ -52,7 +48,6 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
         UA_Client_disconnect(client);
     return retval;
 }
-
 
 UA_StatusCode
 UA_Client_findServers(UA_Client *client, const char *serverUrl,

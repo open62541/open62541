@@ -1,0 +1,1414 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<?fileVersion 5.0.0?><cproject storage_type_id="org.eclipse.cdt.core.XmlProjectDescriptionStorage2">
+	<storageModule moduleId="org.eclipse.cdt.make.core.buildtargets">
+		<buildTargets>
+			<target name=": lint" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>lint</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": install/local" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>install/local</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": install/strip" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>install/strip</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": edit_cache" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>edit_cache</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": install" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>install</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541-plugins" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-plugins</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541-plugins/fast" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-plugins/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[lib] open62541-plugins" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>open62541-plugins</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[lib] open62541-plugins" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll" "/usr/bin/cmake" -P "CMakeFiles/open62541-plugins.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": rebuild_cache" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>rebuild_cache</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541-object" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-object</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541-object/fast" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-object/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[lib] open62541-object" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>open62541-object</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[lib] open62541-object" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll" "/usr/bin/cmake" -P "CMakeFiles/open62541-object.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[lib] open62541/fast" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[lib] open62541" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>open62541</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[lib] open62541" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll" "/usr/bin/cmake" -P "CMakeFiles/open62541.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-amalgamation-header" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-amalgamation-header</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-generator-statuscode" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-generator-statuscode</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-amalgamation-source" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-amalgamation-source</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": package" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>package</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-generator-transport" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-generator-transport</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": list_install_components" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>list_install_components</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": package_source" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>package_source</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-generator-namespace" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-generator-namespace</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": open62541-generator-types" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>open62541-generator-types</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": all" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>all</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": clean" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>clean</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] deps/libc_time.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>deps/libc_time.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] deps/pcg_basic.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>deps/pcg_basic.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_accesscontrol_default.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_accesscontrol_default.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_clock.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_clock.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_config_default.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_config_default.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_log_stdout.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_log_stdout.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_network_tcp.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_network_tcp.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_nodestore_default.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_nodestore_default.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] plugins/ua_securitypolicy_none.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>plugins/ua_securitypolicy_none.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client_connect.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client_connect.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client_discovery.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client_discovery.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client_highlevel.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client_highlevel.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client_highlevel_subscriptions.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client_highlevel_subscriptions.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/client/ua_client_worker.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/client/ua_client_worker.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_nodes.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_nodes.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_securechannel_manager.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_securechannel_manager.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server_binary.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server_binary.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server_discovery.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server_discovery.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server_ns0.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server_ns0.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server_utils.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server_utils.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_server_worker.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_server_worker.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_attribute.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_attribute.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_call.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_call.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_discovery.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_discovery.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_discovery_multicast.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_discovery_multicast.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_nodemanagement.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_nodemanagement.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_securechannel.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_securechannel.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_session.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_session.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_subscription.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_subscription.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_services_view.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_services_view.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_session_manager.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_session_manager.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_subscription.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_subscription.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/server/ua_subscription_datachange.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/server/ua_subscription_datachange.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_connection.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_connection.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_securechannel.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_securechannel.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_session.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_session.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_timer.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_timer.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_types.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_types.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_types_encoding_binary.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_types_encoding_binary.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src/ua_util.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src/ua_util.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src_generated/ua_statuscode_descriptions.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src_generated/ua_statuscode_descriptions.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src_generated/ua_transport_generated.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src_generated/ua_transport_generated.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] src_generated/ua_types_generated.c.o" path="" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>src_generated/ua_types_generated.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": doc_latex" path="doc" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>doc_latex</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": doc" path="doc" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>doc</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": doc_pdf" path="doc" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>doc_pdf</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": all" path="doc" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>all</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": clean" path="doc" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>clean</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_datasource" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_datasource</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_datasource/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_datasource/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_datasource" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_datasource</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_datasource" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_datasource.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] custom_datatype_client" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype_client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] custom_datatype_client/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype_client/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] custom_datatype_client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>custom_datatype_client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] custom_datatype_client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/custom_datatype_client.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_method" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_method</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_method/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_method/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_method" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_method</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_method" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_method.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_server_lds" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_server_lds</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_server_lds/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_server_lds/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] discovery_server_lds" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>discovery_server_lds</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] discovery_server_lds" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/discovery_server_lds.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] access_control_client" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control_client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] access_control_client/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control_client/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] access_control_client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>access_control_client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] access_control_client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/access_control_client.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client_async" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_async</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client_async/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_async/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] client_async" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>client_async</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] client_async" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/client_async.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>client</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] client" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/client.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] custom_datatype_server" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype_server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] custom_datatype_server/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype_server/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] custom_datatype_server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>custom_datatype_server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] custom_datatype_server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/custom_datatype_server.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_firststeps" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_firststeps</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_firststeps/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_firststeps/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_firststeps" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_firststeps</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_firststeps" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_firststeps.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] access_control_server" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control_server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] access_control_server/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control_server/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] access_control_server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>access_control_server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] access_control_server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/access_control_server.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_client_firststeps" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_firststeps</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_client_firststeps/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_firststeps/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_client_firststeps" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_client_firststeps</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_client_firststeps" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_client_firststeps.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>server</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] server" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/server.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client_connect_loop" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_connect_loop</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] client_connect_loop/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_connect_loop/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] client_connect_loop" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>client_connect_loop</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] client_connect_loop" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/client_connect_loop.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_variable" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variable</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_variable/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variable/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_variable" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_variable</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_variable" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_variable.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_instantiation" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_instantiation</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_instantiation/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_instantiation/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] server_instantiation" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>server_instantiation</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] server_instantiation" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/server_instantiation.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_mainloop" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_mainloop</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_mainloop/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_mainloop/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] server_mainloop" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>server_mainloop</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] server_mainloop" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/server_mainloop.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_object" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_object</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_object/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_object/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_object" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_object</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_object" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_object.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_client_find_servers" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_client_find_servers</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_client_find_servers/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_client_find_servers/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] discovery_client_find_servers" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>discovery_client_find_servers</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] discovery_client_find_servers" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/discovery_client_find_servers.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_inheritance" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_inheritance</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_inheritance/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_inheritance/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] server_inheritance" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>server_inheritance</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] server_inheritance" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/server_inheritance.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_variabletype" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variabletype</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_server_variabletype/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variabletype/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_server_variabletype" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_server_variabletype</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_server_variabletype" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_server_variabletype.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_datatypes" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_datatypes</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_datatypes/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_datatypes/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_datatypes" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_datatypes</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_datatypes" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_datatypes.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_repeated_job" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_repeated_job</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] server_repeated_job/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_repeated_job/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] server_repeated_job" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>server_repeated_job</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] server_repeated_job" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/server_repeated_job.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_client_events" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_events</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] tutorial_client_events/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_events/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] tutorial_client_events" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>tutorial_client_events</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] tutorial_client_events" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/tutorial_client_events.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_server_register" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_server_register</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[exe] discovery_server_register/fast" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery_server_register/fast</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Build" path="[Targets]/[exe] discovery_server_register" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments>-C "/home/sun/Downloads/open62541_sherylll" </buildArguments>
+				<buildTarget>discovery_server_register</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="Clean" path="[Targets]/[exe] discovery_server_register" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/cmake</buildCommand>
+				<buildArguments>-E chdir "/home/sun/Downloads/open62541_sherylll/examples" "/usr/bin/cmake" -P "CMakeFiles/discovery_server_register.dir/cmake_clean.cmake"</buildArguments>
+				<buildTarget/>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": all" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>all</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name=": clean" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>clean</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] access_control/client_access_control.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control/client_access_control.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] access_control/server_access_control.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>access_control/server_access_control.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] client.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] client_async.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_async.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] client_connect_loop.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>client_connect_loop.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] custom_datatype/client_types_custom.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype/client_types_custom.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] custom_datatype/server_types_custom.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>custom_datatype/server_types_custom.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] discovery/client_find_servers.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery/client_find_servers.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] discovery/server_lds.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery/server_lds.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] discovery/server_register.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>discovery/server_register.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] server.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] server_inheritance.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_inheritance.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] server_instantiation.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_instantiation.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] server_mainloop.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_mainloop.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] server_repeated_job.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>server_repeated_job.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_client_events.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_events.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_client_firststeps.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_client_firststeps.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_datatypes.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_datatypes.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_datasource.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_datasource.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_firststeps.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_firststeps.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_method.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_method.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_object.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_object.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_variable.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variable.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+			<target name="[obj] tutorial_server_variabletype.c.o" path="examples" targetID="org.eclipse.cdt.make.MakeTargetBuilder">
+				<buildCommand>/usr/bin/make</buildCommand>
+				<buildArguments/>
+				<buildTarget>tutorial_server_variabletype.c.o</buildTarget>
+				<stopOnError>true</stopOnError>
+				<useDefaultCommand>false</useDefaultCommand>
+			</target>
+		</buildTargets>
+	</storageModule>
+</cproject>
