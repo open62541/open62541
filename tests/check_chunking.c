@@ -24,31 +24,32 @@ static UA_StatusCode sendChunkMockUp(UA_ChunkInfo *ci, UA_ByteString *dst, size_
     dataCount += offset;
     return UA_STATUSCODE_GOOD;
 }
-START_TEST(encodeArrayIntoFiveChunksShallWork) {
 
+START_TEST(encodeArrayIntoFiveChunksShallWork) {
     size_t arraySize = 30; //number of elements within the array which should be encoded
     size_t offset = 0; // encoding offset
     size_t chunkCount = 6; // maximum chunk count
     size_t chunkSize = 30; //size in bytes of each chunk
-    UA_ChunkInfo ci;
     bufIndex = 0;
     counter = 0;
     dataCount = 0;
-    UA_Int32 *ar = UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
+
     buffers = UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
-    for(size_t i=0;i<chunkCount;i++){
-        UA_ByteString_allocBuffer(&buffers[i],chunkSize);
-    }
+    for(size_t i = 0; i < chunkCount; i++)
+        UA_ByteString_allocBuffer(&buffers[i], chunkSize);
 
-    UA_ByteString workingBuffer=buffers[0];
+    UA_Int32 *ar = UA_Array_new(arraySize, &UA_TYPES[UA_TYPES_INT32]);
+    for(size_t i = 0; i < arraySize; i++)
+        ar[i] = (UA_Int32)i;
 
-    for(size_t i=0;i<arraySize;i++){
-        ar[i]=(UA_Int32)i;
-    }
     UA_Variant v;
-    UA_Variant_setArrayCopy(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setArrayCopy(&v, ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
 
-    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_ChunkInfo ci; // dummy
+    UA_ByteString buf = buffers[0]; // will be overwritten
+    UA_StatusCode retval = UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT],
+                                           (UA_exchangeEncodeBuffer)sendChunkMockUp, &ci,
+                                           &buf, &offset);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
@@ -59,12 +60,9 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_Array_delete(ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
-
-}
-END_TEST
+} END_TEST
 
 START_TEST(encodeStringIntoFiveChunksShallWork) {
-
     size_t stringLength = 120; //number of elements within the array which should be encoded
     size_t offset = 0; // encoding offset
     size_t chunkCount = 6; // maximum chunk count
@@ -94,7 +92,9 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_Variant v;
     UA_Variant_setScalarCopy(&v,&string,&UA_TYPES[UA_TYPES_STRING]);
 
-    UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_StatusCode retval = UA_encodeBinary(&v, &UA_TYPES[UA_TYPES_VARIANT],
+                                           (UA_exchangeEncodeBuffer)sendChunkMockUp, &ci,
+                                           &workingBuffer, &offset);
 
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
@@ -105,11 +105,9 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_String_deleteMembers(&string);
-}
-END_TEST
+} END_TEST
 
 START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
-
     size_t stringLength = 143; //number of elements within the array which should be encoded
     size_t offset = 0; // encoding offset
     size_t chunkCount = 10; // maximum chunk count
@@ -137,44 +135,37 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
         string.data[i] =  tmpString[tmp];
     }
 
-    UA_StatusCode retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
+    UA_StatusCode retval = UA_encodeBinary(&string, &UA_TYPES[UA_TYPES_STRING],
+                                           (UA_exchangeEncodeBuffer)sendChunkMockUp, &ci,
+                                           &workingBuffer, &offset);
     ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
     ck_assert_int_eq(counter,4); //5 chunks allocated - callback called 4 times
     ck_assert_int_eq(UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount + offset);
 
-    retval = UA_encodeBinary(&string,&UA_TYPES[UA_TYPES_STRING],(UA_exchangeEncodeBuffer)sendChunkMockUp,&ci,&workingBuffer,&offset);
-    dataCount += offset; //last piece of data - no callback was called
-    ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(counter,9); //10 chunks allocated - callback called 4 times
+    retval = UA_encodeBinary(&string, &UA_TYPES[UA_TYPES_STRING],
+                             (UA_exchangeEncodeBuffer)sendChunkMockUp, &ci,
+                             &workingBuffer,&offset);
+    dataCount += offset; // last piece of data - no callback was called
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(counter, 9); // 10 chunks allocated - callback called 4 times
     ck_assert_int_eq(2 * UA_calcSizeBinary(&string,&UA_TYPES[UA_TYPES_STRING]), dataCount);
 
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_String_deleteMembers(&string);
-}
-END_TEST
+} END_TEST
 
-
-static Suite *testSuite_builtin(void) {
+int main(void) {
     Suite *s = suite_create("Chunked encoding");
     TCase *tc_message = tcase_create("encode chunking");
     tcase_add_test(tc_message,encodeArrayIntoFiveChunksShallWork);
     tcase_add_test(tc_message,encodeStringIntoFiveChunksShallWork);
     tcase_add_test(tc_message,encodeTwoStringsIntoTenChunksShallWork);
     suite_add_tcase(s, tc_message);
-    return s;
-}
 
-
-int main(void) {
-    int      number_failed = 0;
-    Suite   *s;
-    SRunner *sr;
-
-    s  = testSuite_builtin();
-    sr = srunner_create(s);
+    SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
-    number_failed += srunner_ntests_failed(sr);
+    int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
