@@ -102,10 +102,10 @@ UA_DateTime_toStruct(UA_DateTime t) {
     dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch =
-        (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
-    struct tm ts;
-    memset(&ts, 0, sizeof(struct tm));
+    long long secSinceUnixEpoch = (long long)
+        ((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
+    struct mytm ts;
+    memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
     dateTimeStruct.sec    = (u16)ts.tm_sec;
     dateTimeStruct.min    = (u16)ts.tm_min;
