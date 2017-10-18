@@ -9,22 +9,6 @@
 extern "C" {
 #endif
 
-#include <stddef.h>
-
-/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
-#if !defined(_MSC_VER) || _MSC_VER >= 1600
-# include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
-#else
-# include "ms_stdint.h"
-# if !defined(__bool_true_false_are_defined)
-#  define bool short
-#  define true 1
-#  define false 0
-#  define __bool_true_false_are_defined
-# endif
-#endif
-
 #include "ua_config.h"
 #include "ua_constants.h"
 
