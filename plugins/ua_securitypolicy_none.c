@@ -80,7 +80,7 @@ newContext_none(const UA_SecurityPolicy *securityPolicy,
 }
 
 static void
-deleteContext_none(void *const channelContext) {
+deleteContext_none(void *channelContext) {
 }
 
 static UA_StatusCode
@@ -90,13 +90,13 @@ setContextValue_none(void *channelContext,
 }
 
 static size_t
-getRemoteAsymPlainTextBlockSize_none(const void *const channelContext) {
+getRemoteAsymPlainTextBlockSize_none(const void *channelContext) {
     return 0;
 }
 
 static size_t
-getRemoteAsymEncryptionBufferLengthOverhead_none(const void *const channelContext,
-                                                 const size_t maxEncryptionLength) {
+getRemoteAsymEncryptionBufferLengthOverhead_none(const void *channelContext,
+                                                 size_t maxEncryptionLength) {
     return 0;
 }
 
