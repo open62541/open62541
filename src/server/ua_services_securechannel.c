@@ -6,9 +6,10 @@
 #include "ua_services.h"
 #include "ua_securechannel_manager.h"
 
-void Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel* channel,
-                               const UA_OpenSecureChannelRequest *request,
-                               UA_OpenSecureChannelResponse *response) {
+void
+Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                          const UA_OpenSecureChannelRequest *request,
+                          UA_OpenSecureChannelResponse *response) {
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_RENEW) {
         /* Renew the channel */
         response->responseHeader.serviceResult =

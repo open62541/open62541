@@ -235,6 +235,10 @@ finish:
         UA_LOG_INFO(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Error receiving the response with status code %s",
                     UA_StatusCode_name(retval));
+
+        if(rd->response == NULL)
+            return retval;
+
         UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
         respHeader->serviceResult = retval;
     }

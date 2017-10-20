@@ -47,8 +47,8 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     retval = UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
                                                    response, responseType);
     UA_RequestHeader_deleteMembers(&requestHeader);
-    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER, "Sent ServiceFault"
-                 "with error code %i", error);
+    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
+                 "Sent ServiceFault with error code %i", error);
     return retval;
 }
 
