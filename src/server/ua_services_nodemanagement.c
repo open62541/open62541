@@ -131,7 +131,8 @@ checkParentReference(UA_Server *server, UA_Session *session, UA_NodeClass nodeCl
 
 static UA_StatusCode
 typeCheckVariableNode(UA_Server *server, UA_Session *session,
-                      const UA_VariableNode *node, const UA_VariableTypeNode *vt,
+                      const UA_VariableNode *node,
+                      const UA_VariableTypeNode *vt,
                       const UA_NodeId *parentNodeId) {
     /* The value might come from a datasource, so we perform a
      * regular read. */
@@ -153,16 +154,17 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    if (!(node->nodeClass == UA_NODECLASS_VARIABLETYPE && ((const UA_VariableTypeNode*)node)->isAbstract && node->valueRank == 0) &&
+    if(!(node->nodeClass == UA_NODECLASS_VARIABLETYPE &&
+         ((const UA_VariableTypeNode*)node)->isAbstract && node->valueRank == 0) &&
         !compatibleValueRankArrayDimensions(node->valueRank, arrayDims))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* If variable node is created below BaseObjectType and has its default valueRank of -2,
      * skip the test */
     const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-    const UA_NodeId refs[] = {
-            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
+    const UA_NodeId refs[2] = {
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
     };
     if(node->valueRank != vt->valueRank &&
        node->valueRank != UA_VariableAttributes_default.valueRank &&
@@ -696,39 +698,36 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
         /* See if the type has the correct node class. For type-nodes, we know
          * that type has the same nodeClass from checkParentReference. */
         if(!server->bootstrapNS0 && node->nodeClass == UA_NODECLASS_VARIABLE) {
-            if(type->nodeClass != UA_NODECLASS_VARIABLETYPE ||
-                    ((const UA_VariableTypeNode*)type)->isAbstract) {
+            if(type->nodeClass != UA_NODECLASS_VARIABLETYPE || ((const UA_VariableTypeNode*)type)->isAbstract) {
                 /* Abstract variable is allowed if parent is a children of a base data variable */
                 const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
                 /* A variable may be of an object type which again is below BaseObjectType */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-                const UA_NodeId refs[] = {
+                const UA_NodeId refs[2] = {
                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
                 };
-                if(!isNodeInTree(&server->config.nodestore, parentNodeId,
-                                 &variableTypes, refs , 2) &&
-                   !isNodeInTree(&server->config.nodestore, parentNodeId,
-                                     &objectTypes, refs , 2)) {
+                if(!isNodeInTree(&server->config.nodestore, parentNodeId, &variableTypes, refs , 2) &&
+                   !isNodeInTree(&server->config.nodestore, parentNodeId, &objectTypes, refs , 2)) {
                     UA_LOG_INFO_SESSION(server->config.logger, session,
                                         "AddNodes: Type of variable node must "
-                                                "be VariableType and not cannot be abstract");
+                                        "be VariableType and not cannot be abstract");
                     retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
                     goto cleanup;
                 }
             }
         }
+
         if(!server->bootstrapNS0 && node->nodeClass == UA_NODECLASS_OBJECT) {
             if(type->nodeClass != UA_NODECLASS_OBJECTTYPE ||
                     ((const UA_ObjectTypeNode*)type)->isAbstract) {
                 /* Object node created of an abstract ObjectType. Only allowed if within BaseObjectType folder */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-                const UA_NodeId refs[] = {
+                const UA_NodeId refs[2] = {
                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
                 };
-                if(!isNodeInTree(&server->config.nodestore, parentNodeId,
-                                 &objectTypes, refs , 2)) {
+                if(!isNodeInTree(&server->config.nodestore, parentNodeId, &objectTypes, refs , 2)) {
                     UA_LOG_INFO_SESSION(server->config.logger, session,
                                         "AddNodes: Type of object node must "
                                                 "be ObjectType and not be abstract");
