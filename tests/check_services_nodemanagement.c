@@ -58,6 +58,55 @@ START_TEST(AddVariableNode) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
 } END_TEST
 
+START_TEST(InstantiateVariableTypeNode) {
+    UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
+    vtAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    vtAttr.valueRank = 1; /* array with one dimension */
+    UA_UInt32 arrayDims[1] = {2};
+    vtAttr.arrayDimensions = arrayDims;
+    vtAttr.arrayDimensionsSize = 1;
+    vtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Type");
+
+    /* a matching default value is required */
+    UA_Double zero[2] = {0.0, 0.0};
+    UA_Variant_setArray(&vtAttr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
+
+    UA_NodeId pointTypeId;
+    UA_StatusCode res =
+        UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                      UA_QUALIFIEDNAME(1, "2DPoint Type"), UA_NODEID_NULL,
+                                      vtAttr, NULL, &pointTypeId);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+
+    /* Prepare the node attributes */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
+    vAttr.valueRank = 1; /* array with one dimension */
+    vAttr.arrayDimensions = arrayDims;
+    vAttr.arrayDimensionsSize = 1;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable");
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    /* vAttr.value is left empty, the server instantiates with the default value */
+
+    /* Add the node */
+    UA_NodeId pointVariableId;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
+                                    vAttr, NULL, &pointVariableId);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, res);
+
+    /* Was the value instantiated? */
+    UA_Variant val;
+    UA_Server_readValue(server, pointVariableId, &val);
+    ck_assert(val.type != NULL);
+
+    UA_Variant_deleteMembers(&val);
+} END_TEST
+
 START_TEST(AddComplexTypeWithInheritance) {
     /* add a variable node to the address space */
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
@@ -360,6 +409,7 @@ int main(void) {
     TCase *tc_addnodes = tcase_create("addnodes");
     tcase_add_checked_fixture(tc_addnodes, setup, teardown);
     tcase_add_test(tc_addnodes, AddVariableNode);
+    tcase_add_test(tc_addnodes, InstantiateVariableTypeNode);
     tcase_add_test(tc_addnodes, AddComplexTypeWithInheritance);
     tcase_add_test(tc_addnodes, AddNodeTwiceGivesError);
     tcase_add_test(tc_addnodes, AddObjectWithConstructor);
