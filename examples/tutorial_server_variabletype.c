@@ -38,7 +38,7 @@ addVariableType2DPoint(UA_Server *server) {
     UA_Variant_setArray(&vtAttr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEVARIABLETYPE),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), UA_NODEID_NULL,
                                   vtAttr, NULL, &pointTypeId);
@@ -106,7 +106,7 @@ static void
 writeVariable(UA_Server *server) {
     UA_StatusCode retval = UA_Server_writeValueRank(server, pointVariableId, 0);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "Setting the Value Rank failed with Status Code %s\n",
+                "Setting the Value Rank failed with Status Code %s",
                 UA_StatusCode_name(retval));
 
 }
