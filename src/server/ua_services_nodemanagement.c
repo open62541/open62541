@@ -234,7 +234,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue_init(&vt_value);
         retval = readValueAttribute(server, session,
                                     (const UA_VariableNode*)vt, &vt_value);
-        if(retval != UA_STATUSCODE_GOOD && vt_value.hasValue) {
+        if(retval == UA_STATUSCODE_GOOD && vt_value.hasValue) {
             retval = UA_Variant_copy(&vt_value.value, &node->value.data.value.value);
             node->value.data.value.hasValue = true;
         }
