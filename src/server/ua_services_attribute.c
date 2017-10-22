@@ -231,11 +231,14 @@ Operation_Read(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        UA_Byte userAccessLevel = getUserAccessLevel(server, session,
-                                                     (const UA_VariableNode*)node);
-        if(!(userAccessLevel & (UA_ACCESSLEVELMASK_READ))) {
-            retval = UA_STATUSCODE_BADUSERACCESSDENIED;
-            break;
+        /* VariableTypes don't have the AccessLevel concept. Always allow reading the value. */
+        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+            UA_Byte userAccessLevel = getUserAccessLevel(server, session,
+                                                         (const UA_VariableNode*)node);
+            if(!(userAccessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                break;
+            }
         }
         retval = readValueAttributeComplete(server, session, (const UA_VariableNode*)node,
                                             op_timestampsToReturn, &id->indexRange, v);
