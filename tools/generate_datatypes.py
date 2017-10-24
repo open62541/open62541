@@ -405,7 +405,7 @@ parser.add_argument('-t', '--type-bsd',
                     dest="type_bsd",
                     action='append',
                     default=[],
-                    help='csv file with type descriptions')
+                    help='bsd file with type definitions')
 
 parser.add_argument('outfile',
                     metavar='<outputFile>',
