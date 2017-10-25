@@ -416,8 +416,7 @@ __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
 	__UA_Client_AsyncService_withResponse(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
 						callback, getResponseCallback, &UA_TYPES[UA_TYPES_READRESPONSE],
 						userdata, &outdata, &reqId);
-	//TODO: how often?
-	return UA_Client_run_iterate(client,true);
+	return UA_Client_run_iterate(client, 10);
 }
 
 UA_StatusCode

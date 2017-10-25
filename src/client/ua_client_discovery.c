@@ -6,26 +6,6 @@
 #include "ua_client_internal.h"
 
 UA_StatusCode
-UA_Client_getEndpoints_async(UA_Client *client, const char *serverUrl,
-                       size_t* endpointDescriptionsSize,
-                       UA_EndpointDescription** endpointDescriptions) {
-    if(client->state == UA_CLIENTSTATE_CONNECTED &&
-        strncmp((const char*)client->endpointUrl.data, serverUrl, client->endpointUrl.length) != 0) {
-        // client is already connected but to a different endpoint url.
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StatusCode retval;
-	retval = UA_Client_connect_async(client, serverUrl);
-    if(retval == UA_STATUSCODE_GOOD){
-    	retval = UA_Client_getEndpointsInternal(client, endpointDescriptionsSize, endpointDescriptions);
-    }
-    UA_Client_disconnect(client);
-    UA_Client_reset(client);
-    return retval;
-}
-
-UA_StatusCode
 UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
                        size_t* endpointDescriptionsSize,
                        UA_EndpointDescription** endpointDescriptions) {

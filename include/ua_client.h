@@ -472,7 +472,7 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
 /**
 * Repeated Callbacks
 * ------------------ */
-typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
+typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
 
 #ifdef __cplusplus
 } // extern "C"
