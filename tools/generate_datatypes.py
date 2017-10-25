@@ -405,7 +405,7 @@ parser.add_argument('-t', '--type-bsd',
                     dest="type_bsd",
                     action='append',
                     default=[],
-                    help='csv file with type descriptions')
+                    help='bsd file with type definitions')
 
 parser.add_argument('outfile',
                     metavar='<outputFile>',
@@ -559,8 +559,7 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + outname + '''_generated.h"
-#include "ua_util.h"''')
+#include "''' + outname + '''_generated.h"''')
 
 for t in filtered_types:
     printc("")
