@@ -76,7 +76,7 @@ Further attributes may be added at a later point depending on demand.
 
 ## Core functionality
 
-OPC UA node types, base data types and references are described in ua_node_types.py and ua_builtin_types.py. These classes are primarily intended to act as part of an AST to parse OPC UA Namespace description files. They implement a hierarchic/rekursive parsing of XML DOM objects, supplementing their respective properties from the XML description.
+OPC UA node types, base data types and references are described in ua_node_types.py and ua_builtin_types.py. These classes are primarily intended to act as part of an AST to parse OPC UA Namespace description files. They implement a hierarchic/recursive parsing of XML DOM objects, supplementing their respective properties from the XML description.
 
 A manager class called NodeSet is included in the respective source file. This class does _not_ correspond to a OPC UA Namespace. It is an aggregator and manager for nodes and references which may belong to any number of namespaces. This class includes extensive parsing/validation to ensure that a complete and consistent namespace is generated.
 
@@ -119,7 +119,7 @@ LastMethodOutputArguments : Argument -> i=296
 
 ```
 
-DataTypes that cannot be encoded as a definite serial object (e.g. by having a member of NumericType, but not a specific one), will have their isEncodable() attribute disabled. All dataTypes that complete this node can be used to effectively determine the size and serialization properties of any variables.
+DataTypes that cannot be encoded as a definite serial object (e.g., by having a member of NumericType, but not a specific one), will have their isEncodable() attribute disabled. All dataTypes that complete this node can be used to effectively determine the size and serialization properties of any variables.
 
 Having encoding rules means that data can now be parsed when a <Value> tag is encountered in a description. Calling NodeSet.allocateVariables() will do just that for any variable node that holds XML Values.
 
