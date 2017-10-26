@@ -215,7 +215,10 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(v.hasStatus && (v.status >> 30) > 1 &&
        v.status != UA_STATUSCODE_BADRESOURCEUNAVAILABLE &&
        v.status != UA_STATUSCODE_BADCOMMUNICATIONERROR &&
-       v.status != UA_STATUSCODE_BADWAITINGFORINITIALDATA) {
+       v.status != UA_STATUSCODE_BADWAITINGFORINITIALDATA &&
+       v.status != UA_STATUSCODE_BADUSERACCESSDENIED &&
+       v.status != UA_STATUSCODE_BADNOTREADABLE &&
+       v.status != UA_STATUSCODE_BADINDEXRANGENODATA) {
         result->statusCode = v.status;
         UA_DataValue_deleteMembers(&v);
         return;
