@@ -1,5 +1,5 @@
 FROM alpine:3.5
-RUN apk add --no-cache cmake gcc g++ musl-dev python py-pip python-six make && rm -rf /var/cache/apk/*
+RUN apk add --no-cache cmake gcc g++ musl-dev python py-pip py-six make && rm -rf /var/cache/apk/*
 ADD . /tmp/open62541
 WORKDIR /tmp/open62541/build
 RUN pip install six
