@@ -168,6 +168,7 @@ UA_SecureChannelManager_open(UA_SecureChannelManager* cm, UA_SecureChannel *chan
     UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->securityToken, &response->securityToken);
     response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     // Now overwrite the creation date with the internal monotonic clock
     channel->securityToken.createdAt = UA_DateTime_nowMonotonic();
@@ -212,6 +213,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
                                    &channel->localNonce);
     UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
+    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     /* reset the creation date to the monotonic clock */
     channel->nextSecurityToken.createdAt = UA_DateTime_nowMonotonic();
