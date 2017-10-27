@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 
 #include "ua_types.h"
 #include "ua_server.h"
@@ -47,7 +48,7 @@ asyncReadCallback(UA_Client *client, void *userdata,
                   UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
     (*asyncCounter)++;
-    UA_sleep(1000);
+    UA_sleep(10);
 }
 
 START_TEST(Client_read_async) {
@@ -68,22 +69,18 @@ START_TEST(Client_read_async) {
     rr.nodesToRead = &rvid;
     rr.nodesToReadSize = 1;
 
-    /* 1st request */
-    retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
-                                      (UA_ClientAsyncServiceCallback)asyncReadCallback,
-                                      &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* Send 100 requests */
+    for(size_t i = 0; i < 100; i++) {
+        retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+                                          (UA_ClientAsyncServiceCallback)asyncReadCallback,
+                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
 
-    /* 2nd request */
-    retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
-                                      (UA_ClientAsyncServiceCallback)asyncReadCallback,
-                                      &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
+    /* Process async responses during 1s */
+    retval = UA_Client_runAsync(client, 999);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    /* Process async responses during 100ms */
-    retval = UA_Client_runAsync(client, 1000);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(asyncCounter, 2);
+    ck_assert_uint_eq(asyncCounter, 100);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
