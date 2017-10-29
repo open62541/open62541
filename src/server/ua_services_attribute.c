@@ -917,7 +917,7 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dv.hasStatus)
-        retval = dv.hasStatus;
+        retval = dv.status;
     else if(!dv.hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD) {
