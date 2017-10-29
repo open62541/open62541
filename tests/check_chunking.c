@@ -26,6 +26,7 @@ sendChunkMockUp(UA_ChunkInfo *ci, UA_Byte **bufPos, const UA_Byte **bufEnd) {
     dataCount += offset;
     return UA_STATUSCODE_GOOD;
 }
+
 START_TEST(encodeArrayIntoFiveChunksShallWork) {
     size_t arraySize = 30; //number of elements within the array which should be encoded
     size_t chunkCount = 6; // maximum chunk count
@@ -34,20 +35,19 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     bufIndex = 0;
     counter = 0;
     dataCount = 0;
-    UA_Int32 *ar = (UA_Int32*)UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
     buffers = (UA_ByteString*)UA_Array_new(chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     for(size_t i=0;i<chunkCount;i++){
         UA_ByteString_allocBuffer(&buffers[i],chunkSize);
     }
 
-    UA_ByteString workingBuffer=buffers[0];
+    UA_Int32 *ar = (UA_Int32*)UA_Array_new(arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    for(size_t i = 0; i < arraySize; i++)
+        ar[i] = (UA_Int32)i;
 
-    for(size_t i=0;i<arraySize;i++){
-        ar[i]=(UA_Int32)i;
-    }
     UA_Variant v;
-    UA_Variant_setArrayCopy(&v,ar,arraySize,&UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setArrayCopy(&v, ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
 
+    UA_ByteString workingBuffer = buffers[0];
     UA_Byte *pos = workingBuffer.data;
     const UA_Byte *end = &workingBuffer.data[workingBuffer.length];
     UA_StatusCode retval = UA_encodeBinary(&v,&UA_TYPES[UA_TYPES_VARIANT], &pos, &end,
@@ -62,12 +62,9 @@ START_TEST(encodeArrayIntoFiveChunksShallWork) {
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_Array_delete(ar, arraySize, &UA_TYPES[UA_TYPES_INT32]);
-
-}
-END_TEST
+} END_TEST
 
 START_TEST(encodeStringIntoFiveChunksShallWork) {
-
     size_t stringLength = 120; //number of elements within the array which should be encoded
     size_t chunkCount = 6; // maximum chunk count
     size_t chunkSize = 30; //size in bytes of each chunk
@@ -110,11 +107,9 @@ START_TEST(encodeStringIntoFiveChunksShallWork) {
     UA_Variant_deleteMembers(&v);
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_String_deleteMembers(&string);
-}
-END_TEST
+} END_TEST
 
 START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
-
     size_t stringLength = 143; //number of elements within the array which should be encoded
     size_t chunkCount = 10; // maximum chunk count
     size_t chunkSize = 30; //size in bytes of each chunk
@@ -158,31 +153,20 @@ START_TEST(encodeTwoStringsIntoTenChunksShallWork) {
 
     UA_Array_delete(buffers, chunkCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_String_deleteMembers(&string);
-}
-END_TEST
+} END_TEST
 
-
-static Suite *testSuite_builtin(void) {
+int main(void) {
     Suite *s = suite_create("Chunked encoding");
     TCase *tc_message = tcase_create("encode chunking");
     tcase_add_test(tc_message,encodeArrayIntoFiveChunksShallWork);
     tcase_add_test(tc_message,encodeStringIntoFiveChunksShallWork);
     tcase_add_test(tc_message,encodeTwoStringsIntoTenChunksShallWork);
     suite_add_tcase(s, tc_message);
-    return s;
-}
 
-
-int main(void) {
-    int      number_failed = 0;
-    Suite   *s;
-    SRunner *sr;
-
-    s  = testSuite_builtin();
-    sr = srunner_create(s);
+    SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);
-    number_failed += srunner_ntests_failed(sr);
+    int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;

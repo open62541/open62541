@@ -698,6 +698,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
 endif()
+
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 if(UA_ENABLE_AMALGAMATION)
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)
