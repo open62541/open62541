@@ -142,8 +142,8 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *const channel) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     const UA_ByteString remoteSigningKey = {symmetricModule->signingKeyLength, buffer.data};
-    const UA_ByteString remoteEncryptingKey =
-        {encryptionKeyLength, buffer.data + symmetricModule->signingKeyLength};
+    const UA_ByteString remoteEncryptingKey = {encryptionKeyLength,
+                                               buffer.data + symmetricModule->signingKeyLength};
     const UA_ByteString remoteIv = {symmetricModule->encryptionBlockSize,
                                     buffer.data + symmetricModule->signingKeyLength +
                                     encryptionKeyLength};
@@ -159,8 +159,8 @@ UA_SecureChannel_generateNewKeys(UA_SecureChannel *const channel) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     const UA_ByteString localSigningKey = {symmetricModule->signingKeyLength, buffer.data};
-    const UA_ByteString localEncryptingKey =
-        {encryptionKeyLength, buffer.data + symmetricModule->signingKeyLength};
+    const UA_ByteString localEncryptingKey = {encryptionKeyLength,
+                                              buffer.data + symmetricModule->signingKeyLength};
     const UA_ByteString localIv = {symmetricModule->encryptionBlockSize,
                                    buffer.data + symmetricModule->signingKeyLength +
                                    encryptionKeyLength};
@@ -270,8 +270,8 @@ hideBytesAsym(UA_SecureChannel *const channel, UA_Byte **const buf_start,
 
         /* Add some overhead length due to RSA implementations adding a signature themselves */
         *buf_end -= securityPolicy->channelModule
-                                  .getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext,
-                                                                               potentialEncryptionMaxSize);
+            .getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext,
+                                                         potentialEncryptionMaxSize);
     }
 }
 
@@ -345,8 +345,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
 
     /* Encode the headers at the beginning of the message */
     UA_Byte *header_pos = buf.data;
-    size_t dataToEncryptLength = total_length -
-                                 (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
+    size_t dataToEncryptLength =
+        total_length - (UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength);
     UA_SecureConversationMessageHeader respHeader;
     respHeader.messageHeader.messageTypeAndChunkType = UA_MESSAGETYPE_OPN + UA_CHUNKTYPE_FINAL;
     respHeader.messageHeader.messageSize = (UA_UInt32)
@@ -762,15 +762,16 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
        messageType == UA_MESSAGETYPE_OPN) {
         /* Compute the padding size */
-        sigsize = cryptoModule->getRemoteSignatureSize(securityPolicy, channel->channelContext);
+        sigsize = cryptoModule->
+            getRemoteSignatureSize(securityPolicy, channel->channelContext);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
            (messageType == UA_MESSAGETYPE_OPN &&
             channel->securityMode != UA_MESSAGESECURITYMODE_NONE)) {
             paddingSize = chunk->data[chunkSizeAfterDecryption - sigsize - 1];
 
-            size_t keyLength =
-                cryptoModule->getRemoteEncryptionKeyLength(securityPolicy, channel->channelContext);
+            size_t keyLength = cryptoModule->
+                getRemoteEncryptionKeyLength(securityPolicy, channel->channelContext);
             if(keyLength > 2048) {
                 paddingSize <<= 8; /* Extra padding size */
                 paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];
