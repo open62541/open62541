@@ -102,19 +102,26 @@ mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
 option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 
+option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+       "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
+mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
+
+# Build options for debugging
+option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
+mark_as_advanced(UA_DEBUG_DUMP_PKGS)
+
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
-if (UA_BUILD_FUZZING)
+if(UA_BUILD_FUZZING)
     # oss-fuzz already defines this by default
     add_definitions(-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
 endif()
+
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
-option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
-mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
 # Advanced Build Targets
 option(UA_BUILD_SELFSIGNED_CERTIFICATE "Generate self-signed certificate" OFF)
