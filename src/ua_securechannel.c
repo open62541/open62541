@@ -25,6 +25,12 @@
 const UA_ByteString
     UA_SECURITY_POLICY_NONE_URI = {47, (UA_Byte *) "http://opcfoundation.org/UA/SecurityPolicy#None"};
 
+#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
+UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
+UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+#endif
+
 /* Callback data for sending responses in multiple chunks */
 typedef struct {
     UA_SecureChannel *channel;
@@ -405,7 +411,11 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
 
     /* Send the message, the buffer is freed in the network layer */
     buf.length = respHeader.messageHeader.messageSize;
-    return connection->send(connection, &buf);
+    retval = connection->send(connection, &buf);
+#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+    retval |= sendAsym_sendFailure
+#endif
+    return retval;
 }
 
 /**************************/
@@ -772,7 +782,11 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
         /* Verify the signature */
         const UA_ByteString chunkDataToVerify = {chunkSizeAfterDecryption - sigsize, chunk->data};
         const UA_ByteString signature = {sigsize, chunk->data + chunkSizeAfterDecryption - sigsize};
-        retval = cryptoModule->verify(securityPolicy, channel->channelContext, &chunkDataToVerify, &signature);
+        retval = cryptoModule->verify(securityPolicy, channel->channelContext,
+                                      &chunkDataToVerify, &signature);
+#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+        retval |= decrypt_verifySignatureFailure;
+#endif
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -806,6 +820,12 @@ processSequenceNumberAsym(UA_SecureChannel *const channel, UA_UInt32 sequenceNum
 // TODO: We somehow need to make sure that a sequence number is never reused for the same tokenId
 static UA_StatusCode
 processSequenceNumberSym(UA_SecureChannel *const channel, UA_UInt32 sequenceNumber) {
+    /* Failure mode hook for unit tests */
+#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+    if(processSym_seqNumberFailure != UA_STATUSCODE_GOOD)
+        return processSym_seqNumberFailure;
+#endif
+
     /* Does the sequence number match? */
     if(sequenceNumber != channel->receiveSequenceNumber + 1) {
         if(channel->receiveSequenceNumber + 1 > 4294966271 && sequenceNumber < 1024) // FIXME: Remove magic numbers :(

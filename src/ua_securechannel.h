@@ -19,6 +19,12 @@ extern "C" {
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
 
+#ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
+extern UA_THREAD_LOCAL UA_StatusCode sendAsym_sendFailure;
+extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
+#endif
+
 struct UA_Session;
 typedef struct UA_Session UA_Session;
 
