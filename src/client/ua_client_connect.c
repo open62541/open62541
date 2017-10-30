@@ -519,8 +519,10 @@ sendCloseSecureChannel(UA_Client *client) {
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     /* Is a session established? */
-    if(client->state == UA_CLIENTSTATE_SESSION)
+    if(client->state == UA_CLIENTSTATE_SESSION){
+        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
         sendCloseSession(client);
+    }    
 
     /* Is a secure channel established? */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
