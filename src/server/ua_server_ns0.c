@@ -581,7 +581,7 @@ UA_Server_initNS0(UA_Server *server) {
 
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_SERVERPROFILEARRAY,
                                     profileArray, profileArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    for (int i=0; i<4; i++) {
+    for (int i=0; i<profileArraySize; i++) {
         UA_String_deleteMembers(&profileArray[i]);
     }
 
