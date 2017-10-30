@@ -103,35 +103,10 @@ UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                           const void *content, const UA_DataType *contentType);
 
-/**
- * Chunking
- * -------- */
-
-/* For sending responses in multiple chunks */
-typedef struct {
-    UA_SecureChannel *channel;
-    UA_UInt32 requestId;
-    UA_UInt32 messageType;
-
-    UA_UInt16 chunksSoFar;
-    size_t messageSizeSoFar;
-
-    UA_ByteString messageBuffer;
-    UA_Boolean final;
-} UA_ChunkInfo;
-
 typedef UA_StatusCode
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
                             UA_MessageType messageType, UA_UInt32 requestId,
                             const UA_ByteString *message);
-
-typedef UA_StatusCode
-(UA_AsymHeaderCallback)(void *application, UA_SecureChannel *channel,
-                        UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
-
-typedef UA_StatusCode
-(UA_SymHeaderCallback)(void *application, UA_SecureChannel *channel,
-                       UA_UInt32 tokenId);
 
 /* Process a single chunk. This also decrypts the chunk if required. The
  * callback function is called with the complete message body if the message is
