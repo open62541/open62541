@@ -170,7 +170,10 @@ UA_Server_new(const UA_ServerConfig *config) {
     }
 
     server->config = *config;
-    server->startTime = UA_DateTime_now();
+
+    /* Init start time to zero, the actual start time will be sampled in
+     * UA_Server_run_startup() */
+    server->startTime = 0;
 
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
