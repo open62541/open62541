@@ -117,7 +117,6 @@ typedef struct {
     size_t messageSizeSoFar;
 
     UA_ByteString messageBuffer;
-    UA_StatusCode errorCode;
     UA_Boolean final;
 } UA_ChunkInfo;
 
@@ -137,7 +136,7 @@ typedef UA_StatusCode
 /* Process a single chunk. This also decrypts the chunk if required. The
  * callback function is called with the complete message body if the message is
  * complete.
- * 
+ *
  * Symmetric calback is ERR, MSG, CLO only
  * Asymmetric callback is OPN only
  *
