@@ -361,9 +361,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
         return retval;
     }
 
-    /* Sign message */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        /* Sign message */
         const UA_ByteString dataToSign = {pre_sig_length, buf.data};
         size_t sigsize = securityPolicy->asymmetricModule.cryptoModule.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
@@ -374,11 +374,10 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             connection->releaseSendBuffer(connection, &buf);
             return retval;
         }
-    }
 
-    /* Encrypt message if mode not none */
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        /* Specification part 6, §6.7.4: The OpenSecureChannel Messages are
+         * signed and encrypted if the SecurityMode is not None (even if the
+         * SecurityMode is SignOnly). */
         size_t unencrypted_length =
             UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH + securityHeaderLength;
         UA_ByteString dataToEncrypt = {total_length - unencrypted_length,
