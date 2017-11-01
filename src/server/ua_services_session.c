@@ -68,7 +68,6 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
     if(channel == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -78,6 +77,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
+
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -160,7 +161,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Create a signed nonce */
     response->responseHeader.serviceResult =
         nonceAndSignCreateSessionResponse(server, channel, newSession, request, response);
-    
+
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
