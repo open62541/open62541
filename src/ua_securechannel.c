@@ -606,9 +606,12 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 
     /* Encode with the chunking callback */
     retval |= UA_encodeBinary(content, contentType, &buf_start, &buf_end,
-                              (UA_exchangeEncodeBuffer) sendChunkSymmetric, &ci);
+                              (UA_exchangeEncodeBuffer)sendChunkSymmetric, &ci);
 
-    /* Encoding failed, release the message */
+    /* TODO: Error handling. Send out an abort chunk if this is not the first chunk.
+     * If this is the first chunk of the message:
+     * - Client: Do nothing, maybe revert the sequence number?
+     * - Server: Send a ServiceFault response? Depending on which error codes? */
     if(retval != UA_STATUSCODE_GOOD) {
         /* the abort message was not sent */
         if(!ci.final)
