@@ -212,21 +212,23 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
-        if(renew)
+        if(ac)
             UA_free(ac);
         return retval;
     }
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
-    /* Store the entry for async processing and return */
-    if(renew) {
+    if(!renew) {
+        /* During OpenSecureChannel, block until the response */
+        retval = UA_Connection_receiveChunksBlocking(&client->connection, client,
+                                                     processOPNResponse, client->config.timeout);
+    } else {
+        /* For renewal, store the entry for async processing and return */
         LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-        return retval;
     }
 
-    return UA_Connection_receiveChunksBlocking(&client->connection, client,
-                                               processOPNResponse, client->config.timeout);
+    return retval;
 }
 
 static UA_StatusCode
@@ -522,7 +524,7 @@ UA_Client_disconnect(UA_Client *client) {
     if(client->state == UA_CLIENTSTATE_SESSION){
         client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
         sendCloseSession(client);
-    }    
+    }
 
     /* Is a secure channel established? */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
