@@ -472,19 +472,16 @@ sendChunkSymmetric(UA_ChunkInfo *ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
             getLocalSignatureSize(securityPolicy, channel->channelContext);
 
     /* Encode the chunk headers at the beginning of the buffer */
+    UA_assert(ci->errorCode == UA_STATUSCODE_GOOD);
     UA_Byte *header_pos = ci->messageBuffer.data;
     UA_SecureConversationMessageHeader respHeader;
     respHeader.secureChannelId = channel->securityToken.channelId;
     respHeader.messageHeader.messageTypeAndChunkType = ci->messageType;
     respHeader.messageHeader.messageSize = (UA_UInt32) total_length;
-    if(ci->errorCode == UA_STATUSCODE_GOOD) {
-        if(ci->final)
-            respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
-        else
-            respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
-    } else {
-        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_ABORT;
-    }
+    if(ci->final)
+        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_FINAL;
+    else
+        respHeader.messageHeader.messageTypeAndChunkType += UA_CHUNKTYPE_INTERMEDIATE;
     ci->errorCode |= UA_encodeBinary(&respHeader,
                                      &UA_TRANSPORT[UA_TRANSPORT_SECURECONVERSATIONMESSAGEHEADER],
                                      &header_pos, buf_end, NULL, NULL);
@@ -510,12 +507,8 @@ sendChunkSymmetric(UA_ChunkInfo *ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
         signature.length = securityPolicy->symmetricModule.cryptoModule.
             getLocalSignatureSize(securityPolicy, channel->channelContext);
         signature.data = *buf_pos;
-        ci->errorCode = securityPolicy->symmetricModule.cryptoModule.
+        ci->errorCode |= securityPolicy->symmetricModule.cryptoModule.
             sign(securityPolicy, channel->channelContext, &dataToSign, &signature);
-        if(ci->errorCode != UA_STATUSCODE_GOOD) {
-            connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
-            return ci->errorCode;
-        }
     }
 
     /* Encrypt message */
@@ -523,12 +516,13 @@ sendChunkSymmetric(UA_ChunkInfo *ci, UA_Byte **buf_pos, const UA_Byte **buf_end)
         UA_ByteString dataToEncrypt;
         dataToEncrypt.data = ci->messageBuffer.data + UA_SECUREMH_AND_SYMALGH_LENGTH;
         dataToEncrypt.length = total_length - UA_SECUREMH_AND_SYMALGH_LENGTH;
-        ci->errorCode = securityPolicy->symmetricModule.cryptoModule.
+        ci->errorCode |= securityPolicy->symmetricModule.cryptoModule.
             encrypt(securityPolicy, channel->channelContext, &dataToEncrypt);
-        if(ci->errorCode != UA_STATUSCODE_GOOD) {
-            connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
-            return ci->errorCode;
-        }
+    }
+
+    if(ci->errorCode != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(channel->connection, &ci->messageBuffer);
+        return ci->errorCode;
     }
 
     /* Send the chunk, the buffer is freed in the network layer */
