@@ -66,8 +66,7 @@ UA_SecureChannelManager_cleanupTimedOut(UA_SecureChannelManager *cm, UA_DateTime
             UA_LOG_INFO_CHANNEL(cm->server->config.logger, &entry->channel,
                                 "SecureChannel has timed out");
             removeSecureChannel(cm, entry);
-        }
-        else if(entry->channel.nextSecurityToken.tokenId > 0) {
+        } else if(entry->channel.nextSecurityToken.tokenId > 0) {
             UA_SecureChannel_revolveTokens(&entry->channel);
         }
     }
@@ -186,6 +185,7 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
                              "Called renew on channel which is not open");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     /* If no security token is already issued */
     if(channel->nextSecurityToken.tokenId == 0) {
         channel->nextSecurityToken.channelId = channel->securityToken.channelId;
@@ -198,24 +198,21 @@ UA_SecureChannelManager_renew(UA_SecureChannelManager* cm, UA_SecureChannel *cha
             channel->nextSecurityToken.revisedLifetime = cm->server->config.maxSecurityTokenLifetime;
     }
 
-    /* invalidate the old nonce */
-    if(channel->remoteNonce.data)
-        UA_ByteString_deleteMembers(&channel->remoteNonce);
-    if(channel->localNonce.data)
-        UA_ByteString_deleteMembers(&channel->localNonce);
-
-    /* set the response */
+    /* Replace the nonces */
+    UA_ByteString_deleteMembers(&channel->remoteNonce);
     UA_ByteString_copy(&request->clientNonce, &channel->remoteNonce);
+
     const size_t keyLength = channel->securityPolicy->symmetricModule.cryptoModule.
         getLocalEncryptionKeyLength(channel->securityPolicy, channel->channelContext);
-    UA_SecureChannel_generateNonce(channel,
-                                   keyLength,
-                                   &channel->localNonce);
+    UA_ByteString_deleteMembers(&channel->localNonce);
+    UA_SecureChannel_generateNonce(channel, keyLength, &channel->localNonce);
+
+    /* Set the response */
+    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
     UA_ChannelSecurityToken_copy(&channel->nextSecurityToken, &response->securityToken);
-    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
-    /* reset the creation date to the monotonic clock */
+    /* Reset the internal creation date to the monotonic clock */
     channel->nextSecurityToken.createdAt = UA_DateTime_nowMonotonic();
     return UA_STATUSCODE_GOOD;
 }
