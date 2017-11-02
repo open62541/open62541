@@ -224,8 +224,6 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
 
 
 finish:
-    UA_NodeId_deleteMembers(&responseId);
-
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(rd->client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Received a response of type %i", responseId.identifier.numeric);
@@ -236,12 +234,13 @@ finish:
                     "Error receiving the response with status code %s",
                     UA_StatusCode_name(retval));
 
-        if(rd->response == NULL)
-            return retval;
-
-        UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
-        respHeader->serviceResult = retval;
+        if(rd->response) {
+            UA_ResponseHeader *respHeader = (UA_ResponseHeader*)rd->response;
+            respHeader->serviceResult = retval;
+        }
     }
+    UA_NodeId_deleteMembers(&responseId);
+
     return retval;
 }
 
