@@ -111,4 +111,10 @@ UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSize,
                                UA_EndpointDescription** endpointDescriptions);
 
+/* Receive and process messages until a synchronous message arrives or the
+ * timout finishes */
+UA_StatusCode
+receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
+                       UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
+
 #endif /* UA_CLIENT_INTERNAL_H_ */
