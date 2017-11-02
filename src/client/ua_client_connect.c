@@ -104,65 +104,36 @@ HelAckHandshake(UA_Client *client) {
 }
 
 static UA_StatusCode
-processDecodedOPNResponse(void *application, UA_SecureChannel *channel,
-                          UA_MessageType messageType, UA_UInt32 requestId,
-                          const UA_ByteString *message) {
-    /* Does the request id match? */
-    UA_Client *client = (UA_Client*)application;
-    if(requestId != client->requestId)
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
-
-    /* Is the content of the expected type? */
-    size_t offset = 0;
-    UA_NodeId responseId;
-    UA_NodeId expectedId =
-        UA_NODEID_NUMERIC(0, UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE].binaryEncodingId);
-    UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
-    if(retval != UA_STATUSCODE_GOOD)
+processDecodedOPNResponse(UA_Client *client, const UA_OpenSecureChannelResponse *response) {
+    /* Replace the token and nonce */
+    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
+    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
+    UA_StatusCode retval;
+    retval = UA_ChannelSecurityToken_copy(&response->securityToken,
+                                          &client->channel.securityToken);
+    retval |= UA_ByteString_copy(&response->serverNonce, &client->channel.remoteNonce);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                       "SecureChannel renewal failed!");
         return retval;
-    if(!UA_NodeId_equal(&responseId, &expectedId)) {
-        UA_NodeId_deleteMembers(&responseId);
-        return UA_STATUSCODE_BADCOMMUNICATIONERROR;
     }
-    UA_NodeId_deleteMembers(&responseId);
 
-    /* Decode the response */
-    UA_OpenSecureChannelResponse response;
-    retval = UA_OpenSecureChannelResponse_decodeBinary(message, &offset, &response);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "SecureChannel in the server renewed");
+    else
+        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
+                     "Opened SecureChannel acknowledged by the server");
 
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
      * standard */
-    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(response.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
-
-    /* Replace the token and nonce */
-    UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-    client->channel.securityToken = response.securityToken;
-    client->channel.remoteNonce = response.serverNonce;
-    UA_ResponseHeader_deleteMembers(&response.responseHeader); /* the other members were moved */
-    if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "SecureChannel renewed");
-    else
-        UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                     "SecureChannel opened");
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
+        (UA_DateTime)(response->securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-processOPNResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
-    UA_Client *client = (UA_Client*)application;
-    return UA_SecureChannel_processChunk(&client->channel, chunk,
-                                         processDecodedOPNResponse,
-                                         client);
-}
-
-/* OPN messges to renew the channel are sent asynchronous */
 static UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew) {
     /* Check if sc is still valid */
@@ -191,43 +162,35 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     opnSecRq.clientNonce = client->channel.localNonce;
     opnSecRq.requestedLifetime = client->config.secureChannelLifeTime;
 
-    /* Prepare the entry for the linked list */
-    UA_UInt32 requestId = ++client->requestId;
-    AsyncServiceCall *ac = NULL;
-    if(renew) {
-        ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
-        if(!ac)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        ac->callback = (UA_ClientAsyncServiceCallback)processDecodedOPNResponse;
-        ac->responseType = &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE];
-        ac->requestId = requestId;
-        ac->userdata = NULL;
-    }
-
     /* Send the OPN message */
+    UA_UInt32 requestId = ++client->requestId;
     UA_StatusCode retval =
-        UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId,
-                                                  &opnSecRq, &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
+        UA_SecureChannel_sendAsymmetricOPNMessage(&client->channel, requestId, &opnSecRq,
+                                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
         UA_Client_disconnect(client);
-        if(ac)
-            UA_free(ac);
         return retval;
     }
 
     UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL, "OPN message sent");
 
-    if(!renew) {
-        /* During OpenSecureChannel, block until the response */
-        retval = UA_Connection_receiveChunksBlocking(&client->connection, client,
-                                                     processOPNResponse, client->config.timeout);
-    } else {
-        /* For renewal, store the entry for async processing and return */
-        LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+    /* Receive / decrypt / decode the OPN response. Process async services in
+     * the background until the OPN response arrives. */
+    UA_OpenSecureChannelResponse response;
+    retval = receiveServiceResponse(client, &response,
+                                    &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
+                                    UA_DateTime_nowMonotonic() + (UA_DateTime)
+                                    ((UA_Double)client->config.timeout * UA_DATETIME_TO_MSEC),
+                                    &requestId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_disconnect(client);
+        return retval;
     }
 
+    retval = processDecodedOPNResponse(client, &response);
+    UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
 

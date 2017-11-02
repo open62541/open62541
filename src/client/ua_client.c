@@ -255,7 +255,7 @@ client_processChunk(void *application, UA_Connection *connection, UA_ByteString 
 
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
-static UA_StatusCode
+UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
                        UA_DateTime maxDate, UA_UInt32 *synchronousRequestId) {
     /* Prepare the response and the structure we give into processServiceResponse */
