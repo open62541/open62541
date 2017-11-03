@@ -181,7 +181,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     UA_OpenSecureChannelResponse response;
     retval = receiveServiceResponse(client, &response,
                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
-                                    UA_DateTime_nowMonotonic()
+                                    UA_DateTime_nowMonotonic() +
                                     ((UA_DateTime)client->config.timeout * UA_MSEC_TO_DATETIME),
                                     &requestId);
     if(retval != UA_STATUSCODE_GOOD) {
