@@ -25,6 +25,8 @@ extern "C" {
  * the encoding layer. */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
+#elif defined(__cplusplus) && __cplusplus > 199711L
+# define UA_THREAD_LOCAL thread_local /* C++11 */
 #elif defined(__GNUC__)
 # define UA_THREAD_LOCAL __thread /* GNU extension */
 #elif defined(_MSC_VER)
