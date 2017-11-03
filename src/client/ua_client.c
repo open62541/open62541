@@ -48,13 +48,6 @@ UA_Client_deleteMembers(UA_Client* client) {
     if(client->password.data)
         UA_String_deleteMembers(&client->password);
 
-    /* Delete the async service calls */
-    AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        LIST_REMOVE(ac, pointers);
-        UA_free(ac);
-    }
-
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_NotificationsAckNumber *n, *tmp;
@@ -130,41 +123,9 @@ sendSymmetricServiceRequest(UA_Client *client, const void *request,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Look for the async callback in the linked list, execute and delete it */
-static UA_StatusCode
-processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *responseTypeId,
-                     const UA_ByteString *responseMessage, size_t *offset) {
-    /* Find the callback */
-    AsyncServiceCall *ac;
-    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
-        if(ac->requestId == requestId)
-            break;
-    }
-    if(!ac)
-        return UA_STATUSCODE_BADREQUESTHEADERINVALID;
 
-    /* Decode the response */
-    void *response = UA_alloca(ac->responseType->memSize);
-    UA_StatusCode retval = UA_decodeBinary(responseMessage, offset, response,
-                                           ac->responseType, 0, NULL);
-
-    /* Call the callback */
-    if(retval == UA_STATUSCODE_GOOD) {
-        ac->callback(client, ac->userdata, requestId, response);
-        UA_deleteMembers(response, ac->responseType);
-    } else {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not decodee the response with Id %u", requestId);
-    }
-
-    /* Remove the callback */
-    LIST_REMOVE(ac, pointers);
-    UA_free(ac);
-    return retval;
-}
-
-/* Processes the received service response. Either with an async callback or by
- * decoding the message and returning it "upwards" in the
+/* Processes the received service response. 
+ * Decoding the message and returning it "upwards" in the
  * SyncResponseDescription. */
 static UA_StatusCode
 processServiceResponse(void *application, UA_SecureChannel *channel,
@@ -192,12 +153,16 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD)
         goto finish;
 
+ 
+ // TODO
+ #if 0
     /* Got an asynchronous response. Don't expected a synchronous response
      * (responseType NULL) or the id does not match. */
     if(!rd->responseType || requestId != rd->requestId) {
         retval = processAsyncResponse(rd->client, requestId, &responseId, message, &offset);
         goto finish;
     }
+ #endif
 
     /* Got the synchronous response */
     rd->received = true;
@@ -310,43 +275,4 @@ __UA_Client_Service(UA_Client *client, const void *request,
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
-}
-
-UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         const UA_DataType *responseType,
-                         void *userdata, UA_UInt32 *requestId) {
-    /* Prepare the entry for the linked list */
-    AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
-    if(!ac)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    ac->callback = callback;
-    ac->responseType = responseType;
-    ac->userdata = userdata;
-
-    /* Call the service and set the requestId */
-    UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(ac);
-        return retval;
-    }
-
-    /* Store the entry for async processing */
-    LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-    if(requestId)
-        *requestId = ac->requestId;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
-    /* TODO: Call repeated jobs that are scheduled */
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
-        (timeout * UA_MSEC_TO_DATETIME);
-    UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
-    return retval;
 }
