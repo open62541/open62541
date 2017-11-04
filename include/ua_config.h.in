@@ -265,18 +265,6 @@ extern "C" {
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
 
-/**
- * Utility Definitions
- * ^^^^^^^^^^^^^^^^^^^ */
-
-/* To generate smaller binaries, descriptive strings can be excluded from the
- * datatype description */
-#ifdef UA_ENABLE_TYPENAMES
-# define UA_TYPENAME(name) name,
-#else
-# define UA_TYPENAME(name)
-#endif
-
 #ifdef __cplusplus
 } // extern "C"
 #endif
