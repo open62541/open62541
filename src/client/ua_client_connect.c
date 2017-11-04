@@ -103,20 +103,17 @@ HelAckHandshake(UA_Client *client) {
     return retval;
 }
 
-static UA_StatusCode
-processDecodedOPNResponse(UA_Client *client, const UA_OpenSecureChannelResponse *response) {
-    /* Replace the token and nonce */
+static void
+processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response) {
+    /* Replace the token */
     UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
+    client->channel.securityToken = response->securityToken;
+    UA_ChannelSecurityToken_deleteMembers(&response->securityToken);
+
+    /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-    UA_StatusCode retval;
-    retval = UA_ChannelSecurityToken_copy(&response->securityToken,
-                                          &client->channel.securityToken);
-    retval |= UA_ByteString_copy(&response->serverNonce, &client->channel.remoteNonce);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
-                       "SecureChannel renewal failed!");
-        return retval;
-    }
+    client->channel.remoteNonce = response->serverNonce;
+    UA_ByteString_deleteMembers(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -129,9 +126,8 @@ processDecodedOPNResponse(UA_Client *client, const UA_OpenSecureChannelResponse 
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
      * standard */
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
-    client->nextChannelRenewal = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(response->securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
-    return UA_STATUSCODE_GOOD;
+    client->nextChannelRenewal = UA_DateTime_nowMonotonic() + (UA_DateTime)
+        (response->securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
 }
 
 static UA_StatusCode
@@ -190,7 +186,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
         return retval;
     }
 
-    retval = processDecodedOPNResponse(client, &response);
+    processDecodedOPNResponse(client, &response);
     UA_OpenSecureChannelResponse_deleteMembers(&response);
     return retval;
 }
