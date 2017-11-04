@@ -219,7 +219,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
 
     // only the discovery server is expected
     ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
-    assert(applicationDescriptionArray != NULL);
+    ck_assert(applicationDescriptionArray != NULL);
 
     for(size_t i = 0; i < expectedUrisSize; ++i) {
         ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationUri,

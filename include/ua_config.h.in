@@ -40,6 +40,7 @@ extern "C" {
 #cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 
 /* Options for Debugging */
+#cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
@@ -64,9 +65,16 @@ extern "C" {
 
 /**
  * Assertions
- * ---------- */
-#include <assert.h>
-#define UA_assert(ignore) assert(ignore)
+ * ----------
+ * The assert macro is disabled by defining NDEBUG. It is often forgotten to
+ * include -DNDEBUG in the compiler flags when using the single-file release. So
+ * we make assertions dependent on the UA_DEBUG definition handled by CMake. */
+#ifdef UA_DEBUG
+# include <assert.h>
+# define UA_assert(ignore) assert(ignore)
+#else
+# define UA_assert(ignore)
+#endif
 
 /* Outputs an error message at compile time if the assert fails.
  * Example usage:

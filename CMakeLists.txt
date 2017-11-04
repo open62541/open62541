@@ -104,6 +104,12 @@ option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
 
 # Build options for debugging
+option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
+mark_as_advanced(UA_DEBUG)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(UA_DEBUG ON)
+endif()
+
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
 
