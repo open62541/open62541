@@ -508,6 +508,11 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     elif isinstance(node, VariableNode) or isinstance(node, ObjectNode):
         typeDefCode = "UA_NODEID_NULL" if typeDef is None else generateNodeIdCode(typeDef)
         code.append(typeDefCode + ",")
+        # remove hasTypeDef reference from list to be printed
+        for ref in node.printRefs:
+            if ref.referenceType.i == 40:
+                if (ref.isForward and ref.source == node.id) or (not ref.isForward and ref.target == node.id):
+                    node.printRefs.remove(ref)
     code.append("attr,")
     if isinstance(node, MethodNode):
         code.append("NULL, 0, NULL, 0, NULL, NULL, NULL);")
