@@ -21,9 +21,9 @@
     Use slow generic encoding.
 #endif
 
-/* There is no robust way to detect float endianness in clang. This warning can
- * be removed if the target is known to be little endian with floats in the IEEE
- * 754 format. */
+/* There is no robust way to detect float endianness in clang.
+ * UA_BINARY_OVERLAYABLE_FLOAT can be manually set if the target is known to be
+ * little endian with floats in the IEEE 754 format. */
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
 # warning Float endianness could not be detected to be little endian in the IEEE \
     754 format. Use slow generic encoding.
