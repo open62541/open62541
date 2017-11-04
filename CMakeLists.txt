@@ -88,9 +88,6 @@ mark_as_advanced(UA_ENABLE_STATUSCODE_DESCRIPTIONS)
 option(UA_ENABLE_TYPENAMES "Add the type and member names to the UA_DataType structure" ON)
 mark_as_advanced(UA_ENABLE_TYPENAMES)
 
-option(UA_ENABLE_EMBEDDED_LIBC "Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling)." OFF)
-mark_as_advanced(UA_ENABLE_EMBEDDED_LIBC)
-
 option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g. for unit tests)." OFF)
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
@@ -367,10 +364,6 @@ set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 
 if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
-endif()
-
-if(UA_ENABLE_EMBEDDED_LIBC)
-  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/libc_string.c)
 endif()
 
 if(UA_ENABLE_NONSTANDARD_UDP)

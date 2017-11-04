@@ -31,7 +31,6 @@ extern "C" {
 /* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
@@ -44,8 +43,9 @@ extern "C" {
 #cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
- * C99 Integers
- * ------------ */
+ * C99 Definitions
+ * --------------- */
+#include <string.h>
 #include <stddef.h>
 
 /* Include stdint.h and stdbool.h or workaround for older Visual Studios */
@@ -186,21 +186,6 @@ extern "C" {
 # define UA_DEPRECATED __declspec(deprecated)
 #else
 # define UA_DEPRECATED
-#endif
-
-/**
- * Basic Libc Definitions
- * ------------------------
- * The header ``string.h`` is defined in the C-standard. If no libc is provided
- * (e.g. on some embedded target), use the following definitions and the
- * implementation in ``/deps/libc_string.c`` */
-#ifndef UA_ENABLE_EMBEDDED_LIBC
-# include <string.h>
-#else
-  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
-  void *memset(void *dest, int c, size_t n);
-  size_t strlen(const char *s);
-  int memcmp(const void *vl, const void *vr, size_t n);
 #endif
 
 /**
