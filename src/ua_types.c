@@ -125,11 +125,10 @@ printNumber(u16 n, u8 *pos, size_t digits) {
 
 UA_String
 UA_DateTime_toString(UA_DateTime t) {
-    UA_String str = UA_STRING_NULL;
-    // length of the string is 31 (plus \0 at the end)
-    if(!(str.data = (u8*)UA_malloc(32)))
-        return str;
-    str.length = 31;
+    /* length of the string is 31 (plus \0 at the end) */
+    UA_String str = {31, (u8*)UA_malloc(32)};
+    if(!str.data)
+        return UA_STRING_NULL;
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
     printNumber(tSt.month, str.data, 2);
     str.data[2] = '/';
@@ -185,7 +184,8 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     UA_ByteString_init(bs);
     if(length == 0)
         return UA_STATUSCODE_GOOD;
-    if(!(bs->data = (u8*)UA_malloc(length)))
+    bs->data = (u8*)UA_malloc(length);
+    if(!bs->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
