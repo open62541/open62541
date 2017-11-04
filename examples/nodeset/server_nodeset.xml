@@ -40,15 +40,22 @@
             <Reference ReferenceType="HasModellingRule">i=78</Reference>
             <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=1001</Reference>
         </References>
+        <Value>
+            <uax:Double>42.0</uax:Double>
+        </Value>
     </UAVariable>
-    <UAVariable DataType="Double" ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6002" BrowseName="1:Var1" UserAccessLevel="3" AccessLevel="3">
-        <DisplayName>Var1</DisplayName>
+    <UAVariable ParentNodeId="ns=1;i=5001" NodeId="ns=1;i=6002" BrowseName="1:Var1" DataType="i=7" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>Var2</DisplayName>
         <References>
             <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
             <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
         </References>
         <Value>
-            <uax:Double>42.0</uax:Double>
+            <ListOfUInt32 xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+                <uax:UInt32>1</uax:UInt32>
+                <uax:UInt32>2</uax:UInt32>
+                <uax:UInt32>3</uax:UInt32>
+            </ListOfUInt32>
         </Value>
     </UAVariable>
 </UANodeSet>
