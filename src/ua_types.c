@@ -64,17 +64,16 @@ static UA_StatusCode copy_noInit(const void *src, void *dst, const UA_DataType *
 
 UA_String
 UA_String_fromChars(char const src[]) {
-    UA_String str = UA_STRING_NULL;
-    size_t length = strlen(src);
-    if(length > 0) {
-        str.data = (u8*)UA_malloc(length);
+    UA_String str;
+    str.length = strlen(src);
+    if(str.length > 0) {
+        str.data = (u8*)UA_malloc(str.length);
         if(!str.data)
-            return str;
+            return UA_STRING_NULL;
+        memcpy(str.data, src, str.length);
     } else {
         str.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
     }
-    memcpy(str.data, src, length);
-    str.length = length;
     return str;
 }
 
