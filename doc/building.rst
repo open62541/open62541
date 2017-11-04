@@ -201,6 +201,17 @@ be visible in the cmake GUIs.
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
 
+UA_DEBUG_* group
+^^^^^^^^^^^^^^^^
+
+This group contains build options mainly useful for development of the library itself.
+
+**UA_DEBUG**
+   Enable assertions and additional definitions not intended for production builds
+
+**UA_DEBUG_DUMP_PKGS**
+   Dump every package received by the server as hexdump format
+
 Building a shared library
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

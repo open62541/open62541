@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                                                      parentReferenceNodeId, myIntegerName,
                                                      UA_NODEID_NULL, attr, NULL, NULL);
-    assert(retval == UA_STATUSCODE_GOOD);
+    UA_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     UA_Byte *pos = request_msg.data;
     const UA_Byte *end = &request_msg.data[request_msg.length];
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
-    assert(retval == UA_STATUSCODE_GOOD);
+    UA_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Byte *resp_pos = response_msg.data;
     const UA_Byte *resp_end = &response_msg.data[response_msg.length];
@@ -64,14 +64,14 @@ int main(int argc, char** argv) {
     for(int i = 0; i < 1000000; i++) {
         size_t offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
-        assert(retval == UA_STATUSCODE_GOOD);
+        UA_assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadResponse_init(&rr);
         Service_Read(server, &adminSession, &rq, &rr);
 
         resp_pos = response_msg.data;
         retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &resp_pos, &resp_end, NULL, NULL);
-        assert(retval == UA_STATUSCODE_GOOD);
+        UA_assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadRequest_deleteMembers(&rq);
         UA_ReadResponse_deleteMembers(&rr);
