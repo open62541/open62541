@@ -196,8 +196,6 @@ be visible in the cmake GUIs.
 **UA_ENABLE_GENERATE_NAMESPACE0**
    Generate and load UA XML Namespace 0 definition
    ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
-**UA_ENABLE_EMBEDDED_LIBC**
-   Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling).
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
 
