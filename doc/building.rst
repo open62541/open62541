@@ -22,7 +22,7 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
 
-   sudo apt-get install git build-essential gcc pkg-config cmake python
+   sudo apt-get install git build-essential gcc pkg-config cmake python python-six
 
    # enable additional features
    sudo apt-get install liburcu-dev # for multithreading
@@ -52,9 +52,10 @@ with MinGW, just replace the compiler selection in the call to CMake.
 
 - Download and install
 
-  - Python 2.7.x (Python 3.x should work, too): https://python.org/downloads
+  - Python 2.7.x (Python 3.x works as well): https://python.org/downloads
+  - Install python-six with the pip package manager (``pip install six``)
   - CMake: http://www.cmake.org/cmake/resources/software.html
-  - Microsoft Visual Studio 2015 Community Edition: https://www.visualstudio.com/products/visual-studio-community-vs
+  - Microsoft Visual Studio: https://www.visualstudio.com/products/visual-studio-community-vs
 
 - Download the open62541 sources (using git or as a zipfile from github)
 - Open a command shell (cmd) and run
@@ -83,6 +84,7 @@ Building on OS X
 .. code-block:: bash
 
    brew install cmake
+   pip install six # python 2/3 compatibility workarounds
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
    brew install graphviz # for graphics in the documentation
