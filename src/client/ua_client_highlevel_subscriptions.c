@@ -402,6 +402,9 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_MSEC_TO_DATETIME);
+
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {
         UA_PublishRequest request;
@@ -427,7 +430,12 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         UA_Client_processPublishResponse(client, &request, &response);
-        moreNotifications = response.moreNotifications;
+        
+        now = UA_DateTime_nowMonotonic();
+        if (now > maxDate)
+            moreNotifications = UA_FALSE;
+        else
+            moreNotifications = response.moreNotifications;
 
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
