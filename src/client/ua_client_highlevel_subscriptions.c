@@ -447,8 +447,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
-    else
-        return retval;
+
+    return retval;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
