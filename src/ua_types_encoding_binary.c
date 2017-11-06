@@ -885,7 +885,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId) {
 /* ExtensionObject */
 static status
 ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_) {
-    u8 encoding = src->encoding;
+    u8 encoding = (u8)src->encoding;
 
     /* No content or already encoded content. Do not return
      * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED after encoding the NodeId. */
