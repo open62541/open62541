@@ -386,7 +386,7 @@ Float_decodeBinary(UA_Float *dst, const UA_DataType *_) {
     else if(decoded == FLOAT_INF) *dst = INFINITY;
     else if(decoded == FLOAT_NEG_INF) *dst = -INFINITY;
     else if((decoded >= 0x7f800001 && decoded <= 0x7fffffff) ||
-       (decoded >= 0xff800001 && decoded <= 0xffffffff)) *dst = NAN;
+       (decoded >= 0xff800001)) *dst = NAN;
     else *dst = (UA_Float)unpack754(decoded, 32, 8);
     return UA_STATUSCODE_GOOD;
 }
@@ -422,7 +422,7 @@ Double_decodeBinary(UA_Double *dst, const UA_DataType *_) {
     else if(decoded == DOUBLE_NEG_INF) *dst = -INFINITY;
     //cppcheck-suppress redundantCondition
     else if((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
-       (decoded >= 0xfff0000000000001L && decoded <= 0xffffffffffffffffL)) *dst = NAN;
+       (decoded >= 0xfff0000000000001L)) *dst = NAN;
     else *dst = (UA_Double)unpack754(decoded, 64, 11);
     return UA_STATUSCODE_GOOD;
 }
