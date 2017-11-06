@@ -394,7 +394,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             return retval;
         }
 
-        /* Specification part 6, §6.7.4: The OpenSecureChannel Messages are
+        /* Specification part 6, 6.7.4: The OpenSecureChannel Messages are
          * signed and encrypted if the SecurityMode is not None (even if the
          * SecurityMode is SignOnly). */
         size_t unencrypted_length =
@@ -639,6 +639,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
         /* the abort message was not sent */
         if(!ci.final)
             sendChunkSymmetric(&ci, &buf_start, &buf_end);
+		connection->releaseSendBuffer(connection, &ci.messageBuffer);
         return retval;
     }
 
