@@ -336,12 +336,11 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
      * or added a callback. So we return a correct timeout. */
     processChanges(t);
 
-    if(!t->repeatedCallbacks.slh_first){
-      return UA_INT64_MAX;
-    }
-
     /* Return timestamp of next repetition */
-    return SLIST_FIRST(&t->repeatedCallbacks)->nextTime;
+    tc = SLIST_FIRST(&t->repeatedCallbacks);
+    if(!tc)
+        return UA_INT64_MAX; /* Main-loop has a max timeout / will continue earlier */
+    return tc->nextTime;
 }
 
 void
