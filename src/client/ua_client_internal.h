@@ -54,14 +54,6 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 /* Client */
 /**********/
 
-typedef struct AsyncServiceCall {
-    LIST_ENTRY(AsyncServiceCall) pointers;
-    UA_UInt32 requestId;
-    UA_ClientAsyncServiceCallback callback;
-    const UA_DataType *responseType;
-    void *userdata;
-} AsyncServiceCall;
-
 typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,
     UA_CLIENTAUTHENTICATION_USERNAME
@@ -91,9 +83,6 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-
-    /* Async Service */
-    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
