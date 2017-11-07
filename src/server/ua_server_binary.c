@@ -23,6 +23,10 @@ UA_NodeId unsafe_fuzz_authenticationToken = {
 };
 #endif
 
+#ifdef UA_DEBUG_DUMP_PKGS_FILE
+void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer);
+#endif
+
 /********************/
 /* Helper Functions */
 /********************/
@@ -649,6 +653,9 @@ processCompleteChunk(void *const application,
                      UA_Connection *const connection,
                      UA_ByteString *const chunk) {
     UA_Server *const server = (UA_Server*)application;
+#ifdef UA_DEBUG_DUMP_PKGS_FILE
+    UA_debug_dumpCompleteChunk(server, connection, chunk);
+#endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
     return UA_SecureChannel_processChunk(connection->channel, chunk,

@@ -62,14 +62,18 @@ endmacro()
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 
+file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*.bin)
+
+set(CORPUS_CMDS)
+
+SET(CORPUS_CMDS "")
+FOREACH(f ${CORPUS_FILES})
+    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message "${f}")
+ENDFOREACH(f)
+
 add_custom_target(
         run_fuzzer
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Browse.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_CLO.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_CreateActivateSession.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_HELOPN.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Read.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Write.bin
+        ${CORPUS_CMDS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         DEPENDS ${FUZZER_TARGETS}
         ${MAYBE_USES_TERMINAL})
