@@ -427,7 +427,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Find the matching session */
     session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
-    if(!session)
+    if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken))
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
                                                       &requestHeader->authenticationToken);
 
@@ -478,7 +478,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* The session is bound to another channel */
-    if(session->channel != channel) {
+    if(session != &anonymousSession && session->channel != channel) {
         UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
                              "Client tries to use an obsolete securechannel");
         UA_deleteMembers(request, requestType);
