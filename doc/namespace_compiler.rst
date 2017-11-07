@@ -41,7 +41,7 @@ We take the following information model snippet as the starting point of the fol
                     i=33
                 </Reference>
             </References>
-            <InverseName Locale="en_US">inputProcidedBy</InverseName>
+            <InverseName Locale="en-US">inputProcidedBy</InverseName>
         </UAReferenceType>
         <UAObjectType IsAbstract="true" NodeId="ns=1;i=1001"
                       BrowseName="1:FieldDevice">
@@ -318,11 +318,10 @@ Let's look at an example that will create a pump instance given the newly define
 
       UA_NodeId createdNodeId;
       UA_Int32 myHandle = 42;
-      UA_ObjectAttributes object_attr;
-      UA_ObjectAttributes_init(&object_attr);
+      UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
       
-      object_attr.description = UA_LOCALIZEDTEXT("en_US","A pump!");
-      object_attr.displayName = UA_LOCALIZEDTEXT("en_US","Pump1");
+      object_attr.description = UA_LOCALIZEDTEXT("en-US","A pump!");
+      object_attr.displayName = UA_LOCALIZEDTEXT("en-US","Pump1");
       
       UA_InstantiationCallback theAnswerCallback;
       theAnswerCallback.method = pumpInstantiationCallback;

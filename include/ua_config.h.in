@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CONFIG_H_
 #define UA_CONFIG_H_
@@ -10,8 +10,8 @@ extern "C" {
 #endif
 
 /**
- * Library Version
- * --------------- */
+ * open62541 Version
+ * ----------------- */
 #define UA_OPEN62541_VER_MAJOR ${OPEN62541_VER_MAJOR}
 #define UA_OPEN62541_VER_MINOR ${OPEN62541_VER_MINOR}
 #define UA_OPEN62541_VER_PATCH ${OPEN62541_VER_PATCH}
@@ -19,59 +19,89 @@ extern "C" {
 #define UA_OPEN62541_VER_COMMIT "${OPEN62541_VER_COMMIT}"
 
 /**
- * Options
- * ------- */
+ * Feature Options
+ * ---------------
+ * Changing the feature options has no effect on a pre-compiled library. */
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_MULTITHREADING
 
-/**
- * Advanced Options
- * ---------------- */
+/* Advanced Options */
 #cmakedefine UA_ENABLE_STATUSCODE_DESCRIPTIONS
 #cmakedefine UA_ENABLE_TYPENAMES
-#cmakedefine UA_ENABLE_EMBEDDED_LIBC
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_GENERATE_NAMESPACE0
-#cmakedefine UA_ENABLE_NONSTANDARD_STATELESS
 #cmakedefine UA_ENABLE_NONSTANDARD_UDP
+#cmakedefine UA_ENABLE_DISCOVERY
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
+#cmakedefine UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
+
+/* Options for Debugging */
+#cmakedefine UA_DEBUG
+#cmakedefine UA_DEBUG_DUMP_PKGS
 
 /**
- * Standard Includes
- * ----------------- */
-#ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 500
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-
+ * C99 Definitions
+ * --------------- */
+#include <string.h>
 #include <stddef.h>
 
-/* Include stdint.h or workaround for older Visual Studios */
+/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
+# include <stdbool.h> /* C99 Boolean */
 #else
 # include "ms_stdint.h"
+# if !defined(__bool_true_false_are_defined)
+#  define bool short
+#  define true 1
+#  define false 0
+#  define __bool_true_false_are_defined
+# endif
 #endif
 
-#ifndef __cplusplus
-# include <stdbool.h> /* C99 Boolean */
-/* Manual Boolean:
-typedef uint8_t bool;
-#define true 1
-#define false 0 */
+/**
+ * Assertions
+ * ----------
+ * The assert macro is disabled by defining NDEBUG. It is often forgotten to
+ * include -DNDEBUG in the compiler flags when using the single-file release. So
+ * we make assertions dependent on the UA_DEBUG definition handled by CMake. */
+#ifdef UA_DEBUG
+# include <assert.h>
+# define UA_assert(ignore) assert(ignore)
+#else
+# define UA_assert(ignore)
 #endif
 
-#include <stdlib.h>
+/* Outputs an error message at compile time if the assert fails.
+ * Example usage:
+ * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
+ * See: https://stackoverflow.com/a/4815532/869402 */
+#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
+# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
+# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
+#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
+# define UA_CTASTR2(pre,post) pre ## post
+# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
+# define UA_STATIC_ASSERT(cond,msg)                             \
+    typedef struct {                                            \
+        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
+    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
+#else /* Everybody else */
+# define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
 
 /**
  * Memory Management
- * ---------------
- * The default malloc implementation from ``stdlib.h`` is used internally.
- * Override if required. */
+ * -----------------
+ * The default is to use the malloc implementation from ``stdlib.h``. Override
+ * if required. Changing the settings has no effect on a pre-compiled
+ * library. */
+#include <stdlib.h>
 #if defined(_WIN32) && !defined(__clang__)
 # include <malloc.h>
 #endif
@@ -97,6 +127,7 @@ typedef uint8_t bool;
  * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
  * import symbols from a DLL.*/
 #cmakedefine UA_DYNAMIC_LINKING
+
 #if defined(_WIN32) && defined(UA_DYNAMIC_LINKING)
 # ifdef UA_DYNAMIC_LINKING_EXPORT /* export dll */
 #  ifdef __GNUC__
@@ -143,36 +174,31 @@ typedef uint8_t bool;
 /**
  * Function attributes
  * ------------------- */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
+# define UA_FORMAT(X,Y) __attribute__ ((format (printf, X, Y)))
 #else
 # define UA_FUNC_ATTR_MALLOC
 # define UA_FUNC_ATTR_PURE
 # define UA_FUNC_ATTR_CONST
 # define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+# define UA_FORMAT(X,Y)
 #endif
 
-/**
- * String Manipulation
- * -------------------
- * The header ``string.h`` is defined in the C-standard. If no libc is provided
- * (e.g. on some embedded target), use the following definitions and the
- * implementation in ``/deps/libc_string.c`` */
-#ifndef UA_ENABLE_EMBEDDED_LIBC
-# include <string.h>
+#if defined(__GNUC__) || defined(__clang__)
+# define UA_DEPRECATED __attribute__((deprecated))
+#elif defined(_MSC_VER)
+# define UA_DEPRECATED __declspec(deprecated)
 #else
-  void *memcpy(void *UA_RESTRICT dest, const void *UA_RESTRICT src, size_t n);
-  void *memset(void *dest, int c, size_t n);
-  size_t strlen(const char *s);
-  int memcmp(const void *vl, const void *vr, size_t n);
+# define UA_DEPRECATED
 #endif
 
 /**
- * Binary Encoding Overlays
- * ------------------------
+ * Detect Binary Overlaying for Encoding
+ * -------------------------------------
  * Integers and floating point numbers are transmitted in little-endian (IEEE 754
  * for floating point) encoding. If the target architecture uses the same
  * format, numeral datatypes can be memcpy'd (overlayed) on the binary stream.
@@ -184,44 +210,44 @@ typedef uint8_t bool;
  * representation of the target architecture is little-endian. */
 #if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
                         (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
-# define UA_BINARY_OVERLAYABLE_INTEGER true
+# define UA_BINARY_OVERLAYABLE_INTEGER 1
 #elif defined(__ANDROID__) /* Andoid */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__linux__) /* Linux */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 # if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_FLOAT true
+#  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(__OpenBSD__) /* OpenBSD */
 # include <sys/endian.h>
 # if BYTE_ORDER == LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__NetBSD__) || defined(__FreeBSD__) || defined(__DragonFly__) /* Other BSD */
 # include <sys/endian.h>
 # if _BYTE_ORDER == _LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__APPLE__) /* Apple (MacOS, iOS) */
 # include <libkern/OSByteOrder.h>
 # if defined(__LITTLE_ENDIAN__)
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #elif defined(__QNX__) || defined(__QNXNTO__) /* QNX */
 # include <gulliver.h>
 # if defined(__LITTLEENDIAN__)
-#  define UA_BINARY_OVERLAYABLE_INTEGER true
+#  define UA_BINARY_OVERLAYABLE_INTEGER 1
 # endif
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
-# define UA_BINARY_OVERLAYABLE_INTEGER false
+# define UA_BINARY_OVERLAYABLE_INTEGER 0
 #endif
 
 /**
@@ -232,40 +258,19 @@ typedef uint8_t bool;
  * this cannot be reliable detected with macros for the clang compiler
  * (beginning of 2017). Just override if necessary. */
 #if defined(_WIN32)
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
     (__FLOAT_WORD_ORDER__ == __ORDER_LITTLE_ENDIAN__) /* Defined only in GCC */
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
-# define UA_BINARY_OVERLAYABLE_FLOAT true
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
+#elif defined(_WRS_KERNEL)
+# define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
-# define UA_BINARY_OVERLAYABLE_FLOAT false
-#endif
-
-/**
- * Static Assert
- * ^^^^^^^^^^^^^
- * Outputs an error message at compile time if the assert fails.
- * Example usage:
- * UA_STATIC_ASSERT(sizeof(long)==7, use_another_compiler_luke)
- * See: https://stackoverflow.com/a/4815532/869402 */
-#if defined(__cplusplus) && __cplusplus >= 201103L /* C++11 or above */
-# define UA_STATIC_ASSERT(cond,msg) static_assert(cond, #msg)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L /* C11 or above */
-# define UA_STATIC_ASSERT(cond,msg) _Static_assert(cond, #msg)
-#elif defined(__GNUC__) || defined(__clang__) || defined(_MSC_VER) /* GCC, Clang, MSC */
-# define UA_CTASTR2(pre,post) pre ## post
-# define UA_CTASTR(pre,post) UA_CTASTR2(pre,post)
-# define UA_STATIC_ASSERT(cond,msg)                             \
-    typedef struct {                                            \
-        int UA_CTASTR(static_assertion_failed_,msg) : !!(cond); \
-    } UA_CTASTR(static_assertion_failed_,__COUNTER__)
-#else /* Everybody else */
-# define UA_STATIC_ASSERT(cond,msg) \
-    typedef char static_assertion_##msg[(cond)?1:-1]
+# define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
 
 #ifdef __cplusplus

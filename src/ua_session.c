@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_session.h"
 #include "ua_types_generated_handling.h"
@@ -10,18 +10,30 @@
 #endif
 
 UA_Session adminSession = {
-    .clientDescription =  {.applicationUri = {0, NULL}, .productUri = {0, NULL},
-                           .applicationName = {.locale = {0, NULL}, .text = {0, NULL}},
-                           .applicationType = UA_APPLICATIONTYPE_CLIENT,
-                           .gatewayServerUri = {0, NULL}, .discoveryProfileUri = {0, NULL},
-                           .discoveryUrlsSize = 0, .discoveryUrls = NULL},
-    .sessionName = {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"},
-    .authenticationToken = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC,
-                            .identifier.numeric = 1},
-    .sessionId = {.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 1},
-    .maxRequestMessageSize = UA_UINT32_MAX, .maxResponseMessageSize = UA_UINT32_MAX,
-    .timeout = (UA_Double)UA_INT64_MAX, .validTill = UA_INT64_MAX, .channel = NULL,
-    .continuationPoints = {NULL}};
+    {{0, NULL},{0, NULL},
+     {{0, NULL},{0, NULL}},
+     UA_APPLICATIONTYPE_CLIENT,
+     {0, NULL},{0, NULL},
+     0, NULL}, /* .clientDescription */
+    {sizeof("Administrator Session")-1, (UA_Byte*)"Administrator Session"}, /* .sessionName */
+    false, /* .activated */
+    NULL, /* .sessionHandle */
+    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .authenticationToken */
+    {0,UA_NODEIDTYPE_NUMERIC,{1}}, /* .sessionId */
+    UA_UINT32_MAX, /* .maxRequestMessageSize */
+    UA_UINT32_MAX, /* .maxResponseMessageSize */
+    (UA_Double)UA_INT64_MAX, /* .timeout */
+    UA_INT64_MAX, /* .validTill */
+    {0, NULL},
+    NULL, /* .channel */
+    UA_MAXCONTINUATIONPOINTS, /* .availableContinuationPoints */
+    {NULL}, /* .continuationPoints */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    0, /* .lastSubscriptionID */
+    {NULL}, /* .serverSubscriptions */
+    {NULL, NULL}, /* .responseQueue */
+#endif
+};
 
 void UA_Session_init(UA_Session *session) {
     UA_ApplicationDescription_init(&session->clientDescription);
@@ -29,6 +41,7 @@ void UA_Session_init(UA_Session *session) {
     UA_NodeId_init(&session->authenticationToken);
     UA_NodeId_init(&session->sessionId);
     UA_String_init(&session->sessionName);
+    UA_ByteString_init(&session->serverNonce);
     session->maxRequestMessageSize  = 0;
     session->maxResponseMessageSize = 0;
     session->timeout = 0;
@@ -48,6 +61,7 @@ void UA_Session_deleteMembersCleanup(UA_Session *session, UA_Server* server) {
     UA_NodeId_deleteMembers(&session->authenticationToken);
     UA_NodeId_deleteMembers(&session->sessionId);
     UA_String_deleteMembers(&session->sessionName);
+    UA_ByteString_deleteMembers(&session->serverNonce);
     struct ContinuationPointEntry *cp, *temp;
     LIST_FOREACH_SAFE(cp, &session->continuationPoints, pointers, temp) {
         LIST_REMOVE(cp, pointers);

@@ -1,14 +1,34 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#include "ua_types.h"
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
 
 #include <time.h>
 #ifdef _WIN32
+/* Backup definition of SLIST_ENTRY on mingw winnt.h */
 # ifdef SLIST_ENTRY
-#  undef SLIST_ENTRY /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+#  pragma push_macro("SLIST_ENTRY")
+#  undef SLIST_ENTRY
+#  define POP_SLIST_ENTRY
 # endif
 # include <windows.h>
+/* restore definition */
+# ifdef POP_SLIST_ENTRY
+#  undef SLIST_ENTRY
+#  undef POP_SLIST_ENTRY
+#  pragma pop_macro("SLIST_ENTRY")
+# endif
 #else
 # include <sys/time.h>
 #endif
@@ -17,6 +37,8 @@
 # include <mach/clock.h>
 # include <mach/mach.h>
 #endif
+
+#include "ua_types.h"
 
 UA_DateTime UA_DateTime_now(void) {
 #if defined(_WIN32)

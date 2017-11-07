@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+
+# coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -22,7 +25,7 @@ pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
 include_re = re.compile("^#[\s]*include (\".*\").*$")
-guard_re = re.compile("^#(?:(?:ifndef|define) [A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_)")
+guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
 
 print ("Starting amalgamating file "+ args.outfile)
 
@@ -47,6 +50,25 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
 if is_c:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING_EXPORT
 # define UA_DYNAMIC_LINKING_EXPORT
+# define MDNSD_DYNAMIC_LINKING
+#endif
+
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+/* Disable security warnings for BSD sockets on MSVC */
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include "%s.h"
@@ -54,10 +76,7 @@ if is_c:
 else:
     file.write(u'''#ifndef %s
 #define %s
-
-#ifdef __cplusplus
-extern "C" {
-#endif\n''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
+''' % (outname.upper() + u"_H_", outname.upper() + u"_H_") )
 
 for fname in args.inputs:
     with io.open(fname, encoding='utf8', errors='replace') as infile:
@@ -74,12 +93,7 @@ for fname in args.inputs:
         print ("done."),
 
 if not is_c:
-    file.write(u'''
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /* %s */\n''' % (outname.upper() + u"_H_"))
+    file.write(u"#endif /* %s */\n" % (outname.upper() + u"_H_"))
 
 # Ensure file is written to disk.
 # See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close

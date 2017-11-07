@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_CLIENT_INTERNAL_H_
 #define UA_CLIENT_INTERNAL_H_
@@ -8,9 +8,9 @@
 #include "ua_securechannel.h"
 #include "queue.h"
 
-/**************************/
-/* Subscriptions Handling */
-/**************************/
+ /**************************/
+ /* Subscriptions Handling */
+ /**************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -29,8 +29,10 @@ typedef struct UA_Client_MonitoredItem {
     UA_Double samplingInterval;
     UA_UInt32 queueSize;
     UA_Boolean discardOldest;
-    void (*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
+    void(*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
     void *handlerContext;
+    void(*handlerEvents)(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
+    void *handlerEventsContext;
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription {
@@ -52,6 +54,14 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 /* Client */
 /**********/
 
+typedef struct AsyncServiceCall {
+    LIST_ENTRY(AsyncServiceCall) pointers;
+    UA_UInt32 requestId;
+    UA_ClientAsyncServiceCallback callback;
+    const UA_DataType *responseType;
+    void *userdata;
+} AsyncServiceCall;
+
 typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,
     UA_CLIENTAUTHENTICATION_USERNAME
@@ -67,6 +77,7 @@ struct UA_Client {
     UA_String endpointUrl;
 
     /* SecureChannel */
+    UA_SecurityPolicy securityPolicy;
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;
@@ -80,7 +91,10 @@ struct UA_Client {
     UA_UserTokenPolicy token;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-    
+
+    /* Async Service */
+    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
+
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 monitoredItemHandles;
@@ -88,5 +102,19 @@ struct UA_Client {
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
 #endif
 };
+
+UA_StatusCode
+UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
+                          UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
+
+UA_StatusCode
+UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSize,
+                               UA_EndpointDescription** endpointDescriptions);
+
+/* Receive and process messages until a synchronous message arrives or the
+ * timout finishes */
+UA_StatusCode
+receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
+                       UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
 
 #endif /* UA_CLIENT_INTERNAL_H_ */

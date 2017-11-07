@@ -23,11 +23,11 @@ generate_rst(${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h ${DOC_SRC_
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_server.h ${DOC_SRC_DIR}/server.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_log.h ${DOC_SRC_DIR}/log.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/ua_connection.h ${DOC_SRC_DIR}/connection.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_log.h ${DOC_SRC_DIR}/plugin_log.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_network.h ${DOC_SRC_DIR}/plugin_network.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_access_control.h ${DOC_SRC_DIR}/plugin_access_control.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h ${DOC_SRC_DIR}/information_modelling.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h ${DOC_SRC_DIR}/nodestore.rst)
 
 # Doc from tutorial code
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_datatypes.c ${DOC_SRC_DIR}/tutorial_datatypes.rst)
@@ -43,9 +43,9 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
-          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
-          ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
+          ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
@@ -57,10 +57,10 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
-add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -q "open62541.tex"
+add_custom_target(doc_pdf ${PDFLATEX_COMPILER} --quiet "open62541.tex"
   WORKING_DIRECTORY ${DOC_LATEX_DIR}
   # compile it twice so that the contents pages are correct
-  COMMAND ${PDFLATEX_COMPILER} -q "open62541.tex"
+  COMMAND ${PDFLATEX_COMPILER} --quiet "open62541.tex"
   DEPENDS ${PDFLATEX_COMPILER}
   COMMENT "Generating PDF documentation from LaTeX sources")
 add_dependencies(doc_pdf doc_latex)
@@ -69,9 +69,9 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
   DEPENDS ${DOC_SRC_DIR}/types.rst ${DOC_SRC_DIR}/constants.rst ${DOC_SRC_DIR}/types_generated.rst
           ${DOC_SRC_DIR}/server.rst ${DOC_SRC_DIR}/client.rst ${DOC_SRC_DIR}/client_highlevel.rst
-          ${DOC_SRC_DIR}/log.rst ${DOC_SRC_DIR}/connection.rst ${DOC_SRC_DIR}/services.rst
-          ${DOC_SRC_DIR}/nodestore.rst ${DOC_SRC_DIR}/information_modelling.rst
-          ${DOC_SRC_DIR}/protocol.rst
+          ${DOC_SRC_DIR}/plugin_log.rst ${DOC_SRC_DIR}/plugin_network.rst
+          ${DOC_SRC_DIR}/services.rst ${DOC_SRC_DIR}/plugin_access_control.rst
+          ${DOC_SRC_DIR}/nodestore.rst
           ${DOC_SRC_DIR}/tutorial_datatypes.rst
           ${DOC_SRC_DIR}/tutorial_client_firststeps.rst
           ${DOC_SRC_DIR}/tutorial_server_firststeps.rst
@@ -84,3 +84,4 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
 add_dependencies(doc open62541)
 
 set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
+set_target_properties(doc doc_latex doc_pdf PROPERTIES FOLDER "open62541/doc")

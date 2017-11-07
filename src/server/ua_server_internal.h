@@ -1,107 +1,131 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef UA_SERVER_INTERNAL_H_
 #define UA_SERVER_INTERNAL_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "ua_util.h"
 #include "ua_server.h"
+#include "ua_server_config.h"
+#include "ua_timer.h"
 #include "ua_connection_internal.h"
 #include "ua_session_manager.h"
 #include "ua_securechannel_manager.h"
-#include "ua_nodestore.h"
-
-#define ANONYMOUS_POLICY "open62541-anonymous-policy"
-#define USERNAME_POLICY "open62541-username-policy"
-
-/* The general idea of RCU is to delay freeing nodes (or any callback invoked
- * with call_rcu) until all threads have left their critical section. Thus we
- * can delete nodes safely in concurrent operations. The macros UA_RCU_LOCK and
- * UA_RCU_UNLOCK are used to test during debugging that we do not nest read-side
- * critical sections (although this is generally allowed). */
-#ifdef UA_ENABLE_MULTITHREADING
-# define _LGPL_SOURCE
-# include <urcu.h>
-# include <urcu/lfstack.h>
-# ifdef NDEBUG
-#  define UA_RCU_LOCK() rcu_read_lock()
-#  define UA_RCU_UNLOCK() rcu_read_unlock()
-#  define UA_ASSERT_RCU_LOCKED()
-#  define UA_ASSERT_RCU_UNLOCKED()
-# else
-   extern UA_THREAD_LOCAL bool rcu_locked;
-#  define UA_ASSERT_RCU_LOCKED() assert(rcu_locked)
-#  define UA_ASSERT_RCU_UNLOCKED() assert(!rcu_locked)
-#  define UA_RCU_LOCK() do {                      \
-        UA_ASSERT_RCU_UNLOCKED();                 \
-        rcu_locked = true;                        \
-        rcu_read_lock(); } while(0)
-#  define UA_RCU_UNLOCK() do {                    \
-        UA_ASSERT_RCU_LOCKED();                   \
-        rcu_locked = false;                       \
-        rcu_read_unlock(); } while(0)
-# endif
-#else
-# define UA_RCU_LOCK()
-# define UA_RCU_UNLOCK()
-# define UA_ASSERT_RCU_LOCKED()
-# define UA_ASSERT_RCU_UNLOCKED()
-#endif
-
 
 #ifdef UA_ENABLE_MULTITHREADING
-typedef struct {
-    UA_Server *server;
-    pthread_t thr;
-    UA_UInt32 counter;
-    volatile UA_Boolean running;
-    char padding[64 - sizeof(void*) - sizeof(pthread_t) -
-                 sizeof(UA_UInt32) - sizeof(UA_Boolean)]; // separate cache lines
-} UA_Worker;
-#endif
 
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-/* Internally used context to a session 'context' of the current mehtod call */
-extern UA_THREAD_LOCAL UA_Session* methodCallSession;
-#endif
+/* TODO: Don't depend on liburcu */
+#include <urcu.h>
+#include <urcu/lfstack.h>
+
+struct UA_Worker;
+typedef struct UA_Worker UA_Worker;
+
+#endif /* UA_ENABLE_MULTITHREADING */
+
+#ifdef UA_ENABLE_DISCOVERY
+
+typedef struct registeredServer_list_entry {
+    LIST_ENTRY(registeredServer_list_entry) pointers;
+    UA_RegisteredServer registeredServer;
+    UA_DateTime lastSeen;
+} registeredServer_list_entry;
+
+typedef struct periodicServerRegisterCallback_entry {
+    LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
+    struct PeriodicServerRegisterCallback *callback;
+} periodicServerRegisterCallback_entry;
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+#include "mdnsd/libmdnsd/mdnsd.h"
+
+typedef struct serverOnNetwork_list_entry {
+    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+    UA_ServerOnNetwork serverOnNetwork;
+    UA_DateTime created;
+    UA_DateTime lastSeen;
+    UA_Boolean txtSet;
+    UA_Boolean srvSet;
+    char* pathTmp;
+} serverOnNetwork_list_entry;
+
+#define SERVER_ON_NETWORK_HASH_PRIME 1009
+typedef struct serverOnNetwork_hash_entry {
+    serverOnNetwork_list_entry* entry;
+    struct serverOnNetwork_hash_entry* next;
+} serverOnNetwork_hash_entry;
+
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+#endif /* UA_ENABLE_DISCOVERY */
 
 struct UA_Server {
     /* Meta */
     UA_DateTime startTime;
-    size_t endpointDescriptionsSize;
-    UA_EndpointDescription *endpointDescriptions;
 
     /* Security */
     UA_SecureChannelManager secureChannelManager;
     UA_SessionManager sessionManager;
 
-    /* Address Space */
-    UA_NodeStore *nodestore;
+#ifdef UA_ENABLE_DISCOVERY
+    /* Discovery */
+    LIST_HEAD(registeredServer_list, registeredServer_list_entry) registeredServers; // doubly-linked list of registered servers
+    size_t registeredServersSize;
+    LIST_HEAD(periodicServerRegisterCallback_list, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks; // doubly-linked list of current register callbacks
+    UA_Server_registerServerCallback registerServerCallback;
+    void* registerServerCallbackData;
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    mdns_daemon_t *mdnsDaemon;
+    int mdnsSocket;
+    UA_Boolean mdnsMainSrvAdded;
+#  ifdef UA_ENABLE_MULTITHREADING
+    pthread_t mdnsThread;
+    UA_Boolean mdnsRunning;
+#  endif
 
+    LIST_HEAD(serverOnNetwork_list, serverOnNetwork_list_entry) serverOnNetwork; // doubly-linked list of servers on the network (from mDNS)
+    size_t serverOnNetworkSize;
+    UA_UInt32 serverOnNetworkRecordIdCounter;
+    UA_DateTime serverOnNetworkRecordIdLastReset;
+    // hash mapping domain name to serverOnNetwork list entry
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_PRIME];
+
+    UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
+    void* serverOnNetworkCallbackData;
+
+# endif
+#endif
+
+    /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
 
+    /* Callbacks with a repetition interval */
+    UA_Timer timer;
 
-    /* Jobs with a repetition interval */
-    LIST_HEAD(RepeatedJobsList, RepeatedJob) repeatedJobs;
+    /* Delayed callbacks */
+    SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
 
-#ifndef UA_ENABLE_MULTITHREADING
-    SLIST_HEAD(DelayedJobsList, UA_DelayedJob) delayedCallbacks;
-#else
+    /* Worker threads */
+#ifdef UA_ENABLE_MULTITHREADING
     /* Dispatch queue head for the worker threads (the tail should not be in the same cache line) */
     struct cds_wfcq_head dispatchQueue_head;
     UA_Worker *workers; /* there are nThread workers in a running server */
-    struct cds_lfs_stack mainLoopJobs; /* Work that shall be executed only in the main loop and not
-                                          by worker threads */
-    struct DelayedJobs *delayedJobs;
     pthread_cond_t dispatchQueue_condition; /* so the workers don't spin if the queue is empty */
     pthread_mutex_t dispatchQueue_mutex; /* mutex for access to condition variable */
     struct cds_wfcq_tail dispatchQueue_tail; /* Dispatch queue tail for the worker threads */
 #endif
 
-    /* Config is the last element so that MSVC allows the usernamePasswordLogins
-       field with zero-sized array */
+    /* For bootstrapping, omit some consistency checks, creating a reference to
+     * the parent and member instantiation */
+    UA_Boolean bootstrapNS0;
+
+    /* Config */
     UA_ServerConfig config;
 };
 
@@ -109,121 +133,228 @@ struct UA_Server {
 /* Node Handling */
 /*****************/
 
-void UA_Node_deleteMembersAnyNodeClass(UA_Node *node);
-UA_StatusCode UA_Node_copyAnyNodeClass(const UA_Node *src, UA_Node *dst);
+#define UA_Nodestore_get(SERVER, NODEID)                                \
+    (SERVER)->config.nodestore.getNode((SERVER)->config.nodestore.context, NODEID)
 
-/* Calls callback on the node. In the multithreaded case, the node is copied before and replaced in
-   the nodestore. */
-typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*, UA_Node*, const void*);
-UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                                 UA_EditNodeCallback callback, const void *data);
+#define UA_Nodestore_release(SERVER, NODEID)                            \
+    (SERVER)->config.nodestore.releaseNode((SERVER)->config.nodestore.context, NODEID)
 
-/********************/
-/* Event Processing */
-/********************/
+#define UA_Nodestore_new(SERVER, NODECLASS)                               \
+    (SERVER)->config.nodestore.newNode((SERVER)->config.nodestore.context, NODECLASS)
 
-void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection,
-                                    const UA_ByteString *message);
+#define UA_Nodestore_getCopy(SERVER, NODEID, OUTNODE)                   \
+    (SERVER)->config.nodestore.getNodeCopy((SERVER)->config.nodestore.context, NODEID, OUTNODE)
 
-UA_StatusCode UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
-UA_StatusCode UA_Server_delayedFree(UA_Server *server, void *data);
-void UA_Server_deleteAllRepeatedJobs(UA_Server *server);
+#define UA_Nodestore_insert(SERVER, NODE, OUTNODEID)                    \
+    (SERVER)->config.nodestore.insertNode((SERVER)->config.nodestore.context, NODE, OUTNODEID)
 
-/* Add an existing node. The node is assumed to be "finished", i.e. no
- * instantiation from inheritance is necessary. Instantiationcallback and
- * addedNodeId may be NULL. */
+#define UA_Nodestore_delete(SERVER, NODE)                               \
+    (SERVER)->config.nodestore.deleteNode((SERVER)->config.nodestore.context, NODE)
+
+#define UA_Nodestore_remove(SERVER, NODEID)                             \
+    (SERVER)->config.nodestore.removeNode((SERVER)->config.nodestore.context, NODEID)
+
+/* Calls the callback with the node retrieved from the nodestore on top of the
+ * stack. Either a copy or the original node for in-situ editing. Depends on
+ * multithreading and the nodestore.*/
+typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
+                                             UA_Node *node, const void*);
+UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
+                                 const UA_NodeId *nodeId,
+                                 UA_EditNodeCallback callback,
+                                 const void *data);
+
+/*************/
+/* Callbacks */
+/*************/
+
+/* Delayed callbacks are executed when all previously dispatched callbacks are
+ * finished */
 UA_StatusCode
-Service_AddNodes_existing(UA_Server *server, UA_Session *session, UA_Node *node,
-                          const UA_NodeId *parentNodeId,
-                          const UA_NodeId *referenceTypeId,
-                          const UA_NodeId *typeDefinition,
-                          UA_InstantiationCallback *instantiationCallback,
-                          UA_NodeId *addedNodeId);
+UA_Server_delayedCallback(UA_Server *server, UA_ServerCallback callback, void *data);
+
+/* Callback is executed in the same thread or, if possible, dispatched to one of
+ * the worker threads. */
+void
+UA_Server_workerCallback(UA_Server *server, UA_ServerCallback callback, void *data);
 
 /*********************/
 /* Utility Functions */
 /*********************/
 
+/* A few global NodeId definitions */
+extern const UA_NodeId subtypeId;
+
 UA_StatusCode
-parse_numericrange(const UA_String *str, UA_NumericRange *range);
+UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str);
 
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_Node *node);
 
-const UA_VariableTypeNode *
-getVariableNodeType(UA_Server *server, const UA_VariableNode *node);
-
-const UA_ObjectTypeNode *
-getObjectNodeType(UA_Server *server, const UA_ObjectNode *node);
-
-/* Returns an array with all subtype nodeids (including the root). Subtypes need
- * to have the same nodeClass as root and are (recursively) related with a
- * hasSubType reference. Since multi-inheritance is possible, we test for
- * duplicates and return evey nodeid at most once. */
-UA_StatusCode
-getTypeHierarchy(UA_NodeStore *ns, const UA_Node *rootRef, UA_Boolean inverse,
-                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
-
 /* Recursively searches "upwards" in the tree following specific reference types */
 UA_Boolean
-isNodeInTree(UA_NodeStore *ns, const UA_NodeId *leafNode,
+isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind, const UA_NodeId *referenceTypeIds,
              size_t referenceTypeIdsSize);
 
-const UA_Node *
-getNodeType(UA_Server *server, const UA_Node *node);
+/* Returns an array with the hierarchy of type nodes. The returned array starts
+ * at the leaf and continues "upwards" in the hierarchy based on the
+ * ``hasSubType`` references. Since multiple-inheritance is possible in general,
+ * duplicate entries are removed. */
+UA_StatusCode
+getTypeHierarchy(UA_Nodestore *ns, const UA_NodeId *leafType,
+                 UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+
+/* Returns the type node from the node on the stack top. The type node is pushed
+ * on the stack and returned. */
+const UA_Node * getNodeType(UA_Server *server, const UA_Node *node);
+
+/* Many services come as an array of operations. This function generalizes the
+ * processing of the operations. */
+typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
+                                    const void *requestOperation,
+                                    void *responseOperation);
+
+UA_StatusCode
+UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
+                                   UA_ServiceOperation operationCallback,
+                                   const size_t *requestOperations,
+                                   const UA_DataType *requestOperationsType,
+                                   size_t *responseOperations,
+                                   const UA_DataType *responseOperationsType);
 
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
 
 UA_StatusCode
-readValueAttribute(UA_Server *server, const UA_VariableNode *vn, UA_DataValue *v);
+readValueAttribute(UA_Server *server, UA_Session *session,
+                   const UA_VariableNode *vn, UA_DataValue *v);
 
-UA_StatusCode
-typeCheckValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
-               UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
-               const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
-               const UA_NumericRange *range, UA_Variant *editableValue);
+/* Test whether the value matches a variable definition given by
+ * - datatype
+ * - valueranke
+ * - array dimensions.
+ * Sometimes it can be necessary to transform the content of the value, e.g.
+ * byte array to bytestring or uint32 to some enum. If editableValue is non-NULL,
+ * we try to create a matching variant that points to the original data. */
+UA_Boolean
+compatibleValue(UA_Server *server, const UA_NodeId *targetDataTypeId,
+                UA_Int32 targetValueRank, size_t targetArrayDimensionsSize,
+                const UA_UInt32 *targetArrayDimensions, const UA_Variant *value,
+                const UA_NumericRange *range);
 
-UA_StatusCode
-writeDataTypeAttribute(UA_Server *server, UA_VariableNode *node,
-                       const UA_NodeId *dataType, const UA_NodeId *constraintDataType);
-
-UA_StatusCode
+UA_Boolean
 compatibleArrayDimensions(size_t constraintArrayDimensionsSize,
                           const UA_UInt32 *constraintArrayDimensions,
                           size_t testArrayDimensionsSize,
                           const UA_UInt32 *testArrayDimensions);
 
-UA_StatusCode
-writeValueRankAttribute(UA_Server *server, UA_VariableNode *node, UA_Int32 valueRank,
-                        UA_Int32 constraintValueRank);
+UA_Boolean
+compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimensionsSize,
+                               const UA_UInt32 *targetArrayDimensions);
 
-UA_StatusCode
-writeValueAttribute(UA_Server *server, UA_VariableNode *node,
-                    const UA_DataValue *value, const UA_String *indexRange);
+UA_Boolean
+compatibleValueRankArrayDimensions(UA_Int32 valueRank, size_t arrayDimensionsSize);
+
+UA_Boolean
+compatibleDataType(UA_Server *server, const UA_NodeId *dataType,
+                   const UA_NodeId *constraintDataType);
+
+UA_Boolean
+compatibleValueRanks(UA_Int32 valueRank, UA_Int32 constraintValueRank);
 
 /*******************/
 /* Single-Services */
 /*******************/
 
 /* Some services take an array of "independent" requests. The single-services
-   are stored here to keep ua_services.h clean for documentation purposes. */
+ * are stored here to keep ua_services.h clean for documentation purposes. */
 
 void Service_Browse_single(UA_Server *server, UA_Session *session,
                            struct ContinuationPointEntry *cp,
                            const UA_BrowseDescription *descr,
                            UA_UInt32 maxrefs, UA_BrowseResult *result);
 
-void Service_Read_single(UA_Server *server, UA_Session *session,
-                         UA_TimestampsToReturn timestamps,
-                         const UA_ReadValueId *id, UA_DataValue *v);
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, UA_Session *session,
+                          const UA_ReadValueId *item,
+                          UA_TimestampsToReturn timestamps);
 
-void Service_Call_single(UA_Server *server, UA_Session *session,
-                         const UA_CallMethodRequest *request,
-                         UA_CallMethodResult *result);
+/* Checks if a registration timed out and removes that registration.
+ * Should be called periodically in main loop */
+void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST
+
+UA_StatusCode
+initMulticastDiscoveryServer(UA_Server* server);
+
+void startMulticastDiscoveryServer(UA_Server *server);
+
+void stopMulticastDiscoveryServer(UA_Server *server);
+
+UA_StatusCode
+iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
+                                UA_Boolean processIn);
+
+void destroyMulticastDiscoveryServer(UA_Server* server);
+
+typedef enum {
+    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
+    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
+} UA_DiscoveryProtocol;
+
+/* Send a multicast probe to find any other OPC UA server on the network through mDNS. */
+UA_StatusCode
+UA_Discovery_multicastQuery(UA_Server* server);
+
+UA_StatusCode
+UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
+                       const UA_String *hostname, UA_UInt16 port,
+                       const UA_String *path, const UA_DiscoveryProtocol protocol,
+                       UA_Boolean createTxt, const UA_String* capabilites,
+                       size_t *capabilitiesSize);
+UA_StatusCode
+UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
+                          const UA_String *hostname, UA_UInt16 port,
+                          UA_Boolean removeTxt);
+
+# endif
+
+/*****************************/
+/* AddNodes Begin and Finish */
+/*****************************/
+
+/* Creates a new node in the nodestore. */
+UA_StatusCode
+Operation_addNode_begin(UA_Server *server, UA_Session *session,
+                        const UA_AddNodesItem *item, void *nodeContext,
+                        UA_NodeId *outNewNodeId);
+
+/* Children, references, type-checking, constructors. */
+UA_StatusCode
+Operation_addNode_finish(UA_Server *server, UA_Session *session,
+                         const UA_NodeId *nodeId, const UA_NodeId *parentNodeId,
+                         const UA_NodeId *referenceTypeId, const UA_NodeId *typeDefinitionId);
+
+UA_StatusCode
+UA_Server_addMethodNode_finish(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                               UA_MethodCallback method,
+                               size_t inputArgumentsSize, const UA_Argument* inputArguments,
+                               size_t outputArgumentsSize, const UA_Argument* outputArguments);
+
+/**********************/
+/* Create Namespace 0 */
+/**********************/
+
+UA_StatusCode UA_Server_initNS0(UA_Server *server);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SERVER_INTERNAL_H_ */

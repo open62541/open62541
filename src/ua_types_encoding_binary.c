@@ -7,20 +7,9 @@
 #include "ua_types_generated.h"
 #include "ua_types_generated_handling.h"
 
-/* Type Encoding
- * -------------
- * This file contains encoding functions for the builtin data types and generic
- * functions that operate on all types and arrays. This requires the type
- * description from a UA_DataType structure. Note that some internal (static)
- * deocidng functions may abort and leave the type in an inconsistent state. But
- * this is always handled in UA_decodeBinary, where the error is caught and the
- * type cleaned up.
- *
- * Breaking a message into chunks is integrated with the encoding. When the end
- * of a buffer is reached, a callback is executed that sends the current buffer
- * as a chunk and exchanges the encoding buffer "underneath" the ongoing
- * encoding. This enables fast sending of large messages as spurious copying is
- * avoided. */
+/**
+ * Throw a warning if numeric types cannot be overlayed
+ * ---------------------------------------------------- */
 
 #if defined(__clang__)
 # pragma GCC diagnostic push
@@ -28,18 +17,34 @@
 #endif
 
 #ifndef UA_BINARY_OVERLAYABLE_INTEGER
-# warning Integer endianness could not be detected to be little endian. Use slow generic encoding.
+# warning Integer endianness could not be detected to be little endian. \
+    Use slow generic encoding.
 #endif
 
-/* There is no robust way to detect float endianness in clang. This warning can be removed
- * if the target is known to be little endian with floats in the IEEE 754 format. */
+/* There is no robust way to detect float endianness in clang.
+ * UA_BINARY_OVERLAYABLE_FLOAT can be manually set if the target is known to be
+ * little endian with floats in the IEEE 754 format. */
 #ifndef UA_BINARY_OVERLAYABLE_FLOAT
-# warning Float endianness could not be detected to be little endian in the IEEE 754 format. Use slow generic encoding.
+# warning Float endianness could not be detected to be little endian in the IEEE \
+    754 format. Use slow generic encoding.
 #endif
 
 #if defined(__clang__)
 # pragma GCC diagnostic pop
 #endif
+
+/**
+ * Type Encoding and Decoding
+ * --------------------------
+ * The following methods contain encoding and decoding functions for the builtin
+ * data types and generic functions that operate on all types and arrays. This
+ * requires the type description from a UA_DataType structure.
+ *
+ * Breaking a message into chunks is integrated with the encoding. When the end
+ * of a buffer is reached, a callback is executed that sends the current buffer
+ * as a chunk and exchanges the encoding buffer "underneath" the ongoing
+ * encoding. This enables fast sending of large messages as spurious copying is
+ * avoided. */
 
 /* Jumptables for de-/encoding and computing the buffer length. The methods in
  * the decoding jumptable do not all clean up their allocated memory when an
@@ -54,10 +59,14 @@ extern const UA_decodeBinarySignature decodeBinaryJumpTable[UA_BUILTIN_TYPES_COU
 typedef size_t (*UA_calcSizeBinarySignature)(const void *UA_RESTRICT p, const UA_DataType *contenttype);
 extern const UA_calcSizeBinarySignature calcSizeBinaryJumpTable[UA_BUILTIN_TYPES_COUNT + 1];
 
+/* Pointer to custom datatypes in the server or client. Set inside
+ * UA_decodeBinary */
+static UA_THREAD_LOCAL size_t g_customTypesArraySize;
+static UA_THREAD_LOCAL const UA_DataType *g_customTypesArray;
+
 /* Pointers to the current position and the last position in the buffer */
 static UA_THREAD_LOCAL u8 *g_pos;
 static UA_THREAD_LOCAL const u8 *g_end;
-static UA_THREAD_LOCAL UA_ByteString g_buf;
 
 /* In UA_encodeBinaryInternal, we store a pointer to the last "good" position in
  * the buffer. When encoding reaches the end of the buffer, send out a chunk
@@ -93,17 +102,12 @@ exchangeBuffer(void) {
     /* Store context variables since exchangeBuffer might call UA_encode itself */
     UA_exchangeEncodeBuffer store_exchangeBufferCallback = g_exchangeBufferCallback;
     void *store_exchangeBufferCallbackHandle = g_exchangeBufferCallbackHandle;
-    UA_ByteString buf = g_buf;
-    size_t offset = (uintptr_t)(g_pos - g_buf.data);
 
-    status ret = g_exchangeBufferCallback(g_exchangeBufferCallbackHandle, &buf, offset);
+    status ret = g_exchangeBufferCallback(g_exchangeBufferCallbackHandle, &g_pos, &g_end);
 
     /* Restore context variables */
     g_exchangeBufferCallback = store_exchangeBufferCallback;
     g_exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
-    g_buf = buf;
-    g_pos = buf.data;
-    g_end = &buf.data[buf.length];
     return ret;
 }
 
@@ -382,7 +386,7 @@ Float_decodeBinary(UA_Float *dst, const UA_DataType *_) {
     else if(decoded == FLOAT_INF) *dst = INFINITY;
     else if(decoded == FLOAT_NEG_INF) *dst = -INFINITY;
     else if((decoded >= 0x7f800001 && decoded <= 0x7fffffff) ||
-       (decoded >= 0xff800001 && decoded <= 0xffffffff)) *dst = NAN;
+       (decoded >= 0xff800001)) *dst = NAN;
     else *dst = (UA_Float)unpack754(decoded, 32, 8);
     return UA_STATUSCODE_GOOD;
 }
@@ -418,7 +422,7 @@ Double_decodeBinary(UA_Double *dst, const UA_DataType *_) {
     else if(decoded == DOUBLE_NEG_INF) *dst = -INFINITY;
     //cppcheck-suppress redundantCondition
     else if((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
-       (decoded >= 0xfff0000000000001L && decoded <= 0xffffffffffffffffL)) *dst = NAN;
+       (decoded >= 0xfff0000000000001L)) *dst = NAN;
     else *dst = (UA_Double)unpack754(decoded, 64, 11);
     return UA_STATUSCODE_GOOD;
 }
@@ -855,17 +859,25 @@ LocalizedText_decodeBinary(UA_LocalizedText *dst, const UA_DataType *_) {
 
 /* The binary encoding has a different nodeid from the data type. So it is not
  * possible to reuse UA_findDataType */
-static const UA_DataType *
+const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId) {
     /* We only store a numeric identifier for the encoding nodeid of data types */
     if(typeId->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
 
+    /* Custom or standard data type? */
+    const UA_DataType *types = UA_TYPES;
+    size_t typesSize = UA_TYPES_COUNT;
+    if(typeId->namespaceIndex != 0) {
+        types = g_customTypesArray;
+        typesSize = g_customTypesArraySize;
+    }
+
     /* Iterate over the array */
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_TYPES[i].binaryEncodingId == typeId->identifier.numeric &&
-           UA_TYPES[i].typeId.namespaceIndex == typeId->namespaceIndex)
-            return &UA_TYPES[i];
+    for(size_t i = 0; i < typesSize; ++i) {
+        if(types[i].binaryEncodingId == typeId->identifier.numeric &&
+           types[i].typeId.namespaceIndex == typeId->namespaceIndex)
+            return &types[i];
     }
     return NULL;
 }
@@ -873,7 +885,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId) {
 /* ExtensionObject */
 static status
 ExtensionObject_encodeBinary(UA_ExtensionObject const *src, const UA_DataType *_) {
-    u8 encoding = src->encoding;
+    u8 encoding = (u8)src->encoding;
 
     /* No content or already encoded content. Do not return
      * UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED after encoding the NodeId. */
@@ -1418,20 +1430,19 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
 
 status
 UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle,
-                UA_ByteString *dst, size_t *offset) {
+                u8 **bufPos, const u8 **bufEnd,
+                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) {
     /* Set the (thread-local) pointers to save function arguments */
-    g_buf = *dst;
-    g_pos = &dst->data[*offset];
-    g_end = &dst->data[dst->length];
+    g_pos = *bufPos;
+    g_end = *bufEnd;
     g_exchangeBufferCallback = exchangeCallback;
     g_exchangeBufferCallbackHandle = exchangeHandle;
     status ret = UA_encodeBinaryInternal(src, type);
 
     /* Set the current buffer position. Beware that the buffer might have been
      * exchanged internally. */
-    *dst = g_buf;
-    *offset = (uintptr_t)(g_pos - g_buf.data);
+    *bufPos = g_pos;
+    *bufEnd = g_end;
     return ret;
 }
 
@@ -1492,9 +1503,15 @@ UA_decodeBinaryInternal(void *dst, const UA_DataType *type) {
 
 status
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type) {
+                const UA_DataType *type, size_t customTypesSize,
+                const UA_DataType *customTypes) {
     /* Initialize the destination */
     memset(dst, 0, type->memSize);
+
+    /* Store the pointers to the custom datatypes. They might be needed during
+     * decoding of variants. */
+    g_customTypesArraySize = customTypesSize;
+    g_customTypesArray = customTypes;
 
     /* Set the (thread-local) position and end pointers to save function
      * arguments */
@@ -1512,9 +1529,11 @@ UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
     return ret;
 }
 
-/******************/
-/* CalcSizeBinary */
-/******************/
+/**
+ * Compute the Message Size
+ * ------------------------
+ * The following methods are used to compute the length of a datum in binary
+ * encoding. */
 
 static size_t
 Array_calcSizeBinary(const void *src, size_t length, const UA_DataType *type) {

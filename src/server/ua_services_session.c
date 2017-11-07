@@ -1,56 +1,226 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
-*  License, v. 2.0. If a copy of the MPL was not distributed with this 
-*  file, You can obtain one at http://mozilla.org/MPL/2.0/.*/
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
 #include "ua_session_manager.h"
-#include "ua_types_generated_encoding_binary.h"
+#include "ua_types_generated_handling.h"
+
+/* Create a signed nonce */
+static UA_StatusCode
+nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
+                                  UA_Session *session,
+                                  const UA_CreateSessionRequest *request,
+                                  UA_CreateSessionResponse *response) {
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_SIGN &&
+       channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_GOOD;
+
+    const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+    UA_SignatureData *signatureData = &response->serverSignature;
+
+    /* Generate Nonce
+     * FIXME: remove magic number??? */
+    UA_StatusCode retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+    retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        return retval;
+    }
+
+    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.
+        getLocalSignatureSize(securityPolicy, channel->channelContext);
+
+    retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        return retval;
+    }
+
+    UA_ByteString dataToSign;
+    retval |= UA_ByteString_allocBuffer(&dataToSign,
+                                        request->clientCertificate.length +
+                                        request->clientNonce.length);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SignatureData_deleteMembers(signatureData);
+        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        return retval;
+    }
+
+    memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
+    memcpy(dataToSign.data + request->clientCertificate.length,
+           request->clientNonce.data, request->clientNonce.length);
+
+    retval |= UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.
+                             signatureAlgorithmUri, &signatureData->algorithm);
+    retval |= securityPolicy->asymmetricModule.cryptoModule.
+        sign(securityPolicy, channel->channelContext, &dataToSign, &signatureData->signature);
+
+    UA_ByteString_deleteMembers(&dataToSign);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_SignatureData_deleteMembers(signatureData);
+        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+    }
+    return retval;
+}
 
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
-    if(channel->securityToken.channelId == 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    if(channel == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
     }
 
-    /* Copy the server's endpoint into the response */
-    response->responseHeader.serviceResult =
-        UA_Array_copy(server->endpointDescriptions, server->endpointDescriptionsSize,
-                      (void**)&response->serverEndpoints, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    if(channel->connection == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
+
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_ByteString_equal(&request->clientCertificate,
+                                &channel->remoteCertificate)) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
+            return;
+        }
+    }
+    if(channel->securityToken.channelId == 0) {
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+        return;
+    }
+
+    if(!UA_ByteString_equal(&channel->securityPolicy->policyUri,
+                            &UA_SECURITY_POLICY_NONE_URI) &&
+       request->clientNonce.length < 32) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
+    }
+
+    ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
+
+    /* Allocate the response */
+    response->serverEndpoints = (UA_EndpointDescription*)
+        UA_Array_new(server->config.endpointsSize,
+                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    if(!response->serverEndpoints) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    response->serverEndpointsSize = server->config.endpointsSize;
+
+    /* Copy the server's endpointdescriptions into the response */
+    for(size_t i = 0; i < server->config.endpointsSize; ++i)
+        response->responseHeader.serviceResult |=
+            UA_EndpointDescription_copy(&server->config.endpoints[0].endpointDescription,
+                                        &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    response->serverEndpointsSize = server->endpointDescriptionsSize;
 
     /* Mirror back the endpointUrl */
-    for(size_t i = 0; i < response->serverEndpointsSize; ++i)
-        UA_String_copy(&request->endpointUrl, &response->serverEndpoints[i].endpointUrl);
+    for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
+        UA_String_deleteMembers(&response->serverEndpoints[i].endpointUrl);
+        UA_String_copy(&request->endpointUrl,
+                       &response->serverEndpoints[i].endpointUrl);
+    }
 
     UA_Session *newSession;
     response->responseHeader.serviceResult =
-        UA_SessionManager_createSession(&server->sessionManager, channel, request, &newSession);
+        UA_SessionManager_createSession(&server->sessionManager,
+                                        channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Processing CreateSessionRequest failed");
+        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+                             "Processing CreateSessionRequest failed");
         return;
     }
 
+    /* Fill the session with more information */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
-    newSession->maxRequestMessageSize = channel->connection->localConf.maxMessageSize;
+    newSession->maxRequestMessageSize =
+        channel->connection->localConf.maxMessageSize;
+    response->responseHeader.serviceResult |=
+        UA_ApplicationDescription_copy(&request->clientDescription,
+                                       &newSession->clientDescription);
+
+    /* Prepare the response */
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
-    response->responseHeader.serviceResult = UA_String_copy(&request->sessionName, &newSession->sessionName);
-    if(server->endpointDescriptionsSize > 0)
-        response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&server->endpointDescriptions->serverCertificate,
-                               &response->serverCertificate);
+    response->responseHeader.serviceResult =
+        UA_String_copy(&request->sessionName, &newSession->sessionName);
+
+    if(server->config.endpointsSize > 0)
+         response->responseHeader.serviceResult |=
+         UA_ByteString_copy(&channel->securityPolicy->localCertificate,
+                            &response->serverCertificate);
+
+    /* Create a signed nonce */
+    response->responseHeader.serviceResult =
+        nonceAndSignCreateSessionResponse(server, channel, newSession, request, response);
+
+    /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
-         return;
+        return;
     }
-    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Session " UA_PRINTF_GUID_FORMAT " created",
-                         UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
+           "Session " UA_PRINTF_GUID_FORMAT " created",
+           UA_PRINTF_GUID_DATA(newSession->sessionId.identifier.guid));
+}
+
+static void
+checkSignature(const UA_Server *server,
+               const UA_SecureChannel *channel,
+               UA_Session *session,
+               const UA_ActivateSessionRequest *request,
+               UA_ActivateSessionResponse *response) {
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
+        const UA_ByteString *const localCertificate = &securityPolicy->localCertificate;
+
+        UA_ByteString dataToVerify;
+        UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify,
+                                                         localCertificate->length + session->serverNonce.length);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to allocate buffer for signature verification! %#10x", retval);
+            return;
+        }
+
+        memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
+        memcpy(dataToVerify.data + localCertificate->length,
+               session->serverNonce.data, session->serverNonce.length);
+
+        retval = securityPolicy->asymmetricModule.cryptoModule.
+            verify(securityPolicy, channel->channelContext, &dataToVerify,
+                   &request->clientSignature.signature);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to verify the client signature! %#10x", retval);
+            UA_ByteString_deleteMembers(&dataToVerify);
+            return;
+        }
+
+        retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+        retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
+        if(retval != UA_STATUSCODE_GOOD) {
+            response->responseHeader.serviceResult = retval;
+            UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                                 "Failed to generate a new nonce! %#10x", retval);
+            UA_ByteString_deleteMembers(&dataToVerify);
+            return;
+        }
+
+        UA_ByteString_deleteMembers(&dataToVerify);
+    }
 }
 
 void
@@ -58,84 +228,31 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         UA_Session *session, const UA_ActivateSessionRequest *request,
                         UA_ActivateSessionResponse *response) {
     if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the session has timed out", channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: SecureChannel %i wants "
+                            "to activate, but the session has timed out",
+                            channel->securityToken.channelId);
+        response->responseHeader.serviceResult =
+            UA_STATUSCODE_BADSESSIONIDINVALID;
         return;
     }
 
-    if(request->userIdentityToken.encoding < UA_EXTENSIONOBJECT_DECODED ||
-       (request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN] &&
-        request->userIdentityToken.content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: SecureChannel %i wants "
-                            "to activate, but the UserIdentify token is invalid", channel->securityToken.channelId);
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    checkSignature(server, channel, session, request, response);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    }
 
-
-    UA_String ap = UA_STRING(ANONYMOUS_POLICY);
-    UA_String up = UA_STRING(USERNAME_POLICY);
-
-    /* Compatibility notice: Siemens OPC Scout v10 provides an empty policyId,
-       this is not okay For compatibility we will assume that empty policyId == ANONYMOUS_POLICY
-       if(token.policyId->data == NULL)
-           response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    */
-
-    if(server->config.enableAnonymousLogin &&
-       request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        /* anonymous login */
-        const UA_AnonymousIdentityToken *token = request->userIdentityToken.content.decoded.data;
-        if(token->policyId.data && !UA_String_equal(&token->policyId, &ap)) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-    } else if(server->config.enableUsernamePasswordLogin &&
-              request->userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        /* username login */
-        const UA_UserNameIdentityToken *token = request->userIdentityToken.content.decoded.data;
-        if(!UA_String_equal(&token->policyId, &up)) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-        if(token->encryptionAlgorithm.length > 0) {
-            /* we don't support encryption */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-
-        if(token->userName.length == 0 && token->password.length == 0) {
-            /* empty username and password */
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            return;
-        }
-
-        /* trying to match pw/username */
-        UA_Boolean match = false;
-        for(size_t i = 0; i < server->config.usernamePasswordLoginsSize; ++i) {
-            UA_String *user = &server->config.usernamePasswordLogins[i].username;
-            UA_String *pw = &server->config.usernamePasswordLogins[i].password;
-            if(UA_String_equal(&token->userName, user) && UA_String_equal(&token->password, pw)) {
-                match = true;
-                break;
-            }
-        }
-        if(!match) {
-            UA_LOG_INFO_SESSION(server->config.logger, session,
-                                "ActivateSession: Did not find matching username/password");
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
-            return;
-        }
-    } else {
-        /* Unsupported token type */
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    /* Callback into userland access control */
+    response->responseHeader.serviceResult =
+        server->config.accessControl.activateSession(&session->sessionId,
+                                                     &request->userIdentityToken,
+                                                     &session->sessionHandle);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
-    }
 
     /* Detach the old SecureChannel */
     if(session->channel && session->channel != channel) {
-        UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Detach from old channel");
+        UA_LOG_INFO_SESSION(server->config.logger, session,
+                            "ActivateSession: Detach from old channel");
         UA_SecureChannel_detachSession(session->channel, session);
     }
 
@@ -143,13 +260,20 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_SecureChannel_attachSession(channel, session);
     session->activated = true;
     UA_Session_updateLifetime(session);
-    UA_LOG_INFO_SESSION(server->config.logger, session, "ActivateSession: Session activated");
+    UA_LOG_INFO_SESSION(server->config.logger, session,
+                        "ActivateSession: Session activated");
 }
 
 void
-Service_CloseSession(UA_Server *server, UA_Session *session, const UA_CloseSessionRequest *request,
+Service_CloseSession(UA_Server *server, UA_Session *session,
+                     const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOG_INFO_SESSION(server->config.logger, session, "CloseSession");
+
+    /* Callback into userland access control */
+    server->config.accessControl.closeSession(&session->sessionId,
+                                              session->sessionHandle);
     response->responseHeader.serviceResult =
-        UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
+        UA_SessionManager_removeSession(&server->sessionManager,
+                                        &session->authenticationToken);
 }

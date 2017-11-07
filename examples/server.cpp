@@ -4,14 +4,7 @@
 #include <signal.h>
 #include <iostream>
 #include <cstring>
-
-#ifdef UA_NO_AMALGAMATION
-# include "ua_server.h"
-# include "ua_log_stdout.h"
-# include "ua_network_tcp.h"
-#else
 # include "open62541.h"
-#endif
 
 /* Build Instructions (Linux)
  * - gcc -std=c99 -c open62541.c
@@ -28,21 +21,18 @@ static void stopHandler(int sign) {
 }
 
 int main() {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
+    signal(SIGINT, stopHandler);
+    signal(SIGTERM, stopHandler);
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
     // add a variable node to the adresspace
-    UA_VariableAttributes attr;
-    UA_VariableAttributes_init(&attr);
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
     UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en_US","the answer");
+    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_ALLOC(1, "the answer");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
@@ -58,7 +48,6 @@ int main() {
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
-
+    UA_ServerConfig_delete(config);
     return retval;
 }

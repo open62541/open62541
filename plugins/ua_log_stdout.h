@@ -4,14 +4,13 @@
 #ifndef UA_LOG_STDOUT_H_
 #define UA_LOG_STDOUT_H_
 
-#include "ua_types.h"
-#include "ua_log.h"
+#include "ua_plugin_log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-UA_EXPORT void
+void UA_EXPORT
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args);
 
