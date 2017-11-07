@@ -976,14 +976,17 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Skip sequence number checking for fuzzer to improve coverage */
-#if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
     /* Check the sequence number */
     if(sequenceNumberCallback == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     retval = sequenceNumberCallback(channel, sequenceNumber);
+
+    /* Skip sequence number checking for fuzzer to improve coverage */
     if(retval != UA_STATUSCODE_GOOD)
+#if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
         return retval;
+#else
+        retval = UA_STATUSCODE_GOOD;
 #endif
 
     /* Process the payload */
