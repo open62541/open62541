@@ -337,7 +337,10 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     processChanges(t);
 
     /* Return timestamp of next repetition */
-    return SLIST_FIRST(&t->repeatedCallbacks)->nextTime;
+    tc = SLIST_FIRST(&t->repeatedCallbacks);
+    if(!tc)
+        return UA_INT64_MAX; /* Main-loop has a max timeout / will continue earlier */
+    return tc->nextTime;
 }
 
 void
