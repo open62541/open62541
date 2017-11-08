@@ -5,6 +5,7 @@ include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 include_directories(${CHECK_INCLUDE_DIRS})
+include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 
 #############################
 # Compiled binaries folders #
