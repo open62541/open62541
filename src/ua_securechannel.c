@@ -48,14 +48,17 @@ UA_StatusCode
 UA_SecureChannel_init(UA_SecureChannel *channel,
                       const UA_SecurityPolicy *securityPolicy,
                       const UA_ByteString *remoteCertificate) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(channel == NULL || securityPolicy == NULL || remoteCertificate == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     memset(channel, 0, sizeof(UA_SecureChannel));
     channel->state = UA_SECURECHANNELSTATE_FRESH;
     channel->securityPolicy = securityPolicy;
 
-    retval = securityPolicy->channelModule.newContext(securityPolicy, remoteCertificate,
-                                                      &channel->channelContext);
+    UA_StatusCode retval = securityPolicy->channelModule.newContext(securityPolicy, remoteCertificate,
+                                                                    &channel->channelContext);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -76,6 +79,10 @@ UA_SecureChannel_init(UA_SecureChannel *channel,
 
 void
 UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
+
+    if(channel == NULL)
+        return;
+
     /* Delete members */
     UA_ByteString_deleteMembers(&channel->remoteCertificate);
     UA_ByteString_deleteMembers(&channel->localNonce);
@@ -270,8 +277,8 @@ hideBytesAsym(UA_SecureChannel *const channel, UA_Byte **const buf_start,
 
         /* Add some overhead length due to RSA implementations adding a signature themselves */
         *buf_end -= securityPolicy->channelModule
-            .getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext,
-                                                         potentialEncryptionMaxSize);
+                                  .getRemoteAsymEncryptionBufferLengthOverhead(channel->channelContext,
+                                                                               potentialEncryptionMaxSize);
     }
 }
 
@@ -393,7 +400,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             connection->releaseSendBuffer(connection, &buf);
             return retval;
         }
-
+        
         /* Specification part 6, 6.7.4: The OpenSecureChannel Messages are
          * signed and encrypted if the SecurityMode is not None (even if the
          * SecurityMode is SignOnly). */
@@ -629,7 +636,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
 
     /* Encode with the chunking callback */
     retval |= UA_encodeBinary(content, contentType, &buf_start, &buf_end,
-                              (UA_exchangeEncodeBuffer)sendChunkSymmetric, &ci);
+                              (UA_exchangeEncodeBuffer) sendChunkSymmetric, &ci);
 
     /* TODO: Error handling. Send out an abort chunk if this is not the first chunk.
      * If this is the first chunk of the message:
@@ -764,7 +771,7 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
        messageType == UA_MESSAGETYPE_OPN) {
         /* Compute the padding size */
         sigsize = cryptoModule->
-            getRemoteSignatureSize(securityPolicy, channel->channelContext);
+                                  getRemoteSignatureSize(securityPolicy, channel->channelContext);
 
         if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
            (messageType == UA_MESSAGETYPE_OPN &&
@@ -772,7 +779,7 @@ decryptChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cry
             paddingSize = chunk->data[chunkSizeAfterDecryption - sigsize - 1];
 
             size_t keyLength = cryptoModule->
-                getRemoteEncryptionKeyLength(securityPolicy, channel->channelContext);
+                                               getRemoteEncryptionKeyLength(securityPolicy, channel->channelContext);
             if(keyLength > 2048) {
                 paddingSize <<= 8; /* Extra padding size */
                 paddingSize += chunk->data[chunkSizeAfterDecryption - sigsize - 2];

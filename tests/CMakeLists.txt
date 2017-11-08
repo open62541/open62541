@@ -103,6 +103,10 @@ add_executable(check_utils check_utils.c $<TARGET_OBJECTS:open62541-object> $<TA
 target_link_libraries(check_utils ${LIBS})
 add_test_valgrind(utils ${TESTS_BINARY_DIR}/check_utils)
 
+add_executable(check_securechannel check_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_securechannel ${LIBS})
+add_test_valgrind(check_securechannel ${TESTS_BINARY_DIR}/check_securechannel)
+
 # Test Server
 
 add_executable(check_accesscontrol server/check_accesscontrol.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
