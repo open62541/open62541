@@ -66,11 +66,86 @@ START_TEST(Server_addNamespace_writeService) {
 }
 END_TEST
 
+struct nodeIterData {
+    UA_NodeId id;
+    UA_Boolean isInverse;
+    UA_NodeId referenceTypeID;
+    UA_Boolean hit;
+};
+#define NODE_ITER_DATA_SIZE 3
+
+static UA_StatusCode
+nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
+    struct nodeIterData* objectsFolderChildren = ( struct nodeIterData*)handle;
+
+    ck_assert_int_eq(childId.namespaceIndex, 0);
+    ck_assert(childId.identifierType == UA_NODEIDTYPE_NUMERIC);
+
+    int i;
+
+    for (i=0; i<NODE_ITER_DATA_SIZE; i++) {
+        if (UA_NodeId_equal(&childId, &objectsFolderChildren[i].id)) {
+            break;
+        }
+    }
+    ck_assert_int_lt(i, NODE_ITER_DATA_SIZE);
+
+    ck_assert(objectsFolderChildren[i].isInverse == isInverse);
+
+    ck_assert(!objectsFolderChildren[i].hit);
+    objectsFolderChildren[i].hit = UA_TRUE;
+
+    ck_assert(UA_NodeId_equal(&referenceTypeId, &objectsFolderChildren[i].referenceTypeID));
+
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(Server_forEachChildNodeCall) {
+
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
+    UA_Server *server = UA_Server_new(config);
+
+    /* List all the children/references of the objects folder
+     * The forEachChildNodeCall has to hit all of them */
+    struct nodeIterData objectsFolderChildren[] = {
+        {
+                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                UA_FALSE,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                UA_FALSE
+        },{
+                UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+                UA_TRUE,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                UA_FALSE
+        },{
+                UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE),
+                UA_FALSE,
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASTYPEDEFINITION),
+                UA_FALSE
+        }
+    };
+
+    UA_StatusCode retval = UA_Server_forEachChildNodeCall(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), nodeIter, &objectsFolderChildren);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Check if all nodes are hit */
+    for (int i=0; i<NODE_ITER_DATA_SIZE; i++) {
+        ck_assert(objectsFolderChildren[i].hit);
+    }
+
+    UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
+
+} END_TEST
+
+
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
     TCase *tc_core = tcase_create("Core");
     tcase_add_test(tc_core, Server_addNamespace_ShallWork);
     tcase_add_test(tc_core, Server_addNamespace_writeService);
+    tcase_add_test(tc_core, Server_forEachChildNodeCall);
 
     suite_add_tcase(s,tc_core);
     return s;
