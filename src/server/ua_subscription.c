@@ -140,12 +140,14 @@ selectFirstMonToIterate(UA_Subscription *sub) {
     UA_MonitoredItem *mon = LIST_FIRST(&sub->monitoredItems);
     if(sub->lastSendMonitoredItemId > 0) {
         while(mon) {
-            if(mon->itemId == sub->lastSendMonitoredItemId)
+            UA_Boolean found = (mon->itemId == sub->lastSendMonitoredItemId);
+            mon = LIST_NEXT(mon, listEntry);
+            if(found)
                 break;
-        }
+        }   
         if(!mon)
             mon = LIST_FIRST(&sub->monitoredItems);
-    }
+    }   
     return mon;
 }
 
