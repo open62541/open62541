@@ -140,12 +140,14 @@ selectFirstMonToIterate(UA_Subscription *sub) {
     UA_MonitoredItem *mon = LIST_FIRST(&sub->monitoredItems);
     if(sub->lastSendMonitoredItemId > 0) {
         while(mon) {
-            if(mon->itemId == sub->lastSendMonitoredItemId)
+            UA_Boolean found = (mon->itemId == sub->lastSendMonitoredItemId);
+            mon = LIST_NEXT(mon, listEntry);
+            if(found)
                 break;
-        }
+        }   
         if(!mon)
             mon = LIST_FIRST(&sub->monitoredItems);
-    }
+    }   
     return mon;
 }
 
@@ -157,7 +159,6 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
                                     size_t *pos) {
     MonitoredItem_queuedValue *qv, *qv_tmp;
     while(mon) {
-        sub->lastSendMonitoredItemId = mon->itemId;
         TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
             if(*pos >= minsSize)
                 return;
@@ -169,6 +170,7 @@ moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
             --mon->currentQueueSize;
             ++(*pos);
         }
+        sub->lastSendMonitoredItemId = mon->itemId;
         mon = LIST_NEXT(mon, listEntry);
     }
 }
