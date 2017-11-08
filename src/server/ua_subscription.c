@@ -142,6 +142,7 @@ selectFirstMonToIterate(UA_Subscription *sub) {
         while(mon) {
             if(mon->itemId == sub->lastSendMonitoredItemId)
                 break;
+            mon = LIST_NEXT(mon, listEntry);
         }
         if(!mon)
             mon = LIST_FIRST(&sub->monitoredItems);
