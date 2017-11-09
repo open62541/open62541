@@ -102,7 +102,7 @@ struct UA_Subscription {
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
-
+    UA_UInt32 numMonitoredItems;
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
@@ -127,6 +127,12 @@ UA_StatusCode Subscription_unregisterPublishCallback(UA_Server *server, UA_Subsc
 UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemID);
+
+void
+UA_Subscription_addMonitoredItem(UA_Subscription *sub,
+                                 UA_MonitoredItem *newMon);
+UA_UInt32
+UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
