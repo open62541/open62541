@@ -32,6 +32,8 @@ UA_Session adminSession = {
     0, /* .lastSubscriptionID */
     {NULL}, /* .serverSubscriptions */
     {NULL, NULL}, /* .responseQueue */
+    0, /* numSubscriptions */
+    0  /* numPublishReq */
 #endif
 };
 
