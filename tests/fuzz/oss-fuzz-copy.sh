@@ -38,7 +38,7 @@ for F in $fuzzerFiles; do
 
 		done
 
-		zip -j $OUT/${fuzzerName}_seed_corpus.zip $SRC/open62541/tests/fuzz/${fuzzerName}_corpus/*
+		# zip -j $OUT/${fuzzerName}_seed_corpus.zip $SRC/open62541/tests/fuzz/${fuzzerName}_corpus/*.bin
 	fi
 done
 
