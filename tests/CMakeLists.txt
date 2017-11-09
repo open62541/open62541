@@ -39,7 +39,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c)
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
