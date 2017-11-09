@@ -258,6 +258,8 @@ UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
 
 static void
 UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
+    if (!node)
+        return;
 #ifdef UA_ENABLE_MULTITHREADING
     UA_NodeMap *ns = (UA_NodeMap*)context;
 #endif

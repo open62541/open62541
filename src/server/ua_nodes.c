@@ -138,10 +138,9 @@ UA_StatusCode
 UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     if(src->nodeClass != dst->nodeClass)
         return UA_STATUSCODE_BADINTERNALERROR;
-    
+
     /* Copy standard content */
     UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
-    dst->nodeClass = src->nodeClass;
     retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
@@ -219,6 +218,48 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     return retval;
 }
 
+UA_Node *
+UA_Node_copy_alloc(const UA_Node *src) {
+	// use dstPtr to trick static code analysis in accepting dirty cast
+	void *dstPtr;
+	switch(src->nodeClass) {
+		case UA_NODECLASS_OBJECT:
+			dstPtr = UA_malloc(sizeof(UA_ObjectNode));
+			break;
+		case UA_NODECLASS_VARIABLE:
+			dstPtr =UA_malloc(sizeof(UA_VariableNode));
+			break;
+		case UA_NODECLASS_METHOD:
+			dstPtr = UA_malloc(sizeof(UA_MethodNode));
+			break;
+		case UA_NODECLASS_OBJECTTYPE:
+			dstPtr = UA_malloc(sizeof(UA_ObjectTypeNode));
+			break;
+		case UA_NODECLASS_VARIABLETYPE:
+			dstPtr = UA_malloc(sizeof(UA_VariableTypeNode));
+			break;
+		case UA_NODECLASS_REFERENCETYPE:
+			dstPtr = UA_malloc(sizeof(UA_ReferenceTypeNode));
+			break;
+		case UA_NODECLASS_DATATYPE:
+			dstPtr = UA_malloc(sizeof(UA_DataTypeNode));
+			break;
+		case UA_NODECLASS_VIEW:
+			dstPtr = UA_malloc(sizeof(UA_ViewNode));
+			break;
+		default:
+			return NULL;
+	}
+	UA_Node *dst = (UA_Node*)dstPtr;
+	dst->nodeClass = src->nodeClass;
+
+	UA_StatusCode retval = UA_Node_copy(src, dst);
+	if (retval != UA_STATUSCODE_GOOD){
+		UA_free(dst);
+		return NULL;
+	}
+	return dst;
+}
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
