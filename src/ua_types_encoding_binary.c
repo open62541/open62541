@@ -962,30 +962,37 @@ ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *ty
 static status
 ExtensionObject_decodeBinary(UA_ExtensionObject *dst, const UA_DataType *_) {
     u8 encoding = 0;
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
-    status ret = NodeId_decodeBinary(&typeId, NULL);
+    UA_NodeId binTypeId; /* Can contain a string nodeid. But no corresponding
+                          * type is then found in open62541. We only store
+                          * numerical nodeids of the binary encoding identifier.
+                          * The extenionobject will be decoded to contain a
+                          * binary blob. */
+    UA_NodeId_init(&binTypeId);
+    status ret = NodeId_decodeBinary(&binTypeId, NULL);
     ret |= Byte_decodeBinary(&encoding, NULL);
-    if(typeId.identifierType != UA_NODEIDTYPE_NUMERIC)
-        ret = UA_STATUSCODE_BADDECODINGERROR;
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_NodeId_deleteMembers(&typeId);
+        UA_NodeId_deleteMembers(&binTypeId);
         return ret;
     }
 
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-        ret = ExtensionObject_decodeBinaryContent(dst, &typeId);
+        ret = ExtensionObject_decodeBinaryContent(dst, &binTypeId);
+        UA_NodeId_deleteMembers(&binTypeId);
     } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;
-        dst->content.encoded.typeId = typeId;
+        dst->content.encoded.typeId = binTypeId; /* move to dst */
         dst->content.encoded.body = UA_BYTESTRING_NULL;
     } else if(encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;
-        dst->content.encoded.typeId = typeId;
+        dst->content.encoded.typeId = binTypeId; /* move to dst */
         ret = ByteString_decodeBinary(&dst->content.encoded.body);
+        if(ret != UA_STATUSCODE_GOOD)
+            UA_NodeId_deleteMembers(&dst->content.encoded.typeId);
     } else {
+        UA_NodeId_deleteMembers(&binTypeId);
         ret = UA_STATUSCODE_BADDECODINGERROR;
     }
+
     return ret;
 }
 
