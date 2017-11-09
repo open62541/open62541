@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <src_generated/ua_types_generated.h>
+#include <testing_networklayers.h>
 
 #include "testing_policy.h"
 #include "ua_securechannel.h"
@@ -69,6 +70,8 @@ START_TEST(SecureChannel_initAndDelete)
 
         UA_SecureChannel_deleteMembersCleanup(&channel);
         ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
+
+        dummyPolicy.deleteMembers(&dummyPolicy);
     }
 END_TEST
 
@@ -130,8 +133,93 @@ START_TEST(SecureChannel_revolveTokens)
         UA_ChannelSecurityToken_init(&testToken);
 
         ck_assert_msg(memcmp(&testChannel.nextSecurityToken, &testToken, sizeof(UA_ChannelSecurityToken)) == 0,
-                     "Expected the next securityToken to be freshly initialized");
+                      "Expected the next securityToken to be freshly initialized");
         ck_assert_msg(testChannel.securityToken.tokenId == 10, "Expected token to have been copied");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_withoutConnection)
+    {
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         &dummyResponse,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure without a connection");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_invalidParameters)
+    {
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         NULL,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                           42,
+                                                           &dummyResponse,
+                                                           NULL);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(NULL,
+                                                           42,
+                                                           &dummyResponse,
+                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage)
+    {
+        // Configure our channel correctly for OPN messages and setup dummy message
+        UA_Connection testingConnection = createDummyConnection();
+        UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
+
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_INVALID;
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         &dummyResponse,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEREJECTED, "Expected SecurityMode rejected error");
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                           42,
+                                                           &dummyResponse,
+                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
+        ck_assert_msg(!fCalled.asym_enc, "Message encryption was called but should not have been");
+        ck_assert_msg(!fCalled.asym_sign, "Message signing was called but should not have been");
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                           42,
+                                                           &dummyResponse,
+                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
+        ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
+        ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                           42,
+                                                           &dummyResponse,
+                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
+        ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
+        ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
     }
 END_TEST
 
@@ -157,6 +245,14 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_revolveTokens, SecureChannel_revolveTokens);
     suite_add_tcase(s, tc_revolveTokens);
 
+    TCase *tc_sendAsymmetricOPNMessage = tcase_create("Test sendAsymmetricOPNMessage function");
+    tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_withoutConnection);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_invalidParameters);
+    suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
+
     return s;
 }
 
@@ -165,7 +261,7 @@ main(void) {
     Suite *s = testSuite_SecureChannel();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
-    srunner_run_all(sr, CK_VERBOSE);
+    srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;

@@ -290,6 +290,12 @@ hideBytesAsym(UA_SecureChannel *const channel, UA_Byte **const buf_start,
 UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                           const void *content, const UA_DataType *contentType) {
+    if(channel == NULL || content == NULL || contentType == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_INVALID)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
     UA_Connection *connection = channel->connection;
     if(!connection)
