@@ -5,12 +5,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "testing_policy.h"
 #include "ua_securechannel.h"
-#include "ua_securitypolicy_none.h"
 
 #include "check.h"
-#include "ua_types_generated_handling.h"
-#include "ua_log_stdout.h"
 
 #define UA_BYTESTRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)s}
 
@@ -18,30 +16,45 @@ UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate = UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 UA_SecurityPolicy dummyPolicy;
 
-/*
+
+funcs_called fCalled;
+
 static void
-setup(void) {
+setup_secureChannel(void) {
+    TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled);
     UA_SecureChannel_init(&testChannel, &dummyPolicy, &dummyCertificate);
 }
 
 static void
-teardown(void) {
+teardown_secureChannel(void) {
     UA_SecureChannel_deleteMembersCleanup(&testChannel);
-}*/
+    dummyPolicy.deleteMembers(&dummyPolicy);
+}
 
 static void
+setup_funcs_called(void) {
+    memset(&fCalled, 0, sizeof(struct funcs_called));
+}
+
+static void
+teardown_funcs_called(void) {
+    memset(&fCalled, 0, sizeof(struct funcs_called));
+}
+
+/*
+static void
 setup_dummyPolicy(void) {
-    UA_SecurityPolicy_Dummy(&dummyPolicy);
+    TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled);
 }
 
 static void
 teardown_dummyPolicy(void) {
-    UA_SecurityPolicy_Dummy_deleteMembers(&dummyPolicy);
-}
+    dummyPolicy.deleteMembers(&dummyPolicy);
+}*/
 
 START_TEST(SecureChannel_initAndDelete)
     {
-        UA_SecurityPolicy_None(&dummyPolicy, dummyCertificate, UA_Log_Stdout);
+        TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled);
         UA_StatusCode retval;
 
         UA_SecureChannel channel;
@@ -49,6 +62,12 @@ START_TEST(SecureChannel_initAndDelete)
 
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
         ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be fresh");
+        ck_assert_msg(fCalled.newContext, "Expected newContext to have been called");
+        ck_assert_msg(fCalled.makeCertificateThumbprint, "Expected makeCertificateThumbprint to have been called");
+        ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
+
+        UA_SecureChannel_deleteMembersCleanup(&channel);
+        ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
     }
 END_TEST
 
@@ -71,21 +90,37 @@ START_TEST(SecureChannel_initAndDelete_invalidParameters)
     }
 END_TEST
 
-/*
+
 START_TEST(SecureChannel_generateNewKeys)
     {
+        UA_StatusCode retval = UA_SecureChannel_generateNewKeys(&testChannel);
 
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected Statuscode to be good");
+        ck_assert_msg(fCalled.generateKey, "Expected generateKey to have been called");
+        ck_assert_msg(fCalled.setLocalSymEncryptingKey, "Expected setLocalSymEncryptingKey to have been called");
+        ck_assert_msg(fCalled.setLocalSymSigningKey, "Expected setLocalSymSigningKey to have been called");
+        ck_assert_msg(fCalled.setLocalSymIv, "Expected setLocalSymIv to have been called");
+        ck_assert_msg(fCalled.setRemoteSymEncryptingKey, "Expected setRemoteSymEncryptingKey to have been called");
+        ck_assert_msg(fCalled.setRemoteSymSigningKey, "Expected setRemoteSymSigningKey to have been called");
+        ck_assert_msg(fCalled.setRemoteSymIv, "Expected setRemoteSymIv to have been called");
     }
-END_TEST*/
+END_TEST
 
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
 
     TCase *tc_initAndDelete = tcase_create("Initialize and delete Securechannel");
+    tcase_add_checked_fixture(tc_initAndDelete, setup_funcs_called, teardown_funcs_called);
     tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete);
     tcase_add_test(tc_initAndDelete, SecureChannel_initAndDelete_invalidParameters);
     suite_add_tcase(s, tc_initAndDelete);
+
+    TCase *tc_generateNewKeys = tcase_create("Test generateNewKeys function");
+    tcase_add_checked_fixture(tc_generateNewKeys, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_generateNewKeys, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_generateNewKeys, SecureChannel_generateNewKeys);
+    suite_add_tcase(s, tc_generateNewKeys);
     return s;
 }
 
@@ -94,7 +129,7 @@ main(void) {
     Suite *s = testSuite_SecureChannel();
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
-    srunner_run_all(sr, CK_NORMAL);
+    srunner_run_all(sr, CK_VERBOSE);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
