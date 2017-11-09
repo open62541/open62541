@@ -130,6 +130,10 @@ UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
 
 UA_StatusCode
 UA_SecureChannel_generateNewKeys(UA_SecureChannel *const channel) {
+
+    if(channel == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
     const UA_SecurityPolicyChannelModule *channelModule =
         &securityPolicy->channelModule;
