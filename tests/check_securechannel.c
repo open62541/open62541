@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <src_generated/ua_types_generated.h>
 
 #include "testing_policy.h"
 #include "ua_securechannel.h"
@@ -109,6 +110,31 @@ START_TEST(SecureChannel_generateNewKeys)
     }
 END_TEST
 
+START_TEST(SecureChannel_revolveTokens)
+    {
+        // Fake that no token was issued by setting 0
+        testChannel.nextSecurityToken.tokenId = 0;
+        UA_StatusCode retval = UA_SecureChannel_revolveTokens(&testChannel);
+        ck_assert_msg(retval == UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN,
+                      "Expected failure because tokenId 0 signifies that no token was issued");
+
+        // Fake an issued token by setting an id
+        testChannel.nextSecurityToken.tokenId = 10;
+        retval = UA_SecureChannel_revolveTokens(&testChannel);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to return GOOD");
+        ck_assert_msg(fCalled.generateKey,
+                      "Expected generateKey to be called because new keys need to be generated,"
+                          "when switching to the next token.");
+
+        UA_ChannelSecurityToken testToken;
+        UA_ChannelSecurityToken_init(&testToken);
+
+        ck_assert_msg(memcmp(&testChannel.nextSecurityToken, &testToken, sizeof(UA_ChannelSecurityToken)) == 0,
+                     "Expected the next securityToken to be freshly initialized");
+        ck_assert_msg(testChannel.securityToken.tokenId == 10, "Expected token to have been copied");
+    }
+END_TEST
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -124,6 +150,13 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_generateNewKeys, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_generateNewKeys, SecureChannel_generateNewKeys);
     suite_add_tcase(s, tc_generateNewKeys);
+
+    TCase *tc_revolveTokens = tcase_create("Test revolveTokens function");
+    tcase_add_checked_fixture(tc_revolveTokens, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_revolveTokens, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_revolveTokens, SecureChannel_revolveTokens);
+    suite_add_tcase(s, tc_revolveTokens);
+
     return s;
 }
 
