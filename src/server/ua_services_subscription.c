@@ -57,6 +57,12 @@ void
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
+
+    if((server->config.maxSubscriptionsPerSession != 0) &&
+       (UA_Session_getNumSubscriptions(session) >= server->config.maxSubscriptionsPerSession)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+   }
     /* Create the subscription */
     UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
     if(!newSubscription) {
@@ -259,7 +265,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     newMon->timestampsToReturn = op_timestampsToReturn2;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
-    LIST_INSERT_HEAD(&op_sub->monitoredItems, newMon, listEntry);
+
+    UA_Subscription_addMonitoredItem(op_sub, newMon);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -290,6 +297,13 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!op_sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+
+    if((server->config.maxMonitoredItemsPerSubscription != 0) &&
+       ((UA_Subscription_getNumMonitoredItems(op_sub) + request->itemsToCreateSize) >
+        server->config.maxMonitoredItemsPerSubscription)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
 
@@ -424,6 +438,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
         return;
     }
 
+    if((server->config.maxPublishReqPerSession != 0 ) &&
+       (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
+        subscriptionSendError(session->channel, requestId,
+                              request->requestHeader.requestHandle,
+                              UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS);
+        return;
+    }
+
     UA_PublishResponseEntry *entry =
         (UA_PublishResponseEntry*)UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
@@ -469,7 +491,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     /* Queue the publish response */
-    SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
+    UA_Session_addPublishReq(session, entry);
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message");
 
     /* Answer immediately to a late subscription */
