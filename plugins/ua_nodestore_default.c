@@ -330,9 +330,9 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     if(tempNodeid.identifierType == UA_NODEIDTYPE_NUMERIC &&
        tempNodeid.identifier.numeric == 0) {
         /* create a random nodeid */
-		/* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
-		/* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
-		/* Thus the node id's may collide */
+        /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
+        /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
+        /* Thus the node id's may collide */
         UA_UInt32 identifier = 50000 + ns->count+1; // start value
         UA_UInt32 size = ns->size;
         UA_UInt32 increase = mod2(ns->count+1, size);
