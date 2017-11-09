@@ -43,8 +43,18 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	};
 
 	UA_StatusCode ret = UA_decodeBinary(&binary, &offset, dst, &UA_TYPES[typeIndex], 0, nullptr);
+
 	if (ret == UA_STATUSCODE_GOOD) {
-		//do nothing
+		// now also test encoding
+		UA_ByteString encoded;
+		UA_ByteString_allocBuffer(&encoded, binary.length);
+		const UA_Byte *end = &encoded.data[binary.length];
+		UA_Byte *pos = encoded.data;
+		ret = UA_encodeBinary(dst, &UA_TYPES[typeIndex], &pos, &end, NULL, NULL);
+		if (ret == UA_STATUSCODE_GOOD) {
+			// do nothing
+		}
+		UA_ByteString_deleteMembers(&encoded);
 	}
 	UA_delete(dst, &UA_TYPES[typeIndex]);
 
