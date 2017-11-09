@@ -28,10 +28,28 @@ verify_testing(const UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-sign_testing(const UA_SecurityPolicy *securityPolicy,
-             const void *channelContext,
-             const UA_ByteString *message,
-             UA_ByteString *signature) {
+asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
+                  const void *channelContext,
+                  const UA_ByteString *message,
+                  UA_ByteString *signature) {
+    SET_CALLED(asym_sign);
+    ck_assert(securityPolicy);
+    ck_assert(channelContext);
+    ck_assert(message);
+    ck_assert(signature);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+sym_sign_testing(const UA_SecurityPolicy *securityPolicy,
+                 const void *channelContext,
+                 const UA_ByteString *message,
+                 UA_ByteString *signature) {
+    SET_CALLED(sym_sign);
+    ck_assert(securityPolicy);
+    ck_assert(channelContext);
+    ck_assert(message);
+    ck_assert(signature);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -86,9 +104,24 @@ sym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy
 }
 
 static UA_StatusCode
-encrypt_testing(const UA_SecurityPolicy *securityPolicy,
-                const void *channelContext,
-                UA_ByteString *data) {
+sym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
+                    const void *channelContext,
+                    UA_ByteString *data) {
+    SET_CALLED(sym_enc);
+    ck_assert(securityPolicy);
+    ck_assert(channelContext);
+    ck_assert(data);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
+                     const void *channelContext,
+                     UA_ByteString *data) {
+    SET_CALLED(asym_enc);
+    ck_assert(securityPolicy);
+    ck_assert(channelContext);
+    ck_assert(data);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -275,10 +308,10 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     policy->asymmetricModule.compareCertificateThumbprint = compareThumbprint_testing;
     policy->asymmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
     policy->asymmetricModule.cryptoModule.verify = verify_testing;
-    policy->asymmetricModule.cryptoModule.sign = sign_testing;
+    policy->asymmetricModule.cryptoModule.sign = asym_sign_testing;
     policy->asymmetricModule.cryptoModule.getLocalSignatureSize = asym_getLocalSignatureSize_testing;
     policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = asym_getRemoteSignatureSize_testing;
-    policy->asymmetricModule.cryptoModule.encrypt = encrypt_testing;
+    policy->asymmetricModule.cryptoModule.encrypt = asym_encrypt_testing;
     policy->asymmetricModule.cryptoModule.decrypt = decrypt_testing;
     policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = asym_getLocalEncryptionKeyLength_testing;
     policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = asym_getRemoteEncryptionKeyLength_testing;
@@ -287,10 +320,10 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     policy->symmetricModule.generateNonce = generateNonce_testing;
     policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
     policy->symmetricModule.cryptoModule.verify = verify_testing;
-    policy->symmetricModule.cryptoModule.sign = sign_testing;
+    policy->symmetricModule.cryptoModule.sign = sym_sign_testing;
     policy->symmetricModule.cryptoModule.getLocalSignatureSize = sym_getLocalSignatureSize_testing;
     policy->symmetricModule.cryptoModule.getRemoteSignatureSize = sym_getRemoteSignatureSize_testing;
-    policy->symmetricModule.cryptoModule.encrypt = encrypt_testing;
+    policy->symmetricModule.cryptoModule.encrypt = sym_encrypt_testing;
     policy->symmetricModule.cryptoModule.decrypt = decrypt_testing;
     policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = sym_getLocalEncryptionKeyLength_testing;
     policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = sym_getRemoteEncryptionKeyLength_testing;

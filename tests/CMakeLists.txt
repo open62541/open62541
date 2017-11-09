@@ -40,7 +40,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
-                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c)
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
@@ -159,7 +160,56 @@ endif()
 # Readspeed server
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
-add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
+add_test_valgrind(check_server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
+
+# Test server with network dumps from files
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
+                          ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
+                  PRE_BUILD
+                  COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CLO.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Browse.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Read.hex
+                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Write.hex
+                  DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CLO.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Browse.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Read.hex
+                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Write.hex)
+add_custom_target(client_HELOPN.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin")
+add_custom_target(client_CreateActivateSession.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin")
+
+add_executable(check_server_binary_messages server/check_server_binary_messages.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_include_directories(check_server_binary_messages PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
+target_link_libraries(check_server_binary_messages ${LIBS})
+add_dependencies(check_server_binary_messages client_HELOPN.bin)
+
+add_test_valgrind(check_server_binary_messages_browse ${TESTS_BINARY_DIR}/check_server_binary_messages
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
+                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
+
+add_test_valgrind(check_server_binary_messages_read ${TESTS_BINARY_DIR}/check_server_binary_messages
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
+
+add_test_valgrind(check_server_binary_messages_write ${TESTS_BINARY_DIR}/check_server_binary_messages
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
+                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
 
 # Test Client
 
