@@ -103,6 +103,9 @@ START_TEST(SecureChannel_generateNewKeys)
         ck_assert_msg(fCalled.setRemoteSymEncryptingKey, "Expected setRemoteSymEncryptingKey to have been called");
         ck_assert_msg(fCalled.setRemoteSymSigningKey, "Expected setRemoteSymSigningKey to have been called");
         ck_assert_msg(fCalled.setRemoteSymIv, "Expected setRemoteSymIv to have been called");
+
+        retval = UA_SecureChannel_generateNewKeys(NULL);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure on NULL pointer");
     }
 END_TEST
 

@@ -13,9 +13,9 @@
 
 #define SET_CALLED(func) funcsCalled->func = true
 
-#define SYM_ENCRYPTION_BLOCK_SIZE 3
-#define SYM_SIGNING_KEY_LENGTH 5
-#define SYM_ENCRYPTION_KEY_LENGTH 7
+#define SYM_ENCRYPTION_BLOCK_SIZE 2
+#define SYM_SIGNING_KEY_LENGTH 3
+#define SYM_ENCRYPTION_KEY_LENGTH 5
 
 funcs_called *funcsCalled;
 
@@ -36,9 +36,53 @@ sign_testing(const UA_SecurityPolicy *securityPolicy,
 }
 
 static size_t
-length_testing(const UA_SecurityPolicy *securityPolicy,
-               const void *channelContext) {
-    return ENCRYPTION_KEY_LENGTH;
+asym_getLocalSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                   const void *channelContext) {
+    return 0;
+}
+
+static size_t
+asym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                    const void *channelContext) {
+    return 0;
+}
+
+static size_t
+asym_getLocalEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext) {
+    return 0;
+}
+
+static size_t
+asym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy,
+                                          const void *channelContext) {
+    return 0;
+}
+
+static size_t
+sym_getLocalSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                  const void *channelContext) {
+    return 0;
+}
+
+static size_t
+sym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
+                                   const void *channelContext) {
+    return 0;
+}
+
+static size_t
+sym_getLocalEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy,
+                                        const void *channelContext) {
+    ck_assert(securityPolicy);
+    ck_assert(channelContext);
+    return SYM_ENCRYPTION_KEY_LENGTH;
+}
+
+static size_t
+sym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy,
+                                         const void *channelContext) {
+    return SYM_ENCRYPTION_KEY_LENGTH;
 }
 
 static UA_StatusCode
@@ -118,7 +162,11 @@ setLocalSymEncryptingKey_testing(void *channelContext,
     SET_CALLED(setLocalSymEncryptingKey);
     ck_assert(channelContext);
     ck_assert(val);
-    ck_assert(val->length == SYM_ENCRYPTION_KEY_LENGTH);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_ENCRYPTION_KEY_LENGTH,
+                  "Expected length to be %i but got %i",
+                  SYM_ENCRYPTION_KEY_LENGTH,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -126,6 +174,13 @@ static UA_StatusCode
 setLocalSymSigningKey_testing(void *channelContext,
                               const UA_ByteString *val) {
     SET_CALLED(setLocalSymSigningKey);
+    ck_assert(channelContext);
+    ck_assert(val);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_SIGNING_KEY_LENGTH,
+                  "Expected length to be %i but got %i",
+                  SYM_SIGNING_KEY_LENGTH,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -133,6 +188,13 @@ static UA_StatusCode
 setLocalSymIv_testing(void *channelContext,
                       const UA_ByteString *val) {
     SET_CALLED(setLocalSymIv);
+    ck_assert(channelContext);
+    ck_assert(val);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_ENCRYPTION_BLOCK_SIZE,
+                  "Expected length to be %i but got %i",
+                  SYM_ENCRYPTION_BLOCK_SIZE,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -140,6 +202,13 @@ static UA_StatusCode
 setRemoteSymEncryptingKey_testing(void *channelContext,
                                   const UA_ByteString *val) {
     SET_CALLED(setRemoteSymEncryptingKey);
+    ck_assert(channelContext);
+    ck_assert(val);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_ENCRYPTION_KEY_LENGTH,
+                  "Expected length to be %i but got %i",
+                  SYM_ENCRYPTION_KEY_LENGTH,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -147,6 +216,13 @@ static UA_StatusCode
 setRemoteSymSigningKey_testing(void *channelContext,
                                const UA_ByteString *val) {
     SET_CALLED(setRemoteSymSigningKey);
+    ck_assert(channelContext);
+    ck_assert(val);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_SIGNING_KEY_LENGTH,
+                  "Expected length to be %i but got %i",
+                  SYM_SIGNING_KEY_LENGTH,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -154,6 +230,13 @@ static UA_StatusCode
 setRemoteSymIv_testing(void *channelContext,
                        const UA_ByteString *val) {
     SET_CALLED(setRemoteSymIv);
+    ck_assert(channelContext);
+    ck_assert(val);
+    ck_assert(val->data);
+    ck_assert_msg(val->length == SYM_ENCRYPTION_BLOCK_SIZE,
+                  "Expected length to be %i but got %i",
+                  SYM_ENCRYPTION_BLOCK_SIZE,
+                  val->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -193,24 +276,24 @@ TestingPolicy(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
     policy->asymmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
     policy->asymmetricModule.cryptoModule.verify = verify_testing;
     policy->asymmetricModule.cryptoModule.sign = sign_testing;
-    policy->asymmetricModule.cryptoModule.getLocalSignatureSize = length_testing;
-    policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = length_testing;
+    policy->asymmetricModule.cryptoModule.getLocalSignatureSize = asym_getLocalSignatureSize_testing;
+    policy->asymmetricModule.cryptoModule.getRemoteSignatureSize = asym_getRemoteSignatureSize_testing;
     policy->asymmetricModule.cryptoModule.encrypt = encrypt_testing;
     policy->asymmetricModule.cryptoModule.decrypt = decrypt_testing;
-    policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_testing;
-    policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_testing;
+    policy->asymmetricModule.cryptoModule.getLocalEncryptionKeyLength = asym_getLocalEncryptionKeyLength_testing;
+    policy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength = asym_getRemoteEncryptionKeyLength_testing;
 
     policy->symmetricModule.generateKey = generateKey_testing;
     policy->symmetricModule.generateNonce = generateNonce_testing;
     policy->symmetricModule.cryptoModule.signatureAlgorithmUri = UA_STRING_NULL;
     policy->symmetricModule.cryptoModule.verify = verify_testing;
     policy->symmetricModule.cryptoModule.sign = sign_testing;
-    policy->symmetricModule.cryptoModule.getLocalSignatureSize = length_testing;
-    policy->symmetricModule.cryptoModule.getRemoteSignatureSize = length_testing;
+    policy->symmetricModule.cryptoModule.getLocalSignatureSize = sym_getLocalSignatureSize_testing;
+    policy->symmetricModule.cryptoModule.getRemoteSignatureSize = sym_getRemoteSignatureSize_testing;
     policy->symmetricModule.cryptoModule.encrypt = encrypt_testing;
     policy->symmetricModule.cryptoModule.decrypt = decrypt_testing;
-    policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = length_testing;
-    policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = length_testing;
+    policy->symmetricModule.cryptoModule.getLocalEncryptionKeyLength = sym_getLocalEncryptionKeyLength_testing;
+    policy->symmetricModule.cryptoModule.getRemoteEncryptionKeyLength = sym_getRemoteEncryptionKeyLength_testing;
     policy->symmetricModule.encryptionBlockSize = SYM_ENCRYPTION_BLOCK_SIZE;
     policy->symmetricModule.signingKeyLength = SYM_SIGNING_KEY_LENGTH;
 
