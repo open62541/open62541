@@ -33,10 +33,10 @@ asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
                   const UA_ByteString *message,
                   UA_ByteString *signature) {
     SET_CALLED(asym_sign);
-    ck_assert(securityPolicy);
-    ck_assert(channelContext);
-    ck_assert(message);
-    ck_assert(signature);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    ck_assert(message != NULL);
+    ck_assert(signature != NULL);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -46,10 +46,10 @@ sym_sign_testing(const UA_SecurityPolicy *securityPolicy,
                  const UA_ByteString *message,
                  UA_ByteString *signature) {
     SET_CALLED(sym_sign);
-    ck_assert(securityPolicy);
-    ck_assert(channelContext);
-    ck_assert(message);
-    ck_assert(signature);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    ck_assert(message != NULL);
+    ck_assert(signature != NULL);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -92,8 +92,8 @@ sym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
 static size_t
 sym_getLocalEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy,
                                         const void *channelContext) {
-    ck_assert(securityPolicy);
-    ck_assert(channelContext);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
     return SYM_ENCRYPTION_KEY_LENGTH;
 }
 
@@ -108,9 +108,9 @@ sym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
                     const void *channelContext,
                     UA_ByteString *data) {
     SET_CALLED(sym_enc);
-    ck_assert(securityPolicy);
-    ck_assert(channelContext);
-    ck_assert(data);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    ck_assert(data != NULL);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -119,9 +119,9 @@ asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
                      const void *channelContext,
                      UA_ByteString *data) {
     SET_CALLED(asym_enc);
-    ck_assert(securityPolicy);
-    ck_assert(channelContext);
-    ck_assert(data);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    ck_assert(data != NULL);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -152,10 +152,10 @@ generateKey_testing(const UA_SecurityPolicy *securityPolicy,
                     const UA_ByteString *seed,
                     UA_ByteString *out) {
     SET_CALLED(generateKey);
-    ck_assert(securityPolicy);
-    ck_assert(secret);
-    ck_assert(seed);
-    ck_assert(out);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(secret != NULL);
+    ck_assert(seed != NULL);
+    ck_assert(out != NULL);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -175,10 +175,11 @@ newContext_testing(const UA_SecurityPolicy *securityPolicy,
                    const UA_ByteString *remoteCertificate,
                    void **channelContext) {
     SET_CALLED(newContext);
-    ck_assert(securityPolicy);
-    ck_assert(remoteCertificate);
-    ck_assert(channelContext);
+    ck_assert(securityPolicy != NULL);
+    ck_assert(remoteCertificate != NULL);
+    ck_assert(channelContext != NULL);
 
+    ck_assert(funcsCalled != NULL);
     *channelContext = (void *) funcsCalled;
     return UA_STATUSCODE_GOOD;
 }
@@ -186,16 +187,16 @@ newContext_testing(const UA_SecurityPolicy *securityPolicy,
 static void
 deleteContext_testing(void *channelContext) {
     SET_CALLED(deleteContext);
-    ck_assert(channelContext);
+    ck_assert(channelContext != NULL);
 }
 
 static UA_StatusCode
 setLocalSymEncryptingKey_testing(void *channelContext,
                                  const UA_ByteString *val) {
     SET_CALLED(setLocalSymEncryptingKey);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_ENCRYPTION_KEY_LENGTH,
                   "Expected length to be %i but got %i",
                   SYM_ENCRYPTION_KEY_LENGTH,
@@ -207,9 +208,9 @@ static UA_StatusCode
 setLocalSymSigningKey_testing(void *channelContext,
                               const UA_ByteString *val) {
     SET_CALLED(setLocalSymSigningKey);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_SIGNING_KEY_LENGTH,
                   "Expected length to be %i but got %i",
                   SYM_SIGNING_KEY_LENGTH,
@@ -221,9 +222,9 @@ static UA_StatusCode
 setLocalSymIv_testing(void *channelContext,
                       const UA_ByteString *val) {
     SET_CALLED(setLocalSymIv);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_ENCRYPTION_BLOCK_SIZE,
                   "Expected length to be %i but got %i",
                   SYM_ENCRYPTION_BLOCK_SIZE,
@@ -235,9 +236,9 @@ static UA_StatusCode
 setRemoteSymEncryptingKey_testing(void *channelContext,
                                   const UA_ByteString *val) {
     SET_CALLED(setRemoteSymEncryptingKey);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_ENCRYPTION_KEY_LENGTH,
                   "Expected length to be %i but got %i",
                   SYM_ENCRYPTION_KEY_LENGTH,
@@ -249,9 +250,9 @@ static UA_StatusCode
 setRemoteSymSigningKey_testing(void *channelContext,
                                const UA_ByteString *val) {
     SET_CALLED(setRemoteSymSigningKey);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_SIGNING_KEY_LENGTH,
                   "Expected length to be %i but got %i",
                   SYM_SIGNING_KEY_LENGTH,
@@ -263,9 +264,9 @@ static UA_StatusCode
 setRemoteSymIv_testing(void *channelContext,
                        const UA_ByteString *val) {
     SET_CALLED(setRemoteSymIv);
-    ck_assert(channelContext);
-    ck_assert(val);
-    ck_assert(val->data);
+    ck_assert(channelContext != NULL);
+    ck_assert(val != NULL);
+    ck_assert(val->data != NULL);
     ck_assert_msg(val->length == SYM_ENCRYPTION_BLOCK_SIZE,
                   "Expected length to be %i but got %i",
                   SYM_ENCRYPTION_BLOCK_SIZE,
