@@ -17,6 +17,7 @@
 UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate = UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 UA_SecurityPolicy dummyPolicy;
+UA_Connection testingConnection;
 
 
 funcs_called fCalled;
@@ -25,12 +26,18 @@ static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled);
     UA_SecureChannel_init(&testChannel, &dummyPolicy, &dummyCertificate);
+
+    testingConnection = createDummyConnection();
+    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
+    testChannel.connection = &testingConnection;
 }
 
 static void
 teardown_secureChannel(void) {
     UA_SecureChannel_deleteMembersCleanup(&testChannel);
     dummyPolicy.deleteMembers(&dummyPolicy);
+
+    memset(&testingConnection, 0, sizeof(UA_Connection));
 }
 
 static void
@@ -142,6 +149,11 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_withoutConnection)
     {
         UA_OpenSecureChannelResponse dummyResponse;
         UA_OpenSecureChannelResponse_init(&dummyResponse);
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+        // Remove connection to provoke error
+        UA_Connection_detachSecureChannel(testChannel.connection);
+        testChannel.connection = NULL;
 
         UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
                                                                          42,
@@ -180,9 +192,6 @@ END_TEST
 START_TEST(SecureChannel_sendAsymmetricOPNMessage)
     {
         // Configure our channel correctly for OPN messages and setup dummy message
-        UA_Connection testingConnection = createDummyConnection();
-        UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-
         UA_OpenSecureChannelResponse dummyResponse;
         UA_OpenSecureChannelResponse_init(&dummyResponse);
 
@@ -249,9 +258,10 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_funcs_called, teardown_funcs_called);
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_withoutConnection);
-    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_invalidParameters);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
+
 
     return s;
 }
