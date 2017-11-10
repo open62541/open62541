@@ -92,6 +92,11 @@ option(UA_ENABLE_DETERMINISTIC_RNG "Do not seed the random number generator (e.g
 mark_as_advanced(UA_ENABLE_DETERMINISTIC_RNG)
 
 option(UA_ENABLE_FULL_NS0 "Use the full NS0 instead of a minimal Namespace 0 nodeset" OFF)
+if (MSVC AND UA_ENABLE_FULL_NS0)
+    # For the full NS0 we need a stack size of 8MB (as it is default on linux)
+    # See https://github.com/open62541/open62541/issues/1326
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
+endif()
 
 option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
