@@ -516,11 +516,8 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     if(LIST_FIRST(&session->serverSubscriptions))
         return;
 
-    /* Send remaining publish responses in a delayed callback if the last
-     * subscription was removed */
-    UA_Server_delayedCallback(server, (UA_ServerCallback)
-                              UA_Subscription_answerPublishRequestsNoSubscription,
-                              session);
+    /* Send remaining publish responses if the last subscription was removed */
+    UA_Subscription_answerPublishRequestsNoSubscription(server, session);
 }
 
 static void
