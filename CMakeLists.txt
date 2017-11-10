@@ -123,6 +123,13 @@ if(UA_BUILD_FUZZING)
     add_definitions(-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
 endif()
 
+option(UA_BUILD_FUZZING_CORPUS "Build the fuzzing corpus" OFF)
+mark_as_advanced(UA_BUILD_FUZZING_CORPUS)
+if(UA_BUILD_FUZZING_CORPUS)
+    add_definitions(-DUA_DEBUG_DUMP_PKGS_FILE)
+    set(UA_ENABLE_TYPENAMES ON CACHE STRING "" FORCE)
+endif()
+
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
@@ -634,6 +641,12 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
+
+
+if(UA_BUILD_FUZZING_CORPUS)
+    add_subdirectory(tools/corpus_generator)
+endif()
+
 
 ############################
 # Linting run (clang-tidy) #
