@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import codecs
 from nodeset import *
 
 class testing:
@@ -23,7 +24,7 @@ class testing:
         self.ns.allocateVariables()
 
         bin = self.ns.buildBinary()
-        f = open("binary.base64", "w+")
+        f = codecs.open("binary.base64", "w+", encoding='utf-8')
         f.write(bin.encode("base64"))
         f.close()
 
@@ -65,7 +66,7 @@ class testing_open62541_header:
         logger.debug("Phase 3: Calling C Printers")
         code = self.ns.printOpen62541Header()
 
-        codeout = open("./open62541_nodeset.c", "w+")
+        codeout = codecs.open("./open62541_nodeset.c", "w+", encoding='utf-8')
         for line in code:
             codeout.write(line + "\n")
         codeout.close()
