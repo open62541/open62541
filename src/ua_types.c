@@ -565,6 +565,8 @@ copySubString(const UA_String *src, UA_String *dst,
 UA_StatusCode
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
+    if (!src->type)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     bool isScalar = UA_Variant_isScalar(src);
     bool stringLike = isStringLike(src->type);
     UA_Variant arraySrc;
