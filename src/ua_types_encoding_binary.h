@@ -11,35 +11,63 @@ extern "C" {
 
 #include "ua_types.h"
 
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos, const UA_Byte **bufEnd);
+typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
+                                                 const UA_Byte **bufEnd);
 
-/* Encode the data scalar (or structure) described by type in the binary
- * encoding.
+/* Encodes the scalar value described by type in the binary encoding. Encoding
+ * is thread-safe if thread-local variables are enabled. Encoding is also
+ * reentrant and can be safely called from signal handlers or interrupts.
  *
- * @param data Points to the data.
- * @param type Points to the type description.
- * @param buf_pos Points to a pointer to the current position in the encoding buffer.
- *        Must not be NULL. The pointer is advanced by the number of encoded bytes, or,
- *        if the buffer is exchanged, to the position in the new buffer.
- * @param buf_end Points to a pointer to the end of the encoding buffer (encoding always stops
- *        before *buf_end). Must not be NULL. The pointer is changed when the buffer is exchanged.
- * @param exchangeCallback Function that is called when the end of the encoding
- *        buffer is reached.
- * @param exchangeHandle Custom data passed intp the exchangeCallback.
+ * @param src The value. Must not be NULL.
+ * @param type The value type. Must not be NULL.
+ * @param bufPos Points to a pointer to the current position in the encoding
+ *        buffer. Must not be NULL. The pointer is advanced by the number of
+ *        encoded bytes, or, if the buffer is exchanged, to the position in the
+ *        new buffer.
+ * @param bufEnd Points to a pointer to the end of the encoding buffer (encoding
+ *        always stops before *buf_end). Must not be NULL. The pointer is
+ *        changed when the buffer is exchanged.
+ * @param exchangeCallback Called when the end of the buffer is reached. This is
+          used to send out a message chunk before continuing with the encoding.
+          Is ignored if NULL.
+ * @param exchangeHandle Custom data passed into the exchangeCallback.
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode
 UA_encodeBinary(const void *src, const UA_DataType *type,
                 UA_Byte **bufPos, const UA_Byte **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                UA_exchangeEncodeBuffer exchangeCallback,
+                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/* Decodes a scalar value described by type from binary encoding. Decoding
+ * is thread-safe if thread-local variables are enabled. Decoding is also
+ * reentrant and can be safely called from signal handlers or interrupts.
+ *
+ * @param src The buffer with the binary encoded value. Must not be NULL.
+ * @param offset The current position in the buffer. Must not be NULL. The value
+ *        is advanced as decoding progresses.
+ * @param dst The target value. Must not be NULL. The target is assumed to have
+ *        size type->memSize. The value is reset to zero before decoding. If
+ *        decoding fails, members are deleted and the value is reset (zeroed)
+ *        again.
+ * @param type The value type. Must not be NULL.
+ * @param customTypesSize The number of non-standard datatypes contained in the
+ *        customTypes array.
+ * @param customTypes An array of non-standard datatypes (not included in
+ *        UA_TYPES). Can be NULL if customTypesSize is zero.
+ * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
                 const UA_DataType *type, size_t customTypesSize,
                 const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-size_t UA_calcSizeBinary(void *p, const UA_DataType *type);
+/* Returns the number of bytes the value p takes in binary encoding. Returns
+ * zero if an error occurs. UA_calcSizeBinary is thread-safe and reentrant since
+ * it does not access global (thread-local) variables. */
+size_t
+UA_calcSizeBinary(void *p, const UA_DataType *type);
 
-const UA_DataType *UA_findDataTypeByBinary(const UA_NodeId *typeId);
+const UA_DataType *
+UA_findDataTypeByBinary(const UA_NodeId *typeId);
 
 #ifdef __cplusplus
 }

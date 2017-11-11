@@ -98,17 +98,8 @@ static status
 exchangeBuffer(void) {
     if(!g_exchangeBufferCallback)
         return UA_STATUSCODE_BADENCODINGERROR;
-
-    /* Store context variables since exchangeBuffer might call UA_encode itself */
-    UA_exchangeEncodeBuffer store_exchangeBufferCallback = g_exchangeBufferCallback;
-    void *store_exchangeBufferCallbackHandle = g_exchangeBufferCallbackHandle;
-
-    status ret = g_exchangeBufferCallback(g_exchangeBufferCallbackHandle, &g_pos, &g_end);
-
-    /* Restore context variables */
-    g_exchangeBufferCallback = store_exchangeBufferCallback;
-    g_exchangeBufferCallbackHandle = store_exchangeBufferCallbackHandle;
-    return ret;
+    return g_exchangeBufferCallback(g_exchangeBufferCallbackHandle,
+                                    &g_pos, &g_end);
 }
 
 /*****************/
@@ -1432,17 +1423,31 @@ status
 UA_encodeBinary(const void *src, const UA_DataType *type,
                 u8 **bufPos, const u8 **bufEnd,
                 UA_exchangeEncodeBuffer exchangeCallback, void *exchangeHandle) {
+    /* Save global (thread-local) values to make UA_encodeBinary reentrant */
+    u8 *save_pos = g_pos;
+    const u8 *save_end = g_end;
+    UA_exchangeEncodeBuffer save_exchangeBufferCallback = g_exchangeBufferCallback;
+    void *save_exchangeBufferCallbackHandle = g_exchangeBufferCallbackHandle;
+
     /* Set the (thread-local) pointers to save function arguments */
     g_pos = *bufPos;
     g_end = *bufEnd;
     g_exchangeBufferCallback = exchangeCallback;
     g_exchangeBufferCallbackHandle = exchangeHandle;
+
+    /* Encode */
     status ret = UA_encodeBinaryInternal(src, type);
 
-    /* Set the current buffer position. Beware that the buffer might have been
-     * exchanged internally. */
+    /* Set the new buffer position for the output. Beware that the buffer might
+     * have been exchanged internally. */
     *bufPos = g_pos;
     *bufEnd = g_end;
+
+    /* Restore global (thread-local) values */
+    g_pos = save_pos;
+    g_end = save_end;
+    g_exchangeBufferCallback = save_exchangeBufferCallback;
+    g_exchangeBufferCallbackHandle = save_exchangeBufferCallbackHandle;
     return ret;
 }
 
@@ -1505,27 +1510,41 @@ status
 UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
                 const UA_DataType *type, size_t customTypesSize,
                 const UA_DataType *customTypes) {
-    /* Initialize the destination */
-    memset(dst, 0, type->memSize);
+    /* Save global (thread-local) values to make UA_decodeBinary reentrant */
+    size_t save_customTypesArraySize = g_customTypesArraySize;
+    const UA_DataType * save_customTypesArray = g_customTypesArray;
+    u8 *save_pos = g_pos;
+    const u8 *save_end = g_end;
 
-    /* Store the pointers to the custom datatypes. They might be needed during
-     * decoding of variants. */
+    /* Global pointers to the custom datatypes. */
     g_customTypesArraySize = customTypesSize;
     g_customTypesArray = customTypes;
 
-    /* Set the (thread-local) position and end pointers to save function
-     * arguments */
+    /* Global position pointers */
     g_pos = &src->data[*offset];
     g_end = &src->data[src->length];
+
+    /* Initialize the value */
+    memset(dst, 0, type->memSize);
 
     /* Decode */
     status ret = UA_decodeBinaryInternal(dst, type);
 
-    /* Clean up */
-    if(ret == UA_STATUSCODE_GOOD)
+    if(ret == UA_STATUSCODE_GOOD) {
+        /* Set the new offset */
         *offset = (size_t)(g_pos - src->data) / sizeof(u8);
-    else
+    } else {
+        /* Clean up */
         UA_deleteMembers(dst, type);
+        memset(dst, 0, type->memSize);
+    }
+
+    /* Restore global (thread-local) values */
+    g_customTypesArraySize = save_customTypesArraySize;
+    g_customTypesArray = save_customTypesArray;
+    g_pos = save_pos;
+    g_end = save_end;
+
     return ret;
 }
 
