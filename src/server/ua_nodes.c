@@ -300,6 +300,9 @@ copyCommonVariableAttributes(UA_VariableNode *node,
         const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
         if (obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
 
+            /* TODO: Once we generate type description in the nodeset compiler,
+             * UA_findDatatypeByBinary can be made internal to the decoding
+             * layer. */
             const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
 
             if (type) {
