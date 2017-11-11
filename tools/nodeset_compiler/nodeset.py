@@ -21,7 +21,8 @@ import sys
 import xml.dom.minidom as dom
 from struct import pack as structpack
 from time import struct_time, strftime, strptime, mktime
-import logging;
+import logging
+import codecs
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ def extractNamespaces(xmlfile):
     # attempts to do just that.
 
     namespaces = ["http://opcfoundation.org/UA/"]
-    infile = open(xmlfile.name)
+    infile = codecs.open(xmlfile.name, encoding='utf-8')
     foundURIs = False
     nsline = ""
     line = infile.readline()

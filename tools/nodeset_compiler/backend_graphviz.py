@@ -1,5 +1,6 @@
 from nodeset import *
 import graphviz as gv
+import codecs
 
 def nodePrintDot(node):
     cleanname = "node_" + str(node.id).replace(";", "").replace("=", "")
@@ -39,7 +40,7 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
     else:
         root = rootNode
 
-    file = open(filename, 'w+')
+    file = codecs.open(filename, 'w+', encoding='utf-8')
 
     if root == None:
         return

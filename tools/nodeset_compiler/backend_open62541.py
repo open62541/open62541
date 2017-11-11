@@ -23,6 +23,7 @@ import string
 from collections import deque
 from os.path import basename
 import logging
+import codecs
 try:
     from StringIO import StringIO
 except ImportError:
@@ -162,7 +163,7 @@ def reorderNodesMinDependencies(nodeset):
 def generateOpen62541Code(nodeset, outfilename, supressGenerationOfAttribute=[], generate_ns0=False, internal_headers=False, typesArray=[], max_string_length=0):
     outfilebase = basename(outfilename)
     # Printing functions
-    outfileh = open(outfilename + ".h", r"w+")
+    outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
     outfilec = StringIO()
 
     def writeh(line):
@@ -252,6 +253,6 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     fullCode = outfilec.getvalue()
     outfilec.close()
 
-    outfilec = open(outfilename + ".c", r"w+")
+    outfilec = codecs.open(outfilename + ".c", r"w+", encoding='utf-8')
     outfilec.write(fullCode)
     outfilec.close()
