@@ -25,6 +25,7 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install git build-essential gcc pkg-config cmake python python-six
 
    # enable additional features
+   sudo apt-get install cmake-curses-gui # for ccmake
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
    sudo apt-get install python-sphinx graphviz # for documentation generation
