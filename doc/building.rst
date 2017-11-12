@@ -22,7 +22,7 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
 
-   sudo apt-get install git build-essential gcc pkg-config cmake python python-six
+   sudo apt-get install git build-essential gcc pkg-config cmake python python-six cmake-curses-gui
 
    # enable additional features
    sudo apt-get install liburcu-dev # for multithreading
