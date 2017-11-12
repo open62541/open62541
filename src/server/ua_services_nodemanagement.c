@@ -695,10 +695,46 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
             goto cleanup;
         }
 
+        UA_Boolean  typeOk = UA_FALSE;
+        switch (node->nodeClass) {
+            case UA_NODECLASS_DATATYPE:
+                typeOk = type->nodeClass == UA_NODECLASS_DATATYPE;
+                break;
+            case UA_NODECLASS_METHOD:
+                typeOk = type->nodeClass == UA_NODECLASS_METHOD;
+                break;
+            case UA_NODECLASS_OBJECT:
+                typeOk = type->nodeClass == UA_NODECLASS_OBJECTTYPE;
+                break;
+            case UA_NODECLASS_OBJECTTYPE:
+                typeOk = type->nodeClass == UA_NODECLASS_OBJECTTYPE;
+                break;
+            case UA_NODECLASS_REFERENCETYPE:
+                typeOk = type->nodeClass == UA_NODECLASS_REFERENCETYPE;
+                break;
+            case UA_NODECLASS_VARIABLE:
+                typeOk = type->nodeClass == UA_NODECLASS_VARIABLETYPE;
+                break;
+            case UA_NODECLASS_VARIABLETYPE:
+                typeOk = type->nodeClass == UA_NODECLASS_VARIABLETYPE;
+                break;
+            case UA_NODECLASS_VIEW:
+                typeOk = type->nodeClass == UA_NODECLASS_VIEW;
+                break;
+            default:
+                typeOk = UA_FALSE;
+        }
+        if (!typeOk) {
+            UA_LOG_INFO_SESSION(server->config.logger, session,
+                                "AddNodes: Type does not match node class");
+            retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
+            goto cleanup;
+        }
+
         /* See if the type has the correct node class. For type-nodes, we know
          * that type has the same nodeClass from checkParentReference. */
         if(!server->bootstrapNS0 && node->nodeClass == UA_NODECLASS_VARIABLE) {
-            if(type->nodeClass != UA_NODECLASS_VARIABLETYPE || ((const UA_VariableTypeNode*)type)->isAbstract) {
+            if(((const UA_VariableTypeNode*)type)->isAbstract) {
                 /* Abstract variable is allowed if parent is a children of a base data variable */
                 const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
                 /* A variable may be of an object type which again is below BaseObjectType */
@@ -719,8 +755,7 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
         }
 
         if(!server->bootstrapNS0 && node->nodeClass == UA_NODECLASS_OBJECT) {
-            if(type->nodeClass != UA_NODECLASS_OBJECTTYPE ||
-                    ((const UA_ObjectTypeNode*)type)->isAbstract) {
+            if(((const UA_ObjectTypeNode*)type)->isAbstract) {
                 /* Object node created of an abstract ObjectType. Only allowed if within BaseObjectType folder */
                 const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
                 const UA_NodeId refs[2] = {
