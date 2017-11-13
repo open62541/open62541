@@ -11,8 +11,12 @@
 extern "C" {
 #endif
 
-/** @brief Create the TCP networklayer and listen to the specified port */
-UA_Connection createDummyConnection(void);
+/** @brief Create the TCP networklayer and listen to the specified port
+ *
+ * @param verificationBuffer the send function will write the data that is sent to this buffer, so that it is
+ *                           possible to check what the send function recieved.
+ */
+UA_Connection createDummyConnection(UA_ByteString *verificationBuffer);
 
 #ifdef __cplusplus
 }

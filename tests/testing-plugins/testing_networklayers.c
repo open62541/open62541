@@ -3,12 +3,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdlib.h>
+#include <assert.h>
 #include "testing_networklayers.h"
 #include "ua_config_default.h"
 
+UA_ByteString *vBuffer;
+
 static UA_StatusCode
 dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
-    buf->data = length == 0 ? NULL : (UA_Byte*)UA_malloc(length);
+    buf->data = (length == 0) ? NULL : (UA_Byte*)UA_malloc(length);
     buf->length = length;
     return UA_STATUSCODE_GOOD;
 }
@@ -20,6 +23,11 @@ dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
 
 static UA_StatusCode
 dummySend(UA_Connection *connection, UA_ByteString *buf) {
+    assert(connection != NULL);
+    assert(buf != NULL);
+
+    UA_ByteString_deleteMembers(vBuffer);
+    UA_ByteString_copy(buf, vBuffer);
     UA_ByteString_deleteMembers(buf);
     return UA_STATUSCODE_GOOD;
 }
@@ -30,9 +38,13 @@ dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
 
 static void
 dummyClose(UA_Connection *connection) {
+    UA_ByteString_deleteMembers(vBuffer);
 }
 
-UA_Connection createDummyConnection(void) {
+UA_Connection createDummyConnection(UA_ByteString *verificationBuffer) {
+    assert(verificationBuffer != NULL);
+
+    vBuffer = verificationBuffer;
     UA_Connection c;
     c.state = UA_CONNECTION_ESTABLISHED;
     c.localConf = UA_ConnectionConfig_default;

@@ -14,6 +14,7 @@
 
 size_t files;
 char **filenames;
+UA_ByteString sentData;
 
 static UA_ByteString readFile(char *filename) {
     UA_ByteString buf = UA_BYTESTRING_NULL;
@@ -39,7 +40,7 @@ static UA_ByteString readFile(char *filename) {
 }
 
 START_TEST(processMessage) {
-    UA_Connection c = createDummyConnection();
+    UA_Connection c = createDummyConnection(&sentData);
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
     for(size_t i = 0; i < files; i++) {
