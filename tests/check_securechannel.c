@@ -189,7 +189,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_invalidParameters)
     }
 END_TEST
 
-START_TEST(SecureChannel_sendAsymmetricOPNMessage)
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid)
     {
         // Configure our channel correctly for OPN messages and setup dummy message
         UA_OpenSecureChannelResponse dummyResponse;
@@ -202,30 +202,55 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage)
                                                                          &dummyResponse,
                                                                          &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEREJECTED, "Expected SecurityMode rejected error");
+    }
+END_TEST
 
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone)
+    {
+        // Configure our channel correctly for OPN messages and setup dummy message
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
         testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
-        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                           42,
-                                                           &dummyResponse,
-                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         &dummyResponse,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(!fCalled.asym_enc, "Message encryption was called but should not have been");
         ck_assert_msg(!fCalled.asym_sign, "Message signing was called but should not have been");
+    }
+END_TEST
 
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign)
+    {
+        // Configure our channel correctly for OPN messages and setup dummy message
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGN;
-        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                           42,
-                                                           &dummyResponse,
-                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         &dummyResponse,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
         ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt)
+    {
+        // Configure our channel correctly for OPN messages and setup dummy message
+        UA_OpenSecureChannelResponse dummyResponse;
+        UA_OpenSecureChannelResponse_init(&dummyResponse);
 
         testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-        retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
-                                                           42,
-                                                           &dummyResponse,
-                                                           &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+
+        UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel,
+                                                                         42,
+                                                                         &dummyResponse,
+                                                                         &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
         ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected function to succeed");
         ck_assert_msg(fCalled.asym_enc, "Expected message to have been encrypted but it was not");
         ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
@@ -259,7 +284,10 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_withoutConnection);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_invalidParameters);
-    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign);
+    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
 
 
