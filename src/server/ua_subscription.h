@@ -145,4 +145,6 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 void
 UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 
+void
+UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 #endif /* UA_SUBSCRIPTION_H_ */

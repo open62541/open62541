@@ -60,7 +60,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
 
     if((server->config.maxSubscriptionsPerSession != 0) &&
        (UA_Session_getNumSubscriptions(session) >= server->config.maxSubscriptionsPerSession)) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
         return;
    }
     /* Create the subscription */
@@ -438,12 +438,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Handle too many subscriptions to free resources before trying to allocate
+     * resources for the new publish request. If the limit has been reached the
+     * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0 ) &&
        (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
-        subscriptionSendError(session->channel, requestId,
-                              request->requestHeader.requestHandle,
-                              UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS);
-        return;
+       UA_Subscription_reachedPublishReqLimit( server,session);
     }
 
     UA_PublishResponseEntry *entry =

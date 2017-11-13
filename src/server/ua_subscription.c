@@ -377,7 +377,50 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         /* Repeat sending responses right away if there are more notifications
          * to send */
         UA_Subscription_publishCallback(server, sub);
+}
+
+void
+UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Reached number of publish request limit");
+
+
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(session);
+
+    /* Cannot publish without a response */
+    if(!pre) {
+       UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
     }
+
+    UA_PublishResponse *response = &pre->response;
+    UA_NotificationMessage *message = &response->notificationMessage;
+
+    /* <-- The point of no return --> */
+
+    /* Remove the response from the response queue */
+    UA_Session_removePublishReq(session, pre);
+
+    /* Set up the response. Note that this response has no related subscription id */
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
+    response->subscriptionId = 0;
+    response->moreNotifications = false;
+    message->publishTime = response->responseHeader.timestamp;
+    message->sequenceNumber = 0;
+    response->availableSequenceNumbersSize = 0;
+
+    /* Send the response */
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Sending out a publish response triggered by too many publish requests");
+    UA_SecureChannel_sendBinaryMessage(session->channel,
+                                       pre->requestId, response,
+                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+    /* Free the response */
+    UA_Array_delete(response->results, response->resultsSize,
+                    &UA_TYPES[UA_TYPES_UINT32]);
+    UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
 }
 
 UA_StatusCode
