@@ -330,14 +330,17 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic,
     }
 
     /* Set the entry-point for the newly sorted list */
+
     t->repeatedCallbacks.slh_first = tmp_first.next.sle_next;
 
     /* Re-repeat processAddRemoved since one of the callbacks might have removed
      * or added a callback. So we return a correct timeout. */
     processChanges(t);
-
     /* Return timestamp of next repetition */
-    return SLIST_FIRST(&t->repeatedCallbacks)->nextTime;
+    if(SLIST_FIRST(&t->repeatedCallbacks)){
+        return SLIST_FIRST(&t->repeatedCallbacks)->nextTime;}
+    else{
+        return UA_INT64_MAX;}
 }
 
 void

@@ -5,36 +5,56 @@
 #include "open62541.h"
 #include <unistd.h>
 
-/*reqNo is a help variable to make sure that all requests are responded*/
+/*total number of unresponded requests*/
 static int reqNo = 0;
 
 static
 void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
         void *response) {
-    printf("writeResponse received \n");
     reqNo--;
+    printf("%-50s%-8i\n", "writeResponse received, pending requests:", reqNo);
 }
 
 static
 void valueRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
         void *response) {
     reqNo--;
-    printf("readResponse received \n");
+    printf("%-50s%-8i\n", "readResponse received, pending requests:", reqNo);
 }
 
 static
 void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
         void *response) {
     reqNo--;
-    printf("attribute read \n");
+    UA_DataValue *res = ((UA_ReadResponse*) response)->results;
+    if(res->hasValue){
+        memcpy(userdata, &res->value, sizeof(UA_Variant));
+        }
+    UA_Variant val = *(UA_Variant*) userdata;
+    if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_DATETIME])) {
+        UA_DateTime raw_date = *(UA_DateTime*) val.data;
+        UA_String string_date = UA_DateTime_toString(raw_date);
+        printf("string date is: %.*s\n", (int) string_date.length,
+                string_date.data);
+        UA_String_deleteMembers(&string_date);
+    }
+    printf("%-50s%-8i\n", "attribute read, pending requests:", reqNo);
 }
+
+//static
+//void dataTypeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
+//        void *response) {
+//
+//}
+
 
 static
 void fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
         void *response) {
-    printf("browseResponse received \n");
     reqNo--;
+    printf("%-50s%-8i\n", "browseResponse received, pending requests:", reqNo);
 }
+
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -44,7 +64,7 @@ int main(int argc, char *argv[]) {
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-//    UA_StatusCode retval = UA_Client_getEndpoints_async(client, "opc.tcp://localhost:4840",
+//     retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
 //                                                      &endpointArraySize, &endpointArray);
 
     if (retval != UA_STATUSCODE_GOOD) {
@@ -71,7 +91,7 @@ int main(int argc, char *argv[]) {
     memset(sValue.data, 'a', 90000);
     sValue.length = 90000;
 
-    printf("\nWriting a value of node (1, \"the.answer\"):\n");
+    //printf("\nWriting a value of node (1, \"the.answer\"):\n");
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = UA_WriteValue_new();
@@ -91,7 +111,6 @@ int main(int argc, char *argv[]) {
     rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
     /* Browse some objects */
-    printf("Browsing nodes in objects folder:\n");
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
@@ -101,53 +120,58 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     size_t reqId = 0;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    reqNo = 1;
+
+    printf("Testing async requests\n");
+    printf("%s\n","---------------------");
     do {
         if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
             /*reset the number of total requests sent*/
-            reqNo -= 1;
-            printf("browseRequest sent \n");
+
             UA_Client_addAsyncRequest(client, (void*) &bReq,
                     &UA_TYPES[UA_TYPES_BROWSEREQUEST], fileBrowsed,
                     &UA_TYPES[UA_TYPES_BROWSERESPONSE], NULL, &reqId);
             reqNo++;
-            printf("readRequest sent \n");
+            printf("%-50s%-8i\n", "browseRequest sent, pending requests:", reqNo);
+
             UA_Client_addAsyncRequest(client, (void*) &wReq,
                     &UA_TYPES[UA_TYPES_WRITEREQUEST], valueWritten,
                     &UA_TYPES[UA_TYPES_WRITERESPONSE], NULL, &reqId);
             reqNo++;
-            printf("writeRequest sent \n");
+            printf("%-50s%-8i\n", "readRequest sent, pending requests:", reqNo);
+
             UA_Client_addAsyncRequest(client, (void*) &rReq,
                     &UA_TYPES[UA_TYPES_READREQUEST], valueRead,
                     &UA_TYPES[UA_TYPES_READRESPONSE], NULL, &reqId);
             reqNo++;
+            printf("%-50s%-8i\n", "writeRequest sent, pending requests:", reqNo);
         }
 
         UA_Client_run_iterate(client, 10);
-        if (reqNo <= 0)
+        if (reqNo < 0)
             break;
-        //sleep(1);
-        printf("reqNo: %i \n", reqNo);
-    } while (reqId < 20);
+    } while (reqId < 10);
 
     //the first highlevel function made async, UA_Client_run_iterate capsuled.
+    printf("Testing async highlevel functions:\n");
+    printf("%s\n","---------------------");
     UA_Variant val;
     UA_Variant_init(&val);
     for (int i = 0; i < 5; i++) {
         UA_Client_readValueAttribute_async(client,
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-                &val, attrRead, NULL);
-        //UA_Client_run_iterate(client, 10);
-        if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_DATETIME])) {
-            UA_DateTime raw_date = *(UA_DateTime*) val.data;
-            UA_String string_date = UA_DateTime_toString(raw_date);
-            printf("string date is: %.*s\n", (int) string_date.length,
-                    string_date.data);
-            UA_String_deleteMembers(&string_date);
-        }
-    }
+                UA_NODEID_STRING(1, "the.answer"),
+                NULL, attrRead, &val, &reqId);
+        reqNo++;
 
-    UA_Variant_deleteMembers(&val);
+//        UA_Int32 value = 0;
+//        UA_Variant *myVariant = UA_Variant_new();
+//            UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
+//            UA_Client_writeValueAttribute(client, UA_NODEID_STRING(1, "the.answer"), myVariant);
+//        UA_Variant_delete(myVariant);
+
+    }
+    UA_Client_run_iterate(client, 10);
+    UA_Client_run_iterate(client, 10);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return (int) UA_STATUSCODE_GOOD;

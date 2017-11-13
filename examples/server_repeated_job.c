@@ -4,9 +4,13 @@
 #include <signal.h>
 #include "open62541.h"
 
+UA_UInt64 callbackID;
 static void
 testCallback(UA_Server *server, void *data) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "testcallback");
+    UA_Server_removeRepeatedCallback(server, callbackID);
+    UA_Server_removeRepeatedCallback(server, 1); /* call every 2 sec */
+    UA_Server_addRepeatedCallback(server, testCallback, NULL, 2000, &callbackID); /* call every 2 sec */
 }
 
 UA_Boolean running = true;
@@ -23,7 +27,7 @@ int main(void) {
     UA_Server *server = UA_Server_new(config);
 
     /* Add a repeated callback to the server */
-    UA_Server_addRepeatedCallback(server, testCallback, NULL, 2000, NULL); /* call every 2 sec */
+    UA_Server_addRepeatedCallback(server, testCallback, NULL, 2000, &callbackID); /* call every 2 sec */
 
     UA_StatusCode retval = UA_Server_run(server, &running);
     UA_Server_delete(server);

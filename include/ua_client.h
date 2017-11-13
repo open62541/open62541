@@ -32,9 +32,31 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
- * Client Configuration
- * -------------------- */
 
+*/
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+/*
+* Repeated Callbacks
+* ------------------ */
+typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
+
+
+//void
+//UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
+//                         void *data);
+//UA_StatusCode
+//UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
+//void *data);
+
+UA_StatusCode
+UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
+                              void *data, UA_UInt32 interval,
+                              UA_UInt64 *callbackId);
+
+UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId);
+/* Client Configuration
+* -------------------- */
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
@@ -42,7 +64,7 @@ typedef struct UA_ClientConfig {
     UA_Logger logger;
     UA_ConnectionConfig localConnectionConfig;
     UA_ConnectClientConnection connectionFunc;
-
+    UA_ClientCallback pollConnectionFunc;
     /* Custom DataTypes */
     size_t customDataTypesSize;
     const UA_DataType *customDataTypes;
@@ -53,6 +75,7 @@ typedef struct UA_ClientConfig {
  * ---------------- */
 typedef enum {
     UA_CLIENTSTATE_DISCONNECTED,        /* The client is not connected */
+    UA_CLIENTSTATE_WAITING_FOR_ACK,     /* The Client has sent HEL and waiting for the acknowledment */
     UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
     UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
     UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
@@ -62,8 +85,7 @@ typedef enum {
                                          * reattach the existing session. */
 } UA_ClientState;
 
-struct UA_Client;
-typedef struct UA_Client UA_Client;
+
 
 /* Create a new client */
 UA_Client UA_EXPORT *
@@ -469,10 +491,8 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
  * .. toctree::
  *
  *    client_highlevel */
-/**
-* Repeated Callbacks
-* ------------------ */
-typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
+
+
 
 #ifdef __cplusplus
 } // extern "C"
