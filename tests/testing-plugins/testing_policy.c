@@ -6,7 +6,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <ua_types.h>
-#include "ua_securitypolicy_none.h"
+#include <ua_plugin_securitypolicy.h>
 #include "ua_types_generated_handling.h"
 #include "testing_policy.h"
 #include "check.h"
@@ -16,6 +16,8 @@
 #define SYM_ENCRYPTION_BLOCK_SIZE 2
 #define SYM_SIGNING_KEY_LENGTH 3
 #define SYM_ENCRYPTION_KEY_LENGTH 5
+#define ASYM_REMOTE_SIGNATURE_SIZE 7
+#define ASYM_LOCAL_SIGNATURE_SIZE 11
 
 funcs_called *funcsCalled;
 
@@ -37,6 +39,11 @@ asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(channelContext != NULL);
     ck_assert(message != NULL);
     ck_assert(signature != NULL);
+
+    ck_assert_msg(signature->length == ASYM_LOCAL_SIGNATURE_SIZE,
+                  "Expected signature length to be %i but was %i",
+                  ASYM_LOCAL_SIGNATURE_SIZE,
+                  signature->length);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -50,19 +57,29 @@ sym_sign_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(channelContext != NULL);
     ck_assert(message != NULL);
     ck_assert(signature != NULL);
+    ck_assert(signature->length != 0);
+    ck_assert(signature->data != NULL);
+
+    memset(signature->data, 'S', signature->length);
     return UA_STATUSCODE_GOOD;
 }
 
 static size_t
 asym_getLocalSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                    const void *channelContext) {
-    return 0;
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+
+    return ASYM_LOCAL_SIGNATURE_SIZE;
 }
 
 static size_t
 asym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                     const void *channelContext) {
-    return 0;
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+
+    return ASYM_REMOTE_SIGNATURE_SIZE;
 }
 
 static size_t
@@ -122,6 +139,16 @@ asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
     ck_assert(securityPolicy != NULL);
     ck_assert(channelContext != NULL);
     ck_assert(data != NULL);
+
+    size_t blockSize = securityPolicy->channelModule.getRemoteAsymPlainTextBlockSize(securityPolicy);
+    ck_assert_msg(data->length % blockSize == 0,
+                  "Expected the length of the data to be encrypted to be a multiple of the plaintext block size (%i)",
+                  blockSize);
+
+    for(size_t i = 0; i < data->length; ++i) {
+        data->data[i] = (UA_Byte) ((data->data[i] + 1) % (UA_BYTE_MAX + 1));
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -137,6 +164,14 @@ makeThumbprint_testing(const UA_SecurityPolicy *securityPolicy,
                        const UA_ByteString *certificate,
                        UA_ByteString *thumbprint) {
     SET_CALLED(makeCertificateThumbprint);
+
+    ck_assert(securityPolicy != NULL);
+    ck_assert(certificate != NULL);
+    ck_assert(thumbprint != NULL);
+
+    ck_assert_msg(thumbprint->length == 20, "Thumbprints have to be 20 bytes long (current specification)");
+    memset(thumbprint->data, 42, 20);
+
     return UA_STATUSCODE_GOOD;
 }
 
