@@ -377,6 +377,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         /* Repeat sending responses right away if there are more notifications
          * to send */
         UA_Subscription_publishCallback(server, sub);
+    }
 }
 
 void
