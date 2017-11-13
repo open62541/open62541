@@ -85,6 +85,8 @@ UA_NodeId newVariableId;
 UA_NodeId newMethodId;
 UA_NodeId newViewId;
 
+#ifdef UA_ENABLE_NODEMANAGEMENT
+
 START_TEST(Node_Add) {
     UA_StatusCode retval;
 
@@ -244,6 +246,8 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
     return UA_STATUSCODE_GOOD;
 }
 
+#endif
+
 START_TEST(Node_Browse) {
     // Browse node in server folder
     UA_BrowseRequest bReq;
@@ -354,7 +358,7 @@ UA_NodeId nodeReadWriteTestHasSubSubType;
 UA_NodeId nodeReadWriteView;
 UA_NodeId nodeReadWriteMethod;
 
-
+#ifdef UA_ENABLE_NODEMANAGEMENT
 
 START_TEST(Node_AddReadWriteNodes) {
     UA_StatusCode retval;
@@ -1011,6 +1015,8 @@ START_TEST(Node_ReadWrite_UserExecutable) {
 }
 END_TEST
 
+#endif
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Client Highlevel");
     TCase *tc_misc = tcase_create("Client Highlevel Misc");
@@ -1021,11 +1027,14 @@ static Suite *testSuite_Client(void) {
 
     TCase *tc_nodes = tcase_create("Client Highlevel Node Management");
     tcase_add_checked_fixture(tc_nodes, setup, teardown);
+#ifdef UA_ENABLE_NODEMANAGEMENT
     tcase_add_test(tc_nodes, Node_Add);
+#endif
     tcase_add_test(tc_nodes, Node_Browse);
     tcase_add_test(tc_nodes, Node_Register);
     suite_add_tcase(s, tc_nodes);
 
+#ifdef UA_ENABLE_NODEMANAGEMENT
     TCase *tc_readwrite = tcase_create("Client Highlevel Read/Write");
     tcase_add_unchecked_fixture(tc_readwrite, setup, teardown);
     // first add some nodes where we test on
@@ -1054,6 +1063,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_readwrite, Node_ReadWrite_Executable);
     tcase_add_test(tc_readwrite, Node_ReadWrite_UserExecutable);
     suite_add_tcase(s, tc_readwrite);
+#endif
     return s;
 }
 
