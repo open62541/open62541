@@ -30,6 +30,7 @@ UA_Session adminSession = {
     {NULL}, /* .continuationPoints */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     0, /* .lastSubscriptionID */
+    0, /* .lastSeenSubscriptionID */
     {NULL}, /* .serverSubscriptions */
     {NULL, NULL}, /* .responseQueue */
 #endif
@@ -52,6 +53,7 @@ void UA_Session_init(UA_Session *session) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_INIT(&session->serverSubscriptions);
     session->lastSubscriptionID = 0;
+    session->lastSeenSubscriptionID = 0;
     SIMPLEQ_INIT(&session->responseQueue);
 #endif
 }
