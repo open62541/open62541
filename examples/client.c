@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
     UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
     UA_UInt32 monId = 0;
     UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
-                                             &handler_TheAnswerChanged, NULL, &monId);
+                                             &handler_TheAnswerChanged, NULL, &monId, 250);
     if (monId)
         printf("Monitoring 'the.answer', id %u\n", subId);
     /* The first publish request should return the initial value of the variable */

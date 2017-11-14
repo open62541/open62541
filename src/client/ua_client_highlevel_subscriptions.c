@@ -202,7 +202,8 @@ UA_StatusCode
 UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_MonitoredItemHandlingFunction hf,
-                                         void *hfContext, UA_UInt32 *newMonitoredItemId) {
+                                         void *hfContext, UA_UInt32 *newMonitoredItemId,
+                                         UA_Double samplingInterval) {
     UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -222,7 +223,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     item.itemToMonitor.attributeId = attributeID;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
     item.requestedParameters.clientHandle = ++(client->monitoredItemHandles);
-    item.requestedParameters.samplingInterval = sub->publishingInterval;
+    item.requestedParameters.samplingInterval = samplingInterval;
     item.requestedParameters.discardOldest = true;
     item.requestedParameters.queueSize = 1;
     request.itemsToCreate = &item;
@@ -248,7 +249,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     UA_NodeId_copy(&nodeId, &newMon->monitoredNodeId);
     newMon->attributeID = attributeID;
     newMon->clientHandle = client->monitoredItemHandles;
-    newMon->samplingInterval = sub->publishingInterval;
+    newMon->samplingInterval = samplingInterval;
     newMon->queueSize = 1;
     newMon->discardOldest = true;
     newMon->handler = hf;

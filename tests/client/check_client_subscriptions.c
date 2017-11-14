@@ -67,7 +67,7 @@ START_TEST(Client_subscription) {
     UA_UInt32 monId;
     retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
                                                       UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
-                                                      NULL, &monId);
+                                                      NULL, &monId, 250);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_sleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
@@ -101,7 +101,7 @@ START_TEST(Client_methodcall) {
     /* monitor the server state */
     UA_UInt32 monId;
     retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
-                                                      UA_ATTRIBUTEID_VALUE, NULL, NULL, &monId);
+                                                      UA_ATTRIBUTEID_VALUE, NULL, NULL, &monId, 250);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* call a method to get monitored item id */
