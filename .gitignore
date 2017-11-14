@@ -79,3 +79,4 @@ Makefile
 /build
 /.idea
 /cmake-build*
+/Default

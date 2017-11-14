@@ -437,3 +437,22 @@ UA_StatusCode UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
         retval = UA_STATUSCODE_GOOD;
     return retval;
 }
+
+UA_StatusCode
+UA_Client_addRepeatedCallback(UA_Client *Client, UA_ClientCallback callback,
+                              void *data, UA_UInt32 interval,
+                              UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&Client->timer, (UA_TimerCallback)callback,
+                                        data, interval, callbackId);
+}
+
+UA_StatusCode
+UA_Client_changeRepeatedCallbackInterval(UA_Client *Client, UA_UInt64 callbackId,
+                                         UA_UInt32 interval) {
+    return UA_Timer_changeRepeatedCallbackInterval(&Client->timer, callbackId, interval);
+}
+
+UA_StatusCode
+UA_Client_removeRepeatedCallback(UA_Client *Client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback(&Client->timer, callbackId);
+}

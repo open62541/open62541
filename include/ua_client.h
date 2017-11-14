@@ -48,11 +48,14 @@ typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client, void *data);
 //UA_StatusCode
 //UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
 //void *data);
-
 UA_StatusCode
 UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
                               void *data, UA_UInt32 interval,
                               UA_UInt64 *callbackId);
+
+UA_StatusCode
+UA_Client_changeRepeatedCallbackInterval(UA_Client *Client, UA_UInt64 callbackId,
+                                         UA_UInt32 interval);
 
 UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId);
 /* Client Configuration
@@ -485,6 +488,7 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
         UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType,
         void *userdata, UA_UInt32 *requestId);
+
 
 
 /**

@@ -401,7 +401,7 @@ UA_StatusCode
 __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                           UA_AttributeId attributeId, void *out,
                           const UA_DataType *outDataType,
-                          UA_ClientAsyncServiceCallback callback, void *userdata) {
+                          UA_ClientAsyncServiceCallback callback, void *userdata, UA_UInt32 *reqId) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -412,10 +412,9 @@ __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
     request.nodesToReadSize = 1;
     outData outdata = {.attributeId = attributeId, .out = out, .outDataType = outDataType};
 
-    size_t reqId;
 	__UA_Client_AsyncService_withResponse(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
 						callback, getResponseCallback, &UA_TYPES[UA_TYPES_READRESPONSE],
-						userdata, &outdata, &reqId);
+						userdata, &outdata, reqId);
 	return UA_Client_run_iterate(client, 10);
 }
 
