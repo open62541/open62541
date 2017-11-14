@@ -499,6 +499,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             }     
         }     
         more--;
+        found = true;
     }
     session->lastSeenSubscriptionID = 0;
 }
