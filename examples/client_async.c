@@ -32,15 +32,16 @@ void fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
 static
 void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
+	reqNo--;
+	printf("%-50s%-8i\n", "attribute read, pending requests:", reqNo);
 	if (response == NULL) {
 		return;
 	}
-	reqNo--;
 	UA_DataValue *res = ((UA_ReadResponse*) response)->results;
 	if (res->hasValue) {
 		memcpy(userdata, &res->value, sizeof(UA_Variant));
 	}
-	printf("%-50s%-8i\n", "attribute read, pending requests:", reqNo);
+
 	UA_Variant val = *(UA_Variant*) userdata;
 	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_DATETIME])) {
 		UA_DateTime raw_date = *(UA_DateTime*) val.data;
@@ -172,9 +173,12 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				&vals[i], attrRead, &vals[i], &reqId);
 		reqNo++;
+		printf("%-50s%-8i\n", "readAttr sent, pending requests:", reqNo);
 	}
-	while (reqNo > 0)
+	while (reqNo > 0){
+		sleep(1);
 		UA_Client_run_iterate(client, 10);
+	}
 
 	/*    for (int i = 0; i < 5; i++) {
 	 if (UA_Variant_hasScalarType(&vals[i], &UA_TYPES[UA_TYPES_DATETIME])) {
