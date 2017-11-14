@@ -474,14 +474,33 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
-    LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
-        if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
-                                 "Response on a late subscription", immediate->subscriptionID);
-            UA_Subscription_publishCallback(server, immediate);
-            break;
-        }
+    UA_Boolean found = true; 
+    UA_UInt32 more = 1;
+
+    if (session->lastSeenSubscriptionID > 0){ 
+        found = false;
+        more = 2;
     }
+
+    while (more){
+       LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
+            if (!found){
+                if (session->lastSeenSubscriptionID == immediate->subscriptionID){
+                    found = true; 
+                }     
+            }else{
+                if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
+                    session->lastSeenSubscriptionID = immediate->subscriptionID;
+                    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
+                                         "Response on a late subscription", immediate->subscriptionID);
+                    UA_Subscription_publishCallback(server, immediate);
+                    return;
+                }     
+            }     
+        }     
+        more--;
+    }
+    session->lastSeenSubscriptionID = 0;
 }
 
 static void
