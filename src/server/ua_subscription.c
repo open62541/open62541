@@ -414,9 +414,9 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Sending out a publish response triggered by too many publish requests");
-    UA_SecureChannel_sendBinaryMessage(session->channel,
-                                       pre->requestId, response,
-                                       &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+    UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+                                          UA_MESSAGETYPE_MSG, response,
+                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Free the response */
     UA_Array_delete(response->results, response->resultsSize,
