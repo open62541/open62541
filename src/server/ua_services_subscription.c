@@ -443,7 +443,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * oldest publish request shall be responded */
     if((server->config.maxPublishReqPerSession != 0 ) &&
        (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
-       UA_Subscription_reachedPublishReqLimit( server,session);
+        if(!UA_Subscription_reachedPublishReqLimit(server,session)) {
+            subscriptionSendError(session->channel, requestId,
+                                  request->requestHeader.requestHandle,
+                                  UA_STATUSCODE_BADINTERNALERROR);
+            return;
+        }
     }
 
     UA_PublishResponseEntry *entry =

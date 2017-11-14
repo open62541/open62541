@@ -380,7 +380,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
-void
+UA_Boolean
 UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Reached number of publish request limit");
@@ -391,7 +391,8 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
 
     /* Cannot publish without a response */
     if(!pre) {
-       UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
+        UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
+        return false;
     }
 
     UA_PublishResponse *response = &pre->response;
@@ -422,6 +423,8 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     UA_Array_delete(response->results, response->resultsSize,
                     &UA_TYPES[UA_TYPES_UINT32]);
     UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
+
+    return true;
 }
 
 UA_StatusCode
