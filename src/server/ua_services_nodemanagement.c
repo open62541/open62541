@@ -888,6 +888,13 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
                       UA_AddNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing AddNodesRequest");
+
+    if(server->config.maxNodesPerNodeManagement != 0 &&
+       request->nodesToAddSize > server->config.maxNodesPerNodeManagement) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
                   (UA_ServiceOperation)Service_AddNode,
@@ -1107,6 +1114,13 @@ void Service_DeleteNodes(UA_Server *server, UA_Session *session,
                          UA_DeleteNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing DeleteNodesRequest");
+
+    if(server->config.maxNodesPerNodeManagement != 0 &&
+       request->nodesToDeleteSize > server->config.maxNodesPerNodeManagement) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)deleteNodeOperation,
@@ -1195,6 +1209,13 @@ void Service_AddReferences(UA_Server *server, UA_Session *session,
                            UA_AddReferencesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing AddReferencesRequest");
+
+    if(server->config.maxNodesPerNodeManagement != 0 &&
+       request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation) addReference,
@@ -1261,6 +1282,13 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          UA_DeleteReferencesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing DeleteReferencesRequest");
+
+    if(server->config.maxNodesPerNodeManagement != 0 &&
+       request->referencesToDeleteSize > server->config.maxNodesPerNodeManagement) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation) deleteReference,

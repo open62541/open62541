@@ -223,6 +223,12 @@ void Service_Call(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing CallRequest");
 
+    if(server->config.maxNodesPerMethodCall != 0 &&
+       request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
                   (UA_ServiceOperation)Operation_CallMethod,

@@ -359,6 +359,12 @@ void Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
+    if(server->config.maxNodesPerRead != 0 &&
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
                   (UA_ServiceOperation)Operation_Read,
@@ -1189,6 +1195,12 @@ Service_Write(UA_Server *server, UA_Session *session,
               UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing WriteRequest");
+
+    if(server->config.maxNodesPerWrite != 0 &&
+       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
