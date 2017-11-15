@@ -242,7 +242,7 @@ setSrv(UA_Server *server, const struct resource *r,
 
     // todo: malloc may fail: return a statuscode
     char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8);
-    sprintf(newUrl, "opc.tcp://%.*s:%d", (int) srvNameLen,
+    sprintf(newUrl, "opc.tcp://%.*s:%d/", (int) srvNameLen,
             r->known.srv.name, r->known.srv.port);
     UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %s", newUrl);
