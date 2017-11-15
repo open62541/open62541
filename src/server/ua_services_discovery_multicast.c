@@ -34,8 +34,26 @@
 #include <errno.h>
 #ifdef _WIN32
 # define CLOSESOCKET(S) closesocket((SOCKET)S)
+# define errno__ WSAGetLastError()
 #else
 # define CLOSESOCKET(S) close(S)
+# define errno__ errno
+#endif
+
+#ifdef __WIN32
+#define UA_LOG_ERROR_SOCKET(LOGGER, CATEGORY, DESCRIPTION) { \
+    char *s = NULL; \
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
+    NULL, WSAGetLastError(), \
+    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
+    (LPSTR)&s, 0, NULL); \
+    UA_LOG_ERROR(LOGGER, CATEGORY, DESCRIPTION, s); \
+    LocalFree(s); \
+}
+#else
+#define UA_LOG_ERROR_SOCKET(LOGGER, CATEGORY, DESCRIPTION) { \
+    UA_LOG_ERROR(LOGGER, CATEGORY, DESCRIPTION, strerror(errno)); \
+}
 #endif
 
 #ifdef UA_ENABLE_MULTITHREADING
@@ -58,14 +76,12 @@ multicastWorkerLoop(UA_Server *server) {
             mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                        FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
         if (retVal == 1) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Multicast error: Can not read from socket. %s",
-                         strerror(errno));
+            UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Multicast error: Can not read from socket. %s");
             break;
         } else if (retVal == 2) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Multicast error: Can not write to socket. %s",
-                         strerror(errno));
+            UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Multicast error: Can not write to socket. %s");
             break;
         }
     }
@@ -293,7 +309,7 @@ discovery_createMulticastSocket(void) {
     in.sin_port = htons(5353);
     in.sin_addr.s_addr = 0;
 
-    if ((s = (int)socket(AF_INET, SOCK_DGRAM, 0)) < 0)
+    if ((s = (int)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         return 0;
 
 #ifdef SO_REUSEPORT
@@ -315,13 +331,19 @@ discovery_createMulticastSocket(void) {
     return s;
 }
 
+
 UA_StatusCode
 initMulticastDiscoveryServer(UA_Server* server) {
     server->mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
+#ifdef _WIN32
+    WORD wVersionRequested = MAKEWORD(2, 2);
+    WSADATA wsaData;
+    WSAStartup(wVersionRequested, &wsaData);
+#endif
+
     if((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not create multicast socket. Error: %s",
-                     strerror(errno));
+        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Could not create multicast socket. Error: %s");
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     mdnsd_register_receive_callback(server->mdnsDaemon,
@@ -581,14 +603,12 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
     unsigned short retval = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                                        processIn, true, &next_sleep);
     if(retval == 1) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not read from socket. %s",
-                     strerror(errno));
+        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not read from socket. %s");
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     } else if(retval == 2) {
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not write to socket. %s",
-                     strerror(errno));
+        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not write to socket. %s");
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     }
 

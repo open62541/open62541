@@ -415,6 +415,12 @@ getInterfaces(UA_Server *server) {
     for(size_t attempts = 0; attempts != 3; ++attempts) {
         // todo: malloc may fail: return a statuscode
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
+        if (!adapter_addresses) {
+            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "GetAdaptersAddresses out of memory");
+            adapter_addresses = NULL;
+            break;
+        }
         DWORD error = GetAdaptersAddresses(AF_UNSPEC,
                                            GAA_FLAG_SKIP_ANYCAST |
                                            GAA_FLAG_SKIP_DNS_SERVER |
@@ -423,10 +429,6 @@ getInterfaces(UA_Server *server) {
                                            &adapter_addresses_buffer_size);
 
         if(ERROR_SUCCESS == error) {
-            UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "GetAdaptersAddresses returned an error. "
-                         "Not setting mDNS A records.");
-            adapter_addresses = NULL;
             break;
         } else if (ERROR_BUFFER_OVERFLOW == error) {
             // Try again with the new size
@@ -449,9 +451,11 @@ getInterfaces(UA_Server *server) {
 void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                              const char *localDomain) {
     IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(server);
+    if (!adapter_addresses)
+        return;
 
     /* Iterate through all of the adapters */
-    IP_ADAPTER_ADDRESSES* adapter = NULL;
+    IP_ADAPTER_ADDRESSES* adapter = adapter_addresses->Next;
     for(; adapter != NULL; adapter = adapter->Next) {
         /* Skip loopback adapters */
         if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
