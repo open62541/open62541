@@ -50,6 +50,12 @@ int main(void) {
  *
  *    $ gcc -std=c99 open62541.c myServer.c -o myServer
  *
+ * In a MinGW environment, the Winsock library must be added.
+ *
+ * .. code-block:: bash
+ *
+ *    $ gcc -std=c99 open62541.c myServer.c -lws2_32 -o myServer.exe
+ *
  * Now start the server (stop with ctrl-c):
  *
  * .. code-block:: bash
