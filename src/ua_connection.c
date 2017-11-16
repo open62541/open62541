@@ -217,7 +217,9 @@ UA_Connection_receiveChunksBlocking(UA_Connection *connection, void *application
         /* We received a message. But the chunk is incomplete. Compute the
          * remaining timeout. */
         now = UA_DateTime_nowMonotonic();
-        if(now > maxDate)
+        /* maxDate can be greater than now but if (maxDate - now) < UA_MSEC_TO_DATETIME 
+         * timeout can be set to 0. We need to add UA_MSEC_TO_DATETIME in the next test */
+        if(now + UA_MSEC_TO_DATETIME > maxDate)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
         timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
     }
