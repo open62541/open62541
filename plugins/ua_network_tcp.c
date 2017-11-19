@@ -401,7 +401,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Server *server) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHostname) {
 #ifdef _WIN32
     WORD wVersionRequested = MAKEWORD(2, 2);
     WSADATA wsaData;
@@ -412,18 +412,18 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Server *server) {
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
-    if (server->config.customHostname.length) {
+    if (customHostname->length) {
         char discoveryUrl[256];
 #ifndef _MSC_VER
         du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/",
-                                     (int)server->config.customHostname.length,
-                                     server->config.customHostname.data,
+                                     (int)customHostname->length,
+                                     customHostname->data,
                                      layer->port);
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
                                         "opc.tcp://%.*s:%d/",
-                                        (int)server->config.customHostname.length,
-                                        server->config.customHostname.data,
+                                        (int)customHostname->length,
+                                        customHostname->data,
                                         layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
