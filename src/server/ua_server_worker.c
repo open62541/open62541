@@ -282,7 +282,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Start the networklayers */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
-        result |= nl->start(nl);
+        result |= nl->start(nl, &server->config.customHostname);
     }
 
     /* Spin up the worker threads */
