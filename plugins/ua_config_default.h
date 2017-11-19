@@ -48,7 +48,8 @@ UA_ServerConfig_new_default(void) {
  * @param customHostname The custom hostname used by the server */
 
 UA_EXPORT void
-UA_ServerConfig_set_customHostname(UA_ServerConfig *config, UA_String customHostname);
+UA_ServerConfig_set_customHostname(UA_ServerConfig *config,
+                                   const UA_String customHostname);
   
 /* Frees allocated memory in the server config */
 UA_EXPORT void
