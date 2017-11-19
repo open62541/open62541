@@ -401,7 +401,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 }
 
 static UA_StatusCode
-ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
+ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_Server *server) {
 #ifdef _WIN32
     WORD wVersionRequested = MAKEWORD(2, 2);
     WSADATA wsaData;
@@ -412,18 +412,35 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl) {
 
     /* Get the discovery url from the hostname */
     UA_String du = UA_STRING_NULL;
-    char hostname[256];
-    if(gethostname(hostname, 255) == 0) {
+    if (server->config.customHostname.length) {
         char discoveryUrl[256];
 #ifndef _MSC_VER
-        du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d/",
-                                     hostname, layer->port);
+        du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%.*s:%d/",
+                                     (int)server->config.customHostname.length,
+                                     server->config.customHostname.data,
+                                     layer->port);
 #else
         du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
-                                        "opc.tcp://%s:%d/", hostname,
-                    layer->port);
+                                        "opc.tcp://%.*s:%d/",
+                                        (int)server->config.customHostname.length,
+                                        server->config.customHostname.data,
+                                        layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
+    }else{    
+        char hostname[256];
+        if(gethostname(hostname, 255) == 0) {
+            char discoveryUrl[256];
+#ifndef _MSC_VER
+            du.length = (size_t)snprintf(discoveryUrl, 255, "opc.tcp://%s:%d/",
+                                         hostname, layer->port);
+#else
+            du.length = (size_t)_snprintf_s(discoveryUrl, 255, _TRUNCATE,
+                                            "opc.tcp://%s:%d/", hostname,
+                                            layer->port);
+#endif
+            du.data = (UA_Byte*)discoveryUrl;
+        }
     }
     UA_String_copy(&du, &nl->discoveryUrl);
 
