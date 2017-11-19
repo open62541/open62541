@@ -1,0 +1,11 @@
+FROM alpine:3.5
+ADD . /tmp/open62541
+WORKDIR /tmp/open62541/build
+RUN apk add --no-cache cmake gcc g++ musl-dev python make && rm -rf /var/cache/apk/* && \
+    cmake -DUA_ENABLE_AMALGAMATION=true \
+          -DBUILD_SHARED_LIBS=true /tmp/open62541 && \
+    make && \
+    cp *.h /usr/include/ && \
+    cp bin/*.so /usr/lib && \
+    make clean && \
+    apk del cmake gcc g++ musl-dev python make

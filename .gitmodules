@@ -1,0 +1,6 @@
+[submodule "deps/mdnsd"]
+	path = deps/mdnsd
+	url = https://github.com/Pro/mdnsd.git
+[submodule "deps/ua-nodeset"]
+	path = deps/ua-nodeset
+	url = https://github.com/OPCFoundation/UA-Nodeset.git

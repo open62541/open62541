@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 from __future__ import print_function
 import sys
 import time
@@ -5,232 +11,51 @@ import platform
 import getpass
 from collections import OrderedDict
 import re
-from lxml import etree
+import xml.etree.ElementTree as etree
 import itertools
 import argparse
-from pprint import pprint
+from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
 
-fixed_size = {"UA_Boolean": 1, "UA_SByte": 1, "UA_Byte": 1, "UA_Int16": 2, "UA_UInt16": 2,
-              "UA_Int32": 4, "UA_UInt32": 4, "UA_Int64": 8, "UA_UInt64": 8, "UA_Float": 4,
-              "UA_Double": 8, "UA_DateTime": 8, "UA_Guid": 16, "UA_StatusCode": 4}
+types = OrderedDict() # contains types that were already parsed
+typedescriptions = {} # contains type nodeids
 
-zero_copy = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16", "UA_Int32", "UA_UInt32",
-             "UA_Int64", "UA_UInt64", "UA_Float", "UA_Double", "UA_DateTime", "UA_StatusCode"]
+excluded_types = ["NodeIdType", "InstanceNode", "TypeNode", "Node", "ObjectNode",
+                  "ObjectTypeNode", "VariableNode", "VariableTypeNode", "ReferenceTypeNode",
+                  "MethodNode", "ViewNode", "DataTypeNode",
+                  "NumericRange", "NumericRangeDimensions",
+                  "UA_ServerDiagnosticsSummaryDataType", "UA_SamplingIntervalDiagnosticsDataType",
+                  "UA_SessionSecurityDiagnosticsDataType", "UA_SubscriptionDiagnosticsDataType",
+                  "UA_SessionDiagnosticsDataType"]
 
-# The order of the builtin-types is not as in the standard. We put all the
-# fixed_size types in the front, so they can be distinguished by a simple geq
-# comparison. That's ok, since we use the type-index only internally!!
-builtin_types = ["UA_Boolean", "UA_SByte", "UA_Byte", "UA_Int16", "UA_UInt16",
-                 "UA_Int32", "UA_UInt32", "UA_Int64", "UA_UInt64", "UA_Float",
-                 "UA_Double", "UA_String", "UA_DateTime", "UA_Guid", "UA_ByteString",
-                 "UA_XmlElement", "UA_NodeId", "UA_ExpandedNodeId", "UA_StatusCode",
-                 "UA_QualifiedName", "UA_LocalizedText", "UA_ExtensionObject", "UA_DataValue",
-                 "UA_Variant", "UA_DiagnosticInfo"]
+builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
+                 "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
+                 "ByteString", "XmlElement", "NodeId", "ExpandedNodeId", "StatusCode",
+                 "QualifiedName", "LocalizedText", "ExtensionObject", "DataValue",
+                 "Variant", "DiagnosticInfo"]
 
-excluded_types = ["UA_NodeIdType", "UA_InstanceNode", "UA_TypeNode", "UA_Node", "UA_ObjectNode",
-                  "UA_ObjectTypeNode", "UA_VariableNode", "UA_VariableTypeNode", "UA_ReferenceTypeNode",
-                  "UA_MethodNode", "UA_ViewNode", "UA_DataTypeNode", "UA_ServerDiagnosticsSummaryDataType",
-                  "UA_SamplingIntervalDiagnosticsDataType", "UA_SessionSecurityDiagnosticsDataType",
-                  "UA_SubscriptionDiagnosticsDataType", "UA_SessionDiagnosticsDataType"]
+# If the type does not contain pointers, it can be copied with memcpy
+# (internally, not into the protocol message). This dict contains the sizes of
+# pointer-free types. Parsed types are added if they apply.
+builtin_pointerfree = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
+                       "Int64", "UInt64", "Float", "Double", "DateTime", "Guid", "StatusCode"]
 
-minimal_types = ["InvalidType", "Node", "NodeClass", "ReferenceNode", "ApplicationDescription", "ApplicationType",
-                 "ChannelSecurityToken", "OpenSecureChannelRequest", "OpenSecureChannelResponse",
-                 "CloseSecureChannelRequest", "CloseSecureChannelResponse", "RequestHeader", "ResponseHeader",
-                 "SecurityTokenRequestType", "MessageSecurityMode", "CloseSessionResponse", "CloseSessionRquest",
-                 "ActivateSessionRequest", "ActivateSessionResponse", "SignatureData", "SignedSoftwareCertificate",
-                 "CreateSessionResponse", "CreateSessionRequest", "EndpointDescription", "UserTokenPolicy", "UserTokenType",
-                 "GetEndpointsRequest", "GetEndpointsResponse", "PublishRequest", "PublishResponse", "FindServersRequest",
-                 "FindServersResponse", "SetPublishingModeResponse", "SubscriptionAcknowledgement", "NotificationMessage",
-                 "ExtensionObject", "Structure", "ReadRequest", "ReadResponse", "ReadValueId", "TimestampsToReturn", "WriteRequest",
-                 "WriteResponse", "WriteValue", "SetPublishingModeRequest", "CreateMonitoredItemsResponse",
-                 "MonitoredItemCreateResult", "CreateMonitoredItemsRequest", "MonitoredItemCreateRequest",
-                 "MonitoringMode", "MonitoringParameters", "TranslateBrowsePathsToNodeIdsRequest",
-                 "TranslateBrowsePathsToNodeIdsResponse", "BrowsePath", "BrowsePathResult", "RelativePath",
-                 "BrowsePathTarget", "RelativePathElement", "CreateSubscriptionRequest", "CreateSubscriptionResponse",
-                 "BrowseResponse", "BrowseResult", "ReferenceDescription", "BrowseRequest", "ViewDescription",
-                 "BrowseNextRequest", "BrowseNextResponse", "DeleteSubscriptionsRequest", "DeleteSubscriptionsResponse",
-                 "BrowseDescription", "BrowseDirection", "CloseSessionRequest", "AddNodesRequest", "AddNodesResponse",
-                 "AddNodesItem", "AddNodesResult", "DeleteNodesItem","AddReferencesRequest", "AddReferencesResponse",
-                 "AddReferencesItem","DeleteReferencesItem", "VariableNode", "MethodNode", "VariableTypeNode",
-                 "ViewNode", "ReferenceTypeNode", "BrowseResultMask", "ServerState", "ServerStatusDataType", "BuildInfo",
-                 "ObjectNode", "DataTypeNode", "ObjectTypeNode", "IdType", "NodeAttributes",
-                 "VariableAttributes", "ObjectAttributes", "ReferenceTypeAttributes", "ViewAttributes", "MethodAttributes",
-                 "ObjectTypeAttributes", "VariableTypeAttributes", "DataTypeAttributes", "NodeAttributesMask",
-                 "DeleteNodesItem", "DeleteNodesRequest", "DeleteNodesResponse",
-                 "DeleteReferencesItem", "DeleteReferencesRequest", "DeleteReferencesResponse",
-                 "RegisterNodesRequest", "RegisterNodesResponse", "UnregisterNodesRequest", "UnregisterNodesResponse", 
-                 "UserIdentityToken", "UserNameIdentityToken", "AnonymousIdentityToken", "ServiceFault",
-                 "CallMethodRequest", "CallMethodResult", "CallResponse", "CallRequest", "Argument",
-                 "FilterOperator", "ContentFilterElement", "ContentFilter", "QueryDataDescription",
-                 "NodeTypeDescription", "QueryFirstRequest", "QueryDataSet", "ParsingResult",
-                 "ContentFilterElementResult", "ContentFilterResult", "QueryFirstResponse",
-                 "QueryNextRequest", "QueryNextResponse"]
+# Some types can be memcpy'd off the binary stream. That's especially important
+# for arrays. But we need to check if they contain padding and whether the
+# endianness is correct. This dict gives the C-statement that must be true for the
+# type to be overlayable. Parsed types are added if they apply.
+builtin_overlayable = {"Boolean": "true", "SByte": "true", "Byte": "true",
+                       "Int16": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt16": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int32": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt32": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Int64": "UA_BINARY_OVERLAYABLE_INTEGER", "UInt64": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Float": "UA_BINARY_OVERLAYABLE_FLOAT", "Double": "UA_BINARY_OVERLAYABLE_FLOAT",
+                       "DateTime": "UA_BINARY_OVERLAYABLE_INTEGER", "StatusCode": "UA_BINARY_OVERLAYABLE_INTEGER",
+                       "Guid": "(UA_BINARY_OVERLAYABLE_INTEGER && offsetof(UA_Guid, data2) == sizeof(UA_UInt32) && " + \
+                       "offsetof(UA_Guid, data3) == (sizeof(UA_UInt16) + sizeof(UA_UInt32)) && " + \
+                       "offsetof(UA_Guid, data4) == (2*sizeof(UA_UInt32)))"}
 
-subscription_types = ["CreateSubscriptionRequest", "CreateSubscriptionResponse",
-                      "DeleteMonitoredItemsRequest", "DeleteMonitoredItemsResponse", "NotificationMessage",
-                      "MonitoredItemNotification", "DataChangeNotification", "ModifySubscriptionRequest",
-                      "ModifySubscriptionResponse", "RepublishRequest", "RepublishResponse"]
-
-class TypeDescription(object):
-    def __init__(self, name, nodeid, namespaceid):
-        self.name = name # without the UA_ prefix
-        self.nodeid = nodeid
-        self.namespaceid = namespaceid
-
-def parseTypeDescriptions(filename, namespaceid):
-    definitions = {}
-    f = open(filename[0])
-    input_str = f.read()
-    f.close()
-    input_str = input_str.replace('\r','')
-    rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
-    for index, row in enumerate(rows):
-        if len(row) < 3:
-            continue
-        if row[2] != "DataType":
-            continue
-        if row[0] == "BaseDataType":
-            definitions["UA_Variant"] = TypeDescription(row[0], row[1], namespaceid)
-        elif row[0] == "Structure":
-            definitions["UA_ExtensionObject"] = TypeDescription(row[0], row[1], namespaceid)
-        else:
-            definitions["UA_" + row[0]] = TypeDescription(row[0], row[1], namespaceid)
-    return definitions
-
-class Type(object):
-    def __init__(self, name, description = ""):
-        self.name = name
-        self.description = description
-
-    def fixed_size(self):
-        return self.name in fixed_size
-
-    def mem_size(self):
-        return fixed_size[self.name]
-
-    def zero_copy(self):
-        return self.name in zero_copy
-
-    def typedef_c(self):
-        pass
-    
-    def functions_c(self, typeTableName):
-        return ('''static UA_INLINE void %s_init(%s *p) { memset(p, 0, sizeof(%s)); }
-static UA_INLINE void %s_delete(%s *p) { UA_delete(p, %s); }
-static UA_INLINE void %s_deleteMembers(%s *p) { ''' + ("UA_deleteMembers(p, &"+typeTableName+"["+typeTableName+"_"+self.name[3:].upper()+"]);" if not self.fixed_size() else "") + ''' }
-static UA_INLINE %s * %s_new(void) { return (%s*) UA_new(%s); }
-static UA_INLINE UA_StatusCode %s_copy(const %s *src, %s *dst) { ''' + \
-                ("*dst = *src; return UA_STATUSCODE_GOOD;" if self.fixed_size() else "return UA_copy(src, dst, &" + typeTableName+"["+typeTableName+"_"+self.name[3:].upper() + "]);") +" }") % \
-    tuple([self.name, self.name, self.name] +
-          [self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"] +
-          [self.name, self.name] + 
-          [self.name, self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"] +
-          [self.name, self.name, self.name]) 
-
-    def encoding_h(self, typeTableName):
-        return '''static UA_INLINE UA_StatusCode %s_encodeBinary(const %s *src, UA_ByteString *dst, size_t *offset) { return UA_encodeBinary(src, %s, dst, offset); }
-static UA_INLINE UA_StatusCode %s_decodeBinary(const UA_ByteString *src, size_t *offset, %s *dst) { return UA_decodeBinary(src, offset, dst, %s); }''' % \
-    tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, "&"+typeTableName+"[" + typeTableName + "_" + self.name[3:].upper()+"]"], 2))))
-
-class BuiltinType(Type):
-    "Generic type without members. Used for builtin types."
-    def typelayout_c(self, namespace_0, description, outname):
-        if description == None:
-            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
-        else:
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % \
-                     (description.namespaceid, description.nodeid)
-        if self.name in ["UA_String", "UA_ByteString", "UA_XmlElement"]:
-            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-                ".memSize = sizeof(" + self.name + "), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_TRUE }}, " + \
-                ".typeIndex = %s }" % (outname.upper() + "_" + self.name[3:].upper())
-
-        if self.name == "UA_QualifiedName":
-            return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-                ".memSize = sizeof(UA_QualifiedName), " + \
-                ".builtin = UA_TRUE, .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-                ".membersSize = 2, .members = (UA_DataTypeMember[]){" + \
-                "\n\t{.memberTypeIndex = UA_TYPES_UINT16, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"namespaceIndex\", " if typeintrospection else "") + \
-                ".padding = 0, .isArray = UA_FALSE }," + \
-                "\n\t{.memberTypeIndex = UA_TYPES_STRING, .namespaceZero = UA_TRUE, " + \
-                (".memberName = \"name\", " if typeintrospection else "") + \
-                ".padding = offsetof(UA_QualifiedName, name)-sizeof(UA_UInt16), .isArray = UA_FALSE }},\n" + \
-                ".typeIndex = UA_TYPES_QUALIFIEDNAME }"
-
-        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), " + \
-            ".builtin = UA_TRUE, .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
-            ", .zeroCopyable = " + ("UA_TRUE" if self.zero_copy() else "UA_FALSE") + \
-            ", .membersSize = 1, .members = (UA_DataTypeMember[]){" + \
-            "\n\t{.memberTypeIndex = UA_TYPES_" + self.name[3:].upper() + " , .namespaceZero = UA_TRUE, " + \
-            (".memberName = \"\", " if typeintrospection else "") + \
-            ".padding = 0, .isArray = UA_FALSE }},\n" + \
-            ".typeIndex = UA_TYPES_" + self.name[3:].upper() + " }"
-
-class EnumerationType(Type):
-    def __init__(self, name, description = "", elements = OrderedDict()):
-        self.name = name
-        self.description = description
-        self.elements = elements # maps a name to an integer value
-
-    def append_enum(name, value):
-        self.elements[name] = value
-
-    def fixed_size(self):
-        return True
-
-    def mem_size(self):
-        return 4
-
-    def zero_copy(self):
-        return True
-
-    def typedef_c(self):
-        if sys.version_info[0] < 3:
-            values = self.elements.iteritems()
-        else:
-            values = self.elements.items()
-        return "typedef enum { \n    " + \
-            ",\n    ".join(map(lambda kv : kv[0].upper() + " = " + kv[1], values)) + \
-            "\n} " + self.name + ";"
-
-    def typelayout_c(self, namespace_0, description, outname):
-        if description == None:
-            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
-        else:
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), .builtin = UA_TRUE, " + \
-            ".fixedSize = UA_TRUE, .zeroCopyable = UA_TRUE, " + \
-            ".membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_INT32, " + \
-            (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_FALSE }}, .typeIndex = UA_TYPES_INT32 }"
-
-class OpaqueType(Type):
-    def fixed_size(self):
-        return False
-
-    def zero_copy(self):
-        return False
-
-    def typedef_c(self):
-        return "typedef UA_ByteString " + self.name + ";"
-
-    def typelayout_c(self, namespace_0, description, outname):
-        if description == None:
-            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
-        else:
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        return (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-            ".memSize = sizeof(" + self.name + "), .fixedSize = UA_FALSE, .zeroCopyable = UA_FALSE, " + \
-            ".builtin = UA_FALSE, .membersSize = 1,\n\t.members = (UA_DataTypeMember[]){{.memberTypeIndex = UA_TYPES_BYTE," + \
-            (".memberName = \"\", " if typeintrospection else "") + \
-            ".namespaceZero = UA_TRUE, .padding = 0, .isArray = UA_TRUE }}, .typeIndex = %s}" % (outname.upper() + "_" + self.name[3:].upper())
+################
+# Type Classes #
+################
 
 class StructMember(object):
     def __init__(self, name, memberType, isArray):
@@ -238,109 +63,211 @@ class StructMember(object):
         self.memberType = memberType
         self.isArray = isArray
 
-class StructType(Type):
-    def __init__(self, name, description, members = OrderedDict()):
-        self.name = name
-        self.description = description
-        self.members = members # maps a name to a member definition
-
-    def fixed_size(self):
-        for m in self.members.values():
-            if m.isArray or not m.memberType.fixed_size():
-                return False
-        return True
-
-    def mem_size(self):
-        total = 0
-        for m in self.members.values():
-            if m.isArray:
-                raise Exception("Arrays have no fixed size!")
-            else:
-                total += m.memberType.mem_size()
-        return total
-
-    def zero_copy(self):
-        for m in self.members.values():
-            if m.isArray or not m.memberType.zero_copy():
-                return False
-        return True
-
-    def typedef_c(self):
-        if len(self.members) == 0:
-            return "typedef void * " + self.name + ";"
-        returnstr =  "typedef struct {\n"
-        if sys.version_info[0] < 3:
-            values = self.members.iteritems()
+class Type(object):
+    def __init__(self, outname, xml, namespace):
+        self.name = xml.get("Name")
+        self.ns0 = ("true" if namespace == 0 else "false")
+        self.typeIndex = outname.upper() + "_" + self.name.upper()
+        self.outname = outname
+        self.description = ""
+        self.pointerfree = "false"
+        self.overlayable = "false"
+        if self.name in builtin_types:
+            self.builtin = "true"
         else:
-            values = self.members.items()
-        for name, member in values:
-            if member.isArray:
-                returnstr += "    size_t " + name + "Size;\n"
-                returnstr += "    " + member.memberType.name + " *" +name + ";\n"
-            else:
-                returnstr += "    " + member.memberType.name + " " +name + ";\n"
-        return returnstr + "} " + self.name + ";"
+            self.builtin = "false"
+        self.members = [StructMember("", self, False)] # Returns one member: itself. Overwritten by some types.
+        for child in xml:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
+                self.description = child.text
+                break
 
-    def typelayout_c(self, namespace_0, description, outname):
-        if description == None:
-            typeid = "{.namespaceIndex = 0, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = 0}, "
+    def datatype_c(self):
+        xmlEncodingId = "0"
+        binaryEncodingId = "0"
+        if self.name in typedescriptions:
+            description = typedescriptions[self.name]
+            typeid = "{%s, UA_NODEIDTYPE_NUMERIC, {%s}}" % (description.namespaceid, description.nodeid)
+            xmlEncodingId = description.xmlEncodingId
+            binaryEncodingId = description.binaryEncodingId
         else:
-            typeid = "{.namespaceIndex = %s, .identifierType = UA_NODEIDTYPE_NUMERIC, .identifier.numeric = %s}, " % (description.namespaceid, description.nodeid)
-        layout = (("{.typeName = \"" + self.name[3:] + "\", ") if typeintrospection else "{") + ".typeId = " + typeid + \
-                 ".memSize = sizeof(" + self.name + "), "+ \
-                 ".builtin = UA_FALSE" + \
-                 ", .fixedSize = " + ("UA_TRUE" if self.fixed_size() else "UA_FALSE") + \
-                 ", .zeroCopyable = " + ("sizeof(" + self.name + ") == " + str(self.mem_size()) if self.zero_copy() \
-                                         else "UA_FALSE") + \
-                 ", .typeIndex = " + outname.upper() + "_" + self.name[3:].upper() + \
-                 ", .membersSize = " + str(len(self.members)) + ","
-        if len(self.members) > 0:
-            layout += "\n\t.members=(UA_DataTypeMember[]){"
-            for index, member in enumerate(self.members.values()):
-                layout += "\n\t{" + \
-                          ((".memberName = \"" + member.name + "\", ") if typeintrospection else "") + \
-                          ".memberTypeIndex = " + ("UA_TYPES_" + member.memberType.name[3:].upper() if args.namespace_id == 0 or member.memberType.name in existing_types else \
-                                                   outname.upper() + "_" + member.memberType.name[3:].upper()) + ", " + \
-                          ".namespaceZero = "+ \
-                          ("UA_TRUE, " if args.namespace_id == 0 or member.memberType.name in existing_types else "UA_FALSE, ") + \
-                          ".padding = "
+            typeid = "{0, UA_NODEIDTYPE_NUMERIC, {0}}"
+        return "{\n    UA_TYPENAME(\"%s\") /* .typeName */\n" % self.name + \
+            "    " + typeid + ", /* .typeId */\n" + \
+            "    sizeof(UA_" + self.name + "), /* .memSize */\n" + \
+            "    " + self.typeIndex + ", /* .typeIndex */\n" + \
+            "    " + str(len(self.members)) + ", /* .membersSize */\n" + \
+            "    " + self.builtin + ", /* .builtin */\n" + \
+            "    " + self.pointerfree + ", /* .pointerFree */\n" + \
+            "    " + self.overlayable + ", /* .overlayable */ \n" + \
+            "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
+            "    %s_members" % self.name + " /* .members */\n}"
 
-                if not member.isArray:
-                    thispos = "offsetof(%s, %s)" % (self.name, member.name)
+    def members_c(self):
+        if len(self.members)==0:
+            return "#define %s_members NULL" % (self.name)
+        members = "static UA_DataTypeMember %s_members[%s] = {" % (self.name, len(self.members))
+        before = None
+        for index, member in enumerate(self.members):
+            m = "\n{\n    UA_TYPENAME(\"%s\") /* .memberName */\n" % member.name
+            m += "    %s_%s, /* .memberTypeIndex */\n" % (member.memberType.outname.upper(), member.memberType.name.upper())
+            m += "    "
+            if not before:
+                m += "0,"
+            else:
+                if member.isArray:
+                    m += "offsetof(UA_%s, %sSize)" % (self.name, member.name)
                 else:
-                    thispos = "offsetof(%s, %sSize)" % (self.name, member.name)
-                before_endpos = "0"
-                if index > 0:
-                    if sys.version_info[0] < 3:
-                        before = self.members.values()[index-1]
-                    else:
-                        before = list(self.members.values())[index-1]
-                    before_endpos = "(offsetof(%s, %s)" % (self.name, before.name)
-                    if before.isArray:
-                        before_endpos += " + sizeof(void*))"
-                    else:
-                        before_endpos += " + sizeof(%s))" % before.memberType.name
-                layout += "%s - %s" % (thispos, before_endpos)
+                    m += "offsetof(UA_%s, %s)" % (self.name, member.name)
+                m += " - offsetof(UA_%s, %s)" % (self.name, before.name)
+                if before.isArray:
+                    m += " - sizeof(void*),"
+                else:
+                    m += " - sizeof(UA_%s)," % before.memberType.name
+            m += " /* .padding */\n"
+            m += "    %s, /* .namespaceZero */\n" % member.memberType.ns0
+            m += ("    true" if member.isArray else "    false") + " /* .isArray */\n},"
+            members += m
+            before = member
+        return members + "};"
 
-                layout += ", .isArray = " + ("UA_TRUE" if member.isArray else "UA_FALSE") + " }, "
-            layout += "}"
-        return layout + "}"
+    def datatype_ptr(self):
+        return "&" + self.outname.upper() + "[" + self.outname.upper() + "_" + self.name.upper() + "]"
 
-def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
-    '''Returns an ordered dict that maps names to types. The order is such that
-       every type depends only on known types. '''
-    ns = {"opc": "http://opcfoundation.org/BinarySchema/"}
-    tree = etree.parse(xmlDescription)
-    typeSnippets = tree.xpath("/opc:TypeDictionary/*[not(self::opc:Import)]", namespaces=ns)
-    types = OrderedDict(existing_types.items())
+    def functions_c(self):
+        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (self.name, self.name, self.name)
+        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
+        if self.pointerfree == "true":
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (self.name, self.name, self.name)
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) { }\n\n" % (self.name, self.name)
+        else:
+            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (self.name, self.name, self.name, self.datatype_ptr())
+            funcs += "static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_deleteMembers(p, %s);\n}\n\n" % (self.name, self.name, self.datatype_ptr())
+        funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (self.name, self.name, self.datatype_ptr())
+        return funcs
 
-    # types we do not want to autogenerate
+    def encoding_h(self):
+        enc = "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte **bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, bufEnd, NULL, NULL);\n}\n"
+        enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, 0, NULL);\n}"
+        return enc % tuple(list(itertools.chain(*itertools.repeat([self.name, self.name, self.datatype_ptr()], 2))))
+
+class BuiltinType(Type):
+    def __init__(self, name):
+        self.name = name
+        self.ns0 = "true"
+        self.typeIndex = "UA_TYPES_" + self.name.upper()
+        self.outname = "ua_types"
+        self.description = ""
+        self.pointerfree = "false"
+        if self.name in builtin_pointerfree:
+            self.pointerfree = "true"
+        self.overlayable = "false"
+        if name in builtin_overlayable:
+            self.overlayable = builtin_overlayable[name]
+        self.builtin = "true"
+        if self.name == "QualifiedName":
+            self.members = [StructMember("namespaceIndex", types["Int16"], False), StructMember("name", types["String"], False)]
+        elif self.name in ["String", "ByteString", "XmlElement"]:
+            self.members = [StructMember("", types["Byte"], True)]
+        else:
+            self.members = [StructMember("", self, False)]
+
+class EnumerationType(Type):
+    def __init__(self, outname, xml, namespace):
+        Type.__init__(self, outname, xml, namespace)
+        self.pointerfree = "true"
+        self.overlayable = "UA_BINARY_OVERLAYABLE_INTEGER"
+        self.members = [StructMember("", types["Int32"], False)] # encoded as uint32
+        self.builtin = "true"
+        self.typeIndex = "UA_TYPES_INT32"
+        self.elements = OrderedDict()
+        for child in xml:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
+                self.elements[child.get("Name")] = child.get("Value")
+
+    def typedef_h(self):
+        if sys.version_info[0] < 3:
+            values = self.elements.iteritems()
+        else:
+            values = self.elements.items()
+        return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
+                                                           " = " + kv[1], values)) + \
+               ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(self.name.upper()) + "} " + \
+               "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(self.name)
+
+class OpaqueType(Type):
+    def __init__(self, outname, xml, namespace, baseType):
+        Type.__init__(self, outname, xml, namespace)
+        self.baseType = baseType
+        self.members = [StructMember("", types[baseType], False)] # encoded as string
+
+    def typedef_h(self):
+        return "typedef UA_" + self.baseType + " UA_%s;" % self.name
+
+class StructType(Type):
+    def __init__(self, outname, xml, namespace):
+        Type.__init__(self, outname, xml, namespace)
+        self.members = []
+        lengthfields = [] # lengthfields of arrays are not included as members
+        for child in xml:
+            if child.get("LengthField"):
+                lengthfields.append(child.get("LengthField"))
+        for child in xml:
+            if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
+                continue
+            if child.get("Name") in lengthfields:
+                continue
+            memberName = child.get("Name")
+            memberName = memberName[:1].lower() + memberName[1:]
+            memberTypeName = child.get("TypeName")
+            memberType = types[memberTypeName[memberTypeName.find(":")+1:]]
+            isArray = True if child.get("LengthField") else False
+            self.members.append(StructMember(memberName, memberType, isArray))
+
+        self.pointerfree = "true"
+        self.overlayable = "true"
+        before = None
+        for m in self.members:
+            if m.isArray or m.memberType.pointerfree != "true":
+                self.pointerfree = "false"
+                self.overlayable = "false"
+            else:
+                self.overlayable += " && " + m.memberType.overlayable
+                if before:
+                    self.overlayable += " && offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % \
+                                        (self.name, m.name, self.name, before.name, before.memberType.name)
+            if "false" in self.overlayable:
+                self.overlayable = "false"
+            before = m
+
+    def typedef_h(self):
+        if len(self.members) == 0:
+            return "typedef void * UA_%s;" % self.name
+        returnstr =  "typedef struct {\n"
+        for member in self.members:
+            if member.isArray:
+                returnstr += "    size_t %sSize;\n" % member.name
+                returnstr += "    UA_%s *%s;\n" % (member.memberType.name, member.name)
+            else:
+                returnstr += "    UA_%s %s;\n" % (member.memberType.name, member.name)
+        return returnstr + "} UA_%s;" % self.name
+
+#########################
+# Parse Typedefinitions #
+#########################
+
+def parseTypeDefinitions(outname, xmlDescription, namespace):
+    def typeReady(element):
+        "Are all member types defined?"
+        for child in element:
+            if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
+                childname = child.get("TypeName")
+                if childname[childname.find(":")+1:] not in types:
+                    return False
+        return True
+
     def skipType(name):
-        if name in builtin_types:
-            return True
         if name in excluded_types:
-            return True
-        if outname == "ua_types" and not name[3:] in minimal_types:
             return True
         if "Test" in name: # skip all test types
             return True
@@ -348,144 +275,205 @@ def parseTypeDefinitions(xmlDescription, existing_types = OrderedDict()):
             return True
         return False
 
-    def stripTypename(tn):
-        return tn[tn.find(":")+1:]
+    snippets = {}
+    for typeXml in etree.parse(xmlDescription).getroot():
+        if not typeXml.get("Name"):
+            continue
+        name = typeXml.get("Name")
+        snippets[name] = typeXml
 
-    def camlCase2CCase(item):
-        "Member names begin with a lower case character"
-        return item[:1].lower() + item[1:] if item else ''
-
-    def typeReady(element):
-        "Do we have the member types yet?"
-        for child in element:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                if stripTypename(child.get("TypeName")) not in types:
-                    return False
-        return True
-
-    def parseEnumeration(typeXml):	
-        name = "UA_" + typeXml.get("Name")
-        description = ""
-        elements = OrderedDict()
-        for child in typeXml:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-                description = child.text
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
-                elements[name + "_" + child.get("Name")] = child.get("Value")
-        return EnumerationType(name, description, elements)
-
-    def parseOpaque(typeXml):
-        name = "UA_" + typeXml.get("Name")
-        description = ""
-        for child in typeXml:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-                description = child.text
-        return OpaqueType(name, description)
-
-    def parseStructured(typeXml):
-        "Returns None if we miss member descriptions"
-        name = "UA_" + typeXml.get("Name")
-        description = ""
-        for child in typeXml:
-            if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
-                description = child.text
-        # ignore lengthfields, just tag the array-members as an array
-        lengthfields = []
-        for child in typeXml:
-            if child.get("LengthField"):
-                lengthfields.append(child.get("LengthField"))
-        members = OrderedDict()
-        for child in typeXml:
-            if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                continue
-            if child.get("Name") in lengthfields:
-                continue
-            memberTypeName = "UA_" + stripTypename(child.get("TypeName"))
-            if not memberTypeName in types:
-                return None
-            memberType = types[memberTypeName]
-            memberName = camlCase2CCase(child.get("Name"))
-            isArray = True if child.get("LengthField") else False
-            members[memberName] = StructMember(memberName, memberType, isArray)
-        return StructType(name, description, members)
-
-    finished = False
-    while(not finished):
-        finished = True
-        for typeXml in typeSnippets:
-            name = "UA_" + typeXml.get("Name")
+    while(len(snippets) > 0):
+        for name, typeXml in list(snippets.items()):
             if name in types or skipType(name):
+                del snippets[name]
                 continue
-            if typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
-                t = parseEnumeration(typeXml)
-                types[t.name] = t
+            if not typeReady(typeXml):
+                continue
+            if name in builtin_types:
+                types[name] = BuiltinType(name)
+            elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedType":
+                types[name] = EnumerationType(outname, typeXml, namespace)
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
-                t = parseOpaque(typeXml)
-                types[t.name] = t
+                types[name] = OpaqueType(outname, typeXml, namespace, get_base_type_for_opaque(name)['name'])
             elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
-                t = parseStructured(typeXml)
-                if t == None:
-                    finished = False
-                else:
-                    types[t.name] = t
+                types[name] = StructType(outname, typeXml, namespace)
+            else:
+                raise Exception("Type not known")
+            del snippets[name]
 
-    # remove the existing types
-    for k in existing_types.keys():
-        types.pop(k)
-    return types
+##########################
+# Parse TypeDescriptions #
+##########################
+
+class TypeDescription(object):
+    def __init__(self, name, nodeid, namespaceid):
+        self.name = name
+        self.nodeid = nodeid
+        self.namespaceid = namespaceid
+        self.xmlEncodingId = "0"
+        self.binaryEncodingId = "0"
+
+def parseTypeDescriptions(f, namespaceid):
+    definitions = {}
+    input_str = f.read()
+    input_str = input_str.replace('\r','')
+    rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
+
+    delay_init = []
+
+    for index, row in enumerate(rows):
+        if len(row) < 3:
+            continue
+        if row[2] == "Object":
+            # Check if node name ends with _Encoding_(DefaultXml|DefaultBinary) and store the node id in the corresponding DataType
+            m = re.match('(.*?)_Encoding_Default(Xml|Binary)$',row[0])
+            if (m):
+                baseType = m.group(1)
+                if baseType not in types:
+                    continue
+
+                delay_init.append({
+                    "baseType": baseType,
+                    "encoding": m.group(2),
+                    "id": row[1]
+                })
+            continue
+        if row[2] != "DataType":
+            continue
+        if row[0] == "BaseDataType":
+            definitions["Variant"] = TypeDescription(row[0], row[1], namespaceid)
+        elif row[0] == "Structure":
+            definitions["ExtensionObject"] = TypeDescription(row[0], row[1], namespaceid)
+        elif row[0] not in types:
+            continue
+        else:
+            definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
+    for i in delay_init:
+        if i["baseType"] not in definitions:
+            raise Exception("Type {} not found in definitions file.".format(i["baseType"]))
+        if i["encoding"] == "Xml":
+            definitions[i["baseType"]].xmlEncodingId = i["id"]
+        else:
+            definitions[i["baseType"]].binaryEncodingId = i["id"]
+    return definitions
+
+def merge_dicts(*dict_args):
+    """
+    Given any number of dicts, shallow copy and merge into a new dict,
+    precedence goes to key value pairs in latter dicts.
+    """
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
+
+###############################
+# Parse the Command Line Input#
+###############################
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--ns0-types-xml', nargs=1, help='xml-definition of the ns0 types that are assumed to already exist')
-parser.add_argument('--enable-subscription-types', nargs=1, help='Generate datatypes necessary for Montoring and Subscriptions.')
-parser.add_argument('--typedescriptions', nargs=1, help='csv file with type descriptions')
-parser.add_argument('--typeintrospection', help='add the type and member names to the idatatype structures', action='store_true')
-parser.add_argument('namespace_id', type=int, help='the id of the target namespace')
-parser.add_argument('types_xml', help='path/to/Opc.Ua.Types.bsd')
-parser.add_argument('outfile', help='output file w/o extension')
+parser.add_argument('-c', '--type-csv',
+                    metavar="<typeDescriptions>",
+                    type=argparse.FileType('r'),
+                    dest="type_csv",
+                    action='append',
+                    default=[],
+                    help='csv file with type descriptions')
 
+parser.add_argument('--namespace',
+                    type=int,
+                    dest="namespace",
+                    default=0,
+                    help='namespace id of the generated type nodeids (defaults to 0)')
+
+parser.add_argument('-s', '--selected-types',
+                    metavar="<selectedTypes>",
+                    type=argparse.FileType('r'),
+                    dest="selected_types",
+                    action='append',
+                    default=[],
+                    help='file with list of types (among those parsed) to be generated. If not given, all types are generated')
+
+parser.add_argument('--no-builtin',
+                    action='store_true',
+                    dest="no_builtin",
+                    help='Do not generate builtin types')
+
+parser.add_argument('-t', '--type-bsd',
+                    metavar="<typeBsds>",
+                    type=argparse.FileType('r'),
+                    dest="type_bsd",
+                    action='append',
+                    default=[],
+                    help='bsd file with type definitions')
+
+parser.add_argument('outfile',
+                    metavar='<outputFile>',
+                    help='output file w/o extension')
 args = parser.parse_args()
-outname = args.outfile.split("/")[-1] 
-inname = args.types_xml.split("/")[-1]
-typeintrospection = args.typeintrospection
-existing_types = OrderedDict()
-if args.enable_subscription_types:
-    minimal_types = minimal_types + subscription_types
-if args.namespace_id == 0 or args.ns0_types_xml:
-    existing_types = OrderedDict([(t, BuiltinType(t)) for t in builtin_types])
-if args.ns0_types_xml:
-    if sys.version_info[0] < 3:
-        OrderedDict(existing_types.items() + parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items())
-    else:
-        OrderedDict(list(existing_types.items()) + list(parseTypeDefinitions(args.ns0_types_xml[0], existing_types).items()))
-types = parseTypeDefinitions(args.types_xml, existing_types)
-if args.namespace_id == 0:
-    if sys.version_info[0] < 3:
-        types = OrderedDict(existing_types.items() + types.items())
-    else:
-        types = OrderedDict(list(existing_types.items()) + list(types.items()))
+
+outname = args.outfile.split("/")[-1]
+inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
+
+
+
+################
+# Create Types #
+################
+
+for builtin in builtin_types:
+    types[builtin] = BuiltinType(builtin)
+
+for f in args.type_bsd:
+    parseTypeDefinitions(outname, f, args.namespace)
+
 
 typedescriptions = {}
-if args.typedescriptions:
-    typedescriptions = parseTypeDescriptions(args.typedescriptions, args.namespace_id)
+for f in args.type_csv:
+    typedescriptions = merge_dicts(typedescriptions, parseTypeDescriptions(f, args.namespace))
+
+selected_types = []
+for f in args.selected_types:
+    selected_types = list(filter(len, [line.strip() for line in f]))
+if len(selected_types) == 0:
+    selected_types = types.keys()
+
+#############################
+# Write out the Definitions #
+#############################
 
 fh = open(args.outfile + "_generated.h",'w')
+ff = open(args.outfile + "_generated_handling.h",'w')
 fe = open(args.outfile + "_generated_encoding_binary.h",'w')
 fc = open(args.outfile + "_generated.c",'w')
 def printh(string):
     print(string, end='\n', file=fh)
+def printf(string):
+    print(string, end='\n', file=ff)
 def printe(string):
     print(string, end='\n', file=fe)
 def printc(string):
     print(string, end='\n', file=fc)
 
-printh('''/**
-* @file ''' + outname + '''_generated.h
-*
-* @brief Autogenerated data types
-*
-* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
-* on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + '''
-*/
+def iter_types(v):
+    l = None
+    if sys.version_info[0] < 3:
+        l = list(v.itervalues())
+    else:
+        l = list(v.values())
+    if len(selected_types) > 0:
+        l = list(filter(lambda t: t.name in selected_types, l))
+    if args.no_builtin:
+        l = list(filter(lambda t: type(t) != BuiltinType, l))
+    return l
+
+################
+# Print Header #
+################
+
+printh('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
 #ifndef ''' + outname.upper() + '''_GENERATED_H_
 #define ''' + outname.upper() + '''_GENERATED_H_
@@ -495,87 +483,112 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
-#ifdef UA_INTERNAL
-#include "ua_types_encoding_binary.h"
-#endif'''
- + ('\n#include "ua_types_generated.h"\n' if args.namespace_id != 0 else '') + '''
+''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
-/**
-* @ingroup types
-*
-* @defgroup ''' + outname + '''_generated Autogenerated ''' + outname + ''' Types
-*
-* @brief Data structures that are autogenerated from an XML-Schema.
-*
-* @{
-*/
-''')
-printh("#define " + outname.upper() + "_COUNT %s\n" % (str(len(types))))
-printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[];\n")
+filtered_types = iter_types(types)
+
+printh('''/**
+ * Every type is assigned an index in an array containing the type descriptions.
+ * These descriptions are used during type handling (copying, deletion,
+ * binary encoding, ...). */''')
+printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
+printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
-if sys.version_info[0] < 3:
-    values = types.itervalues()
-else:
-    values = types.values()
-
-for t in values:
-    printh("")
+for t in filtered_types:
+    printh("\n/**\n * " +  t.name)
+    printh(" * " + "^" * len(t.name))
+    if t.description == "":
+        printh(" */")
+    else:
+        printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
-        if t.description != "":
-            printh("/** @brief " + t.description + " */")
-        printh(t.typedef_c())
-    printh("#define " + outname.upper() + "_" + t.name[3:].upper() + " " + str(i))
-    printh(t.functions_c(outname.upper()))
+        printh(t.typedef_h() + "\n")
+    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
     i += 1
 
 printh('''
-/// @} /* end of group */\n
 #ifdef __cplusplus
 } // extern "C"
 #endif\n
 #endif /* %s_GENERATED_H_ */''' % outname.upper())
 
-printe('''/**
-* @file ''' + outname + '''_generated_encoding_binary.h
-*
-* @brief Binary encoding for autogenerated data types
-*
-* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
-* on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + '''
-*/\n
+##################
+# Print Handling #
+##################
+
+printf('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
+#ifndef ''' + outname.upper() + '''_GENERATED_HANDLING_H_
+#define ''' + outname.upper() + '''_GENERATED_HANDLING_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include "''' + outname + '''_generated.h"
+
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+# pragma GCC diagnostic ignored "-Wmissing-braces"
+#endif
+''')
+
+for t in filtered_types:
+    printf("\n/* " + t.name + " */")
+    printf(t.functions_c())
+
+printf('''
+#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
+# pragma GCC diagnostic pop
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif\n
+#endif /* %s_GENERATED_HANDLING_H_ */''' % outname.upper())
+
+###########################
+# Print Description Array #
+###########################
+
+printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
+#include "''' + outname + '''_generated.h"''')
+
+for t in filtered_types:
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.members_c())
+
+printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+for t in filtered_types:
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.datatype_c() + ",")
+printc("};\n")
+
+##################
+# Print Encoding #
+##################
+
+printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
+ * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
+       ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
+
 #include "ua_types_encoding_binary.h"
 #include "''' + outname + '''_generated.h"''')
 
-printc('''/**
-* @file ''' + outname + '''_generated.c
-*
-* @brief Autogenerated data types
-*
-* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '''
-* on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + '''
-*/\n
-#include "stddef.h"
-#include "ua_types.h"
-#include "''' + outname + '''_generated.h"\n
-const UA_DataType ''' + outname.upper() + '''[] = {''')
-if sys.version_info[0] < 3:
-    values = types.itervalues()
-else:
-    values = types.values()
-for t in values:
-    printc("")
-    printc("/* " + t.name + " */")
-    if args.typedescriptions:
-        td = typedescriptions[t.name]
-    else:
-        td = None
-    printc(t.typelayout_c(args.namespace_id == 0, td, outname) + ",")
-    printe("")
-    printe("/* " + t.name + " */")
-    printe(t.encoding_h(outname.upper()))
-printc("};\n")
+for t in filtered_types:
+    printe("\n/* " + t.name + " */")
+    printe(t.encoding_h())
 
 fh.close()
-fe.close()
+ff.close()
 fc.close()
+fe.close()

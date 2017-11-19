@@ -1,5 +1,13 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #ifndef UA_SESSION_MANAGER_H_
 #define UA_SESSION_MANAGER_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "queue.h"
 #include "ua_server.h"
@@ -13,30 +21,37 @@ typedef struct session_list_entry {
 
 typedef struct UA_SessionManager {
     LIST_HEAD(session_list, session_list_entry) sessions; // doubly-linked list of sessions
-    UA_UInt32 maxSessionCount;
-    UA_UInt32 lastSessionId;
     UA_UInt32 currentSessionCount;
-    UA_UInt32 maxSessionLifeTime;    // time in [ms]
+    UA_Server *server;
 } UA_SessionManager;
 
 UA_StatusCode
-UA_SessionManager_init(UA_SessionManager *sessionManager, UA_UInt32 maxSessionCount,
-                       UA_UInt32 maxSessionLifeTime, UA_UInt32 startSessionId);
+UA_SessionManager_init(UA_SessionManager *sm, UA_Server *server);
 
-void UA_SessionManager_deleteMembers(UA_SessionManager *sessionManager, UA_Server *server);
+/* Deletes all sessions */
+void UA_SessionManager_deleteMembers(UA_SessionManager *sm);
 
-void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sessionManager, UA_Server *server, UA_DateTime now);
+/* Deletes all sessions that have timed out. Deletion is implemented via a
+ * delayed callback. So all currently scheduled jobs with a pointer to the
+ * session can complete. */
+void UA_SessionManager_cleanupTimedOut(UA_SessionManager *sm,
+                                       UA_DateTime nowMonotonic);
 
 UA_StatusCode
-UA_SessionManager_createSession(UA_SessionManager *sessionManager,
-                                UA_SecureChannel *channel, const UA_CreateSessionRequest *request,
-                                UA_Session **session);
+UA_SessionManager_createSession(UA_SessionManager *sm, UA_SecureChannel *channel,
+                                const UA_CreateSessionRequest *request, UA_Session **session);
 
 UA_StatusCode
-UA_SessionManager_removeSession(UA_SessionManager *sessionManager,
-                                UA_Server *server, const UA_NodeId *token);
+UA_SessionManager_removeSession(UA_SessionManager *sm, const UA_NodeId *token);
 
 UA_Session *
-UA_SessionManager_getSession(UA_SessionManager *sessionManager, const UA_NodeId *token);
+UA_SessionManager_getSessionByToken(UA_SessionManager *sm, const UA_NodeId *token);
+
+UA_Session *
+UA_SessionManager_getSessionById(UA_SessionManager *sm, const UA_NodeId *sessionId);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /* UA_SESSION_MANAGER_H_ */

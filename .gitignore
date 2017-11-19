@@ -16,6 +16,7 @@
 *.pyc
 *.gcno
 *.gcda
+*.swp
 .dirstamp
 /bin
 m4
@@ -76,3 +77,6 @@ Makefile
 /exampleClient
 /exampleClient_legacy
 /src_generated/
+/build
+/.idea
+/cmake-build*

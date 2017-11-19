@@ -1,57 +1,103 @@
 include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_BINARY_DIR}/src_generated)
+include_directories(${PROJECT_SOURCE_DIR}/plugins)
+include_directories(${PROJECT_BINARY_DIR})
 
-set(LIBS open62541-static)
-if(NOT WIN32)
-    list(APPEND LIBS pthread)
-    if (NOT APPLE)
-        list(APPEND LIBS rt)
-    endif()
-else()
-    list(APPEND LIBS ws2_32)
-endif()
-if(UA_ENABLE_MULTITHREADING)
-    list(APPEND LIBS urcu-cds urcu urcu-common)
-endif()
+#############################
+# Compiled binaries folders #
+#############################
 
-# add_executable(server_readspeed server_readspeed.c)
-# target_link_libraries(server_readspeed ${LIBS})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
 
-add_executable(server_variable server_variable.c)
-target_link_libraries(server_variable ${LIBS})
+macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
+  add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS} ${EXAMPLE_SOURCE} ${ARGN})
+  target_link_libraries(${EXAMPLE_NAME} open62541 ${open62541_LIBRARIES})
+  assign_source_group(${EXAMPLE_SOURCE})
+  add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/examples")
+  if(UA_COMPILE_AS_CXX)
+    set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
+  endif()
+endmacro()
 
-add_executable(server_datasource server_datasource.c)
-target_link_libraries(server_datasource ${LIBS})
+#############
+# Tutorials #
+#############
 
-add_executable(server_firstSteps server_firstSteps.c)
-target_link_libraries(server_firstSteps ${LIBS})
+add_example(tutorial_datatypes tutorial_datatypes.c)
 
-add_executable(client_firstSteps client_firstSteps.c)
-target_link_libraries(client_firstSteps ${LIBS})
+add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
 
-if(NOT UA_ENABLE_AMALGAMATION)
-	add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/nodeset.h ${PROJECT_BINARY_DIR}/src_generated/nodeset.c
-		               PRE_BUILD
-		               COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-                                                    -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-                                                    ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/Opc.Ua.NodeSet2.xml
-                                                    ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml
-                                                    ${PROJECT_BINARY_DIR}/src_generated/nodeset
-   		                DEPENDS ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py
-		                        ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist_FullNS0.txt
-		                        ${PROJECT_SOURCE_DIR}/examples/server_nodeset.xml)
-		                      
-	add_executable(server_nodeset server_nodeset.c ${PROJECT_BINARY_DIR}/src_generated/nodeset.c)
-	target_link_libraries(server_nodeset ${LIBS})
-endif()
+add_example(tutorial_server_variable tutorial_server_variable.c)
+
+add_example(tutorial_server_datasource tutorial_server_datasource.c)
+
+add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
+
+add_example(tutorial_server_object tutorial_server_object.c)
 
 if(UA_ENABLE_METHODCALLS)
-  add_executable(server_method server_method.c)
-  target_link_libraries(server_method ${LIBS})
+  add_example(tutorial_server_method tutorial_server_method.c)
 endif()
+
+add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
+
+add_example(tutorial_client_events tutorial_client_events.c)
+
+##################
+# Example Server #
+##################
+
+add_example(server server.c)
+
+##################
+# Example Client #
+##################
+
+add_example(client client.c)
+
+add_example(client_connect_loop client_connect_loop.c)
+
+####################
+# Feature Examples #
+####################
+
+add_example(server_mainloop server_mainloop.c)
+
+add_example(server_instantiation server_instantiation.c)
+
+add_example(server_repeated_job server_repeated_job.c)
+
+add_example(server_inheritance server_inheritance.c)
+
+add_example(custom_datatype_client custom_datatype/client_types_custom.c)
+add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+
+if(UA_ENABLE_NODEMANAGEMENT)
+    add_example(access_control_server access_control/server_access_control.c)
+    add_example(access_control_client access_control/client_access_control.c)
+endif()
+
+if(UA_BUILD_SELFSIGNED_CERTIFICATE)
+  find_package(OpenSSL REQUIRED)
+  add_custom_command(OUTPUT server_cert.der ca.crt
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py ${CMAKE_CURRENT_BINARY_DIR}
+                     DEPENDS ${PROJECT_SOURCE_DIR}/tools/certs/create_self-signed.py
+                             ${PROJECT_SOURCE_DIR}/tools/certs/localhost.cnf)
+  add_custom_target(selfsigned ALL DEPENDS server_cert.der ca.crt)
+  add_executable(server_certificate server_certificate.c ${STATIC_OBJECTS} server_cert.der ca.crt)
+  target_link_libraries(server_certificate open62541 ${open62541_LIBRARIES})
+endif()
+
+if(UA_ENABLE_DISCOVERY)
+    add_example(discovery_server_lds discovery/server_lds.c)
+
+    add_example(discovery_server_register discovery/server_register.c)
+
+    add_example(discovery_client_find_servers discovery/client_find_servers.c)
+    if(UA_ENABLE_DISCOVERY_MULTICAST)
+        add_example(discovery_server_multicast discovery/server_multicast.c)
+    endif()
+endif()
+
+add_subdirectory(nodeset)

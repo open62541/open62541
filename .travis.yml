@@ -1,56 +1,131 @@
 language: c
-compiler:
-- gcc
-#- clang
-os:
-- linux
-- osx
-sudo: true
+
+# use new build environment (docker)
+sudo: required
+
 env:
   global:
-  - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
-  - secure: ehswgymGXPM3UINhOOnfSByMnrRNTixeT2vEV+z3kXy3WHew/O1yt9GxaYGrUhJPg4+5chAQgjYmezO1x3/CUKFgeHQUmVTFWEzfy1kL1JVjO+ufYyJDnbY+x3OmyNmMYcef2J5MAuUS2C1KFvIxtLsljVK+gpe4LcylkCIF/3Y=
+    # GITAUTH:
+    - secure: nSunY54Wp5HkQCHHbKwlwpbaKyqRVIu/0EnhaoJSwhM1wqerQV/E5d/2JelO9/tZgbungAO7wk/fjutRMVc7d378RTIPwS8vHpvZfEoGhCFsLoTOlqESzsZFBup2H5t1lpQ23jRHDOxlLdJy2lz5U+zd1YnYgDXqdDFjegsIYdo=
+    # COVERITY_SCAN_TOKEN:
+    - secure: C7LLWmOCdRYJGiXjFYDHWwBB6XGjs9Hio4kkvDehLRredRgp1UJ73g6Av9L7xrTUide6GiPrSd+RJw7py/twx5qaeIjOWPy+XvtmabDEQBquLjEkvS+LP2EycaMe92kHMo1ItFfRomgj1FyNYPVnUFgdyedGWv+p553ziDbrMas=
+
+
+dist: trusty
+
+matrix:
+  fast_finish: true
+  include:
+    - os: linux
+      compiler: gcc
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
+      compiler: gcc
+      env: ANALYZE=true
+    - os: linux
+      compiler: gcc
+      env: DOCKER=true
+      services:
+        - docker
+    - os: linux
+      compiler: clang
+      env:
+        - ANALYZE=false
+        - PYTHON=python2
+    - os: linux
+      compiler: clang
+      env:
+        - ANALYZE=false
+        - PYTHON=python3
+    - os: linux
+      compiler: clang
+      env: ANALYZE=true
+    - os: linux
+      compiler: clang
+      env: FUZZER=true
+    - os: osx
+      compiler: clang
+      # disable homebrew auto update which takes a lot of time
+      env: HOMEBREW_NO_AUTO_UPDATE=1
+      cache:
+        directories:
+          - $HOME/Library/Caches/Homebrew
+
 addons:
+  apt:
+    sources:
+      # see https://github.com/travis-ci/apt-source-whitelist/blob/master/ubuntu.json
+    packages:
+      - binutils-mingw-w64-i686
+      - build-essential
+      - check
+      - cmake
+      - cppcheck
+      - gcc-multilib
+      - g++-mingw-w64-i686
+      - g++-mingw-w64-x86-64
+      - g++-multilib
+      - graphviz
+      - libsubunit-dev
+      - libx11-dev
+      - mingw-w64
+      - python-six
+      - python3-six
+      - texlive-fonts-recommended
+      - texlive-latex-extra
+      - texlive-latex-recommended
+      - valgrind
+      - wget
+      - xutils-dev
+      - zip
   coverity_scan:
     project:
-      name: acplt/open62541
-      description: Open-source OPC UA
+      name: "open62541/open62541"
+      description: "Build submitted by Travis"
     notification_email: null@plt.rwth-aachen.de
-    build_command_prepend: mkdir build && cd build && cmake ..
-    build_command: make
+    build_command_prepend: "mkdir build && cd build && cmake .."
+    build_command: "make"
     branch_pattern: coverity_scan
-matrix:
-  # This excludes OSX GCC builds.
-  exclude:
-    - os: osx
-      compiler: gcc
-before_install:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_before_install.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_before_install.sh; fi
-script:
-- if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis_linux_script.sh; fi
-- if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis_osx_script.sh; fi
-after_success:
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_doc.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" && ${TRAVIS_BRANCH} == "master" && ${TRAVIS_PULL_REQUEST} == "false" ) ]]; then sh ./tools/travis_push_coverity.sh; fi
-- if [[ ( ${TRAVIS_OS_NAME} == "linux" && ${CC} == "gcc" ) ]]; then sh ./tools/travis_push_release.sh; fi
-before_deploy:
-- rm build -rf && mkdir -p build && cd build
-- echo "Cross compile release build for Raspberry Pi"
-- cd ~
-- git clone https://github.com/raspberrypi/tools
-- cd -
-- export PATH=$PATH:~/tools/arm-bcm2708/gcc-linaro-arm-linux-gnueabihf-raspbian-x64/bin/
-- cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/Toolchain-rpi64.cmake -DENABLE_AMALGAMATION=ON -DCMAKE_BUILD_TYPE=Release -DBUILD_EXAMPLESERVER=ON -DBUILD_EXAMPLECLIENT=ON ..
-- make 
-- tar -pczf open62541-raspberrypi.tar.gz ../doc ../server_cert.der ../LICENSE ../AUTHORS ../README.md server_static server client_static client libopen62541.so open62541.h open62541.c
-- cp open62541-raspberrypi.tar.gz ..
-- cd ..
+
+cache:
+  pip: true
+  apt: true
+  directories:
+    - $HOME/install
+    - $HOME/.cache/pip
+
+# combine all the commands into one single command. See https://github.com/travis-ci/travis-ci/issues/1066
+before_install: |
+ set -e
+ # Exit travis if on coverity_scan branch and not first build
+ test $TRAVIS_BRANCH != coverity_scan -o ${TRAVIS_JOB_NUMBER##*.} = 1 || exit 0
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then echo -n | openssl s_client -connect scan.coverity.com:443 | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | sudo tee -a /etc/ssl/certs/ca-; fi
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_before_install.sh; fi
+ if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_before_install.sh; fi
+
+script: |
+ set -e
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_script.sh; fi
+ if [ ${TRAVIS_OS_NAME} == "osx" ]; then sh ./tools/travis/travis_osx_script.sh; fi
+
+after_success: |
+ if [ ${TRAVIS_OS_NAME} == "linux" ]; then sh ./tools/travis/travis_linux_after_success.sh; fi
+ # Sleep to flush travis output
+ echo == Build success ==
+ sleep 5
+
+after_failure: |
+ # Sleep to flush travis output
+ echo == Build failed ==
+ sleep 5
+
 deploy:
   provider: releases
   api_key:
     secure: PKCoA7MBRtHloIbNF4Qj5LQyCafjekfVeFXlMBd9KmC0ynNuef+D7nn38f/jo25/b0Ii7r+hgslkQPezbKyEqo2zcCB8Pn8TWau2hbzKM/dUCPoN90HVaQcRjUi8P2Y+QkouwyPWSujBL35/X5QiAntRotCSbZx4fkyiN8cU95o=
-  file: 
+  file:
     - open62541-win32.zip
     - open62541-win64.zip
     - open62541-linux32.tar.gz
@@ -60,5 +135,6 @@ deploy:
     - open62541.h
   skip_cleanup: true
   on:
+    repo: open62541/open62541
     tags: true
-    condition: $CC = gcc
+    condition: $CC = gcc && $ANALYZE = false
