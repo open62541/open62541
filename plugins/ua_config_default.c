@@ -95,7 +95,7 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
 }
 
 void
-UA_ServerConfig_set_customHostname(UA_ServerConfig *config, UA_String customHostname){
+UA_ServerConfig_set_customHostname(UA_ServerConfig *config, const UA_String customHostname){
     if(!config)
         return;
     UA_String_deleteMembers(&config->customHostname);
