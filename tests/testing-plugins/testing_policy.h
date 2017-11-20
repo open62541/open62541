@@ -30,6 +30,7 @@ typedef struct funcs_called {
 
     bool makeCertificateThumbprint;
     bool generateKey;
+    bool generateNonce;
 
     bool setLocalSymEncryptingKey;
     bool setLocalSymSigningKey;
