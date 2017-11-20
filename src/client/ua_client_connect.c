@@ -365,8 +365,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
 
-    UA_NodeId_deleteMembers(&client->authenticationToken);
-    UA_NodeId_init(&client->authenticationToken);
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
  
@@ -496,6 +494,8 @@ UA_Client_disconnect(UA_Client *client) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         client->connection.close(&client->connection);
 
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_NodeId_init(&client->authenticationToken);
     client->state = UA_CLIENTSTATE_DISCONNECTED;
     return UA_STATUSCODE_GOOD;
 }
