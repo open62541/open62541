@@ -31,6 +31,7 @@ static void setup(void) {
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     pthread_create(&server_thread, NULL, serverloop, NULL);
+    UA_realSleep(100);
 }
 
 static void teardown(void) {
