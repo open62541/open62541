@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
+#include "client/ua_client_internal.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
@@ -16,24 +16,17 @@
 UA_Server *server;
 UA_ServerConfig *config;
 UA_Boolean *running;
-UA_Boolean *blockServer;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(*running){
-        if (*blockServer)
-            UA_realSleep(100);
-        else
-            UA_Server_run_iterate(server, true);
-    }
+    while(*running)
+        UA_Server_run_iterate(server, true);
     return 0;
 }
 
 static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
-    blockServer = UA_Boolean_new();
-    *blockServer = false;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -46,7 +39,6 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
-    UA_Boolean_delete(blockServer);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }
@@ -70,13 +62,14 @@ START_TEST(SecureChannel_timeout_max) {
 }
 END_TEST
 
+/* Send the next message after the securechannel timed out */
 START_TEST(SecureChannel_timeout_fail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
-    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed 
+    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -91,25 +84,57 @@ START_TEST(SecureChannel_timeout_fail) {
 }
 END_TEST
 
+static void
+read_cb(UA_Client *client, void *userdata,
+        UA_UInt32 requestId, const void *response) {
+}
+
+/* Send an async message and receive the response when the securechannel timed out */
 START_TEST(SecureChannel_networkfail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    *blockServer = true;
-    UA_realSleep(100);
+    UA_ReadRequest rq;
+    UA_ReadRequest_init(&rq);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    rq.nodesToRead = &rvi;
+    rq.nodesToReadSize = 1;
 
-    UA_Variant val;
-    UA_Variant_init(&val);
-    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-    retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval != UA_STATUSCODE_GOOD);
+    UA_UInt32 rqId;
+    __UA_Client_AsyncService(client, &rq, &UA_TYPES[UA_TYPES_READREQUEST],
+                             read_cb, &UA_TYPES[UA_TYPES_READRESPONSE], NULL, &rqId);
 
-    UA_Variant_deleteMembers(&val);
+    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_realSleep(100); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
-    *blockServer = false;
+    retval = UA_Client_runAsync(client, 50);
+    ck_assert_msg(retval != UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
 
     UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(SecureChannel_reconnect) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    client->state = UA_CLIENTSTATE_CONNECTED;
+
+    retval = UA_Client_disconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_realSleep(50 + 1);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Client_delete(client);
 }
 END_TEST
@@ -120,6 +145,7 @@ int main(void) {
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
     tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);
+    tcase_add_test(tc_sc, SecureChannel_reconnect);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);
