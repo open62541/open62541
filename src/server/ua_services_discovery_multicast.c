@@ -40,6 +40,8 @@
 # define errno__ errno
 #endif
 
+#include "ua_log_socket_error.h"
+
 #ifdef UA_ENABLE_MULTITHREADING
 
 static void *
@@ -60,12 +62,14 @@ multicastWorkerLoop(UA_Server *server) {
             mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                        FD_ISSET(server->mdnsSocket, &fds), true, &next_sleep);
         if (retVal == 1) {
-            UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Multicast error: Can not read from socket. %s");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                          "Multicast error: Can not read from socket. %s", errno_str));
             break;
         } else if (retVal == 2) {
-            UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Multicast error: Can not write to socket. %s");
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "Multicast error: Can not write to socket. %s", errno_str));
             break;
         }
     }

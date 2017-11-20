@@ -109,6 +109,8 @@
 # define AGAIN EAGAIN
 #endif
 
+#include "ua_log_socket_error.h"
+
 /****************************/
 /* Generic Socket Functions */
 /****************************/

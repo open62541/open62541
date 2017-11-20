@@ -34,8 +34,8 @@ environment:
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
-        - CC_NAME: Visual Studio 12 2013 Win64
-          CC_SHORTNAME: vs2013-x64
+        - CC_NAME: Visual Studio 14 2015
+          CC_SHORTNAME: vs2015
           # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
           MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
@@ -45,7 +45,6 @@ environment:
 cache:
   - '%CYG_CACHE%'
   - 'c:\miktex'
-  #- 'c:\python27'
 
 init:
   - git config --global core.autocrlf input # Attempt to ensure we don't try to convert line endings to Win32 CRLF as this will cause build to fail
@@ -70,6 +69,9 @@ install:
   - if exist c:\miktex\texmfs\install\miktex\bin\a5toa4.exe rd /s /q c:\miktex\texmfs\install\miktex\bin\a5toa4.exe
   - pip install --user sphinx sphinx_rtd_theme
   - cinst graphviz.portable
+  # Download and build libcheck
+  - appveyor DownloadFile https://github.com/Pro/check/releases/download/0.12.0_win/check.zip
+  - 7z x check.zip -oc:\ >NUL
 
 before_build:
   # use MinGW64
@@ -148,6 +150,15 @@ build_script:
   - if not "%CC_SHORTNAME%" == "mingw" move "%APPVEYOR_BUILD_FOLDER%\build\%OUT_DIR_LIB%\open62541.pdb" %APPVEYOR_BUILD_FOLDER%\pack_tmp\
   - cd ..
   - 7z a -tzip open62541-%CC_SHORTNAME%-dynamic.zip "%APPVEYOR_BUILD_FOLDER%\pack\*" "%APPVEYOR_BUILD_FOLDER%\pack_tmp\*"
+  - rd /s /q pack_tmp
+  - rd /s /q build
+  # Only execute unit tests on vs2015 to save compilation time
+  - if "%CC_SHORTNAME%" == "vs2015" md build
+  - if "%CC_SHORTNAME%" == "vs2015" cd build
+  - if "%CC_SHORTNAME%" == "vs2015" echo. && echo "##### Testing %CC_NAME% with unit tests #####" && echo.
+  - if "%CC_SHORTNAME%" == "vs2015" cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - if "%CC_SHORTNAME%" == "vs2015" %MAKE%
+  - if "%CC_SHORTNAME%" == "vs2015" cmake --build . --target test-verbose --config debug
   # do not cache log
   - rd /s /q c:\miktex\texmfs\data\miktex\log
 

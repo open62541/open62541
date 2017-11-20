@@ -59,6 +59,8 @@ macro(add_test_valgrind TEST_NAME)
     endif()
 endmacro()
 
+add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
 
