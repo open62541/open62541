@@ -184,6 +184,10 @@ add_executable(check_client client/check_client.c $<TARGET_OBJECTS:open62541-obj
 target_link_libraries(check_client ${LIBS})
 add_test_valgrind(check_client ${TESTS_BINARY_DIR}/check_client)
 
+add_executable(check_client_securechannel client/check_client_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_securechannel ${LIBS})
+add_test_valgrind(check_client_securechannel ${TESTS_BINARY_DIR}/check_client_securechannel)
+
 add_executable(check_client_async client/check_client_async.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_async ${LIBS})
 add_test_valgrind(check_client_async ${TESTS_BINARY_DIR}/check_client_async)
