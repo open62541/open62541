@@ -106,7 +106,7 @@ START_TEST(Client_renewSecureChannel) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Forward the time */
-    UA_sleep((UA_UInt32)((UA_Double)UA_ClientConfig_default.secureChannelLifeTime * 0.8));
+    UA_fakeSleep((UA_UInt32)((UA_Double)UA_ClientConfig_default.secureChannelLifeTime * 0.8));
 
     /* Now read */
     UA_Variant val;

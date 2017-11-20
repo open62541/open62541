@@ -70,7 +70,7 @@ START_TEST(Client_subscription) {
                                                       NULL, &monId, 250);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_sleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);

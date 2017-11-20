@@ -16,19 +16,15 @@
 #endif
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <ua_util.h>
-#include <ua_types_generated.h>
-#include <server/ua_server_internal.h>
-#include <ua_types.h>
 #include <fcntl.h>
+#include <check.h>
 
+#include "server/ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
-#include "check.h"
 #include "testing_clock.h"
 
 // set register timeout to 1 second so we are able to test it.
@@ -70,8 +66,8 @@ static void setup_lds(void) {
     pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
 
     // wait until LDS started
-    UA_sleep(1000);
-    sleep(1);
+    UA_fakeSleep(1000);
+    UA_realSleep(1000);
 }
 
 static void teardown_lds(void) {
@@ -166,8 +162,8 @@ END_TEST
 
 START_TEST(Server_unregister_periodic) {
     // wait for first register delay
-    UA_sleep(1000);
-    sleep(1);
+    UA_fakeSleep(1000);
+    UA_realSleep(1000);
     UA_Server_removeRepeatedCallback(server_register, periodicRegisterCallbackId);
     UA_StatusCode retval = UA_Server_unregister_discovery(server_register,
                                                           "opc.tcp://localhost:4840");
@@ -471,29 +467,29 @@ END_TEST
 
 START_TEST(Util_wait_timeout) {
     // wait until server is removed by timeout. Additionally wait a few seconds more to be sure.
-    UA_sleep(100000 * checkWait);
-    sleep(1);
+    UA_fakeSleep(100000 * checkWait);
+    UA_realSleep(1000);
 }
 END_TEST
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Util_wait_mdns) {
-    UA_sleep(1000);
-    sleep(1);
+    UA_fakeSleep(1000);
+    UA_realSleep(1000);
 }
 END_TEST
 #endif
 
 START_TEST(Util_wait_startup) {
-    UA_sleep(1000);
-    sleep(1);
+    UA_fakeSleep(1000);
+    UA_realSleep(1000);
 }
 END_TEST
 
 START_TEST(Util_wait_retry) {
     // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
-    UA_sleep(3000);
-    sleep(3);
+    UA_fakeSleep(3000);
+    UA_realSleep(3000);
 }
 END_TEST
 

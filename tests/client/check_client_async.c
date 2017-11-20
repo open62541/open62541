@@ -48,7 +48,7 @@ asyncReadCallback(UA_Client *client, void *userdata,
                   UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_UInt16 *asyncCounter = (UA_UInt16*)userdata;
     (*asyncCounter)++;
-    UA_sleep(10);
+    UA_fakeSleep(10);
 }
 
 START_TEST(Client_read_async) {

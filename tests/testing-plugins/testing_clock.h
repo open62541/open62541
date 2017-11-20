@@ -15,10 +15,10 @@
  * UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void); */
 
 /* Forwards the testing clock by the given duration in ms */
-void UA_sleep(UA_UInt32 duration);
+void UA_fakeSleep(UA_UInt32 duration);
 
 /* Sleep for the duration in milliseconds. Used to wait for workers to complete.
  * Does not do anything in single-threaded mode. */
-void UA_realsleep(UA_UInt32 duration);
+void UA_realSleep(UA_UInt32 duration);
 
 #endif /* TESTING_CLOCK_H_ */
