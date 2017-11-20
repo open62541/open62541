@@ -120,6 +120,9 @@ int main(int argc, char** argv) {
     UA_ServerConfig *config =
         UA_ServerConfig_new_minimal(4840, &certificate);
     UA_ByteString_deleteMembers(&certificate);
+    /* uncomment next line to add a custom hostname */
+    // UA_ServerConfig_set_customHostname(config, UA_STRING("custom"));
+    
     UA_Server *server = UA_Server_new(config);
 
     /* add a static variable node to the server */
