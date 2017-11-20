@@ -452,6 +452,45 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     }
 END_TEST
 
+START_TEST(SecureChannel_generateNonce)
+    {
+        UA_ByteString myNonce;
+        UA_ByteString_init(&myNonce);
+
+        for(size_t i = 0; i < 129; ++i) {
+            i = (i == 128) ? 65536 : i; // large edge case
+
+            UA_StatusCode retval = UA_SecureChannel_generateNonce(&testChannel, i, &myNonce);
+
+            ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be good");
+            ck_assert_msg(myNonce.length == i, "Expected nonce length to be %i but was %i", i, myNonce.length);
+            if(i != 0)
+                ck_assert_msg(fCalled.generateNonce, "Expected generateNonce to have been called");
+            else
+                if(fCalled.generateNonce)
+                    printf("generateNonce was called with nonceLength = 0. Could possibly be avoided");
+        }
+
+        UA_ByteString_deleteMembers(&myNonce);
+    }
+END_TEST
+
+START_TEST(SecureChannel_generateNonce_invalidParameters)
+    {
+        UA_ByteString myNonce;
+        UA_ByteString_init(&myNonce);
+
+        UA_StatusCode retval = UA_SecureChannel_generateNonce(NULL, 42, NULL);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_generateNonce(NULL, 42, &myNonce);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_generateNonce(&testChannel, 42, NULL);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+    }
+END_TEST
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -492,6 +531,13 @@ testSuite_SecureChannel(void) {
                    Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits);
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
 
+    TCase *tc_generateNonce = tcase_create("Test generateNonce function");
+    tcase_add_checked_fixture(tc_generateNonce, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_generateNonce, setup_key_sizes, teardown_key_sizes);
+    tcase_add_checked_fixture(tc_generateNonce, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_generateNonce, SecureChannel_generateNonce);
+    tcase_add_test(tc_generateNonce, SecureChannel_generateNonce_invalidParameters);
+    suite_add_tcase(s, tc_generateNonce);
 
     return s;
 }

@@ -2,8 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+#ifndef __clang_analyzer__
 
 #include <ua_types.h>
 #include <ua_plugin_securitypolicy.h>
@@ -11,7 +10,6 @@
 #include "testing_policy.h"
 #include "check.h"
 
-#ifndef __clang_analyzer__
 #define SET_CALLED(func) funcsCalled->func = true
 
 static funcs_called *funcsCalled;
@@ -197,11 +195,13 @@ generateKey_testing(const UA_SecurityPolicy *securityPolicy,
 static UA_StatusCode
 generateNonce_testing(const UA_SecurityPolicy *securityPolicy,
                       UA_ByteString *out) {
-    out->data = UA_Byte_new();
-    if(!out->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    out->length = 1;
-    out->data[0] = 'a';
+    ck_assert(securityPolicy != NULL);
+    ck_assert(out != NULL);
+    ck_assert(out->data != NULL);
+
+    memset(out->data, 'N', out->length);
+
+    SET_CALLED(generateNonce);
     return UA_STATUSCODE_GOOD;
 }
 
