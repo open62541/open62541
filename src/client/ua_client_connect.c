@@ -21,6 +21,9 @@ openSecureChannel(UA_Client *client, UA_Boolean renew);
 static UA_StatusCode
 requestSession(UA_Client *client, UA_UInt32 *requestId);
 
+static UA_StatusCode
+requestGetEndpoints(UA_Client *client, UA_UInt32 *requestId);
+
 static UA_StatusCode processACKResponse(void *application,
 		UA_Connection *connection, UA_ByteString *chunk) {
 	UA_Client *client = (UA_Client*) application;
@@ -41,7 +44,6 @@ static UA_StatusCode processACKResponse(void *application,
 
 	/* Store remote connection settings and adjust local configuration to not
 	 * exceed the limits */
-	client->connectState = HEL_ACK;
 	UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
 			"Received ACK message");
 	connection->remoteConf.maxChunkCount = ackMessage.maxChunkCount; /* may be zero -> unlimited */
@@ -160,7 +162,6 @@ static UA_StatusCode processDecodedOPNResponse(void *application,
 	/* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
 	 * DateTime=Int64 we take 75% of lifetime to start renewing as described in
 	 * standard */
-	client->connectState = SECURECHANNEL_ACK;
 	client->nextChannelRenewal = UA_DateTime_nowMonotonic()
 			+ (UA_DateTime) (response.securityToken.revisedLifetime
 					* (UA_Double) UA_MSEC_TO_DATETIME * 0.75);
@@ -192,7 +193,10 @@ static UA_StatusCode processOPNResponse(void *application,
 	client->state = UA_CLIENTSTATE_SECURECHANNEL;
 	/*following requests and responses*/
 	UA_UInt32 reqId;
-	retval = requestSession(client, &reqId);
+	if (client->endpointsHandshake)
+		retval = requestGetEndpoints(client, &reqId);
+	else
+		retval = requestSession(client, &reqId);
 
 	return retval;
 
@@ -263,137 +267,40 @@ static UA_StatusCode openSecureChannel(UA_Client *client, UA_Boolean renew) {
 		return retval;
 	}
 	return retval;
-	//return UA_Connection_receiveChunksBlocking(&client->connection, client,
-	//                                           processOPNResponse, client->config.timeout);
 }
 
 /* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-UA_StatusCode UA_Client_getEndpointsInternal(UA_Client *client,
-		size_t* endpointDescriptionsSize,
-		UA_EndpointDescription** endpointDescriptions) {
-	UA_GetEndpointsRequest request;
-	UA_GetEndpointsRequest_init(&request);
-	request.requestHeader.timestamp = UA_DateTime_now();
-	request.requestHeader.timeoutHint = 10000;
-	// assume the endpointurl outlives the service call
-	request.endpointUrl = client->endpointUrl;
-
-	UA_GetEndpointsResponse response;
-	UA_GetEndpointsResponse_init(&response);
-	__UA_Client_Service(client, &request,
-			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], &response,
-			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
-
-	if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-		UA_StatusCode retval = response.responseHeader.serviceResult;
-		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-				"GetEndpointRequest failed with error code %s",
-				UA_StatusCode_name(retval));
-		UA_GetEndpointsResponse_deleteMembers(&response);
-		return retval;
-	}
-	*endpointDescriptions = response.endpoints;
-	*endpointDescriptionsSize = response.endpointsSize;
-	response.endpoints = NULL;
-	response.endpointsSize = 0;
-	UA_GetEndpointsResponse_deleteMembers(&response);
-	return UA_STATUSCODE_GOOD;
-}
-
-//static UA_StatusCode
-//getEndpoints(UA_Client *client) {
-//    UA_EndpointDescription* endpointArray = NULL;
-//    size_t endpointArraySize = 0;
-//    UA_StatusCode retval =
-//        UA_Client_getEndpointsInternal(client, &endpointArraySize, &endpointArray);
-//    if(retval != UA_STATUSCODE_GOOD)
-//        return retval;
+//UA_StatusCode UA_Client_getEndpointsInternal(UA_Client *client,
+//		size_t* endpointDescriptionsSize,
+//		UA_EndpointDescription** endpointDescriptions) {
+//	UA_GetEndpointsRequest request;
+//	UA_GetEndpointsRequest_init(&request);
+//	request.requestHeader.timestamp = UA_DateTime_now();
+//	request.requestHeader.timeoutHint = 10000;
+//	// assume the endpointurl outlives the service call
+//	request.endpointUrl = client->endpointUrl;
 //
-//    UA_Boolean endpointFound = false;
-//    UA_Boolean tokenFound = false;
-//    UA_String securityNone = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-//    UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
-//                                          "Transport/uatcp-uasc-uabinary");
+//	UA_GetEndpointsResponse response;
+//	UA_GetEndpointsResponse_init(&response);
+//	__UA_Client_Service(client, &request,
+//			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], &response,
+//			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 //
-//    // TODO: compare endpoint information with client->endpointUri
-//    for(size_t i = 0; i < endpointArraySize; ++i) {
-//        UA_EndpointDescription* endpoint = &endpointArray[i];
-//        /* look out for binary transport endpoints */
-//        /* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
-//        if(endpoint->transportProfileUri.length != 0 &&
-//           !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport))
-//            continue;
-//        /* look out for an endpoint without security */
-//        if(!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
-//            continue;
-//
-//        /* endpoint with no security found */
-//        endpointFound = true;
-//
-//        /* look for a user token policy with an anonymous token */
-//        for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
-//            UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
-//
-//            /* Usertokens also have a security policy... */
-//            if(userToken->securityPolicyUri.length > 0 &&
-//               !UA_String_equal(&userToken->securityPolicyUri, &securityNone))
-//                continue;
-//
-//            /* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
-//             * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME
-//             * TODO: Check equivalence for other types when adding the support */
-//            if((int)client->authenticationMethod != (int)userToken->tokenType)
-//                continue;
-//
-//            /* Endpoint with matching usertokenpolicy found */
-//            tokenFound = true;
-//            UA_UserTokenPolicy_deleteMembers(&client->token);
-//            UA_UserTokenPolicy_copy(userToken, &client->token);
-//            break;
-//        }
-//    }
-//
-//    UA_Array_delete(endpointArray, endpointArraySize,
-//                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-//
-//    if(!endpointFound) {
-//        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-//                     "No suitable endpoint found");
-//        retval = UA_STATUSCODE_BADINTERNALERROR;
-//    } else if(!tokenFound) {
-//        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-//                     "No suitable UserTokenPolicy found for the possible endpoints");
-//        retval = UA_STATUSCODE_BADINTERNALERROR;
-//    }
-//    return retval;
+//	if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+//		UA_StatusCode retval = response.responseHeader.serviceResult;
+//		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+//				"GetEndpointRequest failed with error code %s",
+//				UA_StatusCode_name(retval));
+//		UA_GetEndpointsResponse_deleteMembers(&response);
+//		return retval;
+//	}
+//	*endpointDescriptions = response.endpoints;
+//	*endpointDescriptionsSize = response.endpointsSize;
+//	response.endpoints = NULL;
+//	response.endpointsSize = 0;
+//	UA_GetEndpointsResponse_deleteMembers(&response);
+//	return UA_STATUSCODE_GOOD;
 //}
-//
-//static UA_StatusCode
-//createSession(UA_Client *client) {
-//    UA_CreateSessionRequest request;
-//    UA_CreateSessionRequest_init(&request);
-//
-//    request.requestHeader.timestamp = UA_DateTime_now();
-//    request.requestHeader.timeoutHint = 10000;
-//    UA_ByteString_copy(&client->channel.localNonce, &request.clientNonce);
-//    request.requestedSessionTimeout = 1200000;
-//    request.maxResponseMessageSize = UA_INT32_MAX;
-//    UA_String_copy(&client->endpointUrl, &request.endpointUrl);
-//
-//    UA_CreateSessionResponse response;
-//    UA_CreateSessionResponse_init(&response);
-//    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-//                        &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
-//
-//    UA_NodeId_copy(&response.authenticationToken, &client->authenticationToken);
-//
-//    UA_StatusCode retval = response.responseHeader.serviceResult;
-//    UA_CreateSessionRequest_deleteMembers(&request);
-//    UA_CreateSessionResponse_deleteMembers(&response);
-//    return retval;
-//}
-//
-
 /*functions for async connection, connected with callback*/
 
 static void responseActivateSession(UA_Client *client, void *userdata,
@@ -448,6 +355,109 @@ static UA_StatusCode requestActivateSession(UA_Client *client,
 	return retval;
 }
 
+/*combination of UA_Client_getEndpointsInternal and getEndpoints*/
+static void responseGetEndpoints(UA_Client *client, void *userdata,
+		UA_UInt32 requestId, void *response) {
+	UA_EndpointDescription* endpointArray = NULL;
+	size_t endpointArraySize = 0;
+	UA_GetEndpointsResponse* resp;
+	resp = (UA_GetEndpointsResponse*) response;
+
+	if (resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+		UA_StatusCode retval = resp->responseHeader.serviceResult;
+		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+				"GetEndpointRequest failed with error code %s",
+				UA_StatusCode_name(retval));
+		UA_GetEndpointsResponse_deleteMembers(resp);
+		return;
+	}
+	endpointArray = resp->endpoints;
+	endpointArraySize = resp->endpointsSize;
+	resp->endpoints = NULL;
+	resp->endpointsSize = 0;
+	//UA_GetEndpointsResponse_deleteMembers(response);
+	/*blabla*/
+	UA_Boolean endpointFound = false;
+	UA_Boolean tokenFound = false;
+	UA_String securityNone = UA_STRING(
+			"http://opcfoundation.org/UA/SecurityPolicy#None");
+	UA_String binaryTransport = UA_STRING("http://opcfoundation.org/UA-Profile/"
+			"Transport/uatcp-uasc-uabinary");
+
+	// TODO: compare endpoint information with client->endpointUri
+	for (size_t i = 0; i < endpointArraySize; ++i) {
+		UA_EndpointDescription* endpoint = &endpointArray[i];
+		/* look out for binary transport endpoints */
+		/* Note: Siemens returns empty ProfileUrl, we will accept it as binary */
+		if (endpoint->transportProfileUri.length != 0
+				&& !UA_String_equal(&endpoint->transportProfileUri,
+						&binaryTransport))
+			continue;
+		/* look out for an endpoint without security */
+		if (!UA_String_equal(&endpoint->securityPolicyUri, &securityNone))
+			continue;
+
+		/* endpoint with no security found */
+		endpointFound = true;
+
+		/* look for a user token policy with an anonymous token */
+		for (size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
+			UA_UserTokenPolicy* userToken = &endpoint->userIdentityTokens[j];
+
+			/* Usertokens also have a security policy... */
+			if (userToken->securityPolicyUri.length > 0
+					&& !UA_String_equal(&userToken->securityPolicyUri,
+							&securityNone))
+				continue;
+
+			/* UA_CLIENTAUTHENTICATION_NONE == UA_USERTOKENTYPE_ANONYMOUS
+			 * UA_CLIENTAUTHENTICATION_USERNAME == UA_USERTOKENTYPE_USERNAME
+			 * TODO: Check equivalence for other types when adding the support */
+			if ((int) client->authenticationMethod
+					!= (int) userToken->tokenType)
+				continue;
+
+			/* Endpoint with matching usertokenpolicy found */
+			tokenFound = true;
+			UA_UserTokenPolicy_deleteMembers(&client->token);
+			UA_UserTokenPolicy_copy(userToken, &client->token);
+			break;
+		}
+	}
+
+	UA_Array_delete(endpointArray, endpointArraySize,
+			&UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+	if (!endpointFound) {
+		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+				"No suitable endpoint found");
+		//retval = UA_STATUSCODE_BADINTERNALERROR;
+	} else if (!tokenFound) {
+		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+				"No suitable UserTokenPolicy found for the possible endpoints");
+		//retval = UA_STATUSCODE_BADINTERNALERROR;
+	}
+	requestSession(client, &requestId);
+}
+
+static UA_StatusCode requestGetEndpoints(UA_Client *client,
+		UA_UInt32 *requestId) {
+	UA_GetEndpointsRequest request;
+	UA_GetEndpointsRequest_init(&request);
+	request.requestHeader.timestamp = UA_DateTime_now();
+	request.requestHeader.timeoutHint = 10000;
+	// assume the endpointurl outlives the service call
+	request.endpointUrl = client->endpointUrl;
+
+	UA_StatusCode retval = UA_Client_addAsyncRequest(client, &request,
+			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
+			(UA_ClientAsyncServiceCallback) responseGetEndpoints,
+			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, requestId);
+	UA_GetEndpointsRequest_deleteMembers(&request);
+	return retval;
+
+}
+
 static void responseSessionCallback(UA_Client *client, void *userdata,
 		UA_UInt32 requestId, void *response) {
 	UA_CreateSessionResponse *sessionResponse =
@@ -473,7 +483,6 @@ static UA_StatusCode requestSession(UA_Client *client, UA_UInt32 *requestId) {
 			(UA_ClientAsyncServiceCallback) responseSessionCallback,
 			&UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, requestId);
 	UA_CreateSessionRequest_deleteMembers(&request);
-	client->connectState = SESSION_ACK;
 	return retval;
 }
 
@@ -486,6 +495,7 @@ UA_StatusCode UA_Client_connectInternal(UA_Client *client,
 	/* set up further callback function to handle secure channel and session establishment  */
 	client->ackResponseCallback = processACKResponse;
 	client->openSecureChannelResponseCallback = processOPNResponse;
+	client->endpointsHandshake = endpointsHandshake;
 
 	if (client->state >= UA_CLIENTSTATE_CONNECTED)
 		return UA_STATUSCODE_GOOD;
