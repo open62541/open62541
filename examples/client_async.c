@@ -42,6 +42,7 @@ void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		memcpy(userdata, &res->value, sizeof(UA_Variant));
 	}
 
+	/*The following part shall be provided to the client*/
 	UA_Variant val = *(UA_Variant*) userdata;
 	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_DATETIME])) {
 		UA_DateTime raw_date = *(UA_DateTime*) val.data;
@@ -50,15 +51,22 @@ void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 				string_date.data);
 		UA_String_deleteMembers(&string_date);
 	}
+
+	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_INT32])) {
+		UA_Int32 int_val = *(UA_Int32*) val.data;
+		printf("%-50s%-8i\n","Reading the value of node (1, \"the.answer\"):", int_val);
+
+	}
+
+	/*more if statements...*/
 }
 
-//static
-//void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
-//        void *response) {
-//    reqNo--;
-//    printf("%-50s%-8i\n", "attribute written, pending requests:", reqNo);
-//}
-//
+static
+void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
+		void *response) {
+	reqNo--;
+	printf("%-50s%-8i\n", "attribute written, pending requests:", reqNo);
+}
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -161,50 +169,34 @@ int main(int argc, char *argv[]) {
 	printf("Testing async highlevel functions:\n");
 
 	UA_Variant vals[5];
-	/*   for (int i=0; i<5; i++){
-	 UA_Variant_init(&vals[i]);
-	 client must register the callback function in main to get val updated
-	 * (instead of passing variable to UA_Client_readValueAttribute_async)
-	 attrRead(client, &vals[i], reqId, NULL);
-	 }*/
 
-	for (int i = 0; i < 5; i++) {
+	UA_Int32 value = 0;
+	UA_Variant *myVariant = UA_Variant_new();
+
+	for (UA_UInt16 i = 0; i < 5; i++) {
+		UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
+		value++;
+		/*For write functions NULL is passed as userdata, since no response is needed*/
+		UA_Client_writeValueAttribute_async(client,
+				UA_NODEID_STRING(1, "the.answer"), myVariant, attrWritten, NULL,
+				&reqId);
+		reqNo++;
+		UA_Client_readValueAttribute_async(client,
+				UA_NODEID_STRING(1, "the.answer"), &vals[i], attrRead, &vals[i],
+				&reqId);
+		reqNo++;
+
 		UA_Client_readValueAttribute_async(client,
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				&vals[i], attrRead, &vals[i], &reqId);
 		reqNo++;
-		printf("%-50s%-8i\n", "readAttr sent, pending requests:", reqNo);
 	}
-	while (reqNo > 0){
-		sleep(1);
+
+	while (reqNo > 0)
 		UA_Client_run_iterate(client, 10);
-	}
 
-	/*    for (int i = 0; i < 5; i++) {
-	 if (UA_Variant_hasScalarType(&vals[i], &UA_TYPES[UA_TYPES_DATETIME])) {
-	 UA_Variant val = vals[i];
-	 UA_DateTime raw_date = *(UA_DateTime*) val.data;
-	 UA_String string_date = UA_DateTime_toString(raw_date);
-	 printf("string date is: %.*s\n", (int) string_date.length,
-	 string_date.data);
-	 UA_String_deleteMembers(&string_date);
-	 }
-	 }*/
 
-//    UA_Int32 value = 0;
-//    UA_Variant *myVariant = UA_Variant_new();
-//        UA_Variant_setScalarCopy(myVariant, &value, &UA_TYPES[UA_TYPES_INT32]);
-//
-//        for (int i = 0; i < 5; i++) {
-//            /*For write functions NULL is passed as userdata, since no response is needed*/
-//        UA_Client_writeValueAttribute_async(client, UA_NODEID_STRING(1, "the.answer"), myVariant,
-//                attrWritten, NULL, &reqId);
-//            reqNo++;
-//        }
-//
-//            while(reqNo>0)
-//                UA_Client_run_iterate(client, 10);
-//    UA_Variant_delete(myVariant);
+	UA_Variant_delete(myVariant);
 	UA_Client_disconnect(client);
 	UA_Client_delete(client);
 	return (int) UA_STATUSCODE_GOOD;
