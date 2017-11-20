@@ -243,8 +243,12 @@ calculatePaddingAsym(const UA_SecurityPolicy *securityPolicy, const void *channe
         getRemoteAsymPlainTextBlockSize(channelContext);
     size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.
         getLocalSignatureSize(securityPolicy, channelContext);
-    size_t padding = (plainTextBlockSize - ((bytesToWrite + signatureSize + 1) % plainTextBlockSize));
-    *paddingSize = (UA_Byte) padding;
+    size_t paddingBytes = 1;
+    if(securityPolicy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength(securityPolicy,
+                                                                                  channelContext) > 2048)
+        ++paddingBytes;
+    size_t padding = (plainTextBlockSize - ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize));
+    *paddingSize = (UA_Byte) (padding & 0xff);
     *extraPaddingSize = (UA_Byte) (padding >> 8);
     return (UA_UInt16) padding;
 }
@@ -346,7 +350,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             *buf_pos = paddingSize;
             ++buf_pos;
         }
-        if(extraPaddingSize > 0) {
+        if(securityPolicy->asymmetricModule.cryptoModule.getRemoteEncryptionKeyLength(securityPolicy,
+                                                                                      channel->channelContext)
+           > 2048) {
             *buf_pos = extraPaddingSize;
             ++buf_pos;
         }
@@ -410,7 +416,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 r
             connection->releaseSendBuffer(connection, &buf);
             return retval;
         }
-        
+
         /* Specification part 6, 6.7.4: The OpenSecureChannel Messages are
          * signed and encrypted if the SecurityMode is not None (even if the
          * SecurityMode is SignOnly). */
@@ -656,7 +662,7 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
         /* the abort message was not sent */
         if(!ci.final)
             sendChunkSymmetric(&ci, &buf_start, &buf_end);
-		connection->releaseSendBuffer(connection, &ci.messageBuffer);
+        connection->releaseSendBuffer(connection, &ci.messageBuffer);
         return retval;
     }
 
@@ -999,12 +1005,13 @@ UA_SecureChannel_processChunk(UA_SecureChannel *channel, UA_ByteString *chunk,
     retval = sequenceNumberCallback(channel, sequenceNumber);
 
     /* Skip sequence number checking for fuzzer to improve coverage */
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD) {
 #if !defined(FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION)
         return retval;
 #else
         retval = UA_STATUSCODE_GOOD;
 #endif
+    }
 
     /* Process the payload */
     if(chunkType == UA_CHUNKTYPE_FINAL) {
