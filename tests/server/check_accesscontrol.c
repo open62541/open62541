@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <stdlib.h>
-#include <pthread.h>
 
 #include "ua_types.h"
 #include "ua_server.h"
@@ -11,16 +10,18 @@
 #include "ua_config_default.h"
 #include "check.h"
 
+#include "thread_wrapper.h"
+
 UA_Server *server;
 UA_ServerConfig *config;
 UA_Boolean *running;
 UA_ServerNetworkLayer nl;
-pthread_t server_thread;
+THREAD_HANDLE server_thread;
 
-static void * serverloop(void *_) {
+THREAD_CALLBACK(serverloop) {
     while(*running)
         UA_Server_run_iterate(server, true);
-    return NULL;
+    return 0;
 }
 
 static void setup(void) {
@@ -29,12 +30,12 @@ static void setup(void) {
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
-    pthread_create(&server_thread, NULL, serverloop, NULL);
+    THREAD_CREATE(server_thread, serverloop);
 }
 
 static void teardown(void) {
     *running = false;
-    pthread_join(server_thread, NULL);
+    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
     UA_Server_delete(server);

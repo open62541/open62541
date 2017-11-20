@@ -114,6 +114,28 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
 #define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
+
+
+#ifdef _WIN32
+#include <windows.h>
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+    char *errno_str = NULL; \
+    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
+    NULL, WSAGetLastError(), \
+    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
+    (LPSTR)&errno_str, 0, NULL); \
+    LOG; \
+    LocalFree(s); \
+}
+
+#else
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+    char *errno_str = strerror(errno); \
+    LOG; \
+}
+#endif
+
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

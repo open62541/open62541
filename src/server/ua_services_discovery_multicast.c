@@ -40,22 +40,6 @@
 # define errno__ errno
 #endif
 
-#ifdef __WIN32
-#define UA_LOG_ERROR_SOCKET(LOGGER, CATEGORY, DESCRIPTION) { \
-    char *s = NULL; \
-    FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
-    NULL, WSAGetLastError(), \
-    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
-    (LPSTR)&s, 0, NULL); \
-    UA_LOG_ERROR(LOGGER, CATEGORY, DESCRIPTION, s); \
-    LocalFree(s); \
-}
-#else
-#define UA_LOG_ERROR_SOCKET(LOGGER, CATEGORY, DESCRIPTION) { \
-    UA_LOG_ERROR(LOGGER, CATEGORY, DESCRIPTION, strerror(errno)); \
-}
-#endif
-
 #ifdef UA_ENABLE_MULTITHREADING
 
 static void *
@@ -342,8 +326,9 @@ initMulticastDiscoveryServer(UA_Server* server) {
 #endif
 
     if((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
-        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Could not create multicast socket. Error: %s");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Could not create multicast socket. Error: %s", errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
     mdnsd_register_receive_callback(server->mdnsDaemon,
@@ -603,12 +588,14 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
     unsigned short retval = mdnsd_step(server->mdnsDaemon, server->mdnsSocket,
                                        processIn, true, &next_sleep);
     if(retval == 1) {
-        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not read from socket. %s");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not read from socket. %s", errno_str));
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     } else if(retval == 2) {
-        UA_LOG_ERROR_SOCKET(server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Multicast error: Can not write to socket. %s");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Multicast error: Can not write to socket. %s", errno_str));
         return UA_STATUSCODE_BADNOCOMMUNICATION;
     }
 
