@@ -278,7 +278,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd,
                                                      client_processChunk, timeout);
 
-        if(retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 client->state = UA_CLIENTSTATE_DISCONNECTED;
             else
@@ -312,6 +312,12 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
         (client->config.timeout * UA_MSEC_TO_DATETIME);
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
+    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
+        /* In a synchronous service, UA_STATUSCODE_GOODNONCRITICALTIMEOUT must be treated as an error */
+        /* TODO Except for UA_TYPES_PUBLISHREQUEST */
+        UA_Client_disconnect(client);
+        respHeader->serviceResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    }
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
 }
