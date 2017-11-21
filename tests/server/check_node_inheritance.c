@@ -186,6 +186,7 @@ START_TEST(Nodes_checkInheritedValue)
         UA_UInt32 *value = (UA_UInt32 *) inheritedValue.data;
 
         ck_assert_int_eq(*value, valueToBeInherited);
+        UA_Variant_deleteMembers(&inheritedValue);
     }
 END_TEST
 

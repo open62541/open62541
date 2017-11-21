@@ -573,9 +573,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
 void UA_Node_deleteReferences(UA_Node *node) {
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
-        for(size_t j = 0; j < refs->targetIdsSize; ++j)
-            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j]);
-        UA_free(refs->targetIds);
+        UA_Array_delete(refs->targetIds, refs->targetIdsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         UA_NodeId_deleteMembers(&refs->referenceTypeId);
     }
     if(node->references)
