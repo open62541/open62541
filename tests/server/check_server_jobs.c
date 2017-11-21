@@ -39,11 +39,11 @@ START_TEST(Server_addRemoveRepeatedCallback) {
     UA_Server_addRepeatedCallback(server, dummyCallback, NULL, 10, &id);
 
     /* Wait until the callback has surely timed out */
-    UA_sleep(15);
+    UA_fakeSleep(15);
     UA_Server_run_iterate(server, false);
 
     /* Wait a bit longer until the workers have picked up the dispatched callback */
-    UA_realsleep(100);
+    UA_realSleep(100);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedCallback(server, id);
@@ -62,7 +62,7 @@ START_TEST(Server_repeatedCallbackRemoveItself) {
     cbId = UA_UInt64_new();
     UA_Server_addRepeatedCallback(server, removeItselfCallback, NULL, 10, cbId);
 
-    UA_sleep(15);
+    UA_fakeSleep(15);
     UA_Server_run_iterate(server, false);
 
     UA_UInt64_delete(cbId);
