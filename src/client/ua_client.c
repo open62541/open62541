@@ -317,6 +317,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
         /* TODO Except for UA_TYPES_PUBLISHREQUEST */
         UA_Client_disconnect(client);
         respHeader->serviceResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        return;
     }
     if(retval != UA_STATUSCODE_GOOD)
         respHeader->serviceResult = retval;
