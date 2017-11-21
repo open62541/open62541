@@ -7,7 +7,7 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
-#include "ua_client_internal.h"
+#include "client/ua_client_internal.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
