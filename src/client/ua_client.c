@@ -269,11 +269,12 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
     UA_StatusCode retval;
     do {
         UA_DateTime now = UA_DateTime_nowMonotonic();
-        /* maxDate can be greater than now but if (maxDate - now) < UA_MSEC_TO_DATETIME 
-         * timeout can be set to 0. We need to add UA_MSEC_TO_DATETIME in the next test */
-        if(now + UA_MSEC_TO_DATETIME > maxDate)
+        /* >= avoid timeout to be set to 0 */
+        if(now >= maxDate)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-        UA_UInt32 timeout = (UA_UInt32)((maxDate - now) / UA_MSEC_TO_DATETIME);
+        /* round always to upper value to avoid timeout to be set to 0
+         * if (maxDate - now) < (UA_MSEC_TO_DATETIME/2) */
+        UA_UInt32 timeout = (UA_UInt32)(((maxDate - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd,
                                                      client_processChunk, timeout);
 
