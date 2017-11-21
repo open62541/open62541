@@ -474,14 +474,39 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
-    LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
-        if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
-            UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
-                                 "Response on a late subscription", immediate->subscriptionID);
-            UA_Subscription_publishCallback(server, immediate);
-            break;
-        }
+    UA_Boolean found = true; 
+    int loopCount = 1;
+
+    if (session->lastSeenSubscriptionID > 0){
+        /* If we found anything one the first loop or if there are LATE 
+         * in the list before lastSeenSubscriptionID and not LATE after 
+         * lastSeenSubscriptionID we need a second loop.
+         */
+        loopCount = 2;
+        /* We must find the last seen subscription id  */
+        found = false;
     }
+
+    for(int i=0; i<loopCount; i++){
+       LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
+            if (!found){
+                if (session->lastSeenSubscriptionID == immediate->subscriptionID){
+                    found = true; 
+                }     
+            }else{
+                if(immediate->state == UA_SUBSCRIPTIONSTATE_LATE) {
+                    session->lastSeenSubscriptionID = immediate->subscriptionID;
+                    UA_LOG_DEBUG_SESSION(server->config.logger, session, "Subscription %u | "
+                                         "Response on a late subscription", immediate->subscriptionID);
+                    UA_Subscription_publishCallback(server, immediate);
+                    return;
+                }     
+            }     
+        }     
+        /* after the first loop, we can publish the first subscription with UA_SUBSCRIPTIONSTATE_LATE */
+        found = true;
+    }
+    session->lastSeenSubscriptionID = 0;
 }
 
 static void

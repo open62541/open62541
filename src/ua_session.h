@@ -56,6 +56,7 @@ struct UA_Session {
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 lastSubscriptionID;
+    UA_UInt32 lastSeenSubscriptionID;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
     SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
 #endif
