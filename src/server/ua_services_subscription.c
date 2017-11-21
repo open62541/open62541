@@ -475,14 +475,19 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Answer immediately to a late subscription */
     UA_Subscription *immediate;
     UA_Boolean found = true; 
-    UA_UInt32 more = 1;
+    int loopCount = 1;
 
-    if (session->lastSeenSubscriptionID > 0){ 
+    if (session->lastSeenSubscriptionID > 0){
+        /* If we found anything one the first loop or if there are LATE 
+         * in the list before lastSeenSubscriptionID and not LATE after 
+         * lastSeenSubscriptionID we need a second loop.
+         */
+        loopCount = 2;
+        /* We must find the last seen subscription id  */
         found = false;
-        more = 2;
     }
 
-    while (more){
+    for(int i=0; i<loopCount; i++){
        LIST_FOREACH(immediate, &session->serverSubscriptions, listEntry) {
             if (!found){
                 if (session->lastSeenSubscriptionID == immediate->subscriptionID){
@@ -498,7 +503,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                 }     
             }     
         }     
-        more--;
+        /* after the first loop, we can publish the first subscription with UA_SUBSCRIPTIONSTATE_LATE */
         found = true;
     }
     session->lastSeenSubscriptionID = 0;
