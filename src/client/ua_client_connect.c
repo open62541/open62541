@@ -398,18 +398,22 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     client->state = UA_CLIENTSTATE_SECURECHANNEL;
 
-    /* Get Endpoints */
-    if(endpointsHandshake) {
-        retval = getEndpoints(client);
+    /* There is no session to recover and we want to have a session */
+    if(createNewSession && UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
+        /* Get Endpoints */
+        if(endpointsHandshake) {
+            retval = getEndpoints(client);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+        /* Create a Session */
+        retval = createSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 
-    /* Open a Session */
-    if(createNewSession) {
-        retval = createSession(client);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+    /* Activate the Session for this SecureChannel */
+    if(!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
         retval = activateSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
