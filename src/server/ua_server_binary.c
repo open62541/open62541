@@ -449,11 +449,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
-
         if(sessionRequired) {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-                                "Service request %i without a valid session",
-                                requestType->binaryEncodingId);
+            UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+                                   "Service request %i without a valid session",
+                                   requestType->binaryEncodingId);
             UA_deleteMembers(request, requestType);
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
@@ -467,9 +466,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Trying to use a non-activated session? */
     if(sessionRequired && !session->activated) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "Calling service %i on a non-activated session",
-                            requestType->binaryEncodingId);
+        UA_LOG_WARNING_SESSION(server->config.logger, session,
+                               "Calling service %i on a non-activated session",
+                               requestType->binaryEncodingId);
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->authenticationToken);
         UA_deleteMembers(request, requestType);
@@ -479,11 +478,12 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* The session is bound to another channel */
     if(session != &anonymousSession && session->channel != channel) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Client tries to use an obsolete securechannel");
+        UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+                               "Client tries to use a Session that is not "
+                               "bound to this SecureChannel");
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
-                                requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
+                                requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
 
     /* Update the session lifetime */
