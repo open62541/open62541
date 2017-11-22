@@ -44,7 +44,7 @@ UA_fakeSleep(UA_UInt32 duration) {
 
 void
 UA_realSleep(UA_UInt32 duration) {
-	Sleep(duration);
+    Sleep(duration);
 }
 
 #else
