@@ -61,7 +61,7 @@ START_TEST(SecureChannel_timeout_max) {
     UA_Client_delete(client);
 }
 END_TEST
-
+/*
 START_TEST(SecureChannel_timeout_fail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -80,7 +80,7 @@ START_TEST(SecureChannel_timeout_fail) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
-END_TEST
+END_TEST*/
 
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
