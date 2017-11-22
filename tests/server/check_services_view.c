@@ -4,23 +4,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <server/ua_server_internal.h>
 
 #include "check.h"
 #include "ua_server.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
+#include "thread_wrapper.h"
 
 UA_Server *server_translate_browse;
 UA_ServerConfig *server_translate_config;
 UA_Boolean *running_translate_browse;
-pthread_t server_thread_translate_browse;
+THREAD_HANDLE server_thread_translate_browse;
 
-static void *serverloop_register(void *_) {
+THREAD_CALLBACK(serverloop_register) {
     while (*running_translate_browse)
         UA_Server_run_iterate(server_translate_browse, true);
-    return NULL;
+    return 0;
 }
 
 static void setup_server(void) {
@@ -33,12 +33,12 @@ static void setup_server(void) {
         UA_String_fromChars("urn:open62541.test.server_translate_browse");
     server_translate_browse = UA_Server_new(server_translate_config);
     UA_Server_run_startup(server_translate_browse);
-    pthread_create(&server_thread_translate_browse, NULL, serverloop_register, NULL);
+    THREAD_CREATE(server_thread_translate_browse, serverloop_register);
 }
 
 static void teardown_server(void) {
     *running_translate_browse = false;
-    pthread_join(server_thread_translate_browse, NULL);
+    THREAD_JOIN(server_thread_translate_browse);
     UA_Server_run_shutdown(server_translate_browse);
     UA_Boolean_delete(running_translate_browse);
     UA_Server_delete(server_translate_browse);

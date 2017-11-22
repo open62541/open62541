@@ -109,6 +109,8 @@
 # define AGAIN EAGAIN
 #endif
 
+#include "ua_log_socket_error.h"
+
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -290,9 +292,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     int dummy = 1;
     if(setsockopt(newsockfd, IPPROTO_TCP, TCP_NODELAY,
                (const char *)&dummy, sizeof(dummy)) < 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                     "Cannot set socket option TCP_NODELAY. Error: %s",
-                     strerror(errno));
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                             "Cannot set socket option TCP_NODELAY. Error: %s",
+                             errno_str));
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
@@ -307,10 +310,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
                     "Connection %i | New connection over TCP from %s",
                     (int)newsockfd, remote_name);
     } else {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Connection %i | New connection over TCP, "
-                       "getnameinfo failed with errno %i",
-                       (int)newsockfd, errno__);
+        UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                                "Connection %i | New connection over TCP, "
+                                                        "getnameinfo failed with error: %s",
+                                                (int)newsockfd, errno_str));
     }
 
     /* Allocate and initialize the connection */
@@ -382,16 +385,18 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
 
     /* Bind socket to address */
     if(bind(newsock, ai->ai_addr, WIN32_INT ai->ai_addrlen) < 0) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Error binding a server socket: %i", errno__);
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "Error binding a server socket: %s", errno_str));
         CLOSESOCKET(newsock);
         return;
     }
 
     /* Start listening */
     if(listen(newsock, MAXBACKLOG) < 0) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Error listening on server socket");
+        UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                       "Error listening on server socket: %s", errno_str));
         CLOSESOCKET(newsock);
         return;
     }
@@ -501,14 +506,20 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
     /* Every open socket can generate two jobs */
     ServerNetworkLayerTCP *layer = (ServerNetworkLayerTCP *)nl->handle;
 
+    if (layer->serverSocketsSize == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* Listen on open sockets (including the server) */
     fd_set fdset, errset;
     UA_Int32 highestfd = setFDSet(layer, &fdset);
     setFDSet(layer, &errset);
     struct timeval tmptv = {0, timeout * 1000};
     if (select(highestfd+1, &fdset, NULL, &errset, &tmptv) < 0) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                       "Socket select failed with %s", strerror(errno));
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                  "Socket select failed with %s", errno_str));
+        // we will retry, so do not return bad
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Accept new connections via the server sockets */
@@ -732,8 +743,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     #else
         if(clientsockfd < 0) {
     #endif
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Could not create client socket: %s", strerror(errno__));
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                          "Could not create client socket: %s", errno_str));
             freeaddrinfo(server);
             return connection;
         }
@@ -756,9 +768,10 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
         if ((error == -1) && (errno__ != ERR_CONNECTION_PROGRESS)) {
             ClientNetworkLayerTCP_close(&connection);
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-                           "Connection to %s failed with error: %s",
-                           endpointUrl, strerror(errno__));
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                                          "Connection to %s failed with error: %s",
+                                          endpointUrl, errno_str));
             freeaddrinfo(server);
             return connection;
         }

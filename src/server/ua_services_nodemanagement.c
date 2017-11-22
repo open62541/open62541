@@ -649,9 +649,9 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
             referenceTypeId = &hasSubtype;
         const UA_Node *parentNode = UA_Nodestore_get(server, parentNodeId);
         if (parentNode) {
-			if (parentNode->nodeClass == node->nodeClass)
-				typeDefinitionId = parentNodeId;
-			UA_Nodestore_release(server, parentNode);
+            if (parentNode->nodeClass == node->nodeClass)
+                typeDefinitionId = parentNodeId;
+            UA_Nodestore_release(server, parentNode);
         }
     }
 
@@ -794,15 +794,15 @@ Operation_addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId
        node->nodeClass == UA_NODECLASS_OBJECT) {
         UA_assert(type != NULL); /* see above */
         /* Add (mandatory) child nodes from the type definition */
-		if (!server->bootstrapNS0) {
-			retval = addChildren(server, session, node, type);
-			if(retval != UA_STATUSCODE_GOOD) {
-				UA_LOG_INFO_SESSION(server->config.logger, session,
-									"AddNodes: Adding child nodes failed with error code %s",
-									UA_StatusCode_name(retval));
-				goto cleanup;
-			}
-		}
+        if (!server->bootstrapNS0) {
+            retval = addChildren(server, session, node, type);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_INFO_SESSION(server->config.logger, session,
+                                    "AddNodes: Adding child nodes failed with error code %s",
+                                    UA_StatusCode_name(retval));
+                goto cleanup;
+            }
+        }
 
         /* Add a hasTypeDefinition reference */
         retval = addTypeDefRef(server, session, node, type);

@@ -18,7 +18,12 @@ char **filenames;
 static UA_ByteString readFile(char *filename) {
     UA_ByteString buf = UA_BYTESTRING_NULL;
     size_t length;
-    FILE *f = fopen(filename,"r");
+    FILE *f = NULL;
+#ifdef WIN32
+    fopen_s(&f, filename,"r");
+#else
+    f = fopen(filename,"r");
+#endif
 
     if(f) {
         fseek(f, 0, SEEK_END);

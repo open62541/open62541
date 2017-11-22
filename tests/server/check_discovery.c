@@ -16,16 +16,18 @@
 #endif
 
 #include <stdio.h>
-#include <unistd.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <check.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include "server/ua_server_internal.h"
 #include "ua_client.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
+#include "thread_wrapper.h"
 
 // set register timeout to 1 second so we are able to test it.
 #define registerTimeout 1
@@ -35,12 +37,12 @@
 UA_Server *server_lds;
 UA_ServerConfig *config_lds;
 UA_Boolean *running_lds;
-pthread_t server_thread_lds;
+THREAD_HANDLE server_thread_lds;
 
-static void * serverloop_lds(void *_) {
+THREAD_CALLBACK(serverloop_lds) {
     while(*running_lds)
         UA_Server_run_iterate(server_lds, true);
-    return NULL;
+    return 0;
 }
 
 static void setup_lds(void) {
@@ -63,7 +65,7 @@ static void setup_lds(void) {
     config_lds->discoveryCleanupTimeout = registerTimeout;
     server_lds = UA_Server_new(config_lds);
     UA_Server_run_startup(server_lds);
-    pthread_create(&server_thread_lds, NULL, serverloop_lds, NULL);
+    THREAD_CREATE(server_thread_lds, serverloop_lds);
 
     // wait until LDS started
     UA_fakeSleep(1000);
@@ -72,7 +74,7 @@ static void setup_lds(void) {
 
 static void teardown_lds(void) {
     *running_lds = false;
-    pthread_join(server_thread_lds, NULL);
+    THREAD_JOIN(server_thread_lds);
     UA_Server_run_shutdown(server_lds);
     UA_Boolean_delete(running_lds);
     UA_Server_delete(server_lds);
@@ -82,14 +84,14 @@ static void teardown_lds(void) {
 UA_Server *server_register;
 UA_ServerConfig *config_register;
 UA_Boolean *running_register;
-pthread_t server_thread_register;
+THREAD_HANDLE server_thread_register;
 
 UA_UInt64 periodicRegisterCallbackId;
 
-static void * serverloop_register(void *_) {
+THREAD_CALLBACK(serverloop_register) {
     while(*running_register)
         UA_Server_run_iterate(server_register, true);
-    return NULL;
+    return 0;
 }
 
 static void setup_register(void) {
@@ -106,12 +108,12 @@ static void setup_register(void) {
     config_register->mdnsServerName = UA_String_fromChars("Register_test");
     server_register = UA_Server_new(config_register);
     UA_Server_run_startup(server_register);
-    pthread_create(&server_thread_register, NULL, serverloop_register, NULL);
+    THREAD_CREATE(server_thread_register, serverloop_register);
 }
 
 static void teardown_register(void) {
     *running_register = false;
-    pthread_join(server_thread_register, NULL);
+    THREAD_JOIN(server_thread_register);
     UA_Server_run_shutdown(server_register);
     UA_Boolean_delete(running_register);
     UA_Server_delete(server_register);
@@ -132,22 +134,35 @@ START_TEST(Server_unregister) {
 }
 END_TEST
 
+#ifndef WIN32
+#define SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore"
+#else
+#define SEMAPHORE_PATH ".\\open62541-unit-test-semaphore"
+#endif
+
 START_TEST(Server_register_semaphore) {
     // create the semaphore
-    int fd = open("/tmp/open62541-unit-test-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+#ifndef WIN32
+    int fd = open(SEMAPHORE_PATH, O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     ck_assert_int_ne(fd, -1);
     close(fd);
+#else
+    FILE *fp;
+    fopen_s(&fp, SEMAPHORE_PATH, "ab+");
+    ck_assert_ptr_ne(fp, NULL);
+    fclose(fp);
+#endif
 
     UA_StatusCode retval =
         UA_Server_register_discovery(server_register, "opc.tcp://localhost:4840",
-                                     "/tmp/open62541-unit-test-semaphore");
+                                     SEMAPHORE_PATH);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
 START_TEST(Server_unregister_semaphore) {
     // delete the semaphore, this should remove the registration automatically on next check
-    ck_assert_int_eq(remove("/tmp/open62541-unit-test-semaphore"), 0);
+    ck_assert_int_eq(remove(SEMAPHORE_PATH), 0);
 }
 END_TEST
 

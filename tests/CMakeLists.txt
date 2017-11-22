@@ -21,7 +21,11 @@ if(UA_ENABLE_VALGRIND_UNIT_TESTS)
     find_package(Valgrind REQUIRED)
 endif()
 
-set(LIBS subunit ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+if(NOT MSVC)
+    LIST(APPEND LIBS subunit)
+endif()
+include_directories(${CHECK_INCLUDE_DIRS})
 
 # Use different plugins for testing
 set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
@@ -35,6 +39,8 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
+target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+
 
 # Workaround some clang warnings in the uni tests
 if((NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
@@ -52,6 +58,8 @@ macro(add_test_valgrind TEST_NAME)
         add_test(${TEST_NAME} ${ARGN})
     endif()
 endmacro()
+
+add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library

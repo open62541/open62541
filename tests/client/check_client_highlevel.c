@@ -4,8 +4,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <ua_types.h>
 
 #include "ua_server.h"
 #include "ua_client.h"
@@ -13,22 +11,23 @@
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "check.h"
+#include "thread_wrapper.h"
 
 UA_Server *server;
 UA_ServerConfig *config;
 UA_Boolean running;
 UA_ServerNetworkLayer nl;
-pthread_t server_thread;
+THREAD_HANDLE server_thread;
 
 UA_Client *client;
 
 #define CUSTOM_NS "http://open62541.org/ns/test"
 #define CUSTOM_NS_UPPER "http://open62541.org/ns/Test"
 
-static void *serverloop(void *_) {
+THREAD_CALLBACK(serverloop) {
     while (running)
         UA_Server_run_iterate(server, true);
-    return NULL;
+    return 0;
 }
 
 static void setup(void) {
@@ -39,7 +38,7 @@ static void setup(void) {
     ck_assert_uint_eq(2, UA_Server_addNamespace(server, CUSTOM_NS));
 
     UA_Server_run_startup(server);
-    pthread_create(&server_thread, NULL, serverloop, NULL);
+    THREAD_CREATE(server_thread, serverloop);
 
     client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -50,7 +49,7 @@ static void teardown(void) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     running = false;
-    pthread_join(server_thread, NULL);
+    THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
