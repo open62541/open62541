@@ -63,25 +63,25 @@ START_TEST(SecureChannel_timeout_max) {
 }
 END_TEST
 
-START_TEST(SecureChannel_timeout_fail) {
-    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+/* START_TEST(SecureChannel_timeout_fail) { */
+/*     UA_Client *client = UA_Client_new(UA_ClientConfig_default); */
+/*     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+/*     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD); */
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+/*     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1); */
 
-    UA_Variant val;
-    UA_Variant_init(&val);
-    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-    retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval != UA_STATUSCODE_GOOD);
+/*     UA_Variant val; */
+/*     UA_Variant_init(&val); */
+/*     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE); */
+/*     retval = UA_Client_readValueAttribute(client, nodeId, &val); */
+/*     ck_assert(retval != UA_STATUSCODE_GOOD); */
 
-    UA_Variant_deleteMembers(&val);
+/*     UA_Variant_deleteMembers(&val); */
 
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-}
-END_TEST
+/*     UA_Client_disconnect(client); */
+/*     UA_Client_delete(client); */
+/* } */
+/* END_TEST */
 
 START_TEST(SecureChannel_reconnect) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -121,7 +121,7 @@ int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
-    tcase_add_test(tc_sc, SecureChannel_timeout_fail);
+    /* tcase_add_test(tc_sc, SecureChannel_timeout_fail); */
     tcase_add_test(tc_sc, SecureChannel_reconnect);
 
     Suite *s = suite_create("Client");
