@@ -316,7 +316,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
         /* In a synchronous service, UA_STATUSCODE_GOODNONCRITICALTIMEOUT must be treated as an error */
         /* TODO Except for UA_TYPES_PUBLISHREQUEST */
         UA_Client_disconnect(client);
-        respHeader->serviceResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
+        respHeader->serviceResult = UA_STATUSCODE_BADTIMEOUT;
         return;
     }
     if(retval != UA_STATUSCODE_GOOD)
