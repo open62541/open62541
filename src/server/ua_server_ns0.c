@@ -5,6 +5,7 @@
 #include "ua_server_internal.h"
 #include "ua_namespace0.h"
 #include "ua_subscription.h"
+#include "ua_session.h"
 
 /*****************/
 /* Node Creation */
@@ -560,7 +561,7 @@ UA_Server_initNS0(UA_Server *server) {
                                     &locale_en, 1, &UA_TYPES[UA_TYPES_LOCALEID]);
 
     /* MaxBrowseContinuationPoints */
-    UA_UInt16 maxBrowseContinuationPoints = 0; /* no restriction */
+    UA_UInt16 maxBrowseContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
