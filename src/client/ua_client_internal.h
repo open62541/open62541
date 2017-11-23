@@ -57,9 +57,6 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client,
 /**********/
 /* Client */
 /**********/
-typedef enum ConnectState {
-	NO_ACK, HEL_SENT, HEL_ACK, SECURECHANNEL_ACK, SESSION_ACK,
-} ConnectState;
 
 typedef struct AsyncServiceCall {
 	LIST_ENTRY(AsyncServiceCall)
@@ -81,9 +78,6 @@ typedef enum {
 } UA_Client_Authentication;
 
 struct UA_Client {
-	/*to dsynchronize hello & opening secure channel*/
-	ConnectState connectState;
-	ConnectState lastConnectState;
 
 	/* State */
 	UA_ClientState state;
@@ -116,6 +110,7 @@ struct UA_Client {
 	/* Connection Establishment (async) */
 	UA_Connection_processChunk ackResponseCallback;
 	UA_Connection_processChunk openSecureChannelResponseCallback;
+	UA_Boolean endpointsHandshake;
 
 	/* Async Service */
 	LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
@@ -136,21 +131,7 @@ UA_StatusCode
 __UA_Client_connect(UA_Client *client, const char *endpointUrl,
 		UA_Boolean endpointsHandshake, UA_Boolean createSession);
 
-UA_StatusCode
-__UA_Client_connect_async(UA_Client *client, const char *endpointUrl,
-		ConnectState *last_cs);
 
-UA_StatusCode
-__UA_Client_connect_async1(UA_Client *client, const char *endpointUrl,
-		ConnectState *last_cs);
-
-UA_StatusCode
-__UA_Client_getEndpoints(UA_Client *client, size_t* endpointDescriptionsSize,
-		UA_EndpointDescription** endpointDescriptions);
-UA_StatusCode
-__UA_Client_getEndpoints_async(UA_Client *client, size_t *requestId,
-		size_t* endpointDescriptionsSize,
-		UA_EndpointDescription** endpointDescriptions);
 
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
@@ -160,6 +141,7 @@ UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client,
 		size_t* endpointDescriptionsSize,
 		UA_EndpointDescription** endpointDescriptions);
+
 
 UA_StatusCode receivePacket_async(UA_Client *client);
 
