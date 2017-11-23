@@ -343,6 +343,8 @@ initMulticastDiscoveryServer(UA_Server* server) {
 void destroyMulticastDiscoveryServer(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     mdnsd_free(server->mdnsDaemon);
+    if (server->mdnsSocket > 0)
+        CLOSESOCKET(server->mdnsSocket);
 }
 
 static void
