@@ -295,6 +295,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
     return retval;
 }
 
+#include <stdio.h>
 void
 __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
@@ -318,10 +319,14 @@ __UA_Client_Service(UA_Client *client, const void *request,
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
         (client->config.timeout * UA_MSEC_TO_DATETIME);
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
-    if(retval != UA_STATUSCODE_GOOD){
-        respHeader->serviceResult = retval;
+    if (retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
+printf("-----------------------------ICI1\n");
+        /* In synchronous service, if we have don't have a reply we need to close the connection */
         UA_Client_disconnect(client);
+        retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
+    if(retval != UA_STATUSCODE_GOOD)
+        respHeader->serviceResult = retval;
 }
 
 UA_StatusCode
