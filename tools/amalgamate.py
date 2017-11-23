@@ -29,7 +29,7 @@ guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ 
 
 print ("Starting amalgamating file "+ args.outfile)
 
-file = io.open(args.outfile, 'w', encoding='utf8', errors='replace')
+file = io.open(args.outfile, 'wt', encoding='utf8', errors='replace')
 file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
@@ -51,6 +51,24 @@ if is_c:
     file.write(u'''#ifndef UA_DYNAMIC_LINKING_EXPORT
 # define UA_DYNAMIC_LINKING_EXPORT
 # define MDNSD_DYNAMIC_LINKING
+#endif
+
+/* Enable POSIX features */
+#ifndef _XOPEN_SOURCE
+# define _XOPEN_SOURCE 600
+#endif
+#ifndef _DEFAULT_SOURCE
+# define _DEFAULT_SOURCE
+#endif
+/* On older systems we need to define _BSD_SOURCE.
+ * _DEFAULT_SOURCE is an alias for that. */
+#ifndef _BSD_SOURCE
+# define _BSD_SOURCE
+#endif
+
+/* Disable security warnings for BSD sockets on MSVC */
+#ifdef _MSC_VER
+# define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include "%s.h"

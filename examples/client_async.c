@@ -54,11 +54,12 @@ void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
 	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_INT32])) {
 		UA_Int32 int_val = *(UA_Int32*) val.data;
-		printf("%-50s%-8i\n","Reading the value of node (1, \"the.answer\"):", int_val);
+		printf("%-50s%-8i\n", "Reading the value of node (1, \"the.answer\"):",
+				int_val);
 
 	}
 
-	/*more if statements...*/
+	/*more case distinctions...*/
 }
 
 static
@@ -67,36 +68,25 @@ void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	reqNo--;
 	printf("%-50s%-8i\n", "attribute written, pending requests:", reqNo);
 }
+//static void testEndpoints(UA_Client *client, void *userdata,
+//		UA_UInt32 requestId, void *response) {
+//	reqNo--;
+//	printf("%-50s\n", "testing getendpoints...");
+//	UA_GetEndpointsResponse* resp = (UA_GetEndpointsResponse*) response;
+//	size_t endpointArraySize = resp->endpointsSize;
+//	UA_EndpointDescription *endpointArray = resp->endpoints;
+//	printf("%i endpoints found\n", (int) endpointArraySize);
+//	for (size_t i = 0; i < endpointArraySize; i++) {
+//		printf("URL of endpoint %i is %.*s\n", (int) i,
+//				(int) endpointArray[i].endpointUrl.length,
+//				endpointArray[i].endpointUrl.data);
+//	}
+//}
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+	UA_UInt32 reqId = 0;
 
-	/* Listing endpoints */
-	UA_EndpointDescription* endpointArray = NULL;
-	size_t endpointArraySize = 0;
-	UA_StatusCode retval = UA_STATUSCODE_GOOD;
-//     retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
-//                                                      &endpointArraySize, &endpointArray);
-
-	if (retval != UA_STATUSCODE_GOOD) {
-		UA_Array_delete(endpointArray, endpointArraySize,
-				&UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-		UA_Client_delete(client);
-		return (int) retval;
-	}
-	printf("%i endpoints found\n", (int) endpointArraySize);
-	for (size_t i = 0; i < endpointArraySize; i++) {
-		printf("URL of endpoint %i is %.*s\n", (int) i,
-				(int) endpointArray[i].endpointUrl.length,
-				endpointArray[i].endpointUrl.data);
-	}
-	UA_Array_delete(endpointArray, endpointArraySize,
-			&UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-
-	if (retval != UA_STATUSCODE_GOOD) {
-		UA_Client_delete(client);
-		return (int) retval;
-	}
 	UA_String sValue;
 	sValue.data = (UA_Byte *) malloc(90000);
 	memset(sValue.data, 'a', 90000);
@@ -129,8 +119,8 @@ int main(int argc, char *argv[]) {
 	bReq.nodesToBrowseSize = 1;
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
-	UA_UInt32 reqId = 0;
-	retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+
+	UA_Client_connect(client, "opc.tcp://localhost:4840");
 
 	printf("Testing async requests\n");
 	printf("%s\n", "---------------------");
@@ -190,11 +180,13 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				&vals[i], attrRead, &vals[i], &reqId);
 		reqNo++;
+
+//		UA_Client_getEndpoints_async(client, testEndpoints, NULL, &reqId);
+//		reqNo++;
 	}
 
 	while (reqNo > 0)
 		UA_Client_run_iterate(client, 10);
-
 
 	UA_Variant_delete(myVariant);
 	UA_Client_disconnect(client);

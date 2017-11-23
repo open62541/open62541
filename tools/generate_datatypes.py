@@ -191,7 +191,7 @@ class EnumerationType(Type):
         else:
             values = self.elements.items()
         return "typedef enum {\n    " + ",\n    ".join(map(lambda kv : "UA_" + self.name.upper() + "_" + kv[0].upper() + \
-                                                            " = " + kv[1], values)) + \
+                                                           " = " + kv[1], values)) + \
                ",\n    __UA_{0}_FORCE32BIT = 0x7fffffff\n".format(self.name.upper()) + "} " + \
                "UA_{0};\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(self.name)
 
@@ -318,6 +318,9 @@ def parseTypeDescriptions(f, namespaceid):
     input_str = f.read()
     input_str = input_str.replace('\r','')
     rows = map(lambda x:tuple(x.split(',')), input_str.split('\n'))
+
+    delay_init = []
+
     for index, row in enumerate(rows):
         if len(row) < 3:
             continue
@@ -328,10 +331,12 @@ def parseTypeDescriptions(f, namespaceid):
                 baseType = m.group(1)
                 if baseType not in types:
                     continue
-                if m.group(2) == "Xml":
-                    definitions[baseType].xmlEncodingId = row[1]
-                else:
-                    definitions[baseType].binaryEncodingId = row[1]
+
+                delay_init.append({
+                    "baseType": baseType,
+                    "encoding": m.group(2),
+                    "id": row[1]
+                })
             continue
         if row[2] != "DataType":
             continue
@@ -343,6 +348,13 @@ def parseTypeDescriptions(f, namespaceid):
             continue
         else:
             definitions[row[0]] = TypeDescription(row[0], row[1], namespaceid)
+    for i in delay_init:
+        if i["baseType"] not in definitions:
+            raise Exception("Type {} not found in definitions file.".format(i["baseType"]))
+        if i["encoding"] == "Xml":
+            definitions[i["baseType"]].xmlEncodingId = i["id"]
+        else:
+            definitions[i["baseType"]].binaryEncodingId = i["id"]
     return definitions
 
 def merge_dicts(*dict_args):
@@ -393,7 +405,7 @@ parser.add_argument('-t', '--type-bsd',
                     dest="type_bsd",
                     action='append',
                     default=[],
-                    help='csv file with type descriptions')
+                    help='bsd file with type definitions')
 
 parser.add_argument('outfile',
                     metavar='<outputFile>',
@@ -547,8 +559,7 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
  * on host ''' + platform.uname()[1] + ''' by user ''' + getpass.getuser() + \
        ''' at ''' + time.strftime("%Y-%m-%d %I:%M:%S") + ''' */
 
-#include "''' + outname + '''_generated.h"
-#include "ua_util.h"''')
+#include "''' + outname + '''_generated.h"''')
 
 for t in filtered_types:
     printc("")

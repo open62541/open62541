@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_client.h"
+#include "ua_client_internal.h"
 #include "ua_client_highlevel.h"
 #include "ua_client_highlevel_async.h"
 #include "ua_util.h"
@@ -446,6 +447,8 @@ UA_StatusCode UA_Client_readArrayDimensionsAttribute(UA_Client *client,
 
 /*async functions*/
 
+/*resp: the response
+ * outdata: information about the expected data, e.g. UA_TYPES_VARIANT*/
 static void getResponseCallback(UA_Client *client, void *outdata,
 		UA_UInt32 requestId, void *resp) {
 //	UA_ReadResponse_init((UA_ReadResponse *)outdata);
@@ -516,13 +519,10 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 			&UA_TYPES[UA_TYPES_READRESPONSE], userdata, &outdata, reqId);
 }
 
-
-
-
-UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
-        UA_AttributeId attributeId, const void *in,
-        const UA_DataType *inDataType,
-        UA_ClientAsyncServiceCallback callback, void *userdata, UA_UInt32 *reqId) {
+UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
+		const UA_NodeId *nodeId, UA_AttributeId attributeId, const void *in,
+		const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
+		void *userdata, UA_UInt32 *reqId) {
 	if (!in)
 		return UA_STATUSCODE_BADTYPEMISMATCH;
 
@@ -542,20 +542,36 @@ UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeI
 	wReq.nodesToWrite = &wValue;
 	wReq.nodesToWriteSize = 1;
 
-	//UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
-
-	UA_StatusCode retval =__UA_Client_AsyncService(client, &wReq,
+	return __UA_Client_AsyncService(client, &wReq,
 			&UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
 			&UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+}
 
-//	UA_StatusCode retval = wResp.responseHeader.serviceResult;
-//	if (retval == UA_STATUSCODE_GOOD) {
-//		if (wResp.resultsSize == 1)
-//			retval = wResp.results[0];
-//		else
-//			retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-//	}
-//
-//	UA_WriteResponse_deleteMembers(&wResp);
-	return retval;
+/*the async version of getEndpoints put in this file since it needs to call getReponseCallback*/
+UA_StatusCode __UA_Client_getEndpoints_async(UA_Client *client,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId) {
+	UA_GetEndpointsRequest request;
+	UA_GetEndpointsRequest_init(&request);
+	request.requestHeader.timestamp = UA_DateTime_now();
+	request.requestHeader.timeoutHint = 10000;
+	// assume the endpointurl outlives the service call
+	//test
+	UA_String_copy(&client->endpointUrl, &request.endpointUrl);
+	//request.endpointUrl = client->endpointUrl;
+
+	//TODO as argument
+	request.endpointUrl=UA_STRING_ALLOC("opc.tcp://localhost:4840");
+	UA_GetEndpointsResponse response;
+	UA_GetEndpointsResponse_init(&response);
+
+	//TODO: makes sense?
+	size_t out = 0;
+	outData outdata = { .attributeId = UA_ATTRIBUTEID_DATATYPE, .out = &out, .outDataType =
+			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] };
+	return __UA_Client_AsyncService_withResponse(client, &request,
+			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], callback,
+			getResponseCallback, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE],
+			userdata, &outdata, reqId);
+
 }

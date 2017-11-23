@@ -118,8 +118,6 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
-UA_StatusCode UA_EXPORT
-UA_Client_connect_async(UA_Client *client, const char *endpointUrl);
 /* Connect to the selected server with the given username and password
  *
  * @param client to use
@@ -152,15 +150,10 @@ UA_Client_manuallyRenewSecureChannel(UA_Client *client);
  * @param endpointDescriptions array of endpoint descriptions that is allocated
  *        by the function (you need to free manually)
  * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT
-UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-                       size_t* endpointDescriptionsSize,
-                       UA_EndpointDescription** endpointDescriptions);
-
-UA_StatusCode UA_EXPORT
-UA_Client_getEndpoints_async(UA_Client *client, const char *serverUrl,
-                       size_t* endpointDescriptionsSize,
-                       UA_EndpointDescription** endpointDescriptions);
+//UA_StatusCode UA_EXPORT
+//UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+//                       size_t* endpointDescriptionsSize,
+//                       UA_EndpointDescription** endpointDescriptions);
 
 /* Gets a list of all registered servers at the given server.
  *
@@ -489,6 +482,10 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *responseType,
         void *userdata, UA_UInt32 *requestId);
 
+
+/*Now it's async*/
+UA_StatusCode UA_EXPORT
+UA_Client_getEndpoints(UA_Client *client, const char *serverUrl, UA_ClientAsyncServiceCallback callback, void* userdata);
 
 
 /**

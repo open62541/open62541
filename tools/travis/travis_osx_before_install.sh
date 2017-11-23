@@ -1,6 +1,7 @@
 #!/bin/bash
 set -ev
 
+brew update
 brew install check
 brew install userspace-rcu
 brew install valgrind
