@@ -76,6 +76,7 @@ START_TEST(SecureChannel_timeout_fail) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed 
 
     UA_Variant val;
     UA_Variant_init(&val);
