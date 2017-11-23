@@ -199,6 +199,7 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
     /* The remote side closed the connection */
     if(ret == 0) {
         UA_ByteString_deleteMembers(response);
+        connection->close(connection);
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
