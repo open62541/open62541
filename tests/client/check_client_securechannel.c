@@ -69,7 +69,7 @@ START_TEST(SecureChannel_timeout_max) {
     UA_Client_delete(client);
 }
 END_TEST
-/*
+
 START_TEST(SecureChannel_timeout_fail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -88,7 +88,7 @@ START_TEST(SecureChannel_timeout_fail) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
-END_TEST*/
+END_TEST
 
 START_TEST(SecureChannel_networkfail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -117,8 +117,7 @@ int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
-    // Temporarily disable test since it is failing. See #1388
-    //tcase_add_test(tc_sc, SecureChannel_timeout_fail);
+    tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);
 
     Suite *s = suite_create("Client");
