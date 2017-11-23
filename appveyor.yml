@@ -75,10 +75,12 @@ install:
   # Download and build libcheck
   - appveyor DownloadFile https://github.com/Pro/check/releases/download/0.12.0_win/check.zip
   - 7z x check.zip -oc:\ >NUL
+  # Install DrMemory
+  - cinst drmemory
 
 before_build:
   # use MinGW64
-  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;%PATH%
+  - set PATH=C:\mingw-w64\i686-5.3.0-posix-dwarf-rt_v4-rev0\mingw32\bin;C:\Program Files (x86)\Dr. Memory\bin;%PATH%
   # Workaround for CMake not wanting sh.exe on PATH for MinGW
   - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   # Miktex
@@ -159,7 +161,7 @@ build_script:
   - if "%CC_SHORTNAME%" == "vs2015" md build
   - if "%CC_SHORTNAME%" == "vs2015" cd build
   - if "%CC_SHORTNAME%" == "vs2015" echo. && echo "##### Testing %CC_NAME% with unit tests #####" && echo.
-  - if "%CC_SHORTNAME%" == "vs2015" cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
+  - if "%CC_SHORTNAME%" == "vs2015" cmake -DCMAKE_BUILD_TYPE=Debug -DUA_BUILD_EXAMPLES=OFF -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON  -DCMAKE_LIBRARY_PATH=c:\check\lib -DCMAKE_INCLUDE_PATH=c:\check\include -DUA_COMPILE_AS_CXX:BOOL=%FORCE_CXX% -G"%CC_NAME%" ..
   - if "%CC_SHORTNAME%" == "vs2015" %MAKE%
   - if "%CC_SHORTNAME%" == "vs2015" cmake --build . --target test-verbose --config debug
   # do not cache log
