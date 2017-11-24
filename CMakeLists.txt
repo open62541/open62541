@@ -98,8 +98,8 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
-option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
-mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
+option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
+mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
 option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
