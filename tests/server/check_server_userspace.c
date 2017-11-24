@@ -161,7 +161,7 @@ START_TEST(Server_set_customHostname) {
         ck_assert_int_eq(nl->discoveryUrl.length, len);
         ck_assert(strncmp(discoveryUrl, (char*)nl->discoveryUrl.data, len)==0);
     }
-
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }

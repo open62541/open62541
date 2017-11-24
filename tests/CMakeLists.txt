@@ -54,13 +54,15 @@ endif()
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache)
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
             add_test(${TEST_NAME} drmemory -batch -exit_code_if_errors 1 -results_to_stderr -summary -- ${ARGN})
         else()
-            add_test(${TEST_NAME} valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} ${ARGN})
+            set(VALGRIND_LOG ${TESTS_BINARY_DIR}/${TEST_NAME}.log)
+            set(VALGRIND_CMD valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} --log-file=${VALGRIND_LOG} ${ARGN})
+            add_test(${TEST_NAME} ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/valgrind_check_error.py ${VALGRIND_LOG} ${VALGRIND_CMD})
         endif()
     else()
         add_test(${TEST_NAME} ${ARGN})
