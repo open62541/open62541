@@ -1,1 +1,0 @@
-/usr/bin/cc  -g   CMakeFiles/tutorial_server_object.dir/tutorial_server_object.c.o  -o ../bin/examples/tutorial_server_object  ../bin/libopen62541.a -lpthread -lm -lrt 

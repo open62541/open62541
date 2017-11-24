@@ -8,8 +8,7 @@
 /*total number of unprocessed requests*/
 static int reqNo = 0;
 
-static
-void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
+static void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
 	reqNo--;
 	printf("%-50s%-8i\n", "writeResponse received, pending requests:", reqNo);
@@ -82,6 +81,10 @@ void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 //				endpointArray[i].endpointUrl.data);
 //	}
 //}
+static void methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId, void *response){
+	reqNo--;
+	printf("%-50s%-8i\n", "Hello World called, pending requests:", reqNo);
+}
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -180,7 +183,12 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				&vals[i], attrRead, &vals[i], &reqId);
 		reqNo++;
+		UA_String stringValue = UA_String_fromChars("World");
+		UA_Variant input;
+		UA_Variant_init(&input);
+		UA_Variant_setScalar(&input,&stringValue,&UA_TYPES[UA_TYPES_STRING]);
 
+		UA_Client_call_async(client,UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTSFOLDER),UA_NODEID_NUMERIC(1,62541),1,&input,methodCalled,NULL,&reqId);
 //		UA_Client_getEndpoints_async(client, testEndpoints, NULL, &reqId);
 //		reqNo++;
 	}

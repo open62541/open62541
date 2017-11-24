@@ -1,1 +1,0 @@
-/usr/bin/cc  -g   CMakeFiles/server_repeated_job.dir/server_repeated_job.c.o  -o ../bin/examples/server_repeated_job  ../bin/libopen62541.a -lpthread -lm -lrt 

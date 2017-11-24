@@ -36,6 +36,10 @@ extern "C" {
 */
 struct UA_Client;
 typedef struct UA_Client UA_Client;
+
+typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata, UA_UInt32 requestId,
+		void *response);
+
 /*
 * Repeated Callbacks
 * ------------------ */
@@ -150,10 +154,10 @@ UA_Client_manuallyRenewSecureChannel(UA_Client *client);
  * @param endpointDescriptions array of endpoint descriptions that is allocated
  *        by the function (you need to free manually)
  * @return Indicates whether the operation succeeded or returns an error code */
-//UA_StatusCode UA_EXPORT
-//UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-//                       size_t* endpointDescriptionsSize,
-//                       UA_EndpointDescription** endpointDescriptions);
+UA_StatusCode UA_EXPORT
+UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+                       size_t* endpointDescriptionsSize,
+                       UA_EndpointDescription** endpointDescriptions);
 
 /* Gets a list of all registered servers at the given server.
  *
@@ -431,6 +435,8 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 
 #endif
 
+
+
 /**
  * .. _client-async-services:
  *
@@ -440,9 +446,6 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * be made without waiting for a response first. Responess may come in a
  * different ordering. */
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response);
 
 
 /* Don't use this function. Use the type versions below instead. */
@@ -480,13 +483,7 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType,
         UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType,
-        void *userdata, UA_UInt32 *requestId);
-
-
-/*Now it's async*/
-UA_StatusCode UA_EXPORT
-UA_Client_getEndpoints(UA_Client *client, const char *serverUrl, UA_ClientAsyncServiceCallback callback, void* userdata);
-
+void *userdata, UA_UInt32 *requestId);
 
 /**
  * .. toctree::
