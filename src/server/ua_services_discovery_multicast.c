@@ -298,7 +298,7 @@ discovery_createMulticastSocket(void) {
     in.sin_addr.s_addr = 0;
 
     if ((s = (int)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-        return 0;
+        return -1;
 
 #ifdef SO_REUSEPORT
     setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
@@ -306,7 +306,7 @@ discovery_createMulticastSocket(void) {
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
     if (bind(s, (struct sockaddr *)&in, sizeof(in))) {
         CLOSESOCKET(s);
-        return 0;
+        return -1;
     }
 
     mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
@@ -329,7 +329,7 @@ initMulticastDiscoveryServer(UA_Server* server) {
     WSAStartup(wVersionRequested, &wsaData);
 #endif
 
-    if((server->mdnsSocket = discovery_createMulticastSocket()) == 0) {
+    if((server->mdnsSocket = discovery_createMulticastSocket()) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create multicast socket. Error: %s", errno_str));
@@ -343,8 +343,10 @@ initMulticastDiscoveryServer(UA_Server* server) {
 void destroyMulticastDiscoveryServer(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     mdnsd_free(server->mdnsDaemon);
-    if (server->mdnsSocket > 0)
+    if (server->mdnsSocket >= 0) {
         CLOSESOCKET(server->mdnsSocket);
+        server->mdnsSocket = -1;
+    }
 }
 
 static void
