@@ -58,6 +58,8 @@ add_example(client client.c)
 
 add_example(client_connect_loop client_connect_loop.c)
 
+add_example(client_callback_loop client_callback_loop.c)
+
 ####################
 # Feature Examples #
 ####################

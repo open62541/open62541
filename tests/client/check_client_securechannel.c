@@ -6,6 +6,7 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
+#include "client/ua_client_internal.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
@@ -61,33 +62,50 @@ START_TEST(SecureChannel_timeout_max) {
     UA_Client_delete(client);
 }
 END_TEST
-/*
-START_TEST(SecureChannel_timeout_fail) {
+
+/* START_TEST(SecureChannel_timeout_fail) { */
+/*     UA_Client *client = UA_Client_new(UA_ClientConfig_default); */
+/*     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+/*     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD); */
+
+/*     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1); */
+
+/*     UA_Variant val; */
+/*     UA_Variant_init(&val); */
+/*     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE); */
+/*     retval = UA_Client_readValueAttribute(client, nodeId, &val); */
+/*     ck_assert(retval != UA_STATUSCODE_GOOD); */
+
+/*     UA_Variant_deleteMembers(&val); */
+
+/*     UA_Client_disconnect(client); */
+/*     UA_Client_delete(client); */
+/* } */
+/* END_TEST */
+
+START_TEST(SecureChannel_reconnect) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    client->state = UA_CLIENTSTATE_CONNECTED;
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    retval = UA_Client_disconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant val;
-    UA_Variant_init(&val);
-    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-    retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval != UA_STATUSCODE_GOOD);
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant_deleteMembers(&val);
-
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
-END_TEST*/
+END_TEST
 
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
-    // Temporarily disable test since it is failing. See #1388
-    //tcase_add_test(tc_sc, SecureChannel_timeout_fail);
+    /* tcase_add_test(tc_sc, SecureChannel_timeout_fail); */
+    tcase_add_test(tc_sc, SecureChannel_reconnect);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);

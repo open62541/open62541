@@ -35,6 +35,11 @@ extern "C" {
  * Client Configuration
  * -------------------- */
 
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
+typedef UA_StatusCode (*UA_ClientCallback)(UA_Client *client);
+
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout;               /* Sync response timeout in ms */
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
@@ -46,6 +51,11 @@ typedef struct UA_ClientConfig {
     /* Custom DataTypes */
     size_t customDataTypesSize;
     const UA_DataType *customDataTypes;
+
+    /* Callback function */
+    UA_ClientCallback disconnectedCallback;
+    UA_ClientCallback connectedCallback;
+    UA_ClientCallback initSessionCallback;
 } UA_ClientConfig;
 
 /**
@@ -62,9 +72,6 @@ typedef enum {
                                          * to establish a new SecureChannel and
                                          * reattach the existing session. */
 } UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
 
 /* Create a new client */
 UA_Client UA_EXPORT *

@@ -362,11 +362,11 @@ createSession(UA_Client *client) {
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession) {
-    UA_ChannelSecurityToken_init(&client->channel.securityToken);
-    client->channel.state = UA_SECURECHANNELSTATE_FRESH;
-
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
+
+    UA_ChannelSecurityToken_init(&client->channel.securityToken);
+    client->channel.state = UA_SECURECHANNELSTATE_FRESH;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
@@ -398,6 +398,18 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     client->state = UA_CLIENTSTATE_SECURECHANNEL;
 
+    if(createNewSession && (!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL))) {
+        /* Try to activate the Session for this SecureChannel */
+        retval = activateSession(client);
+        if(retval == UA_STATUSCODE_GOOD){
+            client->state = UA_CLIENTSTATE_SESSION;
+            return retval;
+        }
+    }
+
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_NodeId_init(&client->authenticationToken);        
+
     /* Get Endpoints */
     if(endpointsHandshake) {
         retval = getEndpoints(client);
@@ -414,6 +426,8 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
         client->state = UA_CLIENTSTATE_SESSION;
+        if (client->config.initSessionCallback)
+            client->config.initSessionCallback(client);
     }
     return retval;
 
