@@ -136,6 +136,10 @@ add_executable(check_server_userspace server/check_server_userspace.c $<TARGET_O
 target_link_libraries(check_server_userspace ${LIBS})
 add_test_valgrind(check_server_userspace ${TESTS_BINARY_DIR}/check_server_userspace)
 
+add_executable(check_node_inheritance server/check_node_inheritance.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_node_inheritance ${LIBS})
+add_test_valgrind(check_node_inheritance ${TESTS_BINARY_DIR}/check_node_inheritance)
+
 if(UA_ENABLE_DISCOVERY)
     add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_discovery ${LIBS})
