@@ -398,26 +398,36 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     client->state = UA_CLIENTSTATE_SECURECHANNEL;
 
-    /* There is no session to recover and we want to have a session */
-    if(createNewSession && UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
-        /* Get Endpoints */
-        if(endpointsHandshake) {
-            retval = getEndpoints(client);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
+    if(createNewSession && (!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL))) {
+        /* Try to activate the Session for this SecureChannel */
+        retval = activateSession(client);
+        if(retval == UA_STATUSCODE_GOOD){
+            client->state = UA_CLIENTSTATE_SESSION;
+            return retval;
         }
-        /* Create a Session */
-        retval = createSession(client);
+    }
+
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+    UA_NodeId_init(&client->authenticationToken);        
+
+    /* Get Endpoints */
+    if(endpointsHandshake) {
+        retval = getEndpoints(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 
-    /* Activate the Session for this SecureChannel */
-    if(!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
+    /* Open a Session */
+    if(createNewSession) {
+        retval = createSession(client);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
         retval = activateSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
         client->state = UA_CLIENTSTATE_SESSION;
+        if (client->config.initSessionCallback)
+            client->config.initSessionCallback(client);
     }
     return retval;
 
