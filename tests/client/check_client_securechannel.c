@@ -16,17 +16,24 @@
 UA_Server *server;
 UA_ServerConfig *config;
 UA_Boolean *running;
+UA_Boolean *blockServer;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-    while(*running)
-        UA_Server_run_iterate(server, true);
+    while(*running){
+        if (*blockServer)
+            UA_realSleep(100);
+        else
+            UA_Server_run_iterate(server, true);
+    }
     return 0;
 }
 
 static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
+    blockServer = UA_Boolean_new();
+    *blockServer = false;
     config = UA_ServerConfig_new_default();
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
@@ -39,6 +46,7 @@ static void teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Boolean_delete(running);
+    UA_Boolean_delete(blockServer);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
 }
@@ -61,13 +69,14 @@ START_TEST(SecureChannel_timeout_max) {
     UA_Client_delete(client);
 }
 END_TEST
-/*
+
 START_TEST(SecureChannel_timeout_fail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
+    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed 
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -80,14 +89,37 @@ START_TEST(SecureChannel_timeout_fail) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
-END_TEST*/
+END_TEST
+
+START_TEST(SecureChannel_networkfail) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    *blockServer = true;
+    UA_realSleep(100);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    UA_Variant_deleteMembers(&val);
+
+    *blockServer = false;
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
 
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
     tcase_add_test(tc_sc, SecureChannel_timeout_max);
-    // Temporarily disable test since it is failing. See #1388
-    //tcase_add_test(tc_sc, SecureChannel_timeout_fail);
+    tcase_add_test(tc_sc, SecureChannel_timeout_fail);
+    tcase_add_test(tc_sc, SecureChannel_networkfail);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);

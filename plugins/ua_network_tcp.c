@@ -169,13 +169,6 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
-    response->data = (UA_Byte*)
-        UA_malloc(connection->localConf.recvBufferSize);
-    if(!response->data) {
-        response->length = 0;
-        return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
-    }
-
     /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
@@ -189,7 +182,14 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
 
         /* No result */
         if(resultsize == 0)
-            return UA_STATUSCODE_GOOD;
+            return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    }
+
+    response->data = (UA_Byte*)
+        UA_malloc(connection->localConf.recvBufferSize);
+    if(!response->data) {
+        response->length = 0;
+        return UA_STATUSCODE_BADOUTOFMEMORY; /* not enough memory retry */
     }
 
     /* Get the received packet(s) */
