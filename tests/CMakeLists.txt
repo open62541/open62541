@@ -12,12 +12,16 @@ include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 #############################
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/tests)
-set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+if (MSVC)
+	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests/${CMAKE_BUILD_TYPE})
+else()
+	set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
+endif()
 
 # Load CMake Packages
 find_package(Check REQUIRED)
 find_package(Threads REQUIRED)
-if(UA_ENABLE_VALGRIND_UNIT_TESTS)
+if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()
 
@@ -52,8 +56,12 @@ endif()
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
 set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache)
 macro(add_test_valgrind TEST_NAME)
-    if(UA_ENABLE_VALGRIND_UNIT_TESTS)
-        add_test(${TEST_NAME} valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} ${ARGN})
+    if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
+        if(MSVC)
+            add_test(${TEST_NAME} drmemory -batch -exit_code_if_errors 1 -results_to_stderr -summary -- ${ARGN})
+        else()
+            add_test(${TEST_NAME} valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} ${ARGN})
+        endif()
     else()
         add_test(${TEST_NAME} ${ARGN})
     endif()
