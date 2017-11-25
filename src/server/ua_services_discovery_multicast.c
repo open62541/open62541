@@ -284,9 +284,18 @@ socket_mdns_set_nonblocking(int sockfd) {
 }
 
 /* Create multicast 224.0.0.251:5353 socket */
+#ifdef _WIN32
+static SOCKET
+#else
 static int
+#endif
 discovery_createMulticastSocket(void) {
-    int s, flag = 1, ittl = 255;
+#ifdef _WIN32
+    SOCKET s;
+#else
+    int s;
+#endif
+    int flag = 1, ittl = 255;
     struct sockaddr_in in;
     struct ip_mreq mc;
     char ttl = (char)255; // publish to complete net, not only subnet. See:
@@ -297,8 +306,13 @@ discovery_createMulticastSocket(void) {
     in.sin_port = htons(5353);
     in.sin_addr.s_addr = 0;
 
-    if ((s = (int)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
+#ifdef _WIN32
+    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+        return INVALID_SOCKET;
+#else
+    if ((s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
         return -1;
+#endif
 
 #ifdef SO_REUSEPORT
     setsockopt(s, SOL_SOCKET, SO_REUSEPORT, (char *)&flag, sizeof(flag));
@@ -306,7 +320,11 @@ discovery_createMulticastSocket(void) {
     setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&flag, sizeof(flag));
     if (bind(s, (struct sockaddr *)&in, sizeof(in))) {
         CLOSESOCKET(s);
+#ifdef _WIN32
+        return INVALID_SOCKET;
+#else
         return -1;
+#endif
     }
 
     mc.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
@@ -329,7 +347,11 @@ initMulticastDiscoveryServer(UA_Server* server) {
     WSAStartup(wVersionRequested, &wsaData);
 #endif
 
+#ifdef _WIN32
+    if((server->mdnsSocket = discovery_createMulticastSocket()) == INVALID_SOCKET) {
+#else
     if((server->mdnsSocket = discovery_createMulticastSocket()) < 0) {
+#endif
         UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Could not create multicast socket. Error: %s", errno_str));
@@ -343,9 +365,17 @@ initMulticastDiscoveryServer(UA_Server* server) {
 void destroyMulticastDiscoveryServer(UA_Server* server) {
     mdnsd_shutdown(server->mdnsDaemon);
     mdnsd_free(server->mdnsDaemon);
+#ifdef _WIN32
+    if (server->mdnsSocket != INVALID_SOCKET) {
+#else
     if (server->mdnsSocket >= 0) {
+#endif
         CLOSESOCKET(server->mdnsSocket);
+#ifdef _WIN32
+        server->mdnsSocket = INVALID_SOCKET;
+#else
         server->mdnsSocket = -1;
+#endif
     }
 }
 
