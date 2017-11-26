@@ -325,6 +325,8 @@ UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
     return response;
 }
 
+
+
 static UA_INLINE UA_RegisterNodesResponse
 UA_Client_Service_registerNodes(UA_Client *client,
                                 const UA_RegisterNodesRequest request) {
@@ -448,7 +450,7 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 
 
 
-/* Don't use this function. Use the type versions below instead. */
+
 UA_StatusCode UA_EXPORT
 __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
@@ -456,13 +458,6 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT
-__UA_Client_AsyncService_withResponse(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         UA_ClientAsyncServiceCallback respGetter,
-                         const UA_DataType *responseType,
-                         void *userdata, void *responsedata, UA_UInt32 *requestId);
 
 UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
@@ -484,6 +479,7 @@ UA_Client_addAsyncRequest(UA_Client *client, const void *request,
         UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType,
 void *userdata, UA_UInt32 *requestId);
+
 
 /**
  * .. toctree::

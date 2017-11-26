@@ -9,7 +9,6 @@
 #define UA_CLIENT_HIGHLEVEL_ASYNC_H_
 #include "ua_client.h"
 
-
 UA_StatusCode UA_EXPORT
 __UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
 		UA_AttributeId attributeId, void *out, const UA_DataType *outDataType,
@@ -26,10 +25,16 @@ UA_StatusCode UA_EXPORT
 __UA_Client_getEndpoints_async(UA_Client *client,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
 		UA_UInt32 *reqId);
-UA_StatusCode UA_EXPORT __UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
-        const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
-        UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId);
+UA_StatusCode UA_EXPORT __UA_Client_call_async(UA_Client *client,
+		const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
+		const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+		void *userdata, UA_UInt32 *reqId);
+
+UA_StatusCode UA_EXPORT __UA_Client_translateBrowsePathsToNodeIds_async(
+		UA_Client *client, char *paths[], UA_UInt32 ids[], size_t pathSize,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId);
+
 static UA_INLINE UA_StatusCode UA_Client_readDataTypeAttribute_async(
 		UA_Client *client, const UA_NodeId nodeId, UA_Variant *outValue,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
@@ -39,6 +44,7 @@ static UA_INLINE UA_StatusCode UA_Client_readDataTypeAttribute_async(
 			callback, userdata, reqId);
 }
 
+//TODO: remove outValue from definition
 static UA_INLINE UA_StatusCode UA_Client_readValueAttribute_async(
 		UA_Client *client, const UA_NodeId nodeId, UA_Variant *outValue,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
@@ -64,14 +70,20 @@ static UA_INLINE UA_StatusCode UA_Client_getEndpoints_async(UA_Client *client,
 	return __UA_Client_getEndpoints_async(client, callback, userdata, reqId);
 }
 
-static UA_INLINE UA_StatusCode UA_Client_call_async(UA_Client *client ,const UA_NodeId objectId,
-        const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
+static UA_INLINE UA_StatusCode UA_Client_call_async(UA_Client *client,
+		const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
+		const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+		void *userdata, UA_UInt32 *reqId) {
+
+	return __UA_Client_call_async(client, objectId, methodId, inputSize, input,
+			callback, userdata, reqId);
+}
+
+static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
+		UA_Client *client, char **paths, UA_UInt32 *ids, size_t pathSize,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
 		UA_UInt32 *reqId) {
-
-	return __UA_Client_call_async(client, objectId,
-	       methodId, inputSize, input,
-	        callback,
-	        userdata, reqId);
+	return __UA_Client_translateBrowsePathsToNodeIds_async(client, paths, ids,
+			pathSize, callback, userdata, reqId);
 }
 #endif /* UA_CLIENT_HIGHLEVEL_ASYNC_H_ */

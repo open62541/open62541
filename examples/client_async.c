@@ -59,6 +59,7 @@ void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	}
 
 	/*more case distinctions...*/
+	UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
 }
 
 static
@@ -81,9 +82,52 @@ void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 //				endpointArray[i].endpointUrl.data);
 //	}
 //}
-static void methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId, void *response){
+static void methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
+		void *callResponse) {
 	reqNo--;
-	printf("%-50s%-8i\n", "Hello World called, pending requests:", reqNo);
+	printf("%-50s%-8i\n", "method called, pending requests:", reqNo);
+	size_t outputSize;
+	UA_Variant *output;
+	UA_CallResponse response = *(UA_CallResponse *) callResponse;
+	UA_StatusCode retval = response.responseHeader.serviceResult;
+	if (retval == UA_STATUSCODE_GOOD) {
+		if (response.resultsSize == 1)
+			retval = response.results[0].statusCode;
+		else
+			retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+	}
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_CallResponse_deleteMembers(&response);
+	}
+
+	/* Move the output arguments */
+	output = response.results[0].outputArguments;
+	outputSize = response.results[0].outputArgumentsSize;
+	response.results[0].outputArguments = NULL;
+	response.results[0].outputArgumentsSize = 0;
+
+	//output
+	if (retval == UA_STATUSCODE_GOOD) {
+		printf("Method call was successfull with %lu returned values.\n",
+				(unsigned long) outputSize);
+		UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+	} else {
+		printf("Method call was unsuccessfull with %x returned values.\n",
+				retval);
+	}
+}
+
+static void translateCalled(UA_Client *client, void *userdata,
+		UA_UInt32 requestId, void *callResponse) {
+	reqNo--;
+		printf("%-50s%-8i\n", "translation called, pending requests:", reqNo);
+	UA_TranslateBrowsePathsToNodeIdsResponse response =
+			*(UA_TranslateBrowsePathsToNodeIdsResponse *) callResponse;
+	if (response.results[0].targetsSize == 1) {
+		return;
+	}
+	// UA_BrowsePath_deleteMembers(&browsePath);
+//	UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
 }
 
 int main(int argc, char *argv[]) {
@@ -153,14 +197,12 @@ int main(int argc, char *argv[]) {
 		}
 
 		UA_Client_run_iterate(client, 10);
-		if (reqNo < 0)
-			break;
 	} while (reqId < 10);
 
 	//the first highlevel function made async, UA_Client_run_iterate capsuled.
-	printf("%s\n", "---------------------");
+	printf("\n");
 	printf("Testing async highlevel functions:\n");
-
+	printf("%s\n", "---------------------");
 	UA_Variant vals[5];
 
 	UA_Int32 value = 0;
@@ -174,6 +216,8 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_STRING(1, "the.answer"), myVariant, attrWritten, NULL,
 				&reqId);
 		reqNo++;
+
+		/*(for the moment) for the callback to work the fourth argument has to be of type UA_Variant*/
 		UA_Client_readValueAttribute_async(client,
 				UA_NODEID_STRING(1, "the.answer"), &vals[i], attrRead, &vals[i],
 				&reqId);
@@ -183,12 +227,27 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
 				&vals[i], attrRead, &vals[i], &reqId);
 		reqNo++;
+
 		UA_String stringValue = UA_String_fromChars("World");
 		UA_Variant input;
 		UA_Variant_init(&input);
-		UA_Variant_setScalar(&input,&stringValue,&UA_TYPES[UA_TYPES_STRING]);
+		UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-		UA_Client_call_async(client,UA_NODEID_NUMERIC(0,UA_NS0ID_OBJECTSFOLDER),UA_NODEID_NUMERIC(1,62541),1,&input,methodCalled,NULL,&reqId);
+		UA_Client_call_async(client,
+				UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+				UA_NODEID_NUMERIC(1, 62541), 1, &input, methodCalled, NULL,
+				&reqId);
+		reqNo++;
+
+#define pathSize 3
+		char *paths[pathSize] = { "Server", "ServerStatus", "State" };
+		UA_UInt32 ids[pathSize] = { UA_NS0ID_ORGANIZES,
+		UA_NS0ID_HASCOMPONENT, UA_NS0ID_HASCOMPONENT };
+
+		UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids,
+		pathSize, translateCalled, NULL, &reqId);
+		reqNo++;
+
 //		UA_Client_getEndpoints_async(client, testEndpoints, NULL, &reqId);
 //		reqNo++;
 	}

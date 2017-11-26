@@ -387,38 +387,6 @@ UA_StatusCode __UA_Client_AsyncService(UA_Client *client, const void *request,
 	return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode __UA_Client_AsyncService_withResponse(UA_Client *client,
-		const void *request, const UA_DataType *requestType,
-		UA_ClientAsyncServiceCallback callback,
-		UA_ClientAsyncServiceCallback responseGetter,
-		const UA_DataType *responseType, void *userdata, void *responsedata,
-		UA_UInt32 *requestId) {
-	/* Prepare the entry for the linked list */
-	AsyncServiceCall *ac = (AsyncServiceCall*) UA_malloc(
-			sizeof(AsyncServiceCall));
-	if (!ac)
-		return UA_STATUSCODE_BADOUTOFMEMORY;
-	ac->callback = callback;
-	ac->respGetter = responseGetter;
-	ac->responsedata = responsedata;
-	ac->responseType = responseType;
-	ac->userdata = userdata;
-
-	/* Call the service and set the requestId */
-	UA_StatusCode retval = sendSymmetricServiceRequest(client, request,
-			requestType, &ac->requestId);
-	if (retval != UA_STATUSCODE_GOOD) {
-		UA_free(ac);
-		return retval;
-	}
-
-	/* Store the entry for async processing */
-	LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-	if (requestId)
-		*requestId = ac->requestId;
-	return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode UA_Client_addAsyncRequest(UA_Client *client, const void *request,
 		const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
 		const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId) {

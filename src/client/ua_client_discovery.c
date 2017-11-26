@@ -4,7 +4,7 @@
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
-#include "ua_client_highlevel_async.h"
+//#include "ua_client_highlevel_async.h"
 
 /*callback where the descriptions are retrieved should be supplied by the client*/
 //UA_StatusCode UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
