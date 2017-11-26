@@ -21,152 +21,11 @@
 #include <sys/stat.h>
 #include <server/ua_server_internal.h>
 #include <dirent.h>
-#include <src_generated/ua_types_generated.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
 
-#include "ua_server.h"
-#include "ua_client.h"
 #include "ua_config_default.h"
-#include "ua_client_highlevel.h"
-#include "ua_network_tcp.h"
-#include "ua_transport_generated.h"
-#include "ua_transport_generated_encoding_binary.h"
-#include "ua_securechannel.h"
-#include "ua_types_generated_encoding_binary.h"
-#include "server/ua_services.h"
-
-unsigned int chunkCount = 0;
-
-char dumpOutputFile[255];
-
-char *messageTypes[] = {"ack", "hel", "msg", "opn", "clo", "err", "unk"};
-char *messageTypePrefix = NULL;
-char requestServiceName[200];
-
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer);
-
-static void setMessageTypePrefix(UA_UInt32 messageType) {
-    switch(messageType & 0x00ffffff) {
-        case UA_MESSAGETYPE_ACK:
-            messageTypePrefix = messageTypes[0];
-            break;
-        case UA_MESSAGETYPE_HEL:
-            messageTypePrefix = messageTypes[1];
-            break;
-        case UA_MESSAGETYPE_MSG:
-            messageTypePrefix = messageTypes[2];
-            break;
-        case UA_MESSAGETYPE_OPN:
-            messageTypePrefix = messageTypes[3];
-            break;
-        case UA_MESSAGETYPE_CLO:
-            messageTypePrefix = messageTypes[4];
-            break;
-        case UA_MESSAGETYPE_ERR:
-            messageTypePrefix = messageTypes[5];
-            break;
-        default:
-            messageTypePrefix = messageTypes[6];
-    }
-}
-
-
-static UA_StatusCode setRequestedServiceName(const UA_ByteString *msg) {
-    /* At 0, the nodeid starts... */
-    size_t offset = 0;
-
-    /* Decode the nodeid */
-    UA_NodeId requestTypeId;
-    UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestTypeId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    if(requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC || requestTypeId.namespaceIndex != 0) {
-        snprintf(requestServiceName, 200, "invalid_request_id");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-
-    const UA_DataType *requestType = NULL;
-
-    for (size_t i=0; i<UA_TYPES_COUNT; i++) {
-        if (UA_TYPES[i].binaryEncodingId == requestTypeId.identifier.numeric) {
-            requestType = &UA_TYPES[i];
-            break;
-        }
-    }
-    if (requestType == NULL) {
-        snprintf(requestServiceName, 200, "invalid_request_no_type");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-
-    snprintf(requestServiceName, 200, "_%s", requestType->typeName);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-processCompleteChunkWithoutChannel(UA_Server *server, UA_Connection *connection,
-                                   UA_ByteString *message) {
-    size_t offset = 0;
-    UA_TcpMessageHeader tcpMessageHeader;
-    UA_StatusCode retval =
-            UA_TcpMessageHeader_decodeBinary(message, &offset, &tcpMessageHeader);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    setMessageTypePrefix(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff);
-
-    if ((tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) == UA_MESSAGETYPE_MSG) {
-        // this should not happen in normal operation
-        UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_SERVER, "Got MSG package without channel.");
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Takes decoded messages starting at the nodeid of the content type. */
-static UA_StatusCode
-processSecureChannelMessage(void *application, UA_SecureChannel *channel,
-                            UA_MessageType messagetype, UA_UInt32 requestId,
-                            const UA_ByteString *message) {
-    //UA_Server *server = (UA_Server*)application;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    setMessageTypePrefix(messagetype);
-    if (messagetype == UA_MESSAGETYPE_MSG) {
-        setRequestedServiceName(message);
-    }
-    return retval;
-}
-
-
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer) {
-
-    messageTypePrefix = NULL;
-    requestServiceName[0] = 0;
-
-    UA_StatusCode retval;
-    if(!connection->channel)
-        retval = processCompleteChunkWithoutChannel(server, connection, messageBuffer);
-    else {
-        // make a backup of the sequence number and reset it, because processChunk increases it
-        UA_UInt32 seqBackup = connection->channel->receiveSequenceNumber;
-        retval = UA_SecureChannel_processChunk(connection->channel, messageBuffer,
-                                               processSecureChannelMessage,
-                                               server);
-        connection->channel->receiveSequenceNumber = seqBackup;
-    }
-
-    snprintf(dumpOutputFile, 255, "%s/%05d_%s%s.bin", UA_CORPUS_OUTPUT_DIR, ++chunkCount, messageTypePrefix ? messageTypePrefix : "", requestServiceName);
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Dumping package %s", dumpOutputFile);
-
-    FILE *write_ptr;
-
-    write_ptr = fopen(dumpOutputFile, "ab");
-
-    fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
-    fclose(write_ptr);
-}
-
 
 UA_Server *server;
 UA_ServerConfig *config;
@@ -276,7 +135,7 @@ static void initUaRegisterServer(UA_RegisteredServer *requestServer) {
     // create the semaphore
     int fd = open("/tmp/open62541-corpus-semaphore", O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     close(fd);
-    requestServer->semaphoreFilePath = UA_STRING_ALLOC("/tmp/open62541-corpus-semaphore");
+    requestServer->semaphoreFilePath = UA_STRING("/tmp/open62541-corpus-semaphore");
 
     requestServer->serverNames = &server->config.applicationDescription.applicationName;
     requestServer->serverNamesSize = 1;
@@ -351,6 +210,8 @@ static UA_StatusCode registerServer2Request(UA_Client *client) {
     ASSERT_GOOD(response.responseHeader.serviceResult);
     UA_free(request.server.discoveryUrls);
     UA_ExtensionObject_delete(request.discoveryConfiguration);
+
+    UA_RegisterServer2Response_deleteMembers(&response);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -540,7 +401,7 @@ static UA_StatusCode subscriptionRequests(UA_Client *client) {
     UA_UInt32 monId;
     ASSERT_GOOD(UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
                                                       UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
-                                                      NULL, &monId));
+                                                      NULL, &monId, 250));
 
     // publishRequest
     ASSERT_GOOD(UA_Client_Subscriptions_manuallySendPublishRequest(client));
@@ -623,6 +484,7 @@ static UA_StatusCode callRequest(UA_Client *client) {
     ASSERT_GOOD(response.responseHeader.serviceResult);
 
     UA_CallResponse_deleteMembers(&response);
+    UA_Variant_deleteMembers(&input);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -701,7 +563,7 @@ int main(void) {
     if (retval != UA_STATUSCODE_GOOD) {
         printf("\n--------- AN ERROR OCCURED ----------\nStatus = %s\n", UA_StatusCode_name(retval));
     } else {
-        printf("\n--------- SUCCESS -------\nThe corpus is stored in %s\nYou manually need to copy them into the direcotry tests/fuss/fuzz_binary_message_corpus/generated", UA_CORPUS_OUTPUT_DIR);
+        printf("\n--------- SUCCESS -------\nThe corpus is stored in %s", UA_CORPUS_OUTPUT_DIR);
     }
     return (int) retval;
 }
