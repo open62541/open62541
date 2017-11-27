@@ -180,6 +180,14 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
         return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
     }
 
+    /* Has the SecureChannel timed out?
+     * TODO: Solve this for client and server together */
+    if(rd->client->state >= UA_CLIENTSTATE_SECURECHANNEL &&
+       (channel->securityToken.createdAt +
+        (channel->securityToken.revisedLifetime * UA_MSEC_TO_DATETIME))
+       < UA_DateTime_nowMonotonic())
+        return UA_STATUSCODE_BADSECURECHANNELCLOSED;
+
     /* Forward declaration for the goto */
     UA_NodeId expectedNodeId;
     const UA_NodeId serviceFaultNodeId =
