@@ -67,6 +67,11 @@ macro(add_test_valgrind TEST_NAME)
     else()
         add_test(${TEST_NAME} ${ARGN})
     endif()
+    if (UA_BUILD_FUZZING_CORPUS)
+        target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
+        file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/${TEST_NAME})
+        target_compile_definitions(check_${TEST_NAME} PRIVATE UA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/${TEST_NAME}")
+    endif()
 endmacro()
 
 add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
@@ -96,13 +101,13 @@ add_test_valgrind(chunking ${TESTS_BINARY_DIR}/check_chunking)
 
 add_executable(check_utils check_utils.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_utils ${LIBS})
-add_test_valgrind(check_utils ${TESTS_BINARY_DIR}/check_utils)
+add_test_valgrind(utils ${TESTS_BINARY_DIR}/check_utils)
 
 # Test Server
 
 add_executable(check_accesscontrol server/check_accesscontrol.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_accesscontrol ${LIBS})
-add_test_valgrind(check_accesscontrol ${TESTS_BINARY_DIR}/check_accesscontrol)
+add_test_valgrind(accesscontrol ${TESTS_BINARY_DIR}/check_accesscontrol)
 
 add_executable(check_services_view server/check_services_view.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_view ${LIBS})
@@ -118,7 +123,7 @@ add_test_valgrind(services_nodemanagement ${TESTS_BINARY_DIR}/check_services_nod
 
 add_executable(check_services_subscriptions server/check_services_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_services_subscriptions ${LIBS})
-add_test_valgrind(check_services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
+add_test_valgrind(services_subscriptions ${TESTS_BINARY_DIR}/check_services_subscriptions)
 
 add_executable(check_nodestore server/check_nodestore.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_nodestore ${LIBS})
@@ -130,15 +135,15 @@ add_test_valgrind(session ${TESTS_BINARY_DIR}/check_session)
 
 add_executable(check_server_jobs server/check_server_jobs.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_jobs ${LIBS})
-add_test_valgrind(check_server_jobs ${TESTS_BINARY_DIR}/check_server_jobs)
+add_test_valgrind(server_jobs ${TESTS_BINARY_DIR}/check_server_jobs)
 
 add_executable(check_server_userspace server/check_server_userspace.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_userspace ${LIBS})
-add_test_valgrind(check_server_userspace ${TESTS_BINARY_DIR}/check_server_userspace)
+add_test_valgrind(server_userspace ${TESTS_BINARY_DIR}/check_server_userspace)
 
 add_executable(check_node_inheritance server/check_node_inheritance.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_node_inheritance ${LIBS})
-add_test_valgrind(check_node_inheritance ${TESTS_BINARY_DIR}/check_node_inheritance)
+add_test_valgrind(node_inheritance ${TESTS_BINARY_DIR}/check_node_inheritance)
 
 if(UA_ENABLE_DISCOVERY)
     add_executable(check_discovery server/check_discovery.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -149,78 +154,29 @@ endif()
 # Readspeed server
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
-add_test_valgrind(check_server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
-
-# Test server with network dumps from files
-
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
-                          ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
-                  PRE_BUILD
-                  COMMAND python ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CLO.hex
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Browse.hex
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Read.hex
-                                 ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Write.hex
-                  DEPENDS ${PROJECT_SOURCE_DIR}/tools/hex2bin.py
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_HELOPN.hex
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CLO.hex
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_CreateActivateSession.hex
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Browse.hex
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Read.hex
-                          ${CMAKE_CURRENT_SOURCE_DIR}/dumps/client_Write.hex)
-add_custom_target(client_HELOPN.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin")
-add_custom_target(client_CreateActivateSession.bin DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin")
-
-add_executable(check_server_binary_messages server/check_server_binary_messages.c testing-plugins/testing_networklayers.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-target_include_directories(check_server_binary_messages PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
-target_link_libraries(check_server_binary_messages ${LIBS})
-add_dependencies(check_server_binary_messages client_HELOPN.bin)
-
-add_test_valgrind(check_server_binary_messages_browse ${TESTS_BINARY_DIR}/check_server_binary_messages
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_Browse.bin
-                                             ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
-
-add_test_valgrind(check_server_binary_messages_read ${TESTS_BINARY_DIR}/check_server_binary_messages
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Read.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
-
-add_test_valgrind(check_server_binary_messages_write ${TESTS_BINARY_DIR}/check_server_binary_messages
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_HELOPN.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CreateActivateSession.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_Write.bin
-                                           ${CMAKE_CURRENT_BINARY_DIR}/client_CLO.bin)
+add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
 
 # Test Client
 
 add_executable(check_client client/check_client.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client ${LIBS})
-add_test_valgrind(check_client ${TESTS_BINARY_DIR}/check_client)
+add_test_valgrind(client ${TESTS_BINARY_DIR}/check_client)
 
 add_executable(check_client_securechannel client/check_client_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_securechannel ${LIBS})
-add_test_valgrind(check_client_securechannel ${TESTS_BINARY_DIR}/check_client_securechannel)
+add_test_valgrind(client_securechannel ${TESTS_BINARY_DIR}/check_client_securechannel)
 
 add_executable(check_client_async client/check_client_async.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_async ${LIBS})
-add_test_valgrind(check_client_async ${TESTS_BINARY_DIR}/check_client_async)
+add_test_valgrind(client_async ${TESTS_BINARY_DIR}/check_client_async)
 
 add_executable(check_client_subscriptions client/check_client_subscriptions.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_subscriptions ${LIBS})
-add_test_valgrind(check_client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
+add_test_valgrind(client_subscriptions ${TESTS_BINARY_DIR}/check_client_subscriptions)
 
 add_executable(check_client_highlevel client/check_client_highlevel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_highlevel ${LIBS})
-add_test_valgrind(check_client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
+add_test_valgrind(client_highlevel ${TESTS_BINARY_DIR}/check_client_highlevel)
 
 #############################
 #                           #
@@ -362,7 +318,7 @@ if (UA_ENABLE_FULL_NS0)
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_adi open62541-generator-tests-ns-adi)
     target_link_libraries(check_nodeset_compiler_adi ${LIBS})
-    add_test_valgrind(check_nodeset_compiler_adi ${TESTS_BINARY_DIR}/check_nodeset_compiler_adi)
+    add_test_valgrind(nodeset_compiler_adi ${TESTS_BINARY_DIR}/check_nodeset_compiler_adi)
 
     add_executable(check_nodeset_compiler_plc
                    server/check_nodeset_compiler_plc.c
@@ -372,5 +328,5 @@ if (UA_ENABLE_FULL_NS0)
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_compiler_plc open62541-generator-tests-ns-plc)
     target_link_libraries(check_nodeset_compiler_plc ${LIBS})
-    add_test_valgrind(check_nodeset_compiler_plc ${TESTS_BINARY_DIR}/check_nodeset_compiler_plc)
+    add_test_valgrind(nodeset_compiler_plc ${TESTS_BINARY_DIR}/check_nodeset_compiler_plc)
 endif()

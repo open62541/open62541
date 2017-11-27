@@ -13,13 +13,13 @@ fi
 
 # Fuzzer build test
 if ! [ -z ${FUZZER+x} ]; then
-	mkdir -p build && cd build
-	export CC=clang-3.9
-	export CXX=clang++-3.9
-	cmake -DUA_ENABLE_DISCOVERY=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON -DUA_BUILD_FUZZING=ON ..
+    # Test the corpus generator and use new corpus for fuzz test
+    ./tests/fuzz/generate_corpus.sh
+	if [ $? -ne 0 ] ; then exit 1 ; fi
+
+	cd build_fuzz
 	make && make run_fuzzer
 	if [ $? -ne 0 ] ; then exit 1 ; fi
-	cd .. && rm build -rf
     exit 0
 fi
 

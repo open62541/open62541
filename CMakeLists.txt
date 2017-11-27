@@ -643,18 +643,12 @@ if(UA_BUILD_UNIT_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable discovery, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
-
-
-if(UA_BUILD_FUZZING_CORPUS)
-    add_subdirectory(tools/corpus_generator)
-endif()
-
 
 ############################
 # Linting run (clang-tidy) #
