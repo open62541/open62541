@@ -141,7 +141,7 @@ START_TEST(Client_reconnect) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
         retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
 
         retval = UA_Client_readValueAttribute(client, nodeId, &val);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
