@@ -56,7 +56,8 @@ START_TEST(SecureChannel_timeout_max) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime);
+    UA_fakeSleep((UA_UInt32)(UA_ClientConfig_default.secureChannelLifeTime*0.95));
+                             // Less than UA_ClientConfig_default.secureChannelLifeTime
 
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
@@ -76,7 +77,8 @@ START_TEST(SecureChannel_timeout_fail) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
-    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed 
+    UA_realSleep(200); // wait to be sure UA_Server_run_iterate can be one time completely executed
+                       // must be greater than 2*UA_MAXTIMEOUT
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -97,7 +99,8 @@ START_TEST(SecureChannel_networkfail) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     *blockServer = true;
-    UA_realSleep(100);
+    UA_realSleep(200); // wait to be sure UA_Server_run_iterate can be one time completely executed
+                       // must be greater than 2*UA_MAXTIMEOUT
 
     UA_Variant val;
     UA_Variant_init(&val);

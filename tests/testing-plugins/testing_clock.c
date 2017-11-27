@@ -19,17 +19,37 @@
 #include "testing_clock.h"
 
 #ifdef _WIN32
-#include <windows.h>	/* WinAPI */
+# include <windows.h>	/* WinAPI */
+#else
+# include <sys/time.h>
 #endif
 
 UA_DateTime testingClock = 0;
 
+static UA_DateTime _UA_DateTime_now(void) {
+#if defined(_WIN32)
+    /* Windows filetime has the same definition as UA_DateTime */
+    FILETIME ft;
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
+    ULARGE_INTEGER ul;
+    ul.LowPart = ft.dwLowDateTime;
+    ul.HighPart = ft.dwHighDateTime;
+    return (UA_DateTime)ul.QuadPart;
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
+#endif
+}
+
 UA_DateTime UA_DateTime_now(void) {
-    return testingClock;
+    return testingClock + _UA_DateTime_now();
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
-    return testingClock;
+    return testingClock + _UA_DateTime_now();
 }
 
 void
