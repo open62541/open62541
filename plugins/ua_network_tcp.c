@@ -117,8 +117,8 @@
  * the multi-threaded case as well. */
 #ifndef UA_ENABLE_MULTITHREADING
 # define FIXED_NETWORK_BUFFER true
-UA_ByteString sendBuffer;
-UA_ByteString recvBuffer;
+UA_ByteString sendBuffer = {0, NULL};
+UA_ByteString recvBuffer = {0, NULL};
 #else
 # define FIXED_NETWORK_BUFFER false
 #endif
