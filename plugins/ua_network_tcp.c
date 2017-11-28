@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /* Enable POSIX features */
-#ifndef _XOPEN_SOURCE
+#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
@@ -52,14 +52,21 @@
 # define WIN32_INT
 # define OPTVAL_TYPE int
 # define ERR_CONNECTION_PROGRESS EINPROGRESS
-# define UA_sleep_ms(X) usleep(X * 1000)
 # include <arpa/inet.h>
 # include <netinet/in.h>
 # ifndef _WRS_KERNEL
 #  include <sys/select.h>
+#  define UA_sleep_ms(X) usleep(X * 1000)
 # else
 #  include <hostLib.h>
 #  include <selectLib.h>
+#  define UA_sleep_ms(X)                           \
+   {                                               \
+   struct timespec timeToSleep;                    \
+   timeToSleep.tv_sec = X / 1000;                  \
+   timeToSleep.tv_nsec = 1000000 * (X % 1000);     \
+   nanosleep(&timeToSleep, NULL);                  \
+   }
 # endif
 # include <sys/ioctl.h>
 # include <fcntl.h>
@@ -242,6 +249,10 @@ socket_set_blocking(SOCKET sockfd) {
     u_long iMode = 0;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
         return UA_STATUSCODE_BADINTERNALERROR;
+#elif defined(_WRS_KERNEL)
+    int on = FALSE;
+    if(ioctl(sockfd, FIONBIO, &on) < 0)
+      return UA_STATUSCODE_BADINTERNALERROR;
 #else
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts & (~O_NONBLOCK)) < 0)
