@@ -12,9 +12,9 @@
 ** Main entry point.  The fuzzer invokes this function with each
 ** fuzzed input.
 */
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-
-    UA_ByteString sentData;
+extern "C" int
+LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
+    UA_ByteString sentData = UA_BYTESTRING_NULL;
     UA_Connection c = createDummyConnection(&sentData);
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
@@ -32,6 +32,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 	UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
+    c.close(&c);
     UA_Connection_deleteMembers(&c);
     return 0;
 }
