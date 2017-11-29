@@ -279,6 +279,12 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing CreateMonitoredItemsRequest");
 
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->itemsToCreateSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     /* Check if the timestampstoreturn is valid */
     op_timestampsToReturn2 = request->timestampsToReturn;
     if(op_timestampsToReturn2 > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -326,6 +332,12 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   UA_ModifyMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing ModifyMonitoredItemsRequest");
+
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->itemsToModifySize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -379,6 +391,12 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                                UA_SetMonitoringModeResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing SetMonitoringMode");
+
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
@@ -557,6 +575,12 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   UA_DeleteMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing DeleteMonitoredItemsRequest");
+
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);

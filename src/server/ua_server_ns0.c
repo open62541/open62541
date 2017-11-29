@@ -688,6 +688,38 @@ UA_Server_initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT,
                                &redundancySupport, &UA_TYPES[UA_TYPES_REDUNDANCYSUPPORT]);
 
+    /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD,
+                               &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - maxNodesPerWrite */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE,
+                               &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerMethodCall */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL,
+                               &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerBrowse */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE,
+                               &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerRegisterNodes */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES,
+                               &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerTranslateBrowsePathsToNodeIds */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS,
+                               &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerNodeManagement */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT,
+                               &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
+                               &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     retVal |= UA_Server_setMethodNode_callback(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS), readMonitoredItems);

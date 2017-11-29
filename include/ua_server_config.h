@@ -75,6 +75,19 @@ struct UA_ServerConfig {
     UA_UInt16 maxSessions;
     UA_Double maxSessionTimeout; /* in ms */
 
+    /* Operation limits */
+    UA_UInt32 maxNodesPerRead;
+    UA_UInt32 maxNodesPerWrite;
+    UA_UInt32 maxNodesPerMethodCall;
+    UA_UInt32 maxNodesPerBrowse;
+    UA_UInt32 maxNodesPerRegisterNodes;
+    UA_UInt32 maxNodesPerTranslateBrowsePathsToNodeIds;
+    UA_UInt32 maxNodesPerNodeManagement;
+    UA_UInt32 maxMonitoredItemsPerCall;
+
+    /* Limits for Requests */
+    UA_UInt32 maxReferencesPerNode;
+
     /* Limits for Subscriptions */
     UA_DurationRange publishingIntervalLimits;
     UA_UInt32Range lifeTimeCountLimits;
