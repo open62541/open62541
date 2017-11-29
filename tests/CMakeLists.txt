@@ -107,7 +107,7 @@ add_test_valgrind(utils ${TESTS_BINARY_DIR}/check_utils)
 
 add_executable(check_securechannel check_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_securechannel ${LIBS})
-add_test_valgrind(check_securechannel ${TESTS_BINARY_DIR}/check_securechannel)
+add_test_valgrind(securechannel ${TESTS_BINARY_DIR}/check_securechannel)
 
 # Test Server
 
@@ -157,10 +157,9 @@ if(UA_ENABLE_DISCOVERY)
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
 endif()
 
-# Readspeed server
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
-add_test_valgrind(check_server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
+add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)
 
 # Test Client
 
