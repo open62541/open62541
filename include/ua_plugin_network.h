@@ -43,6 +43,7 @@ typedef struct {
     UA_UInt32 recvBufferSize;
     UA_UInt32 maxMessageSize;
     UA_UInt32 maxChunkCount;
+    UA_Boolean useBlockingSocket;
 } UA_ConnectionConfig;
 
 typedef enum {
