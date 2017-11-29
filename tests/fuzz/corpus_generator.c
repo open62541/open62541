@@ -56,20 +56,18 @@ static void teardown_server(void) {
     UA_ServerConfig_delete(config);
 }
 
-static void emptyCorpusDir() {
+static void emptyCorpusDir(void) {
     DIR *theFolder = opendir(UA_CORPUS_OUTPUT_DIR);
     struct dirent *next_file;
-    char filepath[256];
+    char filepath[400];
 
-    while ( (next_file = readdir(theFolder)) != NULL )
-    {
+    while ( (next_file = readdir(theFolder)) != NULL ) {
         // build the path for each file in the folder
         sprintf(filepath, "%s/%s", UA_CORPUS_OUTPUT_DIR, next_file->d_name);
         remove(filepath);
     }
     closedir(theFolder);
 }
-
 
 #define ASSERT_GOOD(X) if (X != UA_STATUSCODE_GOOD) return X;
 
@@ -79,7 +77,8 @@ static void emptyCorpusDir() {
  * cover all possible services and their inputs
  ************************************************/
 
-static UA_StatusCode findServersRequest(UA_Client *client) {
+static UA_StatusCode
+findServersRequest(UA_Client *client) {
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
 
@@ -101,10 +100,10 @@ static UA_StatusCode findServersRequest(UA_Client *client) {
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
     return UA_STATUSCODE_GOOD;
-
 }
 
-static UA_StatusCode findServersOnNetworkRequest(UA_Client *client) {
+static UA_StatusCode
+findServersOnNetworkRequest(UA_Client *client) {
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
 
@@ -125,7 +124,8 @@ static UA_StatusCode findServersOnNetworkRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void initUaRegisterServer(UA_RegisteredServer *requestServer) {
+static void
+initUaRegisterServer(UA_RegisteredServer *requestServer) {
     requestServer->isOnline = UA_TRUE;
     requestServer->serverUri = server->config.applicationDescription.applicationUri;
     requestServer->productUri = server->config.applicationDescription.productUri;
@@ -150,8 +150,8 @@ static void initUaRegisterServer(UA_RegisteredServer *requestServer) {
 
 }
 
-static UA_StatusCode registerServerRequest(UA_Client *client) {
-
+static UA_StatusCode
+registerServerRequest(UA_Client *client) {
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServerRequest request;
@@ -166,10 +166,8 @@ static UA_StatusCode registerServerRequest(UA_Client *client) {
     UA_RegisterServerResponse response;
     UA_RegisterServerResponse_init(&response);
 
-    __UA_Client_Service(client, &request,
-                        &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                        &response,
-                        &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE]);
 
     UA_free(request.server.discoveryUrls);
     ASSERT_GOOD(response.responseHeader.serviceResult);
@@ -177,7 +175,8 @@ static UA_StatusCode registerServerRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode registerServer2Request(UA_Client *client) {
+static UA_StatusCode
+registerServer2Request(UA_Client *client) {
     /* Prepare the request. Do not cleanup the request after the service call,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
@@ -216,7 +215,8 @@ static UA_StatusCode registerServer2Request(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode readValueRequest(UA_Client *client) {
+static UA_StatusCode
+readValueRequest(UA_Client *client) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
@@ -230,8 +230,8 @@ static UA_StatusCode readValueRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-
-static UA_StatusCode writeValueRequest(UA_Client *client) {
+static UA_StatusCode
+writeValueRequest(UA_Client *client) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "MyServer");
@@ -244,7 +244,8 @@ static UA_StatusCode writeValueRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode browseAndBrowseNextRequest(UA_Client *client) {
+static UA_StatusCode
+browseAndBrowseNextRequest(UA_Client *client) {
     // Browse node in server folder
     UA_BrowseRequest bReq;
     UA_BrowseRequest_init(&bReq);
@@ -292,7 +293,8 @@ static UA_StatusCode browseAndBrowseNextRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode registerUnregisterNodesRequest(UA_Client *client) {
+static UA_StatusCode
+registerUnregisterNodesRequest(UA_Client *client) {
     UA_RegisterNodesRequest req;
     UA_RegisterNodesRequest_init(&req);
 
@@ -320,7 +322,8 @@ static UA_StatusCode registerUnregisterNodesRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
+static UA_StatusCode
+translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
     // Just for testing we want to translate the following path to its corresponding node id
     // /Objects/Server/ServerStatus/State
     // Equals the following node IDs:
@@ -356,11 +359,13 @@ static UA_StatusCode translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
 }
 
 
-static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
+static void
+monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
 
 }
 
-static UA_StatusCode subscriptionRequests(UA_Client *client) {
+static UA_StatusCode
+subscriptionRequests(UA_Client *client) {
     UA_UInt32 subId;
     // createSubscriptionRequest
     ASSERT_GOOD(UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId));
@@ -386,7 +391,7 @@ static UA_StatusCode subscriptionRequests(UA_Client *client) {
     UA_SetPublishingModeRequest setPublishingModeRequest;
     UA_SetPublishingModeRequest_init(&setPublishingModeRequest);
     setPublishingModeRequest.subscriptionIdsSize = 1;
-    setPublishingModeRequest.subscriptionIds = UA_malloc(sizeof(UA_UInt32));
+    setPublishingModeRequest.subscriptionIds = UA_UInt32_new();
     setPublishingModeRequest.subscriptionIds[0] = subId;
     setPublishingModeRequest.publishingEnabled = UA_TRUE;
     UA_SetPublishingModeResponse setPublishingModeResponse;
@@ -424,7 +429,7 @@ static UA_StatusCode subscriptionRequests(UA_Client *client) {
     UA_ModifyMonitoredItemsRequest_init(&modifyMonitoredItemsRequest);
     modifyMonitoredItemsRequest.subscriptionId = subId;
     modifyMonitoredItemsRequest.itemsToModifySize = 1;
-    modifyMonitoredItemsRequest.itemsToModify = UA_malloc(sizeof(UA_MonitoredItemModifyRequest));
+    modifyMonitoredItemsRequest.itemsToModify = UA_MonitoredItemModifyRequest_new();
     modifyMonitoredItemsRequest.itemsToModify[0].monitoredItemId = monId;
     UA_MonitoringParameters_init(&modifyMonitoredItemsRequest.itemsToModify[0].requestedParameters);
     UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
@@ -439,7 +444,7 @@ static UA_StatusCode subscriptionRequests(UA_Client *client) {
     UA_SetMonitoringModeRequest_init(&setMonitoringModeRequest);
     setMonitoringModeRequest.subscriptionId = subId;
     setMonitoringModeRequest.monitoredItemIdsSize = 1;
-    setMonitoringModeRequest.monitoredItemIds = UA_malloc(sizeof(UA_UInt32));
+    setMonitoringModeRequest.monitoredItemIds = UA_UInt32_new();
     setMonitoringModeRequest.monitoredItemIds[0] = monId;
     setMonitoringModeRequest.monitoringMode = UA_MONITORINGMODE_REPORTING;
     UA_SetMonitoringModeResponse setMonitoringModeResponse;
@@ -459,7 +464,8 @@ static UA_StatusCode subscriptionRequests(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode callRequest(UA_Client *client) {
+static UA_StatusCode
+callRequest(UA_Client *client) {
     /* Set up the request */
     UA_CallRequest request;
     UA_CallRequest_init(&request);
@@ -467,7 +473,6 @@ static UA_StatusCode callRequest(UA_Client *client) {
     UA_CallMethodRequest_init(&item);
     item.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
     item.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-
 
     UA_Variant input;
     UA_UInt32 subId = 12345;
@@ -489,36 +494,36 @@ static UA_StatusCode callRequest(UA_Client *client) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode nodemanagementRequests(UA_Client *client) {
+static UA_StatusCode
+nodemanagementRequests(UA_Client *client) {
     UA_ObjectAttributes attr = UA_ObjectAttributes_default;
     attr.description = UA_LOCALIZEDTEXT("en-US", "Some Coordinates");
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Coordinates");
 
     UA_NodeId newObjectId;
-
     ASSERT_GOOD(UA_Client_addObjectNode(client, UA_NODEID_NULL,
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                      UA_QUALIFIEDNAME(1, "Coordinates"),
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), attr, &newObjectId));
 
-
     UA_ExpandedNodeId target = UA_EXPANDEDNODEID_NULL;
     target.nodeId = newObjectId;
-    ASSERT_GOOD(UA_Client_addReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                    UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_OBJECT));
+    ASSERT_GOOD(UA_Client_addReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_TRUE, UA_STRING_NULL, target, UA_NODECLASS_OBJECT));
 
     ASSERT_GOOD(UA_Client_deleteReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                       true, target, true));
+                                          UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                          true, target, true));
 
     ASSERT_GOOD(UA_Client_deleteNode(client, newObjectId, UA_TRUE));
 
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode executeClientServices(UA_Client *client) {
-
+static UA_StatusCode
+executeClientServices(UA_Client *client) {
     ASSERT_GOOD(findServersRequest(client));
     ASSERT_GOOD(findServersOnNetworkRequest(client));
     ASSERT_GOOD(registerServerRequest(client));
@@ -532,24 +537,22 @@ static UA_StatusCode executeClientServices(UA_Client *client) {
     ASSERT_GOOD(callRequest(client));
     ASSERT_GOOD(nodemanagementRequests(client));
 
-
     return UA_STATUSCODE_GOOD;
 }
 
 int main(void) {
     emptyCorpusDir();
     start_server();
-    UA_StatusCode retval;
 
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     // this will also call getEndpointsRequest
-    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if (retval == UA_STATUSCODE_GOOD)
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    if(retval == UA_STATUSCODE_GOOD)
         retval = executeClientServices(client);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 
-    if (retval == UA_STATUSCODE_GOOD) {
+    if(retval == UA_STATUSCODE_GOOD) {
         // now also connect with user/pass so that fuzzer also knows how to do that
         client = UA_Client_new(UA_ClientConfig_default);
         retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user", "password");
@@ -560,7 +563,7 @@ int main(void) {
 
     teardown_server();
 
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         printf("\n--------- AN ERROR OCCURED ----------\nStatus = %s\n", UA_StatusCode_name(retval));
     } else {
         printf("\n--------- SUCCESS -------\nThe corpus is stored in %s", UA_CORPUS_OUTPUT_DIR);
