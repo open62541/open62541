@@ -298,6 +298,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_plugin_nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
+                     ${PROJECT_SOURCE_DIR}/include/ua_client_async.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client_highlevel.h
 )
 set(internal_headers ${PROJECT_SOURCE_DIR}/deps/queue.h
