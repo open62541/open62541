@@ -347,7 +347,7 @@ static UA_StatusCode requestActivateSession(UA_Client *client,
 				&UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
 		request.userIdentityToken.content.decoded.data = identityToken;
 	}
-	UA_StatusCode retval = UA_Client_addAsyncRequest(client, &request,
+	UA_StatusCode retval = UA_Client_sendAsyncRequest(client, &request,
 			&UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
 			(UA_ClientAsyncServiceCallback) responseActivateSession,
 			&UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE], NULL, requestId);
@@ -449,7 +449,7 @@ static UA_StatusCode requestGetEndpoints(UA_Client *client,
 	// assume the endpointurl outlives the service call
 	request.endpointUrl = client->endpointUrl;
 
-	UA_StatusCode retval = UA_Client_addAsyncRequest(client, &request,
+	UA_StatusCode retval = UA_Client_sendAsyncRequest(client, &request,
 			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
 			(UA_ClientAsyncServiceCallback) responseGetEndpoints,
 			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, requestId);
@@ -478,7 +478,7 @@ static UA_StatusCode requestSession(UA_Client *client, UA_UInt32 *requestId) {
 	request.maxResponseMessageSize = UA_INT32_MAX;
 	UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
-	UA_StatusCode retval = UA_Client_addAsyncRequest(client, &request,
+	UA_StatusCode retval = UA_Client_sendAsyncRequest(client, &request,
 			&UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
 			(UA_ClientAsyncServiceCallback) responseSessionCallback,
 			&UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, requestId);

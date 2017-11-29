@@ -474,7 +474,7 @@ UA_StatusCode
 UA_Client_run(UA_Client *client, volatile UA_Boolean *running);
 
 UA_StatusCode UA_EXPORT
-UA_Client_addAsyncRequest(UA_Client *client, const void *request,
+UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
         const UA_DataType *requestType,
         UA_ClientAsyncServiceCallback callback,
         const UA_DataType *responseType,
