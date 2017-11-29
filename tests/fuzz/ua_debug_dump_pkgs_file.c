@@ -30,13 +30,15 @@ struct UA_dump_filename {
     char serviceName[100];
 };
 
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer);
+void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
+                                UA_ByteString *messageBuffer);
 
 /**
  * Gets a pointer to the string representing the given message type from UA_dump_messageTypes.
  * Used for naming the dumped file.
  */
-static const char * UA_debug_dumpGetMessageTypePrefix(UA_UInt32 messageType) {
+static const char *
+UA_debug_dumpGetMessageTypePrefix(UA_UInt32 messageType) {
     switch(messageType & 0x00ffffff) {
         case UA_MESSAGETYPE_ACK:
             return UA_dump_messageTypes[0];
@@ -60,7 +62,8 @@ static const char * UA_debug_dumpGetMessageTypePrefix(UA_UInt32 messageType) {
  * set the global requestServiceName variable to the name of the request.
  * E.g. `GetEndpointsRequest`
  */
-static UA_StatusCode UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100]) {
+static UA_StatusCode
+UA_debug_dumpSetServiceName(const UA_ByteString *msg, char serviceNameTarget[100]) {
     /* At 0, the nodeid starts... */
     size_t offset = 0;
 
@@ -97,7 +100,7 @@ static UA_StatusCode UA_debug_dumpSetServiceName(const UA_ByteString *msg, char 
  */
 static UA_StatusCode
 UA_debug_dump_setName_withoutChannel(UA_Server *server, UA_Connection *connection,
-                                   UA_ByteString *message, struct UA_dump_filename* dump_filename) {
+                                     UA_ByteString *message, struct UA_dump_filename* dump_filename) {
     size_t offset = 0;
     UA_TcpMessageHeader tcpMessageHeader;
     UA_StatusCode retval =
@@ -105,7 +108,8 @@ UA_debug_dump_setName_withoutChannel(UA_Server *server, UA_Connection *connectio
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    dump_filename->messageType = UA_debug_dumpGetMessageTypePrefix(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff);
+    dump_filename->messageType =
+        UA_debug_dumpGetMessageTypePrefix(tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff);
 
     if ((tcpMessageHeader.messageTypeAndChunkType & 0x00ffffff) == UA_MESSAGETYPE_MSG) {
         // this should not happen in normal operation
@@ -142,46 +146,40 @@ UA_debug_dump_setName_withChannel(void *application, UA_SecureChannel *channel,
  * When we have a name the message is dumped as binary to that file.
  * If the file already exists a new file will be created with a counter at the end.
  */
-void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer) {
-
+void
+UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
+                           UA_ByteString *messageBuffer) {
     struct UA_dump_filename dump_filename;
     dump_filename.messageType = NULL;
     dump_filename.serviceName[0] = 0;
 
-    UA_StatusCode retval;
-    if(!connection->channel)
-        retval = UA_debug_dump_setName_withoutChannel(server, connection, messageBuffer, &dump_filename);
-    else {
+    if(!connection->channel) {
+        UA_debug_dump_setName_withoutChannel(server, connection, messageBuffer, &dump_filename);
+    } else {
         // make a backup of the sequence number and reset it, because processChunk increases it
         UA_UInt32 seqBackup = connection->channel->receiveSequenceNumber;
-        retval = UA_SecureChannel_processChunk(connection->channel, messageBuffer,
-                                               UA_debug_dump_setName_withChannel,
-                                               &dump_filename);
+        UA_SecureChannel_processChunk(connection->channel, messageBuffer,
+                                      UA_debug_dump_setName_withChannel, &dump_filename);
         connection->channel->receiveSequenceNumber = seqBackup;
     }
 
     char fileName[250];
-    snprintf(fileName, 255, "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount, dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
-
-
+    snprintf(fileName, 255, "%s/%05d_%s%s", UA_CORPUS_OUTPUT_DIR, ++UA_dump_chunkCount,
+             dump_filename.messageType ? dump_filename.messageType : "", dump_filename.serviceName);
 
     char dumpOutputFile[255];
     snprintf(dumpOutputFile, 255, "%s.bin", fileName);
-    {
-        // check if file exists and if yes create a counting filename to avoid overwriting
-        unsigned cnt = 1;
-        while ( access( dumpOutputFile, F_OK ) != -1 ) {
-            snprintf(dumpOutputFile, 255, "%s_%d.bin", fileName, cnt);
-            cnt++;
-        }
+    // check if file exists and if yes create a counting filename to avoid overwriting
+    unsigned cnt = 1;
+    while ( access( dumpOutputFile, F_OK ) != -1 ) {
+        snprintf(dumpOutputFile, 255, "%s_%d.bin", fileName, cnt);
+        cnt++;
     }
 
-    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER, "Dumping package %s", dumpOutputFile);
+    UA_LOG_INFO(server->config.logger, UA_LOGCATEGORY_SERVER,
+                "Dumping package %s", dumpOutputFile);
 
-    FILE *write_ptr;
-
-    write_ptr = fopen(dumpOutputFile, "ab");
-
+    FILE *write_ptr = fopen(dumpOutputFile, "ab");
     fwrite(messageBuffer->data, messageBuffer->length, 1, write_ptr); // write 10 bytes from our buffer
     fclose(write_ptr);
 }
