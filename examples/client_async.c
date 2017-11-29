@@ -85,18 +85,20 @@ int main(int argc, char *argv[]) {
 
 
     UA_UInt32 reqId;
-    UA_StatusCode retVal;
     UA_Int32 loopCount = 0;
     while(true){
         printf("--- Send Requests %d ---\n", ++loopCount);
-        retVal = UA_Client_AsyncService_write(client, wReq, valueWritten, NULL, &reqId);
-        retVal = UA_Client_AsyncService_read(client, rReq, valueRead, NULL, &reqId);
-        retVal = UA_Client_AsyncService_call(client, callRequ, methodCalled, NULL, &reqId);
+        retval = UA_Client_AsyncService_write(client, wReq, valueWritten, NULL, &reqId);
+        retval = UA_Client_AsyncService_read(client, rReq, valueRead, NULL, &reqId);
+        retval = UA_Client_AsyncService_call(client, callRequ, methodCalled, NULL, &reqId);
+		if(retval != UA_STATUSCODE_GOOD) {
+			break;
+		}
         printf("Requests Send \n");
         UA_Client_runAsync(client, 1500);
     }
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return (int) UA_STATUSCODE_GOOD;
+    return (int) retval;
 }
