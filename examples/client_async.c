@@ -89,11 +89,19 @@ int main(int argc, char *argv[]) {
     while(true){
         printf("--- Send Requests %d ---\n", ++loopCount);
         retval = UA_Client_AsyncService_write(client, wReq, valueWritten, NULL, &reqId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            break;
+        }
+        
         retval = UA_Client_AsyncService_read(client, rReq, valueRead, NULL, &reqId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            break;
+        }
+        
         retval = UA_Client_AsyncService_call(client, callRequ, methodCalled, NULL, &reqId);
-		if(retval != UA_STATUSCODE_GOOD) {
-			break;
-		}
+        if(retval != UA_STATUSCODE_GOOD) {
+            break;
+        }
         printf("Requests Send \n");
         UA_Client_runAsync(client, 1500);
     }
