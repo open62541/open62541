@@ -487,6 +487,12 @@ START_TEST(SecureChannel_generateNonce_invalidParameters)
     }
 END_TEST
 
+START_TEST(SecureChannel_sendSymmetricMessage)
+    {
+
+    }
+END_TEST
+
 static Suite *
 testSuite_SecureChannel(void) {
     Suite *s = suite_create("SecureChannel");
@@ -534,6 +540,11 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_generateNonce, SecureChannel_generateNonce);
     tcase_add_test(tc_generateNonce, SecureChannel_generateNonce_invalidParameters);
     suite_add_tcase(s, tc_generateNonce);
+
+    TCase *tc_sendSymmetricMessage = tcase_create("Test sendSymmetricMessage function");
+    tcase_add_checked_fixture(tc_sendSymmetricMessage, setup_secureChannel, teardown_secureChannel);
+    tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage);
+    suite_add_tcase(s, tc_sendSymmetricMessage);
 
     return s;
 }
