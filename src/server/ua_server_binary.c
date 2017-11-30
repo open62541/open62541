@@ -292,8 +292,18 @@ processHEL(UA_Server *server, UA_Connection *connection,
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+
+    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
+
+    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
     ack_msg.length = ackHeader.messageSize;
     return connection->send(connection, &ack_msg);
 }
