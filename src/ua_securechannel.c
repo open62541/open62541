@@ -94,9 +94,11 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     if(channel->securityPolicy)
         channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
 
-    /* Detach from the connection */
-    if(channel->connection)
+    /* Detach from the connection and close the connection */
+    if(channel->connection){
+        channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
+    }
 
     /* Remove session pointers (not the sessions) */
     struct SessionEntry *se, *temp;
