@@ -221,15 +221,12 @@ extern UA_StatusCode %s(UA_Server *server);
     logger.info("Writing code for nodes and references")
     
     functionNumber = 0
-    
-    for i in range(0, len(sorted_nodes)):
-        writec("UA_StatusCode function_" + outfilebase + "_" + str(i) + "(UA_Server *server, UA_UInt16 *ns);")
-    
+
     for node in sorted_nodes:
         # Print node
         if not node.hidden:
             writec("\n/* " + str(node.displayName) + " - " + str(node.id) + " */")
-            writec("\nUA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "(UA_Server *server, UA_UInt16* ns){\n")
+            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "(UA_Server *server, UA_UInt16* ns){\n")
             code = generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length)
             if code is None:
                 writec("/* Ignored. No parent */")
