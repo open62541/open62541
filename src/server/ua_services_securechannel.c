@@ -54,5 +54,4 @@ Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_LOG_INFO_CHANNEL(server->config.logger, channel, "CloseSecureChannel");
     UA_SecureChannelManager_close(&server->secureChannelManager,
                                   channel->securityToken.channelId);
-    channel->connection->close(channel->connection);
 }
