@@ -384,20 +384,22 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         }
     }
 
-    /* Only add to the list of pending acks if we have a notification */
-    if (msg->notificationDataSize > 0){
-       /* Add to the list of pending acks */
-        UA_Client_NotificationsAckNumber *tmpAck =
-            (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
-        if(!tmpAck) {
-            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "Not enough memory to store the acknowledgement for a publish "
-                           "message on subscription %u", sub->subscriptionID);
-            return;
+    /* Add to the list of pending acks only if current SequenceNumber are present in availableSequenceNumbers array */
+    for(size_t i = 0; i < response->availableSequenceNumbersSize; i++) {
+        if (response->availableSequenceNumbers[i] == msg->sequenceNumber){
+            UA_Client_NotificationsAckNumber *tmpAck =
+                (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+            if(!tmpAck) {
+                UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                               "Not enough memory to store the acknowledgement for a publish "
+                               "message on subscription %u", sub->subscriptionID);
+                return;
+            }   
+            tmpAck->subAck.sequenceNumber = response->availableSequenceNumbers[i];
+            tmpAck->subAck.subscriptionId = sub->subscriptionID;
+            LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
+            break;
         }
-        tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
-        tmpAck->subAck.subscriptionId = sub->subscriptionID;
-        LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
     } 
 }
 
