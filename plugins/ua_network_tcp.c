@@ -254,7 +254,9 @@ socket_set_blocking(SOCKET sockfd) {
 /* Server NetworkLayer TCP */
 /***************************/
 
-#define MAXBACKLOG 100
+#define MAXBACKLOG     100
+#define NOHELLOTIMEOUT 120000 /* timeout in ms before close the connection
+                               * if server does not receive Hello Message */
 
 typedef struct ConnectionEntry {
     UA_Connection connection;
@@ -319,8 +321,10 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
 
     /* Allocate and initialize the connection */
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
-    if(!e)
+    if(!e){
+        CLOSESOCKET(newsockfd);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UA_Connection *c = &e->connection;
     memset(c, 0, sizeof(UA_Connection));
@@ -335,6 +339,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
     c->releaseSendBuffer = connection_releasesendbuffer;
     c->releaseRecvBuffer = connection_releaserecvbuffer;
     c->state = UA_CONNECTION_OPENING;
+    c->openingDate = UA_DateTime_nowMonotonic();
 
     /* Add to the linked list */
     LIST_INSERT_HEAD(&layer->connections, e, pointers);
@@ -548,7 +553,19 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
 
     /* Read from established sockets */
     ConnectionEntry *e, *e_tmp;
+    UA_DateTime now = UA_DateTime_nowMonotonic();
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
+        if ((e->connection.state == UA_CONNECTION_OPENING) &&
+            (now > (e->connection.openingDate + (NOHELLOTIMEOUT * UA_MSEC_TO_DATETIME)))){
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                        "Connection %i | Closed by the server (no Hello Message)",
+                         e->connection.sockfd);
+            LIST_REMOVE(e, pointers);
+            CLOSESOCKET(e->connection.sockfd);
+            UA_Server_removeConnection(server, &e->connection);
+            continue;
+        }
+
         if(!UA_fd_isset(e->connection.sockfd, &errset) &&
            !UA_fd_isset(e->connection.sockfd, &fdset))
           continue;
