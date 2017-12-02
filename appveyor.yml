@@ -20,19 +20,22 @@ environment:
           OUT_DIR_EXAMPLES: bin\examples
         - CC_NAME: Visual Studio 9 2008
           CC_SHORTNAME: vs2008
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: ON
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
         - CC_NAME: Visual Studio 14 2015
           CC_SHORTNAME: vs2015
-          MAKE: msbuild /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
+          # Do not build in parallel, project dependencies are not solved correctly and thus appveyor may randomly fail
+          MAKE: msbuild /m:1 /p:BuildInParallel=false /p:ContinueOnError=false /p:StopOnFirstFailure=true open62541.sln
           FORCE_CXX: OFF
           OUT_DIR_LIB: bin\Debug
           OUT_DIR_EXAMPLES: bin\examples\Debug
