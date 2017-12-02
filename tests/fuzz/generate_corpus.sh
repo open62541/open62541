@@ -32,7 +32,7 @@ else
 	export CXX=clang++-3.9
 fi
 # First build and run the unit tests without any specific fuzz settings
-cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON ..
+cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON ..
 make -j && make test ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 # Run our special generator
@@ -86,7 +86,7 @@ subDirs=$(find $CORPUS_SINGLE -maxdepth 1 -mindepth 1 -type d)
 for dirPath in $subDirs; do
 	# if empty, skip
 	if ! [ -n "$(ls -A $dirPath)" ]; then
-		echo "Skipping empty $dirPath"
+		#echo "Skipping empty $dirPath"
 		continue
 	fi
 
@@ -103,8 +103,7 @@ for dirPath in $subDirs; do
 
 	currCount=1
 
-	binFiles=$(find $dirPath -type f -name *.bin -printf '%h\0%d\0%p\n' | sort -t '\0' -n | awk -F '\0' '{print $3}')
-	for binFile in $binFiles; do
+	for binFile in `ls $dirPath/*.bin | sort -V`; do
 
 		#echo "Combining $binFile to $dirPathTmp/msg_${currCount}.bin"
 		cat $binFile >> $dirPathTmp/${dir}_msg_${currCount}.bin
