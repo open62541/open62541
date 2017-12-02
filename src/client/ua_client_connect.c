@@ -315,6 +315,10 @@ static void responseActivateSession(UA_Client *client, void *userdata,
 	}
 	client->connection.state = UA_CONNECTION_ESTABLISHED;
 	client->state = UA_CLIENTSTATE_SESSION;
+	//call connect request
+	AsyncServiceCall ac = client->asyncConnectCall;
+
+	ac.callback(client, ac.userdata, requestId+1, NULL);
 }
 
 static UA_StatusCode requestActivateSession(UA_Client *client,
@@ -489,6 +493,14 @@ static UA_StatusCode requestSession(UA_Client *client, UA_UInt32 *requestId) {
 /*now it's async*/
 UA_StatusCode UA_Client_connectInternal(UA_Client *client,
 		const char *endpointUrl, UA_Boolean endpointsHandshake,
+		UA_Boolean createNewSession){
+	return UA_STATUSCODE_GOOD;
+}
+
+
+UA_StatusCode UA_Client_connectInternalAsync(UA_Client *client,
+		const char *endpointUrl, UA_ClientAsyncServiceCallback callback,
+		void *connected, UA_Boolean endpointsHandshake,
 		UA_Boolean createNewSession) {
 	UA_ChannelSecurityToken_init(&client->channel.securityToken);
 	client->channel.state = UA_SECURECHANNELSTATE_FRESH;
@@ -518,6 +530,16 @@ UA_StatusCode UA_Client_connectInternal(UA_Client *client,
 
 	UA_Client_addRepeatedCallback(client, client->config.pollConnectionFunc,
 			&client->connection, 100, &client->connection.connectCallbackID);
+
+	AsyncServiceCall *ac = (AsyncServiceCall*) UA_malloc(
+			sizeof(AsyncServiceCall));
+	if (!ac)
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	ac->callback = callback;
+	ac->userdata = connected;
+
+	client->asyncConnectCall = *ac;
+
 	return retval;
 
 	cleanup: UA_Client_disconnect(client);
@@ -529,6 +551,13 @@ void UA_Client_connect_iterate(UA_Client *client) {
 		sendHELMessage(client);
 	}
 }
+
+UA_StatusCode UA_Client_connect_async(UA_Client *client, const char *endpointUrl, UA_ClientAsyncServiceCallback callback,
+		void *connected) {
+	return UA_Client_connectInternalAsync(client, endpointUrl,  callback,
+			connected, UA_TRUE, UA_TRUE);
+}
+
 UA_StatusCode UA_Client_connect(UA_Client *client, const char *endpointUrl) {
 	return UA_Client_connectInternal(client, endpointUrl, UA_TRUE, UA_TRUE);
 }

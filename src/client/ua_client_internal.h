@@ -63,11 +63,24 @@ typedef struct AsyncServiceCall {
 	pointers;
 	UA_UInt32 requestId;
 	UA_ClientAsyncServiceCallback callback;
-	UA_ClientAsyncServiceCallback respGetter;
 	const UA_DataType *responseType;
 	void *userdata;
 	void *responsedata;
 } AsyncServiceCall;
+
+typedef struct CustomCallback {
+	LIST_ENTRY(CustomCallback)
+	pointers;
+	//to find the correct callback
+	UA_UInt32 callbackId;
+
+	//passes the attributed to be read as the fourth argument
+	//to avoid type casting multiple definition of asyncservicecallback needed
+	UA_ClientAsyncServiceCallback callback;
+
+	UA_AttributeId attributeId;
+	const UA_DataType *outDataType;
+}CustomCallback;
 
 typedef enum {
 	UA_CHUNK_COMPLETED, UA_CHUNK_NOT_COMPLETED
@@ -113,8 +126,12 @@ struct UA_Client {
 	UA_Boolean endpointsHandshake;
 
 	/* Async Service */
+	AsyncServiceCall asyncConnectCall;
+	//UA_ClientAsyncServiceCallback customCallbackTest;
 	LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
 
+	UA_UInt32 customCallbackId;
+	LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
 	/* Callbacks with a repetition interval */
 	UA_Timer timer;
 
@@ -131,10 +148,13 @@ UA_StatusCode
 __UA_Client_connect(UA_Client *client, const char *endpointUrl,
 		UA_Boolean endpointsHandshake, UA_Boolean createSession);
 
-
-
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
+		UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
+
+UA_StatusCode
+UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl, UA_ClientAsyncServiceCallback callback,
+		void *userdata,
 		UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode

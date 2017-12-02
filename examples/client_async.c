@@ -8,6 +8,14 @@
 /*total number of unprocessed requests*/
 static int reqNo = 0;
 
+//called inside responseActivateSession
+static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
+		void *response) {
+	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
+		*(UA_Boolean *) connected = true;
+	printf("%s\n", "Client is connected!");
+}
+
 static void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
 	reqNo--;
@@ -29,37 +37,14 @@ void fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
 }
 
 static
-void attrRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *response) {
+void customCallback(UA_Client *client,  void *userdata, UA_UInt32 requestId,
+		void *outValue){
 	reqNo--;
-	printf("%-50s%-8i\n", "attribute read, pending requests:", reqNo);
-	if (response == NULL) {
-		return;
-	}
-	UA_DataValue *res = ((UA_ReadResponse*) response)->results;
-	if (res->hasValue) {
-		memcpy(userdata, &res->value, sizeof(UA_Variant));
-	}
+	//TODO: cast outvalue to UA_Variant
+	//UA_Variant var = *(UA_Variant *)outValue;
+	printf("custom callback!\n");
 
-	/*The following part shall be provided to the client*/
-	UA_Variant val = *(UA_Variant*) userdata;
-	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_DATETIME])) {
-		UA_DateTime raw_date = *(UA_DateTime*) val.data;
-		UA_String string_date = UA_DateTime_toString(raw_date);
-		printf("string date is: %.*s\n", (int) string_date.length,
-				string_date.data);
-		UA_String_deleteMembers(&string_date);
-	}
-
-	if (UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_INT32])) {
-		UA_Int32 int_val = *(UA_Int32*) val.data;
-		printf("%-50s%-8i\n", "Reading the value of node (1, \"the.answer\"):",
-				int_val);
-
-	}
-
-	/*more case distinctions...*/
-	UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
+	return;
 }
 
 static
@@ -133,6 +118,7 @@ static void translateCalled(UA_Client *client, void *userdata,
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 	UA_UInt32 reqId = 0;
+	UA_Boolean connected = false;
 
 	UA_String sValue;
 	sValue.data = (UA_Byte *) malloc(90000);
@@ -167,28 +153,29 @@ int main(int argc, char *argv[]) {
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-	UA_Client_connect(client, "opc.tcp://localhost:4840");
+	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,&connected);
 
 	printf("Testing async requests\n");
 	printf("%s\n", "---------------------");
 	do {
-		if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION) {
+		if (connected) {
 			/*reset the number of total requests sent*/
 
-			UA_Client_addAsyncRequest(client, (void*) &bReq,
+			UA_Client_sendAsyncRequest(client, (void*) &bReq,
 					&UA_TYPES[UA_TYPES_BROWSEREQUEST], fileBrowsed,
 					&UA_TYPES[UA_TYPES_BROWSERESPONSE], NULL, &reqId);
+
 			reqNo++;
 			printf("%-50s%-8i\n", "browseRequest sent, pending requests:",
 					reqNo);
 
-			UA_Client_addAsyncRequest(client, (void*) &wReq,
+			UA_Client_sendAsyncRequest(client, (void*) &wReq,
 					&UA_TYPES[UA_TYPES_WRITEREQUEST], valueWritten,
 					&UA_TYPES[UA_TYPES_WRITERESPONSE], NULL, &reqId);
 			reqNo++;
 			printf("%-50s%-8i\n", "readRequest sent, pending requests:", reqNo);
 
-			UA_Client_addAsyncRequest(client, (void*) &rReq,
+			UA_Client_sendAsyncRequest(client, (void*) &rReq,
 					&UA_TYPES[UA_TYPES_READREQUEST], valueRead,
 					&UA_TYPES[UA_TYPES_READRESPONSE], NULL, &reqId);
 			reqNo++;
@@ -198,6 +185,7 @@ int main(int argc, char *argv[]) {
 
 		UA_Client_run_iterate(client, 10);
 	} while (reqId < 10);
+
 
 	//the first highlevel function made async, UA_Client_run_iterate capsuled.
 	printf("\n");
@@ -219,13 +207,13 @@ int main(int argc, char *argv[]) {
 
 		/*(for the moment) for the callback to work the fourth argument has to be of type UA_Variant*/
 		UA_Client_readValueAttribute_async(client,
-				UA_NODEID_STRING(1, "the.answer"), &vals[i], attrRead, &vals[i],
+				UA_NODEID_STRING(1, "the.answer"), &vals[i], customCallback, &vals[i],
 				&reqId);
 		reqNo++;
 
 		UA_Client_readValueAttribute_async(client,
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-				&vals[i], attrRead, &vals[i], &reqId);
+				&vals[i], customCallback, &vals[i], &reqId);
 		reqNo++;
 
 		UA_String stringValue = UA_String_fromChars("World");

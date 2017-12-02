@@ -40,6 +40,7 @@ typedef struct UA_Client UA_Client;
 typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response);
 
+
 /*
 * Repeated Callbacks
 * ------------------ */
@@ -121,6 +122,13 @@ UA_Client_delete(UA_Client *client);
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
+
+/**
+ * An async version
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_connect_async(UA_Client *client, const char *endpointUrl, UA_ClientAsyncServiceCallback callback,
+		void *connected);
 
 /* Connect to the selected server with the given username and password
  *

@@ -165,8 +165,7 @@ static UA_StatusCode processAsyncResponse(UA_Client *client,
 	/* Call the callback */
 	if (retval == UA_STATUSCODE_GOOD) {
 		ac->callback(client, ac->userdata, requestId, response);
-		if (ac->respGetter != NULL)
-			ac->respGetter(client, ac->responsedata, requestId, response);
+
 		UA_deleteMembers(response, ac->responseType);
 	} else {
 		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -370,7 +369,6 @@ UA_StatusCode __UA_Client_AsyncService(UA_Client *client, const void *request,
 	ac->callback = callback;
 	ac->responseType = responseType;
 	ac->userdata = userdata;
-	ac->respGetter = NULL;
 
 	/* Call the service and set the requestId */
 	UA_StatusCode retval = sendSymmetricServiceRequest(client, request,
