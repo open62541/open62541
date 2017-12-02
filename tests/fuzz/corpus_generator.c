@@ -565,8 +565,9 @@ int main(void) {
 
     if(retval != UA_STATUSCODE_GOOD) {
         printf("\n--------- AN ERROR OCCURED ----------\nStatus = %s\n", UA_StatusCode_name(retval));
+        exit(1);
     } else {
         printf("\n--------- SUCCESS -------\nThe corpus is stored in %s", UA_CORPUS_OUTPUT_DIR);
     }
-    return (int) retval;
+    return 0;
 }
