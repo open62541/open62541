@@ -326,8 +326,11 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
+
+    /* round always to upper value to avoid timeout to be set to 0
+    * if (nextRepeated - now) < (UA_MSEC_TO_DATETIME/2) */
     if(waitInternal)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
 
     /* Listen on the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {

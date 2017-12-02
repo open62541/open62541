@@ -163,15 +163,9 @@ START_TEST(Server_publishCallback) {
     ck_assert(publishingInterval > 0.0f);
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
-    UA_Subscription *sub;
-    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
-        ck_assert_uint_eq(sub->currentLifetimeCount, 0);
-    }
-
-    /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
 
+    UA_Subscription *sub;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
         ck_assert_uint_eq(sub->currentLifetimeCount, 0);
     }
@@ -179,10 +173,17 @@ START_TEST(Server_publishCallback) {
     /* Sleep until the publishing interval times out */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
+
+    LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry) {
+        ck_assert_uint_eq(sub->currentLifetimeCount, 1);
+    }
+
+    /* Sleep until the publishing interval times out */
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, false);
 
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
-        ck_assert_uint_eq(sub->currentLifetimeCount, 1);
+        ck_assert_uint_eq(sub->currentLifetimeCount, 2);
     }
     
     /* Remove the subscriptions */
@@ -342,6 +343,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert(publishingInterval > 0.0f);
     UA_CreateSubscriptionResponse_deleteMembers(&response);
 
+    UA_Server_run_iterate(server, false);
+
     UA_UInt32 count = 0;
     UA_Subscription *sub;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
@@ -350,10 +353,8 @@ START_TEST(Server_lifeTimeCount) {
     }
     ck_assert_uint_eq(count, 2);
 
-    /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
@@ -363,9 +364,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(count, 2);
 
     /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
@@ -375,9 +375,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(count, 2);
 
     /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
@@ -387,9 +386,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(count, 2);
 
     /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){
@@ -399,9 +397,8 @@ START_TEST(Server_lifeTimeCount) {
     ck_assert_uint_eq(count, 1);
 
     /* Sleep until the publishing interval times out */
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     count = 0;
     LIST_FOREACH(sub, &adminSession.serverSubscriptions, listEntry){

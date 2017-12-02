@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* Enable POSIX features */
-#ifndef _XOPEN_SOURCE
+#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
@@ -17,6 +17,10 @@
 
 #include <time.h>
 #include "testing_clock.h"
+
+#ifdef _WIN32
+#include <windows.h>	/* WinAPI */
+#endif
 
 UA_DateTime testingClock = 0;
 
@@ -36,6 +40,14 @@ UA_fakeSleep(UA_UInt32 duration) {
 /* 1 millisecond = 1,000,000 Nanoseconds */
 #define NANO_SECOND_MULTIPLIER 1000000
 
+#ifdef _WIN32
+
+void
+UA_realSleep(UA_UInt32 duration) {
+    Sleep(duration);
+}
+
+#else
 void
 UA_realSleep(UA_UInt32 duration) {
     UA_UInt32 sec = duration / 1000;
@@ -45,3 +57,4 @@ UA_realSleep(UA_UInt32 duration) {
     sleepValue.tv_nsec = ns;
     nanosleep(&sleepValue, NULL);
 }
+#endif

@@ -81,7 +81,11 @@ struct UA_Server {
     void* registerServerCallbackData;
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
+#ifdef _WIN32
+    SOCKET mdnsSocket;
+#else
     int mdnsSocket;
+#endif
     UA_Boolean mdnsMainSrvAdded;
 #  ifdef UA_ENABLE_MULTITHREADING
     pthread_t mdnsThread;

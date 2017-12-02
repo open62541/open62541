@@ -47,12 +47,12 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = error;
 
-    // Send error message. Message type is MSG and not ERR, since we are on a securechanenl!
+    // Send error message. Message type is MSG and not ERR, since we are on a securechannel!
     retval = UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
                                                    response, responseType);
     UA_RequestHeader_deleteMembers(&requestHeader);
     UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
-                 "Sent ServiceFault with error code %i", error);
+                 "Sent ServiceFault with error code %s", UA_StatusCode_name(error));
     return retval;
 }
 
@@ -292,8 +292,18 @@ processHEL(UA_Server *server, UA_Connection *connection,
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+
+    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
+
+    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
     ack_msg.length = ackHeader.messageSize;
     return connection->send(connection, &ack_msg);
 }

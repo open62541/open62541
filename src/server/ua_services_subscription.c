@@ -57,6 +57,12 @@ void
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
+
+    if((server->config.maxSubscriptionsPerSession != 0) &&
+       (UA_Session_getNumSubscriptions(session) >= server->config.maxSubscriptionsPerSession)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
+        return;
+   }
     /* Create the subscription */
     UA_Subscription *newSubscription = UA_Subscription_new(session, response->subscriptionId);
     if(!newSubscription) {
@@ -259,7 +265,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     newMon->timestampsToReturn = op_timestampsToReturn2;
     setMonitoredItemSettings(server, newMon, request->monitoringMode,
                              &request->requestedParameters);
-    LIST_INSERT_HEAD(&op_sub->monitoredItems, newMon, listEntry);
+
+    UA_Subscription_addMonitoredItem(op_sub, newMon);
 
     /* Create the first sample */
     if(request->monitoringMode == UA_MONITORINGMODE_REPORTING)
@@ -279,6 +286,12 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing CreateMonitoredItemsRequest");
 
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->itemsToCreateSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     /* Check if the timestampstoreturn is valid */
     op_timestampsToReturn2 = request->timestampsToReturn;
     if(op_timestampsToReturn2 > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -290,6 +303,13 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!op_sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return;
+    }
+
+    if((server->config.maxMonitoredItemsPerSubscription != 0) &&
+       ((UA_Subscription_getNumMonitoredItems(op_sub) + request->itemsToCreateSize) >
+        server->config.maxMonitoredItemsPerSubscription)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYMONITOREDITEMS;
         return;
     }
 
@@ -326,6 +346,12 @@ void Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                                   UA_ModifyMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing ModifyMonitoredItemsRequest");
+
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->itemsToModifySize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -380,6 +406,12 @@ void Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing SetMonitoringMode");
 
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);
     if(!op_sub) {
@@ -422,6 +454,19 @@ Service_Publish(UA_Server *server, UA_Session *session,
         subscriptionSendError(session->channel, request->requestHeader.requestHandle,
                               requestId, UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
+    }
+
+    /* Handle too many subscriptions to free resources before trying to allocate
+     * resources for the new publish request. If the limit has been reached the
+     * oldest publish request shall be responded */
+    if((server->config.maxPublishReqPerSession != 0 ) &&
+       (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
+        if(!UA_Subscription_reachedPublishReqLimit(server,session)) {
+            subscriptionSendError(session->channel, requestId,
+                                  request->requestHeader.requestHandle,
+                                  UA_STATUSCODE_BADINTERNALERROR);
+            return;
+        }
     }
 
     UA_PublishResponseEntry *entry =
@@ -469,7 +514,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     }
 
     /* Queue the publish response */
-    SIMPLEQ_INSERT_TAIL(&session->responseQueue, entry, listEntry);
+    UA_Session_addPublishReq(session, entry);
     UA_LOG_DEBUG_SESSION(server->config.logger, session, "Queued a publication message");
 
     /* Answer immediately to a late subscription */
@@ -557,6 +602,12 @@ void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                                   UA_DeleteMonitoredItemsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing DeleteMonitoredItemsRequest");
+
+    if(server->config.maxMonitoredItemsPerCall != 0 &&
+       request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     /* Get the subscription */
     op_sub = UA_Session_getSubscriptionByID(session, request->subscriptionId);

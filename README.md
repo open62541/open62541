@@ -33,12 +33,20 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
 - Code-Generation
   - Support for generating data types from standard XML definitions
   - Support for generating server-side information models (nodesets) from standard XML definitions
-
-Features still missing in the 0.2 release are:
-- Encryption
-- Access control for individual nodes
-- Events (notifications emitted by objects, data change notifications are implemented)
-- Event-loop (background tasks) and asynchronous service requests in the client
+- Code quality checks
+  - Every commit checked with continuous integration and unit tests (code coverage > 80%)
+  - Memory leak detection using Valgrind (Linux) and DrMemory (Windows)
+  - Static code analysis with cpp-check and clang static code analysis
+  - Fuzz testing with [oss-fuzz](https://github.com/google/oss-fuzz)
+  
+Features currently being implemented:
+- Target 0.3 release (to be released in the coming weeks):
+  - Encryption (#1282)
+  - Access control for individual nodes (Done)
+- Target 0.4 release:
+  - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
+  - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
+  - Publish/Subscribe based on UDP (Specification Part 14), WIP by @jpfr
 
 ### Using open62541
 

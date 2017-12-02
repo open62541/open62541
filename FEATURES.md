@@ -63,9 +63,9 @@ open62541 Supported Features
 | SOAP-HTTP WS-SC UA XML-UA Binary        |      :new_moon:      |                      |
 | **Encryption**                          |                      |                      |
 | None                                    |  :white_check_mark:  |                      |
-| Basic128Rsa15                           |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
-| Basic256                                |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
-| Basic256Sha256                          |      :waning_crescent_moon:      | [WIP](https://github.com/open62541/open62541/pull/1003), Release 0.3     |
+| Basic128Rsa15                           |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
+| Basic256                                |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
+| Basic256Sha256                          |      :waning_gibbous_moon:      | [WIP](https://github.com/open62541/open62541/pull/1282), Release 0.3     |
 | **Authentication**                      |                      |                      |
 | Anonymous                               |  :white_check_mark:  |                      |
 | User Name Password                      |  :white_check_mark:  |                      |
@@ -79,8 +79,8 @@ open62541 Supported Features
 | Method Server                           |  :white_check_mark:  |                      |
 | Embedded DataChange Subscription Server |  :white_check_mark:  |                      |
 | Node Management Server                  |  :white_check_mark:  |                      |
-| Standard DataChange Subscription Server | :waxing_gibbous_moon: | Only Deadband Filter missing |
-| Event Subscription Server               |     :new_moon:       |                      |
+| Standard DataChange Subscription Server | :waning_gibbous_moon: | Only Deadband Filter missing |
+| Event Subscription Server               |     :new_moon:       |     WIP              |
 | **Client Facets**                       |                      |                      |
 | Base Client Behaviour                   |  :white_check_mark:  |                      |
 | AddressSpace Lookup                     |  :white_check_mark:  |                      |

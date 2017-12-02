@@ -47,23 +47,23 @@ def generateLocalizedTextCode(value, alloc=False, max_string_length=0):
                                                        value.locale, splitStringLiterals(value.text, max_string_length=max_string_length))
 
 def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
-    return "UA_QUALIFIEDNAME{}(ns{}, {})".format("_ALLOC" if alloc else "",
+    return "UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(value.name, max_string_length=max_string_length))
 
 def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0,0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns%s,%s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s],%s)" % (value.ns, value.i)
     elif value.s != None:
-        return "UA_NODEID_STRING(ns%s,%s)" % (value.ns, value.s.replace('"', r'\"'))
+        return "UA_NODEID_STRING(ns[%s],%s)" % (value.ns, value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns%s, %s)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
     elif value.s != None:
-        return "UA_EXPANDEDNODEID_STRING(ns%s, %s)" % (str(value.ns), value.s.replace('"', r'\"'))
+        return "UA_EXPANDEDNODEID_STRING(ns[%s], %s)" % (str(value.ns), value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateDateTimeCode(value):
@@ -75,14 +75,14 @@ def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_lengt
     if type(node) in [Boolean, Byte, SByte, Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double]:
         return "(UA_" + node.__class__.__name__ + ") " + str(node.value)
     elif type(node) == String:
-        return generateStringCode(node.value, asIndirect, max_string_length)
+        return generateStringCode(node.value, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == XmlElement:
-        return generateXmlElementCode(node.value, asIndirect, max_string_length)
+        return generateXmlElementCode(node.value, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == ByteString:
         # replace whitespaces between tags and remove newlines
-        return generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), asIndirect, max_string_length)
+        return generateByteStringCode(re.sub(r">\s*<", "><", re.sub(r"[\r\n]+", "", node.value)), alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == LocalizedText:
-        return generateLocalizedTextCode(node, asIndirect, max_string_length)
+        return generateLocalizedTextCode(node, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == NodeId:
         return generateNodeIdCode(node)
     elif type(node) == ExpandedNodeId:
@@ -90,7 +90,7 @@ def generateNodeValueCode(node, instanceName, asIndirect=False, max_string_lengt
     elif type(node) == DateTime:
         return generateDateTimeCode(node.value)
     elif type(node) == QualifiedName:
-        return generateQualifiedNameCode(node.value, asIndirect, max_string_length)
+        return generateQualifiedNameCode(node.value, alloc=asIndirect, max_string_length=max_string_length)
     elif type(node) == StatusCode:
         raise Exception("generateNodeValueCode for type " + node.__class__.name + " not implemented")
     elif type(node) == DiagnosticInfo:

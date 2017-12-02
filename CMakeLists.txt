@@ -98,8 +98,8 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
-option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
-mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
+option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
+mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
 option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
@@ -370,7 +370,8 @@ set(default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.h
                            ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.h
-                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h)
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.h
+                           ${PROJECT_SOURCE_DIR}/plugins/ua_log_socket_error.h)
 
 set(default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                            ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
@@ -540,7 +541,9 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c
                            ${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/backend_open62541_datatypes.py)
 
 # stack protector needs to be disabled for the huge ns0 file, otherwise it may take many minutes to compile the file.
-set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+if(NOT MSVC)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/ua_namespace0.c PROPERTIES COMPILE_FLAGS -fno-stack-protector)
+endif()
 
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-namespace DEPENDS
@@ -640,18 +643,12 @@ if(UA_BUILD_UNIT_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable discovery, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
     add_subdirectory(tests/fuzz)
 endif()
-
-
-if(UA_BUILD_FUZZING_CORPUS)
-    add_subdirectory(tools/corpus_generator)
-endif()
-
 
 ############################
 # Linting run (clang-tidy) #

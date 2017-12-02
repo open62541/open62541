@@ -222,7 +222,11 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Initialize multicast discovery */
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
     server->mdnsDaemon = NULL;
-    server->mdnsSocket = 0;
+#ifdef _WIN32
+    server->mdnsSocket = INVALID_SOCKET;
+#else
+    server->mdnsSocket = -1;
+#endif
     server->mdnsMainSrvAdded = UA_FALSE;
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
         initMulticastDiscoveryServer(server);

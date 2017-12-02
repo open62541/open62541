@@ -114,6 +114,7 @@ UA_LOG_FATAL(UA_Logger logger, UA_LogCategory category, const char *msg, ...) {
 #define UA_PRINTF_STRING_FORMAT "\"%.*s\""
 #define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

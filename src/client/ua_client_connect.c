@@ -133,7 +133,7 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
 static UA_StatusCode
 openSecureChannel(UA_Client *client, UA_Boolean renew) {
     /* Check if sc is still valid */
-    if(renew && client->nextChannelRenewal - UA_DateTime_nowMonotonic() > 0)
+    if(renew && client->nextChannelRenewal > UA_DateTime_nowMonotonic())
         return UA_STATUSCODE_GOOD;
 
     UA_Connection *conn = &client->connection;
@@ -362,11 +362,11 @@ createSession(UA_Client *client) {
 UA_StatusCode
 UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession) {
-    UA_ChannelSecurityToken_init(&client->channel.securityToken);
-    client->channel.state = UA_SECURECHANNELSTATE_FRESH;
-
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
+
+    UA_ChannelSecurityToken_init(&client->channel.securityToken);
+    client->channel.state = UA_SECURECHANNELSTATE_FRESH;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     client->connection =
@@ -415,6 +415,15 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     /* Activate the Session for this SecureChannel */
     if(!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
         retval = activateSession(client);
+
+        /* Could not recover an old session. Create a new one */
+        if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
+            retval = createSession(client);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+            retval = activateSession(client);
+        }
+
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
         client->state = UA_CLIENTSTATE_SESSION;
@@ -489,6 +498,8 @@ UA_Client_disconnect(UA_Client *client) {
         client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
         sendCloseSession(client);
     }
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+    client->requestHandle = 0;
 
     /* Is a secure channel established? */
     if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
