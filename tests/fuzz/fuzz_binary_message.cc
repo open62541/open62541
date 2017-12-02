@@ -27,9 +27,9 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     memcpy(msg.data, data, size);
 
     UA_Server_processBinaryMessage(server, &c, &msg);
-	// if we got an invalid chunk, the message is not deleted, so delete it here
+    // if we got an invalid chunk, the message is not deleted, so delete it here
     UA_ByteString_deleteMembers(&msg);
-	UA_Server_run_shutdown(server);
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_ServerConfig_delete(config);
     c.close(&c);
