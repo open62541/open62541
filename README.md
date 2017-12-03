@@ -71,7 +71,7 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
-- Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
+- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.
