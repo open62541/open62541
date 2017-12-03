@@ -110,7 +110,6 @@ countQueuedSelectFirstMonToIterate(UA_Subscription *sub,
     }
 
     UA_MonitoredItem * mon = firstMon;
-
     while(mon) {
         MonitoredItem_queuedValue *qv;
         TAILQ_FOREACH(qv, &mon->queue, listEntry) {
