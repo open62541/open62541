@@ -197,7 +197,8 @@ generateNonce_testing(const UA_SecurityPolicy *securityPolicy,
                       UA_ByteString *out) {
     ck_assert(securityPolicy != NULL);
     ck_assert(out != NULL);
-    ck_assert(out->data != NULL);
+    if(out->length != 0)
+        ck_assert(out->data != NULL);
 
     memset(out->data, 'N', out->length);
 
