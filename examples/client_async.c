@@ -5,9 +5,6 @@
 #include "open62541.h"
 #include <unistd.h>
 
-/*total number of unprocessed requests*/
-static int reqNo = 0;
-
 //called inside responseActivateSession
 static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
 		void *response) {
@@ -17,42 +14,91 @@ static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
 }
 
 static void valueWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *response) {
-	reqNo--;
-	printf("%-50s%-8i\n", "writeResponse received, pending requests:", reqNo);
+		UA_WriteResponse *response) {
+	printf("%-20s%i:\n", "Received response ", requestId);
 }
 
 static
 void valueRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *response) {
-	reqNo--;
-	printf("%-50s%-8i\n", "readResponse received, pending requests:", reqNo);
+		UA_ReadResponse *response) {
+	printf("%-20s%i:\n", "Received response ", requestId);
 }
 
 static
 void fileBrowsed(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *response) {
-	reqNo--;
-	printf("%-50s%-8i\n", "browseResponse received, pending requests:", reqNo);
+		UA_BrowseResponse *response) {
+	printf("%-20s%i:\n", "Received response ", requestId);
 }
 
 static
-void customCallback(UA_Client *client,  void *userdata, UA_UInt32 requestId,
-		void *outValue){
-	reqNo--;
-	//TODO: cast outvalue to UA_Variant
-	//UA_Variant var = *(UA_Variant *)outValue;
-	printf("custom callback!\n");
+void readValueAttributeCallback(UA_Client *client, void *userdata,
+		UA_UInt32 requestId, UA_Variant *var) {
+	printf("%-20s%i:\n", "Received response ", requestId);
+	if (UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_DATETIME])) {
+		UA_DateTime raw_date = *(UA_DateTime*) var->data;
+		UA_String string_date = UA_DateTime_toString(raw_date);
+		printf("string date is: %.*s\n", (int) string_date.length,
+				string_date.data);
+		UA_String_deleteMembers(&string_date);
+	}
 
+	if (UA_Variant_hasScalarType(var, &UA_TYPES[UA_TYPES_INT32])) {
+		UA_Int32 int_val = *(UA_Int32*) var->data;
+		printf("%-50s%-8i\n", "Reading the value of node (1, \"the.answer\"):",
+				int_val);
+	}
 	return;
 }
 
 static
 void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
-	reqNo--;
-	printf("%-50s%-8i\n", "attribute written, pending requests:", reqNo);
+	printf("%-20s%i:\n", "Received response ", requestId);
 }
+
+static void methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
+		UA_CallResponse *response) {
+
+	printf("%-20s%i:\n", "Received response ", requestId);
+	size_t outputSize;
+	UA_Variant *output;
+	UA_StatusCode retval = response->responseHeader.serviceResult;
+	if (retval == UA_STATUSCODE_GOOD) {
+		if (response->resultsSize == 1)
+			retval = response->results[0].statusCode;
+		else
+			retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+	}
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_CallResponse_deleteMembers(response);
+	}
+
+	/* Move the output arguments */
+	output = response->results[0].outputArguments;
+	outputSize = response->results[0].outputArgumentsSize;
+	response->results[0].outputArguments = NULL;
+	response->results[0].outputArgumentsSize = 0;
+
+	//output
+	if (retval == UA_STATUSCODE_GOOD) {
+		printf("Method call was successfull with %lu returned values.\n",
+				(unsigned long) outputSize);
+		UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+	} else {
+		printf("Method call was unsuccessfull with %x returned values.\n",
+				retval);
+	}
+}
+
+static void translateCalled(UA_Client *client, void *userdata,
+		UA_UInt32 requestId, UA_TranslateBrowsePathsToNodeIdsResponse *response) {
+	printf("%-20s%i:\n", "Received response ", requestId);
+
+	if (response->results[0].targetsSize == 1) {
+		return;
+	}
+}
+
 //static void testEndpoints(UA_Client *client, void *userdata,
 //		UA_UInt32 requestId, void *response) {
 //	reqNo--;
@@ -67,53 +113,6 @@ void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
 //				endpointArray[i].endpointUrl.data);
 //	}
 //}
-static void methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *callResponse) {
-	reqNo--;
-	printf("%-50s%-8i\n", "method called, pending requests:", reqNo);
-	size_t outputSize;
-	UA_Variant *output;
-	UA_CallResponse response = *(UA_CallResponse *) callResponse;
-	UA_StatusCode retval = response.responseHeader.serviceResult;
-	if (retval == UA_STATUSCODE_GOOD) {
-		if (response.resultsSize == 1)
-			retval = response.results[0].statusCode;
-		else
-			retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
-	}
-	if (retval != UA_STATUSCODE_GOOD) {
-		UA_CallResponse_deleteMembers(&response);
-	}
-
-	/* Move the output arguments */
-	output = response.results[0].outputArguments;
-	outputSize = response.results[0].outputArgumentsSize;
-	response.results[0].outputArguments = NULL;
-	response.results[0].outputArgumentsSize = 0;
-
-	//output
-	if (retval == UA_STATUSCODE_GOOD) {
-		printf("Method call was successfull with %lu returned values.\n",
-				(unsigned long) outputSize);
-		UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
-	} else {
-		printf("Method call was unsuccessfull with %x returned values.\n",
-				retval);
-	}
-}
-
-static void translateCalled(UA_Client *client, void *userdata,
-		UA_UInt32 requestId, void *callResponse) {
-	reqNo--;
-		printf("%-50s%-8i\n", "translation called, pending requests:", reqNo);
-	UA_TranslateBrowsePathsToNodeIdsResponse response =
-			*(UA_TranslateBrowsePathsToNodeIdsResponse *) callResponse;
-	if (response.results[0].targetsSize == 1) {
-		return;
-	}
-	// UA_BrowsePath_deleteMembers(&browsePath);
-//	UA_TranslateBrowsePathsToNodeIdsResponse_deleteMembers(&response);
-}
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -141,7 +140,7 @@ int main(int argc, char *argv[]) {
 	UA_ReadRequest_init(&rReq);
 	rReq.nodesToRead = UA_ReadValueId_new();
 	rReq.nodesToReadSize = 1;
-	rReq.nodesToRead[0].nodeId = UA_NODEID_NUMERIC(1, 51034);
+	rReq.nodesToRead[0].nodeId = UA_NODEID_STRING(1, "the.answer");
 	rReq.nodesToRead[0].attributeId = UA_ATTRIBUTEID_VALUE;
 
 	/* Browse some objects */
@@ -150,10 +149,11 @@ int main(int argc, char *argv[]) {
 	bReq.requestedMaxReferencesPerNode = 0;
 	bReq.nodesToBrowse = UA_BrowseDescription_new();
 	bReq.nodesToBrowseSize = 1;
-	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
+	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,&connected);
+	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
+			&connected);
 
 	printf("Testing async requests\n");
 	printf("%s\n", "---------------------");
@@ -161,31 +161,18 @@ int main(int argc, char *argv[]) {
 		if (connected) {
 			/*reset the number of total requests sent*/
 
-			UA_Client_sendAsyncRequest(client, (void*) &bReq,
-					&UA_TYPES[UA_TYPES_BROWSEREQUEST], fileBrowsed,
-					&UA_TYPES[UA_TYPES_BROWSERESPONSE], NULL, &reqId);
+			UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, NULL,
+					&reqId);
 
-			reqNo++;
-			printf("%-50s%-8i\n", "browseRequest sent, pending requests:",
-					reqNo);
+			UA_Client_sendAsyncWriteRequest(client, &wReq, valueWritten, NULL,
+					&reqId);
 
-			UA_Client_sendAsyncRequest(client, (void*) &wReq,
-					&UA_TYPES[UA_TYPES_WRITEREQUEST], valueWritten,
-					&UA_TYPES[UA_TYPES_WRITERESPONSE], NULL, &reqId);
-			reqNo++;
-			printf("%-50s%-8i\n", "readRequest sent, pending requests:", reqNo);
-
-			UA_Client_sendAsyncRequest(client, (void*) &rReq,
-					&UA_TYPES[UA_TYPES_READREQUEST], valueRead,
-					&UA_TYPES[UA_TYPES_READRESPONSE], NULL, &reqId);
-			reqNo++;
-			printf("%-50s%-8i\n", "writeRequest sent, pending requests:",
-					reqNo);
+			UA_Client_sendAsyncReadRequest(client, &rReq, valueRead, NULL,
+					&reqId);
 		}
 
 		UA_Client_run_iterate(client, 10);
 	} while (reqId < 10);
-
 
 	//the first highlevel function made async, UA_Client_run_iterate capsuled.
 	printf("\n");
@@ -203,18 +190,15 @@ int main(int argc, char *argv[]) {
 		UA_Client_writeValueAttribute_async(client,
 				UA_NODEID_STRING(1, "the.answer"), myVariant, attrWritten, NULL,
 				&reqId);
-		reqNo++;
 
 		/*(for the moment) for the callback to work the fourth argument has to be of type UA_Variant*/
 		UA_Client_readValueAttribute_async(client,
-				UA_NODEID_STRING(1, "the.answer"), &vals[i], customCallback, &vals[i],
-				&reqId);
-		reqNo++;
+				UA_NODEID_STRING(1, "the.answer"), &vals[i],
+				readValueAttributeCallback, &vals[i], &reqId);
 
 		UA_Client_readValueAttribute_async(client,
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-				&vals[i], customCallback, &vals[i], &reqId);
-		reqNo++;
+				&vals[i], readValueAttributeCallback, &vals[i], &reqId);
 
 		UA_String stringValue = UA_String_fromChars("World");
 		UA_Variant input;
@@ -225,7 +209,6 @@ int main(int argc, char *argv[]) {
 				UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
 				UA_NODEID_NUMERIC(1, 62541), 1, &input, methodCalled, NULL,
 				&reqId);
-		reqNo++;
 
 #define pathSize 3
 		char *paths[pathSize] = { "Server", "ServerStatus", "State" };
@@ -234,13 +217,12 @@ int main(int argc, char *argv[]) {
 
 		UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids,
 		pathSize, translateCalled, NULL, &reqId);
-		reqNo++;
 
 //		UA_Client_getEndpoints_async(client, testEndpoints, NULL, &reqId);
-//		reqNo++;
+
 	}
 
-	while (reqNo > 0)
+	for (int i = 0; i < 10; i++)
 		UA_Client_run_iterate(client, 10);
 
 	UA_Variant_delete(myVariant);

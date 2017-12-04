@@ -80,7 +80,7 @@ typedef struct CustomCallback {
 
 	UA_AttributeId attributeId;
 	const UA_DataType *outDataType;
-}CustomCallback;
+} CustomCallback;
 
 typedef enum {
 	UA_CHUNK_COMPLETED, UA_CHUNK_NOT_COMPLETED
@@ -130,8 +130,7 @@ struct UA_Client {
 	//UA_ClientAsyncServiceCallback customCallbackTest;
 	LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
 
-	UA_UInt32 customCallbackId;
-	LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
+	UA_UInt32 customCallbackId;LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
 	/* Callbacks with a repetition interval */
 	UA_Timer timer;
 
@@ -153,15 +152,14 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 		UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
-UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl, UA_ClientAsyncServiceCallback callback,
-		void *userdata,
+UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
 		UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client,
 		size_t* endpointDescriptionsSize,
 		UA_EndpointDescription** endpointDescriptions);
-
 
 UA_StatusCode receivePacket_async(UA_Client *client);
 

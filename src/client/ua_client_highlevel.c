@@ -445,10 +445,10 @@ UA_StatusCode UA_Client_readArrayDimensionsAttribute(UA_Client *client,
 /*highlevel callbacks*/
 
 //easiest way to pass the customCallbackId around: attach the id to the userdata
-typedef struct userdataAndId{
+typedef struct userdataAndId {
 	void *userdata;
 	UA_UInt32 id;
-}userdataAndId;
+} userdataAndId;
 
 static
 void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -459,7 +459,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	}
 
 	CustomCallback *cc;
-	userdataAndId uid = *(userdataAndId *)userdata;
+	userdataAndId uid = *(userdataAndId *) userdata;
 	LIST_FOREACH(cc, &client->customCallbacks, pointers)
 	{
 		if (cc->callbackId == uid.id)
@@ -468,8 +468,8 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	if (!cc)
 		return;
 
-	UA_ReadResponse rr = *(UA_ReadResponse *)response;
-	if(rr.results[0].status != UA_STATUSCODE_GOOD)
+	UA_ReadResponse rr = *(UA_ReadResponse *) response;
+	if (rr.results[0].status != UA_STATUSCODE_GOOD)
 		UA_ReadResponse_deleteMembers((UA_ReadResponse*) response);
 
 	UA_Variant out;
@@ -497,7 +497,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	//use callbackId to find the right custom callback
 	cc->callback(client, uid.userdata, requestId, &out);
 	LIST_REMOVE(cc, pointers);
-		UA_free(cc);
+	UA_free(cc);
 }
 
 UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
@@ -514,10 +514,9 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 	request.nodesToReadSize = 1;
 
 	//client->customCallbackTest = callback;
-	CustomCallback *cc = (CustomCallback*) UA_malloc(
-				sizeof(CustomCallback));
-		if (!cc)
-			return UA_STATUSCODE_BADOUTOFMEMORY;
+	CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
+	if (!cc)
+		return UA_STATUSCODE_BADOUTOFMEMORY;
 	cc->callback = callback;
 	cc->callbackId = ++client->customCallbackId;
 
@@ -526,7 +525,7 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 
 	LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
 
-	userdataAndId *uid = (userdataAndId *)UA_malloc(sizeof(userdataAndId));
+	userdataAndId *uid = (userdataAndId *) UA_malloc(sizeof(userdataAndId));
 	//userdataAndId uid = {.id = cc->callbackId, .userdata = userdata};
 	uid->id = cc->callbackId;
 	uid->userdata = userdata;
@@ -614,7 +613,6 @@ UA_StatusCode __UA_Client_translateBrowsePathsToNodeIds_async(UA_Client *client,
 			&UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST], callback,
 			&UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE], userdata,
 			reqId);
-
 
 }
 
