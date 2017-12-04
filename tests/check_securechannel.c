@@ -464,11 +464,7 @@ START_TEST(SecureChannel_generateNonce)
 
             ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be good");
             ck_assert_msg(myNonce.length == i, "Expected nonce length to be %i but was %i", i, myNonce.length);
-            if(i != 0)
-                ck_assert_msg(fCalled.generateNonce, "Expected generateNonce to have been called");
-            else
-                if(fCalled.generateNonce)
-                    printf("generateNonce was called with nonceLength = 0. Could possibly be avoided");
+            ck_assert_msg(fCalled.generateNonce, "Expected generateNonce to have been called");
         }
 
         UA_ByteString_deleteMembers(&myNonce);

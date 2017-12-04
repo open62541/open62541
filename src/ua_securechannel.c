@@ -125,9 +125,6 @@ UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
     if(channel == NULL || nonce == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(nonceLength == 0)
-        return UA_STATUSCODE_GOOD;
-
     UA_ByteString_deleteMembers(nonce);
     UA_StatusCode retval = UA_ByteString_allocBuffer(nonce, nonceLength);
     if(retval != UA_STATUSCODE_GOOD)
