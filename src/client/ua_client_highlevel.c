@@ -501,7 +501,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 
 /*Read Attributes*/
 UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
-		const UA_NodeId *nodeId, UA_AttributeId attributeId, void *out,
+		const UA_NodeId *nodeId, UA_AttributeId attributeId,
 		const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
 		void *userdata, UA_UInt32 *reqId) {
 	UA_ReadValueId item;

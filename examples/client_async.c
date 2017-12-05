@@ -178,7 +178,7 @@ int main(int argc, char *argv[]) {
 	printf("\n");
 	printf("Testing async highlevel functions:\n");
 	printf("%s\n", "---------------------");
-	UA_Variant vals[5];
+	//UA_Variant vals[5];
 
 	UA_Int32 value = 0;
 	UA_Variant *myVariant = UA_Variant_new();
@@ -193,12 +193,12 @@ int main(int argc, char *argv[]) {
 
 		/*(for the moment) for the callback to work the fourth argument has to be of type UA_Variant*/
 		UA_Client_readValueAttribute_async(client,
-				UA_NODEID_STRING(1, "the.answer"), &vals[i],
-				readValueAttributeCallback, &vals[i], &reqId);
+				UA_NODEID_STRING(1, "the.answer"),
+				readValueAttributeCallback, NULL, &reqId);
 
 		UA_Client_readValueAttribute_async(client,
 				UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-				&vals[i], readValueAttributeCallback, &vals[i], &reqId);
+				readValueAttributeCallback, NULL, &reqId);
 
 		UA_String stringValue = UA_String_fromChars("World");
 		UA_Variant input;
