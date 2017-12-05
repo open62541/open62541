@@ -440,16 +440,15 @@ UA_StatusCode UA_Client_readArrayDimensionsAttribute(UA_Client *client,
 	return retval;
 }
 
-/*async functions*/
+/*Async Functions*/
 
-/*highlevel callbacks*/
-
-//easiest way to pass the customCallbackId around: attach the id to the userdata
 typedef struct userdataAndId {
+	/*workaround to associate user callbacks with requests*/
 	void *userdata;
 	UA_UInt32 id;
 } userdataAndId;
 
+/*highlevel callbacks*/
 static
 void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
@@ -500,6 +499,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	UA_free(cc);
 }
 
+/*Read Attributes*/
 UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 		const UA_NodeId *nodeId, UA_AttributeId attributeId, void *out,
 		const UA_DataType *outDataType, UA_ClientAsyncServiceCallback callback,
@@ -534,6 +534,7 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 			&UA_TYPES[UA_TYPES_READRESPONSE], uid, reqId);
 }
 
+/*Write Attributes*/
 UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
 		const UA_NodeId *nodeId, UA_AttributeId attributeId, const void *in,
 		const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
@@ -562,9 +563,7 @@ UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
 			&UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
 }
 
-/**
- * Method Calling
- * ^^^^^^^^^^^^^^ */
+/*Misc Highlevel Functions*/
 UA_StatusCode __UA_Client_call_async(UA_Client *client,
 		const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
 		const UA_Variant *input, UA_ClientAsyncServiceCallback callback,

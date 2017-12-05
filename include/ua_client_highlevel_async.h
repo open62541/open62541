@@ -9,44 +9,8 @@
 #define UA_CLIENT_HIGHLEVEL_ASYNC_H_
 #include "ua_client.h"
 
-UA_StatusCode UA_EXPORT
-__UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
-		UA_AttributeId attributeId, void *out, const UA_DataType *outDataType,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId);
-
-UA_StatusCode UA_EXPORT
-__UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
-		UA_AttributeId attributeId, const void *in,
-		const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
-		void *userdata, UA_UInt32 *reqId);
-
-UA_StatusCode UA_EXPORT
-__UA_Client_getEndpoints_async(UA_Client *client,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId);
-UA_StatusCode UA_EXPORT __UA_Client_call_async(UA_Client *client,
-		const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
-		const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
-		void *userdata, UA_UInt32 *reqId);
-
-UA_StatusCode UA_EXPORT __UA_Client_translateBrowsePathsToNodeIds_async(
-		UA_Client *client, char *paths[], UA_UInt32 ids[], size_t pathSize,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId);
-
-static UA_INLINE UA_StatusCode UA_Client_readDataTypeAttribute_async(
-		UA_Client *client, const UA_NodeId nodeId, UA_Variant *outValue,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId) {
-	return __UA_Client_readAttribute_async(client, &nodeId,
-			UA_ATTRIBUTEID_DATATYPE, outValue, &UA_TYPES[UA_TYPES_NODEID],
-			callback, userdata, reqId);
-}
-
 typedef void (*UA_ClientAsyncReadCallback)(UA_Client *client, void *userdata,
 		UA_UInt32 requestId, UA_ReadResponse *rr);
-//TODO: remove outValue from definition
 static UA_INLINE UA_StatusCode UA_Client_sendAsyncReadRequest(UA_Client *client,
 		UA_ReadRequest *request, UA_ClientAsyncReadCallback readCallback,
 		void *userdata, UA_UInt32 *reqId) {
@@ -80,6 +44,26 @@ static UA_INLINE UA_StatusCode UA_Client_sendAsyncBrowseRequest(
 			&UA_TYPES[UA_TYPES_BROWSERESPONSE], userdata, reqId);
 }
 
+/**
+ * Read Attribute
+ * ^^^^^^^^^^^^^^ */
+UA_StatusCode UA_EXPORT
+__UA_Client_readAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+		UA_AttributeId attributeId, void *out, const UA_DataType *outDataType,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId);
+
+typedef void (*UA_ClientAsyncReadDataTypeAttributeCallback)(UA_Client *client,
+		void *userdata, UA_UInt32 requestId, UA_NodeId *var);
+static UA_INLINE UA_StatusCode UA_Client_readDataTypeAttribute_async(
+		UA_Client *client, const UA_NodeId nodeId, UA_NodeId *outValue,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId) {
+	return __UA_Client_readAttribute_async(client, &nodeId,
+			UA_ATTRIBUTEID_DATATYPE, outValue, &UA_TYPES[UA_TYPES_NODEID],
+			(UA_ClientAsyncServiceCallback) callback, userdata, reqId);
+}
+
 typedef void (*UA_ClientAsyncReadValueAttributeCallback)(UA_Client *client,
 		void *userdata, UA_UInt32 requestId, UA_Variant *var);
 static UA_INLINE UA_StatusCode UA_Client_readValueAttribute_async(
@@ -91,6 +75,15 @@ static UA_INLINE UA_StatusCode UA_Client_readValueAttribute_async(
 			(UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
 
+/**
+ * Write Attribute
+ * ^^^^^^^^^^^^^^ */
+UA_StatusCode UA_EXPORT
+__UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+		UA_AttributeId attributeId, const void *in,
+		const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
+		void *userdata, UA_UInt32 *reqId);
+
 static UA_INLINE UA_StatusCode UA_Client_writeValueAttribute_async(
 		UA_Client *client, const UA_NodeId nodeId, const UA_Variant *newValue,
 		UA_ClientAsyncServiceCallback callback, void *userdata,
@@ -101,11 +94,14 @@ static UA_INLINE UA_StatusCode UA_Client_writeValueAttribute_async(
 			callback, userdata, reqId);
 }
 
-static UA_INLINE UA_StatusCode UA_Client_getEndpoints_async(UA_Client *client,
-		UA_ClientAsyncServiceCallback callback, void *userdata,
-		UA_UInt32 *reqId) {
-	return __UA_Client_getEndpoints_async(client, callback, userdata, reqId);
-}
+/**
+ * Method Calling
+ * ^^^^^^^^^^^^^^ */
+
+UA_StatusCode UA_EXPORT __UA_Client_call_async(UA_Client *client,
+		const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
+		const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+		void *userdata, UA_UInt32 *reqId);
 
 typedef void (*UA_ClientAsyncCallCallback)(UA_Client *client, void *userdata,
 		UA_UInt32 requestId, UA_CallResponse *cr);
@@ -118,6 +114,15 @@ static UA_INLINE UA_StatusCode UA_Client_call_async(UA_Client *client,
 			(UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
 
+/**
+ * Misc Functionalities
+ * ^^^^^^^^^^^^^^ */
+
+UA_StatusCode UA_EXPORT __UA_Client_translateBrowsePathsToNodeIds_async(
+		UA_Client *client, char *paths[], UA_UInt32 ids[], size_t pathSize,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId);
+
 typedef void (*UA_ClientAsyncTranslateCallback)(UA_Client *client,
 		void *userdata, UA_UInt32 requestId,
 		UA_TranslateBrowsePathsToNodeIdsResponse *tr);
@@ -128,4 +133,17 @@ static UA_INLINE UA_StatusCode UA_Cient_translateBrowsePathsToNodeIds_async(
 	return __UA_Client_translateBrowsePathsToNodeIds_async(client, paths, ids,
 			pathSize, (UA_ClientAsyncServiceCallback) callback, userdata, reqId);
 }
+
+/*getEndpoints not working yet*/
+UA_StatusCode UA_EXPORT
+__UA_Client_getEndpoints_async(UA_Client *client,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId);
+
+static UA_INLINE UA_StatusCode UA_Client_getEndpoints_async(UA_Client *client,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId) {
+	return __UA_Client_getEndpoints_async(client, callback, userdata, reqId);
+}
+
 #endif /* UA_CLIENT_HIGHLEVEL_ASYNC_H_ */
