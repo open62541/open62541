@@ -7,12 +7,14 @@
 #include "ua_types.h"
 #include "ua_server.h"
 #include "ua_client.h"
+#include "client/ua_client_internal.h"
 #include "ua_client_highlevel.h"
 #include "ua_config_default.h"
 #include "ua_network_tcp.h"
 
 #include "check.h"
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 
@@ -89,6 +91,41 @@ START_TEST(Client_subscription) {
 }
 END_TEST
 
+START_TEST(Client_subscription_connectionClose) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 subId;
+    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* monitor the server state */
+    UA_UInt32 monId;
+    retval = UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
+                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
+                                                      NULL, &monId, 250);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    /* Simulate BADCONNECTIONCLOSE */
+    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
+
+    retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSERVERNOTCONNECTED);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -146,6 +183,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client, setup, teardown);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     tcase_add_test(tc_client, Client_subscription);
+    tcase_add_test(tc_client, Client_subscription_connectionClose);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
