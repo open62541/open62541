@@ -187,6 +187,9 @@ typedef int64_t UA_DateTime;
 /* The current time */
 UA_DateTime UA_EXPORT UA_DateTime_now(void);
 
+/* The current time in local time*/
+UA_DateTime UA_EXPORT UA_DateTime_nowLocalTime(void);
+
 /* CPU clock invariant to system time changes. Use only for time diffs, not
  * current time */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);

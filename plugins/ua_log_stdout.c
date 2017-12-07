@@ -47,7 +47,7 @@ __attribute__((__format__(__printf__, 3 , 0)))
 void
 UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
               const char *msg, va_list args) {
-    UA_String t = UA_DateTime_toString(UA_DateTime_now());
+    UA_String t = UA_DateTime_toString(UA_DateTime_nowLocalTime());
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_lock(&printf_mutex);
 #endif

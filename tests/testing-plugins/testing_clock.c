@@ -28,6 +28,10 @@ UA_DateTime UA_DateTime_now(void) {
     return testingClock;
 }
 
+UA_DateTime UA_DateTime_nowLocalTime(void) {
+    return testingClock;
+}
+
 UA_DateTime UA_DateTime_nowMonotonic(void) {
     return testingClock;
 }
