@@ -23,6 +23,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     /* Generate Nonce
      * FIXME: remove magic number??? */
     UA_StatusCode retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+    UA_ByteString_deleteMembers(&session->serverNonce);
     retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
@@ -187,6 +188,7 @@ checkSignature(const UA_Server *server,
         UA_ByteString dataToVerify;
         UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify,
                                                          localCertificate->length + session->serverNonce.length);
+
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
@@ -210,6 +212,7 @@ checkSignature(const UA_Server *server,
         }
 
         retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+        UA_ByteString_deleteMembers(&session->serverNonce);
         retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
