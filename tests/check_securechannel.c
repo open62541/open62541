@@ -27,6 +27,7 @@
 #define DEFAULT_SYM_ENCRYPTION_KEY_LENGTH 5
 #define DEFAULT_ASYM_REMOTE_SIGNATURE_SIZE 7
 #define DEFAULT_ASYM_LOCAL_SIGNATURE_SIZE 11
+#define DEFAULT_SYM_SIGNATURE_SIZE 13
 #define DEFAULT_ASYM_REMOTE_PLAINTEXT_BLOCKSIZE 256
 
 UA_SecureChannel testChannel;
@@ -74,6 +75,7 @@ setup_key_sizes(void) {
     keySizes.sym_sig_keyLen = DEFAULT_SYM_SIGNING_KEY_LENGTH;
     keySizes.sym_enc_blockSize = DEFAULT_SYM_ENCRYPTION_BLOCK_SIZE;
     keySizes.sym_enc_keyLen = DEFAULT_SYM_ENCRYPTION_KEY_LENGTH;
+    keySizes.sym_sig_size = DEFAULT_SYM_SIGNATURE_SIZE;
 
     keySizes.asym_lcl_sig_size = DEFAULT_ASYM_LOCAL_SIGNATURE_SIZE;
     keySizes.asym_rmt_sig_size = DEFAULT_ASYM_REMOTE_SIGNATURE_SIZE;
@@ -489,7 +491,98 @@ END_TEST
 
 START_TEST(SecureChannel_sendSymmetricMessage)
     {
+        // initialize dummy message
+        UA_ReadRequest dummyMessage;
+        UA_ReadRequest_init(&dummyMessage);
+        UA_DataType dummyType = UA_TYPES[UA_TYPES_READREQUEST];
 
+        UA_StatusCode retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG,
+                                                                     &dummyMessage, &dummyType);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+        // TODO: expand test
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendSymmetricMessage_modeNone)
+    {
+        // initialize dummy message
+        UA_ReadRequest dummyMessage;
+        UA_ReadRequest_init(&dummyMessage);
+        UA_DataType dummyType = UA_TYPES[UA_TYPES_READREQUEST];
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+        UA_StatusCode retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG,
+                                                                     &dummyMessage, &dummyType);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+        ck_assert_msg(!fCalled.sym_sign, "Expected message to not have been signed");
+        ck_assert_msg(!fCalled.sym_enc, "Expected message to not have been encrypted");
+    }
+END_TEST
+
+
+START_TEST(SecureChannel_sendSymmetricMessage_modeSign)
+    {
+        // initialize dummy message
+        UA_ReadRequest dummyMessage;
+        UA_ReadRequest_init(&dummyMessage);
+        UA_DataType dummyType = UA_TYPES[UA_TYPES_READREQUEST];
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGN;
+
+        UA_StatusCode retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG,
+                                                                     &dummyMessage, &dummyType);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+        ck_assert_msg(fCalled.sym_sign, "Expected message to have been signed");
+        ck_assert_msg(!fCalled.sym_enc, "Expected message to not have been encrypted");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendSymmetricMessage_modeSignAndEncrypt)
+    {
+        // initialize dummy message
+        UA_ReadRequest dummyMessage;
+        UA_ReadRequest_init(&dummyMessage);
+        UA_DataType dummyType = UA_TYPES[UA_TYPES_READREQUEST];
+
+        testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+
+        UA_StatusCode retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG,
+                                                                     &dummyMessage, &dummyType);
+        ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
+        ck_assert_msg(fCalled.sym_sign, "Expected message to have been signed");
+        ck_assert_msg(fCalled.sym_enc, "Expected message to have been encrypted");
+    }
+END_TEST
+
+START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters)
+    {
+        // initialize dummy message
+        UA_ReadRequest dummyMessage;
+        UA_ReadRequest_init(&dummyMessage);
+        UA_DataType dummyType = UA_TYPES[UA_TYPES_READREQUEST];
+
+        UA_StatusCode retval = UA_SecureChannel_sendSymmetricMessage(NULL, 42, UA_MESSAGETYPE_MSG,
+                                                                     &dummyMessage, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_HEL, &dummyMessage, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_ACK, &dummyMessage, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_ERR, &dummyMessage, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_OPN, &dummyMessage, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG, NULL, &dummyType);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
+
+        retval = UA_SecureChannel_sendSymmetricMessage(&testChannel, 42, UA_MESSAGETYPE_MSG, &dummyMessage, NULL);
+        ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure");
     }
 END_TEST
 
@@ -542,8 +635,14 @@ testSuite_SecureChannel(void) {
     suite_add_tcase(s, tc_generateNonce);
 
     TCase *tc_sendSymmetricMessage = tcase_create("Test sendSymmetricMessage function");
+    tcase_add_checked_fixture(tc_sendSymmetricMessage, setup_funcs_called, teardown_funcs_called);
+    tcase_add_checked_fixture(tc_sendSymmetricMessage, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_sendSymmetricMessage, setup_secureChannel, teardown_secureChannel);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage);
+    tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_invalidParameters);
+    tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeNone);
+    tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSign);
+    tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSignAndEncrypt);
     suite_add_tcase(s, tc_sendSymmetricMessage);
 
     return s;

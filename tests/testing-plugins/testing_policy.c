@@ -93,13 +93,17 @@ asym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolic
 static size_t
 sym_getLocalSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                   const void *channelContext) {
-    return 0;
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    return keySizes->sym_sig_size;
 }
 
 static size_t
 sym_getRemoteSignatureSize_testing(const UA_SecurityPolicy *securityPolicy,
                                    const void *channelContext) {
-    return 0;
+    ck_assert(securityPolicy != NULL);
+    ck_assert(channelContext != NULL);
+    return keySizes->sym_sig_size;
 }
 
 static size_t

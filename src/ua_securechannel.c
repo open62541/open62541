@@ -611,6 +611,9 @@ UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                       UA_MessageType messageType, const void *content,
                                       const UA_DataType *contentType) {
+    if(!channel || !content || !contentType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     const UA_SecurityPolicy *const securityPolicy = channel->securityPolicy;
     UA_Connection *connection = channel->connection;
     if(!connection)
@@ -619,6 +622,9 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     /* Minimum required size */
     if(connection->localConf.sendBufferSize <= UA_SECURE_MESSAGE_HEADER_LENGTH)
         return UA_STATUSCODE_BADRESPONSETOOLARGE;
+
+    if(messageType != UA_MESSAGETYPE_MSG && messageType != UA_MESSAGETYPE_CLO)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Create the chunking info structure */
     UA_ChunkInfo ci;
