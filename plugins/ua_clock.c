@@ -58,6 +58,29 @@ UA_DateTime UA_DateTime_now(void) {
 #endif
 }
 
+/* credit to https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
+static
+UA_DateTime UA_DateTime_diffLocalTimeUTC(void) {
+    time_t gmt, rawtime = time(NULL);
+    struct tm *ptm;
+
+#if !defined(_WIN32)
+    struct tm gbuf;
+    ptm = gmtime_r(&rawtime, &gbuf);
+#else
+    ptm = gmtime(&rawtime);
+#endif
+    // Request that mktime() looksup dst in timezone database
+    ptm->tm_isdst = -1;
+    gmt = mktime(ptm);
+
+    return (UA_DateTime) ((int)difftime(rawtime, gmt) * UA_SEC_TO_DATETIME);
+}
+
+UA_DateTime UA_DateTime_nowLocalTime(void) {
+    return UA_DateTime_now() + UA_DateTime_diffLocalTimeUTC();
+}
+
 UA_DateTime UA_DateTime_nowMonotonic(void) {
 #if defined(_WIN32)
     LARGE_INTEGER freq, ticks;
