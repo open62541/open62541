@@ -24,6 +24,10 @@
 
 UA_DateTime testingClock = 0;
 
+UA_DateTime UA_DateTime_diffLocalTimeUTC(void){
+    return 0;
+}
+
 UA_DateTime UA_DateTime_nowUtcTime(void) {
     return testingClock;
 }

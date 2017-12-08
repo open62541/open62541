@@ -183,6 +183,9 @@ typedef int64_t UA_DateTime;
 /* Datetime of 1 Jan 1970 00:00 */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
 
+/* Diff between local time and UTC time */
+UA_DateTime UA_DateTime_diffLocalTimeUTC(void);
+
 /* The current time in UTC time*/
 UA_DateTime UA_EXPORT UA_DateTime_nowUtcTime(void);
 

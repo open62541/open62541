@@ -59,7 +59,6 @@ UA_DateTime UA_DateTime_nowUtcTime(void) {
 }
 
 /* credit to https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
-static
 UA_DateTime UA_DateTime_diffLocalTimeUTC(void) {
     time_t gmt, rawtime = time(NULL);
 
