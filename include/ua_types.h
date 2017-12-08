@@ -169,8 +169,7 @@ UA_STRING(char *chars) {
  * DateTime
  * ^^^^^^^^
  * An instance in time. A DateTime value is encoded as a 64-bit signed integer
- * which represents the number of 100 nanosecond intervals since January 1, 1601
- * (UTC). */
+ * which represents the number of 100 nanosecond intervals since January 1, 1601 */
 typedef int64_t UA_DateTime;
 
 /* Multiply to convert units for time difference computations */
@@ -181,14 +180,17 @@ typedef int64_t UA_DateTime;
 #define UA_DATETIME_TO_MSEC (UA_DATETIME_TO_USEC / 1000.0)
 #define UA_DATETIME_TO_SEC (UA_DATETIME_TO_MSEC / 1000.0)
 
-/* Datetime of 1 Jan 1970 00:00 UTC */
+/* Datetime of 1 Jan 1970 00:00 */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_SEC_TO_DATETIME)
 
-/* The current time */
-UA_DateTime UA_EXPORT UA_DateTime_now(void);
+/* The current time in UTC time*/
+UA_DateTime UA_EXPORT UA_DateTime_nowUtcTime(void);
 
 /* The current time in local time*/
 UA_DateTime UA_EXPORT UA_DateTime_nowLocalTime(void);
+
+/* Compatibility macro. Should be remove in the future */
+#define UA_DateTime_now() UA_DateTime_nowUtcTime()
 
 /* CPU clock invariant to system time changes. Use only for time diffs, not
  * current time */

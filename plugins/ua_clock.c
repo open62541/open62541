@@ -40,7 +40,7 @@
 
 #include "ua_types.h"
 
-UA_DateTime UA_DateTime_now(void) {
+UA_DateTime UA_DateTime_nowUtcTime(void) {
 #if defined(_WIN32)
     /* Windows filetime has the same definition as UA_DateTime */
     FILETIME ft;
@@ -62,17 +62,21 @@ UA_DateTime UA_DateTime_now(void) {
 static
 UA_DateTime UA_DateTime_diffLocalTimeUTC(void) {
     time_t gmt, rawtime = time(NULL);
-    struct tm *ptm;
 
-#if !defined(_WIN32)
+#ifdef _WIN32
+    struct tm ptm;
+    gmtime_s(&ptm, &rawtime);
+    // Request that mktime() looksup dst in timezone database
+    ptm.tm_isdst = -1;
+    gmt = mktime(&ptm);
+#else
+    struct tm *ptm;
     struct tm gbuf;
     ptm = gmtime_r(&rawtime, &gbuf);
-#else
-    ptm = gmtime(&rawtime);
-#endif
     // Request that mktime() looksup dst in timezone database
     ptm->tm_isdst = -1;
     gmt = mktime(ptm);
+#endif
 
     return (UA_DateTime) ((int)difftime(rawtime, gmt) * UA_SEC_TO_DATETIME);
 }
