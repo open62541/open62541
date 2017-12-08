@@ -24,7 +24,7 @@
 
 UA_DateTime testingClock = 0;
 
-UA_DateTime UA_DateTime_now(void) {
+UA_DateTime UA_DateTime_nowUtcTime(void) {
     return testingClock;
 }
 
