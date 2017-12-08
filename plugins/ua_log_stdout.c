@@ -51,7 +51,7 @@ UA_Log_Stdout(UA_LogLevel level, UA_LogCategory category,
 #ifdef UA_ENABLE_MULTITHREADING
     pthread_mutex_lock(&printf_mutex);
 #endif
-    printf("[%.23s] %s/%s" ANSI_COLOR_RESET "\t", t.data, logLevelNames[level], logCategoryNames[category]);
+    printf("[%.23s (UTC%+.1f)] %s/%s" ANSI_COLOR_RESET "\t", t.data, (float)(UA_DateTime_diffLocalTimeUTC() / UA_SEC_TO_DATETIME)/3600.0, logLevelNames[level], logCategoryNames[category]);
     vprintf(msg, args);
     printf("\n");
     fflush(stdout);
