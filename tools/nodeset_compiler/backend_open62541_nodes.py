@@ -455,7 +455,7 @@ def generateSubtypeOfDefinitionCode(node):
 
 def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
     code = []
-    code.append("{")
+    code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 
     codeCleanup = []
 
@@ -519,5 +519,5 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     else:
         code.append("NULL, NULL);")
     code.extend(codeCleanup)
-    code.append("}\n")
+    
     return "\n".join(code)

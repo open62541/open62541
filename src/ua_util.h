@@ -27,7 +27,7 @@ extern "C" {
 # define UA_THREAD_LOCAL _Thread_local /* C11 */
 #elif defined(__cplusplus) && __cplusplus > 199711L
 # define UA_THREAD_LOCAL thread_local /* C++11 */
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) && !defined(_WRS_KERNEL) //defining __thread gave error of missing __tls_lookup in VxWorks
 # define UA_THREAD_LOCAL __thread /* GNU extension */
 #elif defined(_MSC_VER)
 # define UA_THREAD_LOCAL __declspec(thread) /* MSVC extension */

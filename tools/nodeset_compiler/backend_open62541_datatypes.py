@@ -47,23 +47,23 @@ def generateLocalizedTextCode(value, alloc=False, max_string_length=0):
                                                        value.locale, splitStringLiterals(value.text, max_string_length=max_string_length))
 
 def generateQualifiedNameCode(value, alloc=False, max_string_length=0):
-    return "UA_QUALIFIEDNAME{}(ns{}, {})".format("_ALLOC" if alloc else "",
+    return "UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(value.name, max_string_length=max_string_length))
 
 def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0,0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns%s,%s)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[%s],%s)" % (value.ns, value.i)
     elif value.s != None:
-        return "UA_NODEID_STRING(ns%s,%s)" % (value.ns, value.s.replace('"', r'\"'))
+        return "UA_NODEID_STRING(ns[%s],%s)" % (value.ns, value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns%s, %s)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %s)" % (str(value.ns), str(value.i))
     elif value.s != None:
-        return "UA_EXPANDEDNODEID_STRING(ns%s, %s)" % (str(value.ns), value.s.replace('"', r'\"'))
+        return "UA_EXPANDEDNODEID_STRING(ns[%s], %s)" % (str(value.ns), value.s.replace('"', r'\"'))
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateDateTimeCode(value):

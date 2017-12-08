@@ -7,6 +7,10 @@
 
 #include "ua_types.h"
 
+/**
+ * Simulate the system clock
+ * ------------------------- */
+
 /* The testing clock is used for reproducible unit tests that require precise
  * timings. It implements the following functions from ua_types.h. They return a
  * deterministic time that can be advanced manually with UA_sleep.

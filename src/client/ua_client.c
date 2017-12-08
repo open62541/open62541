@@ -289,10 +289,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         retval = UA_Connection_receiveChunksBlocking(&client->connection, &rd,
                                                      client_processChunk, timeout);
 
-        if (retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-            break;
-
-        if(retval != UA_STATUSCODE_GOOD) {
+        if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 client->state = UA_CLIENTSTATE_DISCONNECTED;
             else

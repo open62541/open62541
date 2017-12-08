@@ -94,9 +94,11 @@ UA_SecureChannel_deleteMembersCleanup(UA_SecureChannel *channel) {
     if(channel->securityPolicy)
         channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
 
-    /* Detach from the connection */
-    if(channel->connection)
+    /* Detach from the connection and close the connection */
+    if(channel->connection){
+        channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
+    }
 
     /* Remove session pointers (not the sessions) */
     struct SessionEntry *se, *temp;
@@ -122,9 +124,6 @@ UA_SecureChannel_generateNonce(const UA_SecureChannel *const channel,
                                UA_ByteString *const nonce) {
     if(channel == NULL || nonce == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(nonceLength == 0)
-        return UA_STATUSCODE_GOOD;
 
     UA_ByteString_deleteMembers(nonce);
     UA_StatusCode retval = UA_ByteString_allocBuffer(nonce, nonceLength);

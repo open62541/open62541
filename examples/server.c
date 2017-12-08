@@ -149,10 +149,9 @@ int main(int argc, char** argv) {
     v_attr.displayName = UA_LOCALIZEDTEXT("en-US","current time");
     v_attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
     const UA_QualifiedName dateName = UA_QUALIFIEDNAME(1, "current time");
-    UA_NodeId dataSourceId;
     UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), dateName,
-                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, &dataSourceId);
+                                        UA_NODEID_NULL, v_attr, dateDataSource, NULL, NULL);
 
     /* Add HelloWorld method to the server */
 #ifdef UA_ENABLE_METHODCALLS
