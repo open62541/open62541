@@ -358,6 +358,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect_async.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel_subscriptions.c

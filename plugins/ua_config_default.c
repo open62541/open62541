@@ -287,7 +287,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
         65535, /* .recvBufferSize, 64k per chunk */
         0, /* .maxMessageSize, 0 -> unlimited */
         0}, /* .maxChunkCount, 0 -> unlimited */
-        UA_ClientConnectionTCP_init, //UA_ClientConnectionTCP, /* .connectionFunc */
+        UA_ClientConnectionTCP, /*for sync client*/
+        UA_ClientConnectionTCP_init, /* for async client */
         UA_ClientConnectionTCPPoll, /*poll function (async connection) */
     0, /* .customDataTypesSize */
     NULL /*.customDataTypes */

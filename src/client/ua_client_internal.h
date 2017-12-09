@@ -164,6 +164,10 @@ UA_Client_getEndpointsInternal(UA_Client *client,
 UA_StatusCode receivePacket_async(UA_Client *client);
 
 UA_StatusCode
+receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
+UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
+
+UA_StatusCode
 receiveServiceResponse_async(UA_Client *client, void *response,
 		const UA_DataType *responseType);
 void

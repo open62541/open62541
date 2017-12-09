@@ -70,6 +70,7 @@ typedef struct UA_ClientConfig {
 	UA_Logger logger;
 	UA_ConnectionConfig localConnectionConfig;
 	UA_ConnectClientConnection connectionFunc;
+	UA_ConnectClientConnection initConnectionFunc;
 	UA_ClientCallback pollConnectionFunc;
 	/* Custom DataTypes */
 	size_t customDataTypesSize;

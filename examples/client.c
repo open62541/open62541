@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include "open62541.h"
 
-#define UA_ENABLE_METHODCALLS
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value,
 		void *context) {
@@ -29,15 +28,14 @@ int main(int argc, char *argv[]) {
 	/* Listing endpoints */
 	UA_EndpointDescription* endpointArray = NULL;
 	size_t endpointArraySize = 0;
-	UA_StatusCode retval;
-	//TODO: adapt to the new async getEndpoints
-	//    retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
-	//                                                  &endpointArraySize, &endpointArray);
-//    if(retval != UA_STATUSCODE_GOOD) {
-//        UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-//        UA_Client_delete(client);
-//        return (int)retval;
-//    }
+	UA_StatusCode retval = UA_Client_getEndpoints(client,
+			"opc.tcp://localhost:4840", &endpointArraySize, &endpointArray);
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_Array_delete(endpointArray, endpointArraySize,
+				&UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+		UA_Client_delete(client);
+		return (int) retval;
+	}
 	printf("%i endpoints found\n", (int) endpointArraySize);
 	for (size_t i = 0; i < endpointArraySize; i++) {
 		printf("URL of endpoint %i is %.*s\n", (int) i,
@@ -63,7 +61,6 @@ int main(int argc, char *argv[]) {
 	bReq.requestedMaxReferencesPerNode = 0;
 	bReq.nodesToBrowse = UA_BrowseDescription_new();
 	bReq.nodesToBrowseSize = 1;
-
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 	UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
@@ -116,7 +113,7 @@ int main(int argc, char *argv[]) {
 	UA_NodeId monitorThis = UA_NODEID_STRING(1, "the.answer");
 	UA_UInt32 monId = 0;
 	UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis,
-			UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId);
+			UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged, NULL, &monId, 250);
 	if (monId)
 		printf("Monitoring 'the.answer', id %u\n", subId);
 	/* The first publish request should return the initial value of the variable */

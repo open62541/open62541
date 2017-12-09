@@ -266,7 +266,7 @@ static UA_StatusCode client_processChunk(void *application,
 
 /* Receive and process messages until a synchronous message arrives or the
  * timout finishes */
-static UA_StatusCode receiveServiceResponse(UA_Client *client, void *response,
+UA_StatusCode receiveServiceResponse(UA_Client *client, void *response,
 		const UA_DataType *responseType, UA_DateTime maxDate,
 		UA_UInt32 *synchronousRequestId) {
 	SyncResponseDescription rd = { client, false, 0, response, responseType };

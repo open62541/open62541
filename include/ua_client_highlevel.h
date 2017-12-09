@@ -546,10 +546,11 @@ typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
 		UA_DataValue *value, void *context);
 
 UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
-		UA_UInt32 subscriptionId, UA_NodeId nodeId, UA_UInt32 attributeID,
-		UA_MonitoredItemHandlingFunction hf, void *hfContext,
-		UA_UInt32 *newMonitoredItemId);
+UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
+                                         UA_NodeId nodeId, UA_UInt32 attributeID,
+                                         UA_MonitoredItemHandlingFunction hf,
+                                         void *hfContext, UA_UInt32 *newMonitoredItemId,
+                                         UA_Double samplingInterval);
 
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client,

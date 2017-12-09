@@ -4,33 +4,32 @@
 
 #include "ua_client.h"
 #include "ua_client_internal.h"
-//#include "ua_client_highlevel_async.h"
 
-/*callback where the descriptions are retrieved should be supplied by the client*/
-//UA_StatusCode UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
-//		UA_ClientAsyncServiceCallback callback, void* userdata) {
-//	UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
-//	/* Client is already connected to a different server */
-//	if (connected
-//			&& strncmp((const char*) client->endpointUrl.data, serverUrl,
-//					client->endpointUrl.length) != 0) {
-//		return UA_STATUSCODE_BADINVALIDARGUMENT;
-//	}
-//	//testing...
-//
-//	UA_StatusCode retval;
-//	if (!connected) {
-//		retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE,
-//		UA_FALSE);
-//		if (retval != UA_STATUSCODE_GOOD)
-//			return retval;
-//	}
-//	UA_UInt32 reqId;
-//
-//	retval = UA_Client_getEndpoints_async(client, callback, userdata, &reqId);
-//	UA_Client_run_iterate(client, 10);
-//	return retval;
-//}
+UA_StatusCode UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
+		size_t* endpointDescriptionsSize,
+		UA_EndpointDescription** endpointDescriptions) {
+	UA_Boolean connected = (client->state > UA_CLIENTSTATE_DISCONNECTED);
+	/* Client is already connected to a different server */
+	if (connected
+			&& strncmp((const char*) client->endpointUrl.data, serverUrl,
+					client->endpointUrl.length) != 0) {
+		return UA_STATUSCODE_BADINVALIDARGUMENT;
+	}
+
+	UA_StatusCode retval;
+	if (!connected) {
+		retval = UA_Client_connectInternal(client, serverUrl, UA_FALSE,
+				UA_FALSE);
+		if (retval != UA_STATUSCODE_GOOD)
+			return retval;
+	}
+	retval = UA_Client_getEndpointsInternal(client, endpointDescriptionsSize,
+			endpointDescriptions);
+
+	if (!connected)
+		UA_Client_disconnect(client);
+	return retval;
+}
 
 UA_StatusCode UA_Client_findServers(UA_Client *client, const char *serverUrl,
 		size_t serverUrisSize, UA_String *serverUris, size_t localeIdsSize,
@@ -46,7 +45,7 @@ UA_StatusCode UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
 	if (!connected) {
 		UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl,
-		UA_TRUE, UA_FALSE);
+				UA_TRUE, UA_FALSE);
 		if (retval != UA_STATUSCODE_GOOD)
 			return retval;
 	}
@@ -100,7 +99,7 @@ UA_StatusCode UA_Client_findServersOnNetwork(UA_Client *client,
 
 	if (!connected) {
 		UA_StatusCode retval = UA_Client_connectInternal(client, serverUrl,
-		UA_TRUE, UA_FALSE);
+				UA_TRUE, UA_FALSE);
 		if (retval != UA_STATUSCODE_GOOD)
 			return retval;
 	}
