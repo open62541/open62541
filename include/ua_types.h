@@ -734,8 +734,7 @@ typedef struct UA_DiagnosticInfo {
  *   memory for the data type itself.
  *
  * Specializations, such as ``UA_Int32_new()`` are derived from the generic
- * type operations as static inline functions.
- */
+ * type operations as static inline functions. */
 
 typedef struct {
 #ifdef UA_ENABLE_TYPENAMES
@@ -775,10 +774,19 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* The following is used to exclude type names in the definition of UA_DataType
+ * structures if the feature is disabled. */
+#ifdef UA_ENABLE_TYPENAMES
+# define UA_TYPENAME(name) name,
+#else
+# define UA_TYPENAME(name)
+#endif
+
 /**
  * Builtin data types can be accessed as UA_TYPES[UA_TYPES_XXX], where XXX is
  * the name of the data type. If only the NodeId of a type is known, use the
  * following method to retrieve the data type description. */
+
 /* Returns the data type description for the type's identifier or NULL if no
  * matching data type was found. */
 const UA_DataType UA_EXPORT *

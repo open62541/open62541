@@ -56,8 +56,11 @@ struct UA_Session {
     LIST_HEAD(ContinuationPointList, ContinuationPointEntry) continuationPoints;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_UInt32 lastSubscriptionID;
+    UA_UInt32 lastSeenSubscriptionID;
     LIST_HEAD(UA_ListOfUASubscriptions, UA_Subscription) serverSubscriptions;
     SIMPLEQ_HEAD(UA_ListOfQueuedPublishResponses, UA_PublishResponseEntry) responseQueue;
+    UA_UInt32        numSubscriptions;
+    UA_UInt32        numPublishReq;
 #endif
 };
 
@@ -74,6 +77,9 @@ void UA_Session_updateLifetime(UA_Session *session);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 void UA_Session_addSubscription(UA_Session *session, UA_Subscription *newSubscription);
 
+UA_UInt32
+UA_Session_getNumSubscriptions( UA_Session *session );
+
 UA_Subscription *
 UA_Session_getSubscriptionByID(UA_Session *session, UA_UInt32 subscriptionID);
 
@@ -83,6 +89,19 @@ UA_Session_deleteSubscription(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_Session_getUniqueSubscriptionID(UA_Session *session);
+
+UA_UInt32
+UA_Session_getNumPublishReq(UA_Session *session);
+
+UA_PublishResponseEntry*
+UA_Session_getPublishReq(UA_Session *session);
+
+void
+UA_Session_removePublishReq(UA_Session *session, UA_PublishResponseEntry* entry);
+
+void
+UA_Session_addPublishReq(UA_Session *session, UA_PublishResponseEntry* entry);
+
 #endif
 
 /**

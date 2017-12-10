@@ -5,6 +5,7 @@
 #include "ua_server_internal.h"
 #include "ua_namespace0.h"
 #include "ua_subscription.h"
+#include "ua_session.h"
 
 /*****************/
 /* Node Creation */
@@ -133,7 +134,7 @@ UA_Server_createNS0_base(UA_Server *server) {
     hassubtype_attr.displayName = UA_LOCALIZEDTEXT("", "HasSubtype");
     hassubtype_attr.isAbstract = false;
     hassubtype_attr.symmetric = false;
-    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "SubtypeOf");
+    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "HasSupertype");
     ret |= addNode_begin(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
                   &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 
@@ -560,7 +561,7 @@ UA_Server_initNS0(UA_Server *server) {
                                     &locale_en, 1, &UA_TYPES[UA_TYPES_LOCALEID]);
 
     /* MaxBrowseContinuationPoints */
-    UA_UInt16 maxBrowseContinuationPoints = 0; /* no restriction */
+    UA_UInt16 maxBrowseContinuationPoints = UA_MAXCONTINUATIONPOINTS;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXBROWSECONTINUATIONPOINTS,
                                &maxBrowseContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
@@ -686,6 +687,38 @@ UA_Server_initNS0(UA_Server *server) {
     UA_RedundancySupport redundancySupport = UA_REDUNDANCYSUPPORT_NONE;
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERREDUNDANCY_REDUNDANCYSUPPORT,
                                &redundancySupport, &UA_TYPES[UA_TYPES_REDUNDANCYSUPPORT]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD,
+                               &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - maxNodesPerWrite */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE,
+                               &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerMethodCall */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL,
+                               &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerBrowse */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE,
+                               &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerRegisterNodes */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES,
+                               &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerTranslateBrowsePathsToNodeIds */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS,
+                               &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxNodesPerNodeManagement */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT,
+                               &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
+                               &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
     retVal |= UA_Server_setMethodNode_callback(server,

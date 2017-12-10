@@ -414,7 +414,7 @@ START_TEST(UA_Variant_decodeWithOutArrayFlagSetShallSetVTAndAllocateMemoryForArr
     ck_assert_int_eq((uintptr_t)dst.type, (uintptr_t)&UA_TYPES[UA_TYPES_INT32]); 
     ck_assert_int_eq(dst.arrayLength, 0);
     ck_assert_int_ne((uintptr_t)dst.data, 0);
-    assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
+    UA_assert(dst.data != NULL); /* repeat the previous argument so that clang-analyzer is happy */
     ck_assert_int_eq(*(UA_Int32 *)dst.data, 255);
     // finally
     UA_Variant_deleteMembers(&dst);
@@ -804,12 +804,16 @@ START_TEST(UA_Float_encodeShallWorkOnExample) {
         {0x00, 0x00, 0xD0, 0xC0}, // -6.5
         {0x00, 0x00, 0x00, 0x00}, // 0.0
         {0x00, 0x00, 0x00, 0x80}, // -0.0
-        {0x00, 0x00, 0xC0, 0xFF}, // NAN
+        {0x00, 0x00, 0xC0, 0xFF}, // -NAN
         {0xFF, 0xFF, 0x7F, 0x7F}, // FLT_MAX
         {0x00, 0x00, 0x80, 0x00}, // FLT_MIN
         {0x00, 0x00, 0x80, 0x7F}, // INF
         {0x00, 0x00, 0x80, 0xFF} // -INF
     };
+#ifdef _WIN32
+    // on WIN32 -NAN is encoded differently
+    result[4][3] = 127;
+#endif
 
     UA_Byte data[] = {0x55, 0x55, 0x55,  0x55};
     UA_ByteString dst = {4, data};

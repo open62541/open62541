@@ -455,7 +455,7 @@ def generateSubtypeOfDefinitionCode(node):
 
 def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
     code = []
-    code.append("{")
+    code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 
     codeCleanup = []
 
@@ -480,8 +480,8 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     elif isinstance(node, ViewNode):
         code.extend(generateViewNodeCode(node))
 
-    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, max_string_length) + ";")
-    code.append("attr.description = " + generateLocalizedTextCode(node.description, max_string_length) + ";")
+    code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False, max_string_length=max_string_length) + ";")
+    code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False, max_string_length=max_string_length) + ";")
     code.append("attr.writeMask = %d;" % node.writeMask)
     code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
@@ -501,7 +501,7 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     code.append(generateNodeIdCode(node.id) + ",")
     code.append(generateNodeIdCode(parentNode) + ",")
     code.append(generateNodeIdCode(parentRef) + ",")
-    code.append(generateQualifiedNameCode(node.browseName) + ",")
+    code.append(generateQualifiedNameCode(node.browseName, max_string_length=max_string_length) + ",")
     if isinstance(node, VariableTypeNode):
         # we need the HasSubtype reference
         code.append(generateSubtypeOfDefinitionCode(node) + ",")
@@ -519,5 +519,5 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     else:
         code.append("NULL, NULL);")
     code.extend(codeCleanup)
-    code.append("}\n")
+    
     return "\n".join(code)

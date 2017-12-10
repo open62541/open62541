@@ -98,8 +98,8 @@ if (MSVC AND UA_ENABLE_FULL_NS0)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
-option(UA_ENABLE_VALGRIND_UNIT_TESTS "Use Valgrind to detect memory leaks when running the unit tests" OFF)
-mark_as_advanced(UA_ENABLE_VALGRIND_UNIT_TESTS)
+option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
+mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
 option(UA_ENABLE_NONSTANDARD_UDP "Enable udp extension (non-standard)" OFF)
 mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
@@ -472,6 +472,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_gener
                            ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt
                            ${UA_FILE_TYPES_BSD}
                            ${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd)
+
 # we need a custom target to avoid that the generator is called concurrently and thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-transport DEPENDS
         ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
@@ -572,8 +573,7 @@ if(UA_ENABLE_AMALGAMATION)
                      open62541-generator-types
                      open62541-generator-transport
                      open62541-generator-statuscode
-                     open62541-amalgamation-source
-                     )
+                     open62541-amalgamation-source)
 
     add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
 
@@ -645,7 +645,7 @@ if(UA_BUILD_UNIT_TESTS)
     add_subdirectory(tests)
 endif()
 
-if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable discovery, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
     set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
@@ -727,6 +727,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
 endif()
+
 # export amalgamated header open62541.h which is generated due to build of open62541-object
 if(UA_ENABLE_AMALGAMATION)
     install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include/open62541)

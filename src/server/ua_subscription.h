@@ -102,13 +102,17 @@ struct UA_Subscription {
     UA_UInt32 currentKeepAliveCount;
     UA_UInt32 currentLifetimeCount;
     UA_UInt32 lastMonitoredItemId;
-
+    UA_UInt32 numMonitoredItems;
     /* Publish Callback */
     UA_UInt64 publishCallbackId;
     UA_Boolean publishCallbackIsRegistered;
 
     /* MonitoredItems */
     LIST_HEAD(UA_ListOfUAMonitoredItems, UA_MonitoredItem) monitoredItems;
+    /* When the last publish response could not hold all available
+     * notifications, in the next iteration, start at the monitoreditem with
+     * this id. If zero, start at the first monitoreditem. */
+    UA_UInt32 lastSendMonitoredItemId;
 
     /* Retransmission Queue */
     ListOfNotificationMessages retransmissionQueue;
@@ -124,6 +128,12 @@ UA_StatusCode
 UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
                                     UA_UInt32 monitoredItemID);
 
+void
+UA_Subscription_addMonitoredItem(UA_Subscription *sub,
+                                 UA_MonitoredItem *newMon);
+UA_UInt32
+UA_Subscription_getNumMonitoredItems(UA_Subscription *sub);
+
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemID);
 
@@ -135,4 +145,6 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub, UA_UInt32 sequ
 void
 UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server, UA_Session *session);
 
+UA_Boolean
+UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session);
 #endif /* UA_SUBSCRIPTION_H_ */

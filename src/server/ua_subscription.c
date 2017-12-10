@@ -18,6 +18,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
     /* Remaining members are covered by calloc zeroing out the memory */
     newItem->session = session;
     newItem->subscriptionID = subscriptionID;
+    newItem->numMonitoredItems = 0;
     newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newItem->retransmissionQueue);
     return newItem;
@@ -72,7 +73,19 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry);
     MonitoredItem_delete(server, mon);
+    sub->numMonitoredItems--;
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
+    sub->numMonitoredItems++;
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+}
+
+UA_UInt32
+UA_Subscription_getNumMonitoredItems(UA_Subscription *sub) {
+    return sub->numMonitoredItems;
 }
 
 static size_t
@@ -135,6 +148,45 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_MonitoredItem *
+selectFirstMonToIterate(UA_Subscription *sub) {
+    UA_MonitoredItem *mon = LIST_FIRST(&sub->monitoredItems);
+    if(sub->lastSendMonitoredItemId > 0) {
+        while(mon) {
+            if(mon->itemId == sub->lastSendMonitoredItemId)
+                break;
+            mon = LIST_NEXT(mon, listEntry);
+        }
+        if(!mon)
+            mon = LIST_FIRST(&sub->monitoredItems);
+    }
+    return mon;
+}
+
+/* Iterate over the monitoreditems of the subscription, starting at mon, and
+ * move notifications into the response. */
+static void
+moveNotificationsFromMonitoredItems(UA_Subscription *sub, UA_MonitoredItem *mon,
+                                    UA_MonitoredItemNotification *mins, size_t minsSize,
+                                    size_t *pos) {
+    MonitoredItem_queuedValue *qv, *qv_tmp;
+    while(mon) {
+        sub->lastSendMonitoredItemId = mon->itemId;
+        TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
+            if(*pos >= minsSize)
+                return;
+            UA_MonitoredItemNotification *min = &mins[*pos];
+            min->clientHandle = qv->clientHandle;
+            min->value = qv->value;
+            TAILQ_REMOVE(&mon->queue, qv, listEntry);
+            UA_free(qv);
+            --mon->currentQueueSize;
+            ++(*pos);
+        }
+        mon = LIST_NEXT(mon, listEntry);
+    }
+}
+
 static UA_StatusCode
 prepareNotificationMessage(UA_Subscription *sub,
                            UA_NotificationMessage *message,
@@ -168,22 +220,20 @@ prepareNotificationMessage(UA_Subscription *sub,
     dcn->monitoredItemsSize = notifications;
 
     /* Move notifications into the response .. the point of no return */
+
+    /* Select the first monitoredItem or the first monitoreditem after the last
+     * that was processed. */
+    UA_MonitoredItem *mon = selectFirstMonToIterate(sub);
+
+    /* Move notifications into the response */
     size_t l = 0;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        MonitoredItem_queuedValue *qv, *qv_tmp;
-        TAILQ_FOREACH_SAFE(qv, &mon->queue, listEntry, qv_tmp) {
-            if(l >= notifications)
-                return UA_STATUSCODE_GOOD;
-            UA_MonitoredItemNotification *min = &dcn->monitoredItems[l];
-            min->clientHandle = qv->clientHandle;
-            min->value = qv->value;
-            TAILQ_REMOVE(&mon->queue, qv, listEntry);
-            UA_free(qv);
-            --mon->currentQueueSize;
-            ++l;
-        }
+    moveNotificationsFromMonitoredItems(sub, mon, dcn->monitoredItems, notifications, &l);
+    if(l < notifications) {
+        /* Not done. We skipped MonitoredItems. Restart at the beginning. */
+        moveNotificationsFromMonitoredItems(sub, LIST_FIRST(&sub->monitoredItems),
+                                            dcn->monitoredItems, notifications, &l);
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -213,7 +263,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         return;
 
     /* Dequeue a response */
-    UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
 
     /* Cannot publish without a response */
     if(!pre) {
@@ -265,7 +315,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* <-- The point of no return --> */
 
     /* Remove the response from the response queue */
-    SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
+    UA_Session_removePublishReq(sub->session, pre);
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
@@ -319,9 +369,62 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                     &UA_TYPES[UA_TYPES_UINT32]);
     UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
 
-    /* Repeat if there are more notifications to send */
-    if(moreNotifications)
+    if(!moreNotifications) {
+        /* All notifications were sent. The next time, just start at the first
+         * monitoreditem. */
+        sub->lastSendMonitoredItemId = 0;
+    } else {
+        /* Repeat sending responses right away if there are more notifications
+         * to send */
         UA_Subscription_publishCallback(server, sub);
+    }
+}
+
+UA_Boolean
+UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Reached number of publish request limit");
+
+
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(session);
+
+    /* Cannot publish without a response */
+    if(!pre) {
+        UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
+        return false;
+    }
+
+    UA_PublishResponse *response = &pre->response;
+    UA_NotificationMessage *message = &response->notificationMessage;
+
+    /* <-- The point of no return --> */
+
+    /* Remove the response from the response queue */
+    UA_Session_removePublishReq(session, pre);
+
+    /* Set up the response. Note that this response has no related subscription id */
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
+    response->subscriptionId = 0;
+    response->moreNotifications = false;
+    message->publishTime = response->responseHeader.timestamp;
+    message->sequenceNumber = 0;
+    response->availableSequenceNumbersSize = 0;
+
+    /* Send the response */
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Sending out a publish response triggered by too many publish requests");
+    UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+                                          UA_MESSAGETYPE_MSG, response,
+                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+    /* Free the response */
+    UA_Array_delete(response->results, response->resultsSize,
+                    &UA_TYPES[UA_TYPES_UINT32]);
+    UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
+
+    return true;
 }
 
 UA_StatusCode
@@ -374,8 +477,8 @@ UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
 
     /* Send a response for every queued request */
     UA_PublishResponseEntry *pre;
-    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
-        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+    while((pre = UA_Session_getPublishReq(session))) {
+        UA_Session_removePublishReq(session, pre);
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         response->responseHeader.timestamp = UA_DateTime_now();

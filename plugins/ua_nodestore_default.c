@@ -258,6 +258,8 @@ UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
 
 static void
 UA_NodeMap_releaseNode(void *context, const UA_Node *node) {
+    if (!node)
+        return;
 #ifdef UA_ENABLE_MULTITHREADING
     UA_NodeMap *ns = (UA_NodeMap*)context;
 #endif
@@ -330,9 +332,12 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     if(tempNodeid.identifierType == UA_NODEIDTYPE_NUMERIC &&
        tempNodeid.identifier.numeric == 0) {
         /* create a random nodeid */
-        UA_UInt32 identifier = ns->count+1; // start value
+        /* start at least with 50,000 to make sure we don not conflict with nodes from the spec */
+        /* E.g. adding a nodeset will create children while there are still other nodes which need to be created */
+        /* Thus the node id's may collide */
+        UA_UInt32 identifier = 50000 + ns->count+1; // start value
         UA_UInt32 size = ns->size;
-        UA_UInt32 increase = mod2(identifier, size);
+        UA_UInt32 increase = mod2(ns->count+1, size);
         while(true) {
             node->nodeId.identifier.numeric = identifier;
             slot = findFreeSlot(ns, &node->nodeId);
@@ -375,16 +380,16 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
-    UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
-    if(*slot != newEntry->orig) {
+    UA_NodeMapEntry *newEntryContainer = container_of(node, UA_NodeMapEntry, node);
+    if(*slot != newEntryContainer->orig) {
         /* The node was updated since the copy was made */
-        deleteEntry(newEntry);
+        deleteEntry(newEntryContainer);
         END_CRITSECT(ns);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     (*slot)->deleted = true;
     cleanupEntry(*slot);
-    *slot = newEntry;
+    *slot = newEntryContainer;
     END_CRITSECT(ns);
     return UA_STATUSCODE_GOOD;
 }

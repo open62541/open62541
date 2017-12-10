@@ -94,6 +94,14 @@ createSecurityPolicyNoneEndpoint(UA_ServerConfig *conf, UA_Endpoint *endpoint,
     return UA_STATUSCODE_GOOD;
 }
 
+void
+UA_ServerConfig_set_customHostname(UA_ServerConfig *config, const UA_String customHostname){
+    if(!config)
+        return;
+    UA_String_deleteMembers(&config->customHostname);
+    UA_String_copy(&customHostname, &config->customHostname);
+}
+
 UA_ServerConfig *
 UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
                             const UA_ByteString *certificate) {
@@ -141,7 +149,8 @@ UA_ServerConfig_new_minimal(UA_UInt16 portNumber,
     /* Networking */
     /* conf->networkLayersSize = 0; */
     /* conf->networkLayers = NULL; */
-
+    /* conf->customHostname = UA_STRING_NULL; */
+ 
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
@@ -260,6 +269,8 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
     UA_free(config->networkLayers);
     config->networkLayers = NULL;
     config->networkLayersSize = 0;
+    UA_String_deleteMembers(&config->customHostname);
+    config->customHostname = UA_STRING_NULL;
 
     for(size_t i = 0; i < config->endpointsSize; ++i) {
         UA_SecurityPolicy *policy = &config->endpoints[i].securityPolicy;

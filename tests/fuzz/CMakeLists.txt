@@ -3,8 +3,26 @@ include_directories(${PROJECT_SOURCE_DIR}/deps)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/src/server)
 include_directories(${PROJECT_SOURCE_DIR}/plugins)
-include_directories(${PROJECT_SOURCE_DIR}/tests)
+include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
+
+
+
+if (UA_BUILD_FUZZING_CORPUS)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+    add_definitions(-DUA_CORPUS_OUTPUT_DIR="${PROJECT_BINARY_DIR}/corpus/custom")
+    file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
+
+    add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c)
+    target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
+    assign_source_group(corpus_generator)
+    add_dependencies(corpus_generator open62541-amalgamation-header)
+    set_target_properties(corpus_generator PROPERTIES FOLDER "open62541/corpus_generator")
+    set_target_properties(corpus_generator PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+    return()
+endif()
+
 
 remove_definitions(-std=c99 -Wmissing-prototypes -Wstrict-prototypes)
 set (CMAKE_CXX_STANDARD 11)
@@ -34,8 +52,8 @@ list(APPEND LIBS "${open62541_LIBRARIES}")
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
-        ${PROJECT_SOURCE_DIR}/plugins/ua_clock.c
-        ${PROJECT_SOURCE_DIR}/tests/testing_networklayers.c
+        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
+        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
@@ -62,14 +80,18 @@ endmacro()
 add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 
+file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
+
+set(CORPUS_CMDS)
+
+SET(CORPUS_CMDS "")
+FOREACH(f ${CORPUS_FILES})
+    LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message "${f}")
+ENDFOREACH(f)
+
 add_custom_target(
         run_fuzzer
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Browse.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_CLO.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_CreateActivateSession.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_HELOPN.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Read.bin
-        COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message ${CMAKE_CURRENT_SOURCE_DIR}/fuzz_binary_message_corpus/client_Write.bin
+        ${CORPUS_CMDS}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         DEPENDS ${FUZZER_TARGETS}
         ${MAYBE_USES_TERMINAL})

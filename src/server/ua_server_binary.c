@@ -14,6 +14,19 @@
 #include "ua_types_generated_handling.h"
 #include "ua_securitypolicy_none.h"
 
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+// store the authentication token and session ID so we can help fuzzing by setting
+// these values in the next request automatically
+UA_NodeId unsafe_fuzz_authenticationToken = {
+        0, UA_NODEIDTYPE_NUMERIC, {0}
+};
+#endif
+
+#ifdef UA_DEBUG_DUMP_PKGS_FILE
+void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection, UA_ByteString *messageBuffer);
+#endif
+
 /********************/
 /* Helper Functions */
 /********************/
@@ -34,10 +47,12 @@ sendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
     responseHeader->timestamp = UA_DateTime_now();
     responseHeader->serviceResult = error;
 
-    // Send error message. Message type is MSG and not ERR, since we are on a securechanenl!
+    // Send error message. Message type is MSG and not ERR, since we are on a securechannel!
     retval = UA_SecureChannel_sendSymmetricMessage(channel, requestId, UA_MESSAGETYPE_MSG,
                                                    response, responseType);
     UA_RequestHeader_deleteMembers(&requestHeader);
+    UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
+                 "Sent ServiceFault with error code %s", UA_StatusCode_name(error));
     return retval;
 }
 
@@ -277,8 +292,18 @@ processHEL(UA_Server *server, UA_Connection *connection,
     /* Encode and send the response */
     UA_Byte *bufPos = ack_msg.data;
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
-    UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
-    UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+
+    retval = UA_TcpMessageHeader_encodeBinary(&ackHeader, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
+
+    retval = UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &bufPos, &bufEnd);
+    if(retval != UA_STATUSCODE_GOOD) {
+        connection->releaseSendBuffer(connection, &ack_msg);
+        return retval;
+    }
     ack_msg.length = ackHeader.messageSize;
     return connection->send(connection, &ack_msg);
 }
@@ -305,6 +330,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_SecureChannelManager_close(&server->secureChannelManager, channel->securityToken.channelId);
         return retval;
     }
+    UA_NodeId_deleteMembers(&requestType);
 
     /* Call the service */
     UA_OpenSecureChannelResponse openScResponse;
@@ -394,12 +420,24 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         Service_CreateSession(server, channel,
             (const UA_CreateSessionRequest *)request,
                               (UA_CreateSessionResponse *)response);
+        #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+        // store the authentication token and session ID so we can help fuzzing by setting
+        // these values in the next request automatically
+        UA_CreateSessionResponse *res = (UA_CreateSessionResponse *)response;
+        UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
+        #endif
         goto send_response;
     }
 
+    #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    // set the authenticationToken from the create session request to help fuzzing cover more lines
+    if (!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken))
+        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
+    #endif
+
     /* Find the matching session */
     session = UA_SecureChannel_getSession(channel, &requestHeader->authenticationToken);
-    if(!session)
+    if(!session && !UA_NodeId_isNull(&requestHeader->authenticationToken))
         session = UA_SessionManager_getSessionByToken(&server->sessionManager,
                                                       &requestHeader->authenticationToken);
 
@@ -421,43 +459,41 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
-		#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         if(sessionRequired) {
-            UA_LOG_INFO_CHANNEL(server->config.logger, channel,
-                                "Service request %i without a valid session",
-                                requestType->binaryEncodingId);
+            UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+                                   "Service request %i without a valid session",
+                                   requestType->binaryEncodingId);
             UA_deleteMembers(request, requestType);
             return sendServiceFault(channel, msg, requestPos, responseType,
                                     requestId, UA_STATUSCODE_BADSESSIONIDINVALID);
         }
-		#endif
+
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
         anonymousSession.channel = channel;
         session = &anonymousSession;
     }
 
-	#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     /* Trying to use a non-activated session? */
     if(sessionRequired && !session->activated) {
-        UA_LOG_INFO_SESSION(server->config.logger, session,
-                            "Calling service %i on a non-activated session",
-                            requestType->binaryEncodingId);
+        UA_LOG_WARNING_SESSION(server->config.logger, session,
+                               "Calling service %i on a non-activated session",
+                               requestType->binaryEncodingId);
         UA_SessionManager_removeSession(&server->sessionManager,
                                         &session->authenticationToken);
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
                                 requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
-	#endif
 
     /* The session is bound to another channel */
-    if(session->channel != channel) {
-        UA_LOG_DEBUG_CHANNEL(server->config.logger, channel,
-                             "Client tries to use an obsolete securechannel");
+    if(session != &anonymousSession && session->channel != channel) {
+        UA_LOG_WARNING_CHANNEL(server->config.logger, channel,
+                               "Client tries to use a Session that is not "
+                               "bound to this SecureChannel");
         UA_deleteMembers(request, requestType);
         return sendServiceFault(channel, msg, requestPos, responseType,
-                                requestId, UA_STATUSCODE_BADSECURECHANNELIDINVALID);
+                                requestId, UA_STATUSCODE_BADSESSIONNOTACTIVATED);
     }
 
     /* Update the session lifetime */
@@ -492,6 +528,7 @@ send_response:
     /* Clean up */
     UA_deleteMembers(request, requestType);
     UA_deleteMembers(response, responseType);
+
     return retval;
 }
 
@@ -626,6 +663,9 @@ processCompleteChunk(void *const application,
                      UA_Connection *const connection,
                      UA_ByteString *const chunk) {
     UA_Server *const server = (UA_Server*)application;
+#ifdef UA_DEBUG_DUMP_PKGS_FILE
+    UA_debug_dumpCompleteChunk(server, connection, chunk);
+#endif
     if(!connection->channel)
         return processCompleteChunkWithoutChannel(server, connection, chunk);
     return UA_SecureChannel_processChunk(connection->channel, chunk,

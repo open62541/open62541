@@ -39,25 +39,35 @@ getArgumentsVariableNode(UA_Server *server, const UA_MethodNode *ofMethod,
 }
 
 static UA_StatusCode
-argumentsConformsToDefinition(UA_Server *server, const UA_VariableNode *argRequirements,
-                              size_t argsSize, UA_Variant *args) {
-    if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
-    size_t argReqsSize = argRequirements->value.data.value.value.arrayLength;
+typeCheckArguments(UA_Server *server, const UA_VariableNode *argRequirements,
+                   size_t argsSize, UA_Variant *args) {
+    /* Verify that we have a Variant containing UA_Argument (scalar or array) in
+     * the "InputArguments" node */
     if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
         return UA_STATUSCODE_BADINTERNALERROR;
+    if(!argRequirements->value.data.value.hasValue)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Verify the number of arguments. A scalar argument value is interpreted as
+     * an array of length 1. */
+    size_t argReqsSize = argRequirements->value.data.value.value.arrayLength;
     if(UA_Variant_isScalar(&argRequirements->value.data.value.value))
         argReqsSize = 1;
     if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
-    if(argReqsSize != argsSize)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    for(size_t i = 0; i < argReqsSize; ++i)
+    if(argReqsSize < argsSize)
+        return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+
+    /* Type-check every argument against the definition */
+    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    for(size_t i = 0; i < argReqsSize; ++i) {
         if(!compatibleValue(server, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                             &args[i], NULL))
             return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -75,9 +85,9 @@ validMethodArguments(UA_Server *server, const UA_MethodNode *method,
     }
 
     /* Verify the request */
-    retval = argumentsConformsToDefinition(server, inputArguments,
-                                           request->inputArgumentsSize,
-                                           request->inputArguments);
+    retval = typeCheckArguments(server, inputArguments,
+                                request->inputArgumentsSize,
+                                request->inputArguments);
 
     /* Release the input arguments node */
     server->config.nodestore.releaseNode(server->config.nodestore.context,
@@ -116,7 +126,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
      * every reference between the parent object and the method node if there is
      * a hasComponent (or subtype) reference */
     UA_Boolean found = false;
-    for(size_t i = 0; i < object->referencesSize; ++i) {
+    for(size_t i = 0; i < object->referencesSize && !found; ++i) {
         UA_NodeReferenceKind *rk = &object->references[i];
         if(rk->isInverse)
             continue;
@@ -222,6 +232,12 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing CallRequest");
+
+    if(server->config.maxNodesPerMethodCall != 0 &&
+       request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,

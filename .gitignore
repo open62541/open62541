@@ -16,6 +16,7 @@
 *.pyc
 *.gcno
 *.gcda
+*.swp
 .dirstamp
 /bin
 m4

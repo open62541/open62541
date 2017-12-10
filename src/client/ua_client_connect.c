@@ -180,7 +180,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     UA_DateTime_nowMonotonic() +
                                     ((UA_DateTime)client->config.timeout * UA_MSEC_TO_DATETIME),
                                     &requestId);
-
+                                    
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         return retval;

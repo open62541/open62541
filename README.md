@@ -8,10 +8,10 @@ open62541 is licensed under the Mozilla Public License v2.0. So the *open62541 l
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
 [![Ohloh Project Status](https://www.ohloh.net/p/open62541/widgets/project_thin_badge.gif)](https://www.ohloh.net/p/open62541)
-[![Build Status](https://img.shields.io/travis/open62541/open62541/0.2.svg)](https://travis-ci.org/open62541/open62541)
-[![MSVS build status](https://img.shields.io/appveyor/ci/open62541/open62541/0.2.svg)](https://ci.appveyor.com/project/open62541/open62541/branch/0.2)
+[![Build Status](https://img.shields.io/travis/open62541/open62541/master.svg)](https://travis-ci.org/open62541/open62541)
+[![MSVS build status](https://img.shields.io/appveyor/ci/open62541/open62541/master.svg)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
 [![Coverity Scan Build Status](https://img.shields.io/coverity/scan/12248.svg)](https://scan.coverity.com/projects/open62541-open62541)
-[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/0.2.svg)](https://coveralls.io/r/open62541/open62541?branch=0.2)
+[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
 ### Features
@@ -33,12 +33,20 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
 - Code-Generation
   - Support for generating data types from standard XML definitions
   - Support for generating server-side information models (nodesets) from standard XML definitions
-
-Features still missing in the 0.2 release are:
-- Encryption
-- Access control for individual nodes
-- Events (notifications emitted by objects, data change notifications are implemented)
-- Event-loop (background tasks) and asynchronous service requests in the client
+- Code quality checks
+  - Every commit checked with continuous integration and unit tests (code coverage > 80%)
+  - Memory leak detection using Valgrind (Linux) and DrMemory (Windows)
+  - Static code analysis with cpp-check and clang static code analysis
+  - Fuzz testing with [oss-fuzz](https://github.com/google/oss-fuzz)
+  
+Features currently being implemented:
+- Target 0.3 release (to be released in the coming weeks):
+  - Encryption (#1282)
+  - Access control for individual nodes (Done)
+- Target 0.4 release:
+  - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
+  - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
+  - Publish/Subscribe based on UDP (Specification Part 14), WIP by @jpfr
 
 ### Using open62541
 
@@ -63,7 +71,7 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
-- Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
+- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.

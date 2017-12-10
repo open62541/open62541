@@ -23,6 +23,7 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     /* Generate Nonce
      * FIXME: remove magic number??? */
     UA_StatusCode retval = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+    UA_ByteString_deleteMembers(&session->serverNonce);
     retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &session->authenticationToken);
@@ -68,6 +69,18 @@ nonceAndSignCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                            const UA_CreateSessionRequest *request,
                            UA_CreateSessionResponse *response) {
+    if(channel == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+
+    if(channel->connection == NULL) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+
+    UA_LOG_DEBUG_CHANNEL(server->config.logger, channel, "Trying to create session");
+
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_ByteString_equal(&request->clientCertificate,
@@ -89,6 +102,8 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    ////////////////////// TODO: Compare application URI with certificate uri (decode certificate)
+
     /* Allocate the response */
     response->serverEndpoints = (UA_EndpointDescription*)
         UA_Array_new(server->config.endpointsSize,
@@ -102,7 +117,7 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Copy the server's endpointdescriptions into the response */
     for(size_t i = 0; i < server->config.endpointsSize; ++i)
         response->responseHeader.serviceResult |=
-            UA_EndpointDescription_copy(&server->config.endpoints[0].endpointDescription,
+            UA_EndpointDescription_copy(&server->config.endpoints[i].endpointDescription,
                                         &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
@@ -139,16 +154,15 @@ void Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
-    /* Todo: Copy from the session's endpoint */
-    /* if(server->config.endpointsSize > 0) */
-    /*     response->responseHeader.serviceResult |= */
-    /*     UA_ByteString_copy(&channel->endpoint->endpointDescription.serverCertificate, */
-    /*                        &response->serverCertificate); */
+    if(server->config.endpointsSize > 0)
+         response->responseHeader.serviceResult |=
+         UA_ByteString_copy(&channel->securityPolicy->localCertificate,
+                            &response->serverCertificate);
 
     /* Create a signed nonce */
     response->responseHeader.serviceResult =
         nonceAndSignCreateSessionResponse(server, channel, newSession, request, response);
-    
+
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_SessionManager_removeSession(&server->sessionManager, &newSession->authenticationToken);
@@ -174,6 +188,7 @@ checkSignature(const UA_Server *server,
         UA_ByteString dataToVerify;
         UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify,
                                                          localCertificate->length + session->serverNonce.length);
+
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;
             UA_LOG_DEBUG_SESSION(server->config.logger, session,
@@ -197,6 +212,7 @@ checkSignature(const UA_Server *server,
         }
 
         retval  = UA_SecureChannel_generateNonce(channel, 32, &response->serverNonce);
+        UA_ByteString_deleteMembers(&session->serverNonce);
         retval |= UA_ByteString_copy(&response->serverNonce, &session->serverNonce);
         if(retval != UA_STATUSCODE_GOOD) {
             response->responseHeader.serviceResult = retval;

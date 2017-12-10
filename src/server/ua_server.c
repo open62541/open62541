@@ -57,24 +57,27 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
     /* TODO: We need to do an ugly copy of the references array since users may
      * delete references from within the callback. In single-threaded mode this
      * changes the same node we point at here. In multi-threaded mode, this
-     * creates a new copy as nodes are truly immutable. */
-    UA_ReferenceNode *refs = NULL;
-    size_t refssize = parent->referencesSize;
-    UA_StatusCode retval = UA_Array_copy(parent->references, parent->referencesSize,
-        (void**)&refs, &UA_TYPES[UA_TYPES_REFERENCENODE]);
-    if(retval != UA_STATUSCODE_GOOD) {
+     * creates a new copy as nodes are truly immutable.
+     * The callback could remove a node via the regular public API.
+     * This can remove a member of the nodes-array we iterate over...
+     * */
+    UA_Node *parentCopy = UA_Node_copy_alloc(parent);
+    if(!parentCopy) {
         server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
-        return retval;
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
-    for(size_t i = parent->referencesSize; i > 0; --i) {
-        UA_ReferenceNode *ref = &refs[i - 1];
-        retval |= callback(ref->targetId.nodeId, ref->isInverse,
-                           ref->referenceTypeId, handle);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = parentCopy->referencesSize; i > 0; --i) {
+        UA_NodeReferenceKind *ref = &parentCopy->references[i - 1];
+        for (size_t j = 0; j<ref->targetIdsSize; j++)
+            retval |= callback(ref->targetIds[j].nodeId, ref->isInverse,
+                               ref->referenceTypeId, handle);
     }
+    UA_Node_deleteMembers(parentCopy);
+    UA_free(parentCopy);
 
     server->config.nodestore.releaseNode(server->config.nodestore.context, parent);
-    UA_Array_delete(refs, refssize, &UA_TYPES[UA_TYPES_REFERENCENODE]);
     return retval;
 }
 
@@ -170,7 +173,10 @@ UA_Server_new(const UA_ServerConfig *config) {
     }
 
     server->config = *config;
-    server->startTime = UA_DateTime_now();
+
+    /* Init start time to zero, the actual start time will be sampled in
+     * UA_Server_run_startup() */
+    server->startTime = 0;
 
     /* Set a seed for non-cyptographic randomness */
 #ifndef UA_ENABLE_DETERMINISTIC_RNG
@@ -216,7 +222,11 @@ UA_Server_new(const UA_ServerConfig *config) {
     /* Initialize multicast discovery */
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
     server->mdnsDaemon = NULL;
-    server->mdnsSocket = 0;
+#ifdef _WIN32
+    server->mdnsSocket = INVALID_SOCKET;
+#else
+    server->mdnsSocket = -1;
+#endif
     server->mdnsMainSrvAdded = UA_FALSE;
     if(server->config.applicationDescription.applicationType == UA_APPLICATIONTYPE_DISCOVERYSERVER)
         initMulticastDiscoveryServer(server);
@@ -233,15 +243,15 @@ UA_Server_new(const UA_ServerConfig *config) {
 #endif
 
     /* Initialize namespace 0*/
-        UA_StatusCode retVal = UA_Server_initNS0(server);
-        if (retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(config->logger,
-                         UA_LOGCATEGORY_SERVER,
-                         "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.",
-                         UA_StatusCode_name(retVal));
-            UA_Server_delete(server);
-            return NULL;
-        }
+    UA_StatusCode retVal = UA_Server_initNS0(server);
+    if (retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logger,
+                     UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+        UA_Server_delete(server);
+        return NULL;
+    }
 
     return server;
 }

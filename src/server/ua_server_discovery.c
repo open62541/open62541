@@ -30,6 +30,7 @@ register_server_with_discovery_server(UA_Server *server,
         UA_LOG_ERROR(server->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Connecting to the discovery server failed with statuscode %s",
                      UA_StatusCode_name(retval));
+        UA_Client_disconnect(client);
         UA_Client_delete(client);
         return retval;
     }
@@ -64,9 +65,14 @@ register_server_with_discovery_server(UA_Server *server,
     /* Copy the discovery urls from the server config and the network layers*/
     size_t config_discurls = server->config.applicationDescription.discoveryUrlsSize;
     size_t nl_discurls = server->config.networkLayersSize;
-    size_t total_discurls = config_discurls * nl_discurls;
+    size_t total_discurls = config_discurls + nl_discurls;
     request.server.discoveryUrls = (UA_String*)UA_alloca(sizeof(UA_String) * total_discurls);
-    request.server.discoveryUrlsSize = config_discurls + nl_discurls;
+    if (!request.server.discoveryUrls) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    request.server.discoveryUrlsSize = total_discurls;
 
     for(size_t i = 0; i < config_discurls; ++i)
         request.server.discoveryUrls[i] = server->config.applicationDescription.discoveryUrls[i];

@@ -22,9 +22,10 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
 
-   sudo apt-get install git build-essential gcc pkg-config cmake python
+   sudo apt-get install git build-essential gcc pkg-config cmake python python-six
 
    # enable additional features
+   sudo apt-get install cmake-curses-gui # for ccmake
    sudo apt-get install liburcu-dev # for multithreading
    sudo apt-get install check # for unit tests
    sudo apt-get install python-sphinx graphviz # for documentation generation
@@ -52,9 +53,10 @@ with MinGW, just replace the compiler selection in the call to CMake.
 
 - Download and install
 
-  - Python 2.7.x (Python 3.x should work, too): https://python.org/downloads
+  - Python 2.7.x (Python 3.x works as well): https://python.org/downloads
+  - Install python-six with the pip package manager (``pip install six``)
   - CMake: http://www.cmake.org/cmake/resources/software.html
-  - Microsoft Visual Studio 2015 Community Edition: https://www.visualstudio.com/products/visual-studio-community-vs
+  - Microsoft Visual Studio: https://www.visualstudio.com/products/visual-studio-community-vs
 
 - Download the open62541 sources (using git or as a zipfile from github)
 - Open a command shell (cmd) and run
@@ -83,6 +85,7 @@ Building on OS X
 .. code-block:: bash
 
    brew install cmake
+   pip install six # python 2/3 compatibility workarounds
    pip install sphinx # for documentation generation
    pip install sphinx_rtd_theme # documentation style
    brew install graphviz # for graphics in the documentation
@@ -196,10 +199,19 @@ be visible in the cmake GUIs.
 **UA_ENABLE_GENERATE_NAMESPACE0**
    Generate and load UA XML Namespace 0 definition
    ``UA_GENERATE_NAMESPACE0_FILE`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
-**UA_ENABLE_EMBEDDED_LIBC**
-   Use a custom implementation of some libc functions that might be missing on embedded targets (e.g. string handling).
 **UA_ENABLE_NONSTANDARD_UDP**
    Enable udp extension
+
+UA_DEBUG_* group
+^^^^^^^^^^^^^^^^
+
+This group contains build options mainly useful for development of the library itself.
+
+**UA_DEBUG**
+   Enable assertions and additional definitions not intended for production builds
+
+**UA_DEBUG_DUMP_PKGS**
+   Dump every package received by the server as hexdump format
 
 Building a shared library
 ^^^^^^^^^^^^^^^^^^^^^^^^^

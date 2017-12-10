@@ -26,7 +26,7 @@ static UA_ByteString loadCertificate(void) {
 
     fseek(fp, 0, SEEK_END);
     certificate.length = (size_t)ftell(fp);
-    certificate.data = UA_malloc(certificate.length*sizeof(UA_Byte));
+    certificate.data = (UA_Byte *)UA_malloc(certificate.length*sizeof(UA_Byte));
     if(!certificate.data)
         return certificate;
 
@@ -46,14 +46,11 @@ static void stopHandler(int sign) {
 int main(int argc, char** argv) {
     signal(SIGINT, stopHandler); /* catches ctrl-c */
 
-    UA_ServerConfig config = UA_ServerConfig_standard;
-    UA_ServerNetworkLayer nl = UA_ServerNetworkLayerTCP(UA_ConnectionConfig_standard, 16664);
-    config.networkLayers = &nl;
-    config.networkLayersSize = 1;
+    UA_ServerConfig *config = UA_ServerConfig_new_default();
 
     /* load certificate */
-    config.serverCertificate = loadCertificate();
-    if(config.serverCertificate.length > 0)
+    config->serverCertificate = loadCertificate();
+    if(config->serverCertificate.length > 0)
         UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Certificate loaded");
 
 
@@ -62,10 +59,10 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 
     /* deallocate certificate's memory */
-    UA_ByteString_deleteMembers(&config.serverCertificate);
+    UA_ByteString_deleteMembers(&config->serverCertificate);
 
     UA_Server_delete(server);
-    nl.deleteMembers(&nl);
+    UA_ServerConfig_delete(config);
 
     return (int)retval;
 }

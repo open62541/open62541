@@ -404,6 +404,11 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_MSEC_TO_DATETIME);
+
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {
         UA_PublishRequest request;
@@ -429,12 +434,23 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         UA_Client_processPublishResponse(client, &request, &response);
-        moreNotifications = response.moreNotifications;
-
+        
+        now = UA_DateTime_nowMonotonic();
+        if (now > maxDate){
+            moreNotifications = UA_FALSE;
+            retval = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+        }else{
+            moreNotifications = response.moreNotifications;
+        }
+        
         UA_PublishResponse_deleteMembers(&response);
         UA_PublishRequest_deleteMembers(&request);
     }
-    return UA_STATUSCODE_GOOD;
+    
+    if(client->state < UA_CLIENTSTATE_SESSION)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    return retval;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

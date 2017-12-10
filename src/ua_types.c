@@ -64,17 +64,16 @@ static UA_StatusCode copy_noInit(const void *src, void *dst, const UA_DataType *
 
 UA_String
 UA_String_fromChars(char const src[]) {
-    UA_String str = UA_STRING_NULL;
-    size_t length = strlen(src);
-    if(length > 0) {
-        str.data = (u8*)UA_malloc(length);
+    UA_String str;
+    str.length = strlen(src);
+    if(str.length > 0) {
+        str.data = (u8*)UA_malloc(str.length);
         if(!str.data)
-            return str;
+            return UA_STRING_NULL;
+        memcpy(str.data, src, str.length);
     } else {
         str.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
     }
-    memcpy(str.data, src, length);
-    str.length = length;
     return str;
 }
 
@@ -102,10 +101,10 @@ UA_DateTime_toStruct(UA_DateTime t) {
     dateTimeStruct.milliSec = (u16)((t % 10000000) / 10000);
 
     /* Calculating the unix time with #include <time.h> */
-    time_t secSinceUnixEpoch =
-        (time_t)((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
-    struct tm ts;
-    memset(&ts, 0, sizeof(struct tm));
+    long long secSinceUnixEpoch = (long long)
+        ((t - UA_DATETIME_UNIX_EPOCH) / UA_SEC_TO_DATETIME);
+    struct mytm ts;
+    memset(&ts, 0, sizeof(struct mytm));
     __secs_to_tm(secSinceUnixEpoch, &ts);
     dateTimeStruct.sec    = (u16)ts.tm_sec;
     dateTimeStruct.min    = (u16)ts.tm_min;
@@ -126,11 +125,10 @@ printNumber(u16 n, u8 *pos, size_t digits) {
 
 UA_String
 UA_DateTime_toString(UA_DateTime t) {
-    UA_String str = UA_STRING_NULL;
-    // length of the string is 31 (plus \0 at the end)
-    if(!(str.data = (u8*)UA_malloc(32)))
-        return str;
-    str.length = 31;
+    /* length of the string is 31 (plus \0 at the end) */
+    UA_String str = {31, (u8*)UA_malloc(32)};
+    if(!str.data)
+        return UA_STRING_NULL;
     UA_DateTimeStruct tSt = UA_DateTime_toStruct(t);
     printNumber(tSt.month, str.data, 2);
     str.data[2] = '/';
@@ -186,7 +184,8 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     UA_ByteString_init(bs);
     if(length == 0)
         return UA_STATUSCODE_GOOD;
-    if(!(bs->data = (u8*)UA_malloc(length)))
+    bs->data = (u8*)UA_malloc(length);
+    if(!bs->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
@@ -296,7 +295,8 @@ UA_NodeId_hash(const UA_NodeId *n) {
     switch(n->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
     default:
-        return (u32)(n->namespaceIndex + (n->identifier.numeric * 2654435761)); /*  Knuth's multiplicative hashing */
+        // shift knuth multiplication to use highest 32 bits and after addition make sure we don't have an integer overflow
+        return (u32)((n->namespaceIndex + ((n->identifier.numeric * (u64)2654435761) >> (32))) & UINT32_C(4294967295)); /*  Knuth's multiplicative hashing */
     case UA_NODEIDTYPE_STRING:
     case UA_NODEIDTYPE_BYTESTRING:
         return fnv32(n->namespaceIndex, n->identifier.string.data, n->identifier.string.length);
@@ -565,6 +565,8 @@ copySubString(const UA_String *src, UA_String *dst,
 UA_StatusCode
 UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range) {
+    if (!src->type)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     bool isScalar = UA_Variant_isScalar(src);
     bool stringLike = isStringLike(src->type);
     UA_Variant arraySrc;

@@ -20,6 +20,14 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
 }
 
 static UA_Byte
+getAccessLevel(UA_Server *server, const UA_Session *session,
+               const UA_VariableNode *node) {
+    if(session == &adminSession)
+        return 0xFF; /* the local admin user has all rights */
+    return node->accessLevel;
+}
+
+static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     if(session == &adminSession)
@@ -231,11 +239,21 @@ Operation_Read(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_VALUE: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        UA_Byte userAccessLevel = getUserAccessLevel(server, session,
-                                                     (const UA_VariableNode*)node);
-        if(!(userAccessLevel & (UA_ACCESSLEVELMASK_READ))) {
-            retval = UA_STATUSCODE_BADUSERACCESSDENIED;
-            break;
+        /* VariableTypes don't have the AccessLevel concept. Always allow reading the value. */
+        if(node->nodeClass == UA_NODECLASS_VARIABLE) {
+            /* The access to a value variable is granted via the AccessLevel
+             * and UserAccessLevel attributes */
+            UA_Byte accessLevel = getAccessLevel(server, session, (const UA_VariableNode*)node);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                retval = UA_STATUSCODE_BADNOTREADABLE;
+                break;
+            }
+            accessLevel = getUserAccessLevel(server, session,
+                                             (const UA_VariableNode*)node);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                break;
+            }
         }
         retval = readValueAttributeComplete(server, session, (const UA_VariableNode*)node,
                                             op_timestampsToReturn, &id->indexRange, v);
@@ -341,6 +359,12 @@ void Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
+    if(server->config.maxNodesPerRead != 0 &&
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
                   (UA_ServiceOperation)Operation_Read,
@@ -381,7 +405,7 @@ __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(dv.hasStatus)
-        retval = dv.hasStatus;
+        retval = dv.status;
     else if(!dv.hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     if(retval != UA_STATUSCODE_GOOD) {
@@ -878,9 +902,26 @@ writeValueAttribute(UA_Server *server, UA_Session *session,
     /* Type checking. May change the type of editableValue */
     if(value->hasValue && value->value.type) {
         adjustValue(server, &adjustedValue.value, &node->dataType);
-        if(!compatibleValue(server, &node->dataType, node->valueRank,
-                            node->arrayDimensionsSize, node->arrayDimensions,
-                            &adjustedValue.value, rangeptr)) {
+
+        /* The value may be an extension object, especially the nodeset compiler uses
+         * extension objects to write variable values.
+         * If value is an extension object we check if the current node value is also an extension object.
+         */
+        UA_Boolean compatible;
+        if (value->value.type->typeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
+            value->value.type->typeId.identifier.numeric == UA_NS0ID_STRUCTURE) {
+            const UA_NodeId nodeDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            compatible = compatibleValue(server, &nodeDataType, node->valueRank,
+                                    node->arrayDimensionsSize, node->arrayDimensions,
+                                    &adjustedValue.value, rangeptr);
+        } else {
+            compatible = compatibleValue(server, &node->dataType, node->valueRank,
+                                     node->arrayDimensionsSize, node->arrayDimensions,
+                                     &adjustedValue.value, rangeptr);
+        }
+
+
+        if(!compatible) {
             if(rangeptr)
                 UA_free(range.dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1059,10 +1100,16 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         if(node->nodeClass == UA_NODECLASS_VARIABLE) {
-            /* The access to a value variable is granted via the AccessLevel Byte */
-            UA_Byte userAccessLevel = getUserAccessLevel(server, session,
-                                                         (const UA_VariableNode*)node);
-            if(!(userAccessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
+            /* The access to a value variable is granted via the AccessLevel
+             * and UserAccessLevel attributes */
+            UA_Byte accessLevel = getAccessLevel(server, session, (const UA_VariableNode*)node);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+                break;
+            }
+            accessLevel = getUserAccessLevel(server, session,
+                                             (const UA_VariableNode*)node);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
             }
@@ -1148,6 +1195,12 @@ Service_Write(UA_Server *server, UA_Session *session,
               UA_WriteResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing WriteRequest");
+
+    if(server->config.maxNodesPerWrite != 0 &&
+       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,

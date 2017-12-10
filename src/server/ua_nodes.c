@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_server_internal.h"
+#include "ua_types_encoding_binary.h"
 
 /* There is no UA_Node_new() method here. Creating nodes is part of the
  * NodeStore layer */
@@ -137,10 +138,9 @@ UA_StatusCode
 UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     if(src->nodeClass != dst->nodeClass)
         return UA_STATUSCODE_BADINTERNALERROR;
-    
+
     /* Copy standard content */
     UA_StatusCode retval = UA_NodeId_copy(&src->nodeId, &dst->nodeId);
-    dst->nodeClass = src->nodeClass;
     retval |= UA_QualifiedName_copy(&src->browseName, &dst->browseName);
     retval |= UA_LocalizedText_copy(&src->displayName, &dst->displayName);
     retval |= UA_LocalizedText_copy(&src->description, &dst->description);
@@ -218,6 +218,48 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     return retval;
 }
 
+UA_Node *
+UA_Node_copy_alloc(const UA_Node *src) {
+    // use dstPtr to trick static code analysis in accepting dirty cast
+    void *dstPtr;
+    switch(src->nodeClass) {
+        case UA_NODECLASS_OBJECT:
+            dstPtr = UA_malloc(sizeof(UA_ObjectNode));
+            break;
+        case UA_NODECLASS_VARIABLE:
+            dstPtr =UA_malloc(sizeof(UA_VariableNode));
+            break;
+        case UA_NODECLASS_METHOD:
+            dstPtr = UA_malloc(sizeof(UA_MethodNode));
+            break;
+        case UA_NODECLASS_OBJECTTYPE:
+            dstPtr = UA_malloc(sizeof(UA_ObjectTypeNode));
+            break;
+        case UA_NODECLASS_VARIABLETYPE:
+            dstPtr = UA_malloc(sizeof(UA_VariableTypeNode));
+            break;
+        case UA_NODECLASS_REFERENCETYPE:
+            dstPtr = UA_malloc(sizeof(UA_ReferenceTypeNode));
+            break;
+        case UA_NODECLASS_DATATYPE:
+            dstPtr = UA_malloc(sizeof(UA_DataTypeNode));
+            break;
+        case UA_NODECLASS_VIEW:
+            dstPtr = UA_malloc(sizeof(UA_ViewNode));
+            break;
+        default:
+            return NULL;
+    }
+    UA_Node *dst = (UA_Node*)dstPtr;
+    dst->nodeClass = src->nodeClass;
+
+    UA_StatusCode retval = UA_Node_copy(src, dst);
+    if (retval != UA_STATUSCODE_GOOD){
+        UA_free(dst);
+        return NULL;
+    }
+    return dst;
+}
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
@@ -250,7 +292,42 @@ copyCommonVariableAttributes(UA_VariableNode *node,
 
     /* Copy the value */
     node->valueSource = UA_VALUESOURCE_DATA;
-    retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
+    UA_NodeId extensionObject = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    /* if we have an extension object which is still encoded (e.g. from the nodeset compiler)
+     * we need to decode it and set the decoded value instead of the encoded object */
+    UA_Boolean valueSet = false;
+    if (attr->value.type != NULL && UA_NodeId_equal(&attr->value.type->typeId, &extensionObject)) {
+        const UA_ExtensionObject *obj = (const UA_ExtensionObject *)attr->value.data;
+        if (obj->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+
+            /* TODO: Once we generate type description in the nodeset compiler,
+             * UA_findDatatypeByBinary can be made internal to the decoding
+             * layer. */
+            const UA_DataType *type = UA_findDataTypeByBinary(&obj->content.encoded.typeId);
+
+            if (type) {
+                void *dst = UA_Array_new(attr->value.arrayLength, type);
+                uint8_t *tmpPos = (uint8_t *)dst;
+
+                for (size_t i=0; i<attr->value.arrayLength; i++) {
+                    size_t offset =0;
+                    const UA_ExtensionObject *curr = &((const UA_ExtensionObject *)attr->value.data)[i];
+                    UA_StatusCode ret = UA_decodeBinary(&curr->content.encoded.body, &offset, tmpPos, type, 0, NULL);
+                    if (ret != UA_STATUSCODE_GOOD) {
+                        return ret;
+                    }
+                    tmpPos += type->memSize;
+                }
+
+                UA_Variant_setArray(&node->value.data.value.value, dst, attr->value.arrayLength, type);
+                valueSet = true;
+            }
+        }
+    }
+
+    if (!valueSet)
+        retval |= UA_Variant_copy(&attr->value, &node->value.data.value.value);
+
     node->value.data.value.hasValue = true;
 
     return retval;
@@ -496,9 +573,7 @@ UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item) {
 void UA_Node_deleteReferences(UA_Node *node) {
     for(size_t i = 0; i < node->referencesSize; ++i) {
         UA_NodeReferenceKind *refs = &node->references[i];
-        for(size_t j = 0; j < refs->targetIdsSize; ++j)
-            UA_ExpandedNodeId_deleteMembers(&refs->targetIds[j]);
-        UA_free(refs->targetIds);
+        UA_Array_delete(refs->targetIds, refs->targetIdsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
         UA_NodeId_deleteMembers(&refs->referenceTypeId);
     }
     if(node->references)

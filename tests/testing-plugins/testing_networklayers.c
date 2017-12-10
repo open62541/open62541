@@ -1,0 +1,90 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include <stdlib.h>
+#include <assert.h>
+#include "testing_networklayers.h"
+#include "testing_clock.h"
+#include "ua_config_default.h"
+
+UA_ByteString *vBuffer;
+
+UA_StatusCode UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+
+static UA_StatusCode
+dummyGetSendBuffer(UA_Connection *connection, size_t length, UA_ByteString *buf) {
+    buf->data = (length == 0) ? NULL : (UA_Byte*)UA_malloc(length);
+    buf->length = length;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+dummyReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
+}
+
+static UA_StatusCode
+dummySend(UA_Connection *connection, UA_ByteString *buf) {
+    assert(connection != NULL);
+    assert(buf != NULL);
+
+    UA_ByteString_deleteMembers(vBuffer);
+    UA_ByteString_copy(buf, vBuffer);
+    UA_ByteString_deleteMembers(buf);
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+dummyReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
+}
+
+static void
+dummyClose(UA_Connection *connection) {
+    UA_ByteString_deleteMembers(vBuffer);
+}
+
+UA_Connection createDummyConnection(UA_ByteString *verificationBuffer) {
+    assert(verificationBuffer != NULL);
+
+    vBuffer = verificationBuffer;
+    UA_Connection c;
+    c.state = UA_CONNECTION_ESTABLISHED;
+    c.localConf = UA_ConnectionConfig_default;
+    c.remoteConf = UA_ConnectionConfig_default;
+    c.channel = NULL;
+    c.sockfd = 0;
+    c.handle = NULL;
+    c.incompleteMessage = UA_BYTESTRING_NULL;
+    c.getSendBuffer = dummyGetSendBuffer;
+    c.releaseSendBuffer = dummyReleaseSendBuffer;
+    c.send = dummySend;
+    c.recv = NULL;
+    c.releaseRecvBuffer = dummyReleaseRecvBuffer;
+    c.close = dummyClose;
+    return c;
+}
+
+UA_UInt32 UA_Client_recvSleepDuration;
+UA_StatusCode (*UA_Client_recv)(UA_Connection *connection, UA_ByteString *response,
+                                UA_UInt32 timeout);
+
+UA_StatusCode
+UA_Client_recvTesting(UA_Connection *connection, UA_ByteString *response,
+                    UA_UInt32 timeout) {
+
+    if(UA_Client_recvTesting_result != UA_STATUSCODE_GOOD) {
+        UA_StatusCode temp = UA_Client_recvTesting_result;
+        UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+        UA_fakeSleep(timeout);
+        return temp;
+    }
+
+    UA_StatusCode res = UA_Client_recv(connection, response, timeout);
+    if(res == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+        UA_fakeSleep(timeout);
+    else
+        UA_fakeSleep(UA_Client_recvSleepDuration);
+    UA_Client_recvSleepDuration = 0;
+    return res;
+}

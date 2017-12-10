@@ -82,38 +82,6 @@ typedef struct {
     UA_NODE_BASEATTRIBUTES
 } UA_Node;
 
-/* The following methods specialize internally for the different node classes
- * (distinguished by the nodeClass member) */
-
-/* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
- * and so on). The attributes are copied. Note that the attributes structs do
- * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
- * to be correctly set before calling this method. UA_Node_deleteMembers is
- * called on the node when an error occurs internally. */
-UA_StatusCode UA_EXPORT
-UA_Node_setAttributes(UA_Node *node, const void *attributes,
-                      const UA_DataType *attributeType);
-
-/* Reset the destination node and copy the content of the source */
-UA_StatusCode UA_EXPORT
-UA_Node_copy(const UA_Node *src, UA_Node *dst);
-
-/* Add a single reference to the node */
-UA_StatusCode UA_EXPORT
-UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item);
-
-/* Delete a single reference from the node */
-UA_StatusCode UA_EXPORT
-UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
-
-/* Delete all references of the node */
-void UA_EXPORT
-UA_Node_deleteReferences(UA_Node *node);
-
-/* Remove all malloc'ed members of the node */
-void UA_EXPORT
-UA_Node_deleteMembers(UA_Node *node);
-
 /**
  * VariableNode
  * ------------
@@ -439,17 +407,17 @@ typedef struct {
 } UA_ViewNode;
 
 /**
- * Nodestore
- * =========
- * The following definitions are used for implementing node storage plugins.
- * Most users will want to use one of the predefined Nodestores.
+ * Nodestore Plugin API
+ * --------------------
+ * The following definitions are used for implementing custom node storage
+ * backends. **Most users will want to use the default nodestore and don't need
+ * to work with the nodestore API**.
  *
- * Warning! Endusers should not manually edit nodes. Please use the server API
- * for that. Otherwise, the consistency checks of the server are omitted. This
- * can crash the application eventually. */
+ * Outside of custom nodestore implementations, users should not manually edit
+ * nodes. Please use the OPC UA services for that. Otherwise, all consistency
+ * checks are omitted. This can crash the application eventually. */
 
-typedef void
-(*UA_NodestoreVisitor)(void *visitorContext, const UA_Node *node);
+typedef void (*UA_NodestoreVisitor)(void *visitorContext, const UA_Node *node);
 
 typedef struct {
     /* Nodestore context and lifecycle */
@@ -501,6 +469,43 @@ typedef struct {
     void (*iterate)(void *nodestoreContext, void* visitorContext,
                     UA_NodestoreVisitor visitor);
 } UA_Nodestore;
+
+/**
+ * The following methods specialize internally for the different node classes
+ * (distinguished by the nodeClass member) */
+
+/* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
+ * and so on). The attributes are copied. Note that the attributes structs do
+ * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
+ * to be correctly set before calling this method. UA_Node_deleteMembers is
+ * called on the node when an error occurs internally. */
+UA_StatusCode UA_EXPORT
+UA_Node_setAttributes(UA_Node *node, const void *attributes,
+                      const UA_DataType *attributeType);
+
+/* Reset the destination node and copy the content of the source */
+UA_StatusCode UA_EXPORT
+UA_Node_copy(const UA_Node *src, UA_Node *dst);
+
+/* Allocate new node and copy the values from src */
+UA_EXPORT UA_Node *
+UA_Node_copy_alloc(const UA_Node *src);
+
+/* Add a single reference to the node */
+UA_StatusCode UA_EXPORT
+UA_Node_addReference(UA_Node *node, const UA_AddReferencesItem *item);
+
+/* Delete a single reference from the node */
+UA_StatusCode UA_EXPORT
+UA_Node_deleteReference(UA_Node *node, const UA_DeleteReferencesItem *item);
+
+/* Delete all references of the node */
+void UA_EXPORT
+UA_Node_deleteReferences(UA_Node *node);
+
+/* Remove all malloc'ed members of the node */
+void UA_EXPORT
+UA_Node_deleteMembers(UA_Node *node);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -63,6 +63,7 @@ struct UA_Connection {
     UA_Int32 sockfd;                 /* Most connectivity solutions run on
                                       * sockets. Having the socket id here
                                       * simplifies the design. */
+    UA_DateTime openingDate;         /* The date the connection was created */
     void *handle;                    /* A pointer to internal data */
     UA_ByteString incompleteMessage; /* A half-received message (TCP is a
                                       * streaming protocol) is stored here */
@@ -151,7 +152,7 @@ struct UA_ServerNetworkLayer {
      *
      * @param nl The network layer
      * @return Returns UA_STATUSCODE_GOOD or an error code. */
-    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl);
+    UA_StatusCode (*start)(UA_ServerNetworkLayer *nl, const UA_String *customHostname);
 
     /* Listen for new and closed connections and arriving packets. Calls
      * UA_Server_processBinaryMessage for the arriving packets. Closed
@@ -183,15 +184,15 @@ struct UA_ServerNetworkLayer {
 /**
  * Client Network Layer
  * --------------------
- * The client has only a single connection. The connection is used for both
- * sending and receiving binary messages.
- * @param localConf the connection config for this client
- * @param endpointUrl to where to connect
- * @param timeout in ms until the connection try times out if remote not reachable
- * */
+ * The client has only a single connection used for sending and receiving binary
+ * messages. */
 
+/* @param localConf the connection config for this client
+ * @param endpointUrl to where to connect
+ * @param timeout in ms until the connection try times out if remote not reachable */
 typedef UA_Connection
-(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl, const UA_UInt32 timeout);
+(*UA_ConnectClientConnection)(UA_ConnectionConfig localConf, const char *endpointUrl,
+                              const UA_UInt32 timeout);
 
 /**
  * Endpoint URL Parser
