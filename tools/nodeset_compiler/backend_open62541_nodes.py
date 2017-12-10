@@ -127,11 +127,13 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
         if isinstance(node.dataType, NodeId) and node.dataType.ns == 0 and node.dataType.i == 0:
             #BaseDataType
             dataTypeNode = nodeset.nodes[NodeId("i=24")]
+            dataTypeNodeOpaque = nodeset.nodes[NodeId("i=24")]
         else:
+            dataTypeNodeOpaque = nodeset.getDataTypeNode(node.dataType)
             dataTypeNode = nodeset.getBaseDataType(nodeset.getDataTypeNode(node.dataType))
 
         if dataTypeNode is not None:
-            code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNode.id))
+            code.append("attr.dataType = %s;" % generateNodeIdCode(dataTypeNodeOpaque.id))
 
             if dataTypeNode.isEncodable():
                 if node.value is not None:

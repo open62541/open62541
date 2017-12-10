@@ -558,7 +558,7 @@ UA_Server_initNS0(UA_Server *server) {
     /* LocaleIdArray */
     UA_LocaleId locale_en = UA_STRING("en");
     retVal |= writeNs0VariableArray(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_LOCALEIDARRAY,
-                                    &locale_en, 1, &UA_TYPES[UA_TYPES_STRING]);
+                                    &locale_en, 1, &UA_TYPES[UA_TYPES_LOCALEID]);
 
     /* MaxBrowseContinuationPoints */
     UA_UInt16 maxBrowseContinuationPoints = UA_MAXCONTINUATIONPOINTS;
