@@ -487,11 +487,16 @@ extern "C" {
 
 filtered_types = iter_types(types)
 
+count = 0
+for t in filtered_types:
+    if t.name not in opaque_type_mapping:
+        count += 1
+
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
+printh("#define " + outname.upper() + "_COUNT %s" % (str(count)))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
@@ -508,7 +513,6 @@ for t in filtered_types:
         printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
         i += 1
     else:
-        print (get_base_type_for_opaque(t.name)['name'])
         printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
 
 printh('''
