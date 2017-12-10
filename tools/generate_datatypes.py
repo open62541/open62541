@@ -14,7 +14,7 @@ import re
 import xml.etree.ElementTree as etree
 import itertools
 import argparse
-from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque
+from nodeset_compiler.opaque_type_mapping import opaque_type_mapping, get_base_type_for_opaque
 
 types = OrderedDict() # contains types that were already parsed
 typedescriptions = {} # contains type nodeids
@@ -504,8 +504,12 @@ for t in filtered_types:
         printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
-    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-    i += 1
+    if t.name not in opaque_type_mapping:
+        printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
+        i += 1
+    else:
+        print (get_base_type_for_opaque(t.name)['name'])
+        printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
 
 printh('''
 #ifdef __cplusplus
@@ -538,8 +542,9 @@ extern "C" {
 ''')
 
 for t in filtered_types:
-    printf("\n/* " + t.name + " */")
-    printf(t.functions_c())
+    if t.name not in opaque_type_mapping:
+        printf("\n/* " + t.name + " */")
+        printf(t.functions_c())
 
 printf('''
 #if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
@@ -562,15 +567,17 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "''' + outname + '''_generated.h"''')
 
 for t in filtered_types:
-    printc("")
-    printc("/* " + t.name + " */")
-    printc(t.members_c())
+    if t.name not in opaque_type_mapping:
+        printc("")
+        printc("/* " + t.name + " */")
+        printc(t.members_c())
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
 for t in filtered_types:
-    printc("")
-    printc("/* " + t.name + " */")
-    printc(t.datatype_c() + ",")
+    if t.name not in opaque_type_mapping:
+        printc("")
+        printc("/* " + t.name + " */")
+        printc(t.datatype_c() + ",")
 printc("};\n")
 
 ##################
@@ -585,8 +592,9 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "''' + outname + '''_generated.h"''')
 
 for t in filtered_types:
-    printe("\n/* " + t.name + " */")
-    printe(t.encoding_h())
+    if t.name not in opaque_type_mapping:
+        printe("\n/* " + t.name + " */")
+        printe(t.encoding_h())
 
 fh.close()
 ff.close()
