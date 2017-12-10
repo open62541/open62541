@@ -487,6 +487,7 @@ extern "C" {
 
 filtered_types = iter_types(types)
 
+# count number of dataType (exclude opaque DataType)
 count = 0
 for t in filtered_types:
     if t.name not in opaque_type_mapping:
@@ -513,6 +514,7 @@ for t in filtered_types:
         printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
         i += 1
     else:
+        # define alias for opaque dataType
         printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
 
 printh('''
@@ -545,6 +547,7 @@ extern "C" {
 #endif
 ''')
 
+# do not generate for opaque dataType
 for t in filtered_types:
     if t.name not in opaque_type_mapping:
         printf("\n/* " + t.name + " */")
@@ -570,6 +573,7 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 
 #include "''' + outname + '''_generated.h"''')
 
+# do not generate for opaque dataType
 for t in filtered_types:
     if t.name not in opaque_type_mapping:
         printc("")
@@ -577,6 +581,7 @@ for t in filtered_types:
         printc(t.members_c())
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
+# do not generate for opaque dataType
 for t in filtered_types:
     if t.name not in opaque_type_mapping:
         printc("")
@@ -595,6 +600,7 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "ua_types_encoding_binary.h"
 #include "''' + outname + '''_generated.h"''')
 
+# do not generate for opaque dataType
 for t in filtered_types:
     if t.name not in opaque_type_mapping:
         printe("\n/* " + t.name + " */")

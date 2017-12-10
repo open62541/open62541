@@ -115,6 +115,10 @@ def generateVariableNodeCode(node, nodeset, max_string_length):
     code.append("attr.minimumSamplingInterval = %f;" % node.minimumSamplingInterval)
     code.append("attr.userAccessLevel = %d;" % node.userAccessLevel)
     code.append("attr.accessLevel = %d;" % node.accessLevel)
+    # in order to be compatible with mostly OPC UA client
+    # force valueRank = -1 for scalar VariableNode
+    if node.valueRank == -2:
+        node.valueRank = -1
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
         code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
