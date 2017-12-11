@@ -51,7 +51,7 @@ void readValueAttributeCallback(UA_Client *client, void *userdata,
 
 static
 void attrWritten(UA_Client *client, void *userdata, UA_UInt32 requestId,
-		void *response) {
+		UA_WriteResponse *response) {
 	/*assuming no data to be retrieved by writing attributes*/
 	printf("%-50s%i\n", "Wrote value attribute for request ", requestId);
 }
@@ -97,6 +97,7 @@ static void translateCalled(UA_Client *client, void *userdata,
 		return;
 	}
 }
+
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -191,7 +192,6 @@ int main(int argc, char *argv[]) {
 
 		UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids,
 		pathSize, translateCalled, NULL, &reqId);
-
 	}
 
 	/*process high-level requests*/

@@ -442,13 +442,8 @@ UA_StatusCode UA_Client_readArrayDimensionsAttribute(UA_Client *client,
 
 /*Async Functions*/
 
-typedef struct userdataAndId {
-	/*workaround to associate user callbacks with requests*/
-	void *userdata;
-	UA_UInt32 id;
-} userdataAndId;
-
-/*highlevel callbacks*/
+/*highlevel callbacks
+ * used to hide response handling details*/
 static
 void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 		void *response) {
@@ -458,10 +453,9 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	}
 
 	CustomCallback *cc;
-	userdataAndId uid = *(userdataAndId *) userdata;
 	LIST_FOREACH(cc, &client->customCallbacks, pointers)
 	{
-		if (cc->callbackId == uid.id)
+		if (cc->callbackId == requestId)
 			break;
 	}
 	if (!cc)
@@ -494,7 +488,7 @@ void ValueAttributeRead(UA_Client *client, void *userdata, UA_UInt32 requestId,
 	}
 
 	//use callbackId to find the right custom callback
-	cc->callback(client, uid.userdata, requestId, &out);
+	cc->callback(client, userdata, requestId, &out);
 	LIST_REMOVE(cc, pointers);
 	UA_free(cc);
 }
@@ -513,25 +507,22 @@ UA_StatusCode __UA_Client_readAttribute_async(UA_Client *client,
 	request.nodesToRead = &item;
 	request.nodesToReadSize = 1;
 
-	//client->customCallbackTest = callback;
+	__UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+			ValueAttributeRead, &UA_TYPES[UA_TYPES_READRESPONSE], userdata,
+			reqId);
+
 	CustomCallback *cc = (CustomCallback*) UA_malloc(sizeof(CustomCallback));
 	if (!cc)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 	cc->callback = callback;
-	cc->callbackId = ++client->customCallbackId;
+	cc->callbackId = *reqId;
 
 	cc->attributeId = attributeId;
 	cc->outDataType = outDataType;
 
 	LIST_INSERT_HEAD(&client->customCallbacks, cc, pointers);
 
-	userdataAndId *uid = (userdataAndId *) UA_malloc(sizeof(userdataAndId));
-	//userdataAndId uid = {.id = cc->callbackId, .userdata = userdata};
-	uid->id = cc->callbackId;
-	uid->userdata = userdata;
-	return __UA_Client_AsyncService(client, &request,
-			&UA_TYPES[UA_TYPES_READREQUEST], ValueAttributeRead,
-			&UA_TYPES[UA_TYPES_READRESPONSE], uid, reqId);
+	return UA_STATUSCODE_GOOD;
 }
 
 /*Write Attributes*/
@@ -561,6 +552,38 @@ UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
 	return __UA_Client_AsyncService(client, &wReq,
 			&UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
 			&UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+}
+
+/*Node Management*/
+
+UA_StatusCode UA_EXPORT
+__UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
+		const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+		const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+		const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+		const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_UInt32 *reqId) {
+	UA_AddNodesRequest request;
+	UA_AddNodesRequest_init(&request);
+	UA_AddNodesItem item;
+	UA_AddNodesItem_init(&item);
+	item.parentNodeId.nodeId = parentNodeId;
+	item.referenceTypeId = referenceTypeId;
+	item.requestedNewNodeId.nodeId = requestedNewNodeId;
+	item.browseName = browseName;
+	item.nodeClass = nodeClass;
+	item.typeDefinition.nodeId = typeDefinition;
+	item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+	item.nodeAttributes.content.decoded.type = attributeType;
+	item.nodeAttributes.content.decoded.data = (void*) (uintptr_t) attr; // hack. is not written into.
+	request.nodesToAdd = &item;
+	request.nodesToAddSize = 1;
+
+	return __UA_Client_AsyncService(client, &request,
+			&UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
+			&UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
+
 }
 
 /*Misc Highlevel Functions*/
