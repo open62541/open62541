@@ -81,9 +81,9 @@ int main(void) {
         if (retval == UA_STATUSCODE_GOOD &&
             UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
             UA_DateTime raw_date = *(UA_DateTime *) value.data;
-            UA_String string_date = UA_DateTime_toString(raw_date);
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT, "string date is: %.*s", (int) string_date.length, string_date.data);
-            UA_String_deleteMembers(&string_date);
+            UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",
+                        dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }
         UA_Variant_deleteMembers(&value);
         UA_sleep_ms(1000);

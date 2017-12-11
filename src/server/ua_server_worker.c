@@ -321,16 +321,16 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         UA_Timer_process(&server->timer, now,
                          (UA_TimerDispatchCallback)UA_Server_workerCallback,
                          server);
-    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_MSEC_TO_DATETIME);
+    UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
     if(nextRepeated > latest)
         nextRepeated = latest;
 
     UA_UInt16 timeout = 0;
 
     /* round always to upper value to avoid timeout to be set to 0
-    * if (nextRepeated - now) < (UA_MSEC_TO_DATETIME/2) */
+    * if (nextRepeated - now) < (UA_DATETIME_MSEC/2) */
     if(waitInternal)
-        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_MSEC_TO_DATETIME - 1)) / UA_MSEC_TO_DATETIME);
+        timeout = (UA_UInt16)(((nextRepeated - now) + (UA_DATETIME_MSEC - 1)) / UA_DATETIME_MSEC);
 
     /* Listen on the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
@@ -353,8 +353,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
         // server->mdnsSocket (see example in mdnsd library) on higher level.
         UA_DateTime multicastNextRepeat = 0;
         UA_StatusCode hasNext =
-            iterateMulticastDiscoveryServer(server, &multicastNextRepeat,
-                                            UA_TRUE);
+            iterateMulticastDiscoveryServer(server, &multicastNextRepeat, UA_TRUE);
         if(hasNext == UA_STATUSCODE_GOOD && multicastNextRepeat < nextRepeated)
             nextRepeated = multicastNextRepeat;
     }
@@ -363,7 +362,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     now = UA_DateTime_nowMonotonic();
     timeout = 0;
     if(nextRepeated > now)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+        timeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
     return timeout;
 }
 

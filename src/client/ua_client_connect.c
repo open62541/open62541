@@ -127,7 +127,7 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
      * standard */
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
     client->nextChannelRenewal = UA_DateTime_nowMonotonic() + (UA_DateTime)
-        (client->channel.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
+        (client->channel.securityToken.revisedLifetime * (UA_Double)UA_DATETIME_MSEC * 0.75);
 }
 
 static UA_StatusCode
@@ -178,7 +178,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     retval = receiveServiceResponse(client, &response,
                                     &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE],
                                     UA_DateTime_nowMonotonic() +
-                                    ((UA_DateTime)client->config.timeout * UA_MSEC_TO_DATETIME),
+                                    ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC),
                                     &requestId);
                                     
     if(retval != UA_STATUSCODE_GOOD) {

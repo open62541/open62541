@@ -639,8 +639,8 @@ iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
 
     if(nextRepeat)
         *nextRepeat = UA_DateTime_now() +
-            (UA_DateTime)(next_sleep.tv_sec * UA_SEC_TO_DATETIME +
-                          next_sleep.tv_usec * UA_USEC_TO_DATETIME);
+            (UA_DateTime)((next_sleep.tv_sec * UA_DATETIME_SEC) +
+                          (next_sleep.tv_usec * UA_DATETIME_USEC));
     return UA_STATUSCODE_GOOD;
 }
 
