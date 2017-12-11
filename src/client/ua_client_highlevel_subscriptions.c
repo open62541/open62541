@@ -406,7 +406,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_MSEC_TO_DATETIME);
+    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_DATETIME_MSEC);
 
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {

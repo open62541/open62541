@@ -102,7 +102,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_TimerCallback callback,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
+    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = ++t->idCounter;
     tc->callback = callback;
     tc->data = data;
@@ -132,7 +132,7 @@ addTimerCallbackEntry(UA_Timer *t, UA_TimerCallbackEntry * UA_RESTRICT tc) {
          * between "nextTime - 1s" and "nextTime" if this adjustment groups
          * callbacks with the same repetition interval. */
         if(tmpTc->interval == tc->interval &&
-           tmpTc->nextTime > (tc->nextTime - UA_SEC_TO_DATETIME))
+           tmpTc->nextTime > (tc->nextTime - UA_DATETIME_SEC))
             tc->nextTime = tmpTc->nextTime;
     }
 
@@ -157,7 +157,7 @@ UA_Timer_changeRepeatedCallbackInterval(UA_Timer *t, UA_UInt64 callbackId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    tc->interval = (UA_UInt64)interval * (UA_UInt64)UA_MSEC_TO_DATETIME;
+    tc->interval = (UA_UInt64)interval * UA_DATETIME_MSEC;
     tc->id = callbackId;
     tc->nextTime = UA_DateTime_nowMonotonic() + (UA_DateTime)tc->interval;
     tc->callback = (UA_TimerCallback)CHANGE_SENTINEL;
