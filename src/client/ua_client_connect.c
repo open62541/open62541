@@ -108,12 +108,12 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
     /* Replace the token */
     UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
     client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_deleteMembers(&response->securityToken);
+    UA_ChannelSecurityToken_init(&response->securityToken);
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
     client->channel.remoteNonce = response->serverNonce;
-    UA_ByteString_deleteMembers(&response->serverNonce);
+    UA_ByteString_init(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
@@ -127,7 +127,7 @@ processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *respo
      * standard */
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
     client->nextChannelRenewal = UA_DateTime_nowMonotonic() + (UA_DateTime)
-        (response->securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
+        (client->channel.securityToken.revisedLifetime * (UA_Double)UA_MSEC_TO_DATETIME * 0.75);
 }
 
 static UA_StatusCode
