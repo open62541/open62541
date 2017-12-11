@@ -372,8 +372,12 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
 /* Variant */
 static void
 Variant_deletemembers(UA_Variant *p, const UA_DataType *_) {
-    if(p->storageType != UA_VARIANT_DATA)
+    if(p->storageType != UA_VARIANT_DATA) {
+        if(p->free) {
+            p->free(p->data, p->arrayLength, p->type);
+        }
         return;
+    }
     if(p->type && p->data > UA_EMPTY_ARRAY_SENTINEL) {
         if(p->arrayLength == 0)
             p->arrayLength = 1;

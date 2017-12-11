@@ -512,6 +512,7 @@ typedef struct {
     void *data;                   /* Points to the scalar or array data */
     size_t arrayDimensionsSize;   /* The number of dimensions */
     UA_UInt32 *arrayDimensions;   /* The length of each dimension */
+    void (*free)(void *data, size_t arrayLength, const UA_DataType *type); /* Function to free *data if storageType equals NODELETE. Can be set to NULL. */
 } UA_Variant;
 
 /* Returns true if the variant has no value defined (contains neither an array

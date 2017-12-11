@@ -377,7 +377,7 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
     {{0, NULL}, {0, NULL}},      /* description */
     0, 0,                        /* writeMask (userWriteMask) */
     {NULL, UA_VARIANT_DATA,
-     0, NULL, 0, NULL},          /* value */
+     0, NULL, 0, NULL, NULL},    /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
     -2,                          /* valueRank */
@@ -409,7 +409,7 @@ const UA_VariableTypeAttributes UA_VariableTypeAttributes_default = {
     {{0, NULL}, {0, NULL}},      /* description */
     0, 0,                        /* writeMask (userWriteMask) */
     {NULL, UA_VARIANT_DATA,
-     0, NULL, 0, NULL},          /* value */
+     0, NULL, 0, NULL, NULL},    /* value */
     {0, UA_NODEIDTYPE_NUMERIC,
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
     -2,                          /* valueRank */
