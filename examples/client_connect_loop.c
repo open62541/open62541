@@ -85,6 +85,7 @@ int main(void) {
             UA_LOG_INFO(logger, UA_LOGCATEGORY_CLIENT, "string date is: %.*s", (int) string_date.length, string_date.data);
             UA_String_deleteMembers(&string_date);
         }
+        UA_Variant_deleteMembers(&value);
         UA_sleep_ms(1000);
     };
 
