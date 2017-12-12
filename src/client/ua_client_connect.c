@@ -219,6 +219,7 @@ activateSession(UA_Client *client) {
     }
 
     UA_ActivateSessionResponse response;
+    UA_ActivateSessionResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
 
