@@ -36,11 +36,12 @@ UA_DURATIONRANGE(UA_Double min, UA_Double max) {
 
 const UA_ConnectionConfig UA_ConnectionConfig_default = {
     0, /* .protocolVersion */
-    65535, /* .sendBufferSize, 64k per chunk */
-    65535, /* .recvBufferSize, 64k per chunk */
+    10000, /* .sendBufferSize, 64k per chunk */
+    10000, /* .recvBufferSize, 64k per chunk */
     0, /* .maxMessageSize, 0 -> unlimited */
     0 /* .maxChunkCount, 0 -> unlimited */
 };
+
 
 /***************************/
 /* Default Server Settings */
@@ -283,9 +284,9 @@ const UA_ClientConfig UA_ClientConfig_default = {
     UA_Log_Stdout, /* .logger */
     /* .localConnectionConfig */
     {0, /* .protocolVersion */
-        65535, /* .sendBufferSize, 64k per chunk */
-        65535, /* .recvBufferSize, 64k per chunk */
-        0, /* .maxMessageSize, 0 -> unlimited */
+        10000, /* .sendBufferSize, 64k per chunk */
+        10000, /* .recvBufferSize, 64k per chunk */
+        10000, /* .maxMessageSize, 0 -> unlimited */
         0}, /* .maxChunkCount, 0 -> unlimited */
     UA_ClientConnectionTCP, /* .connectionFunc */
 

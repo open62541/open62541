@@ -316,12 +316,14 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
     UA_UInt16 timeout = 0;
     if(waitInternal)
-        timeout = (UA_UInt16)((nextRepeated - now) / UA_MSEC_TO_DATETIME);
+        timeout = 0;
 
     /* Listen on the networklayer */
     for(size_t i = 0; i < server->config.networkLayersSize; ++i) {
         UA_ServerNetworkLayer *nl = &server->config.networkLayers[i];
         nl->listen(nl, server, timeout);
+       //Added
+        //vTaskDelay(pdMS_TO_TICKS (200) );
     }
 
 #ifndef UA_ENABLE_MULTITHREADING
@@ -401,6 +403,10 @@ UA_Server_run(UA_Server *server, volatile UA_Boolean *running) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     while(*running)
+    {
         UA_Server_run_iterate(server, true);
+        //Added
+       // vTaskDelay(pdMS_TO_TICKS (100) );
+    }
     return UA_Server_run_shutdown(server);
 }

@@ -140,8 +140,9 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
         if(ac->requestId == requestId)
             break;
     }
-    if(!ac)
-        return UA_STATUSCODE_BADREQUESTHEADERINVALID;
+    if(!ac){
+    	return UA_STATUSCODE_BADREQUESTHEADERINVALID;
+    }
 
     /* Decode the response */
     void *response = UA_alloca(ac->responseType->memSize);
@@ -157,6 +158,8 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
                     "Could not decodee the response with Id %u", requestId);
     }
 
+   //Added
+    //UA_free(response);
     /* Remove the callback */
     LIST_REMOVE(ac, pointers);
     UA_free(ac);

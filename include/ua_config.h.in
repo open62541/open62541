@@ -115,6 +115,9 @@ extern "C" {
 #define UA_calloc(num, size) pvPortCalloc(num, size)
 //#define UA_realloc(ptr, size) realloc(ptr, size)
 #define UA_realloc(ptr, size) pvPortRealloc(ptr, size)
+//# define UA_alloca(size) pvPortMalloc(size)
+
+//#define UA_alloca(size) { (void*)((size == 0) ? NULL : pvPortMalloc(size)) }
 
 #if defined(__GNUC__) || defined(__clang__)
 # define UA_alloca(size) __builtin_alloca (size)
