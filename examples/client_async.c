@@ -5,7 +5,8 @@
 #include "open62541.h"
 #include <unistd.h>
 
-/*async connection callback*/
+/* async connection callback, it only gets called after the completion of the whole
+ * connection process*/
 static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
 		void *response) {
 	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
@@ -98,6 +99,17 @@ static void translateCalled(UA_Client *client, void *userdata,
 	}
 }
 
+//getEndpoints also works as highlevel func
+//static void testCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+//		void *response) {
+//	UA_GetEndpointsResponse resp = *(UA_GetEndpointsResponse*) response;
+//
+//	for (size_t i = 0; i < resp.endpointsSize; i++) {
+//		printf("URL of endpoint %i is %.*s\n", (int) i,
+//				(int) resp.endpoints[i].endpointUrl.length,
+//				resp.endpoints[i].endpointUrl.data);
+//	}
+//}
 
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -137,11 +149,16 @@ int main(int argc, char *argv[]) {
 	bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
 	bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
-	/*connected updated when client is connected*/
+	/*connected gets updated when client is connected*/
 	UA_Client_connect_async(client, "opc.tcp://localhost:4840", onConnect,
 			&connected);
 
+	UA_StatusCode retval;
 	/*Demo: raw services*/
+
+	/*this request is not sent*/
+	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed,
+						&userdata, &reqId);
 	do {
 		if (connected) {
 			/*if not connected requests are not sent*/
@@ -155,7 +172,10 @@ int main(int argc, char *argv[]) {
 					&reqId);
 		}
 		/*requests are processed*/
-		UA_Client_run_iterate(client, 10);
+
+		UA_Client_run_iterate(client, true, &retval);
+		if (retval != UA_STATUSCODE_GOOD)
+			break;
 	} while (reqId < 10);
 
 	/*Demo: high-level functions*/
@@ -192,11 +212,12 @@ int main(int argc, char *argv[]) {
 
 		UA_Cient_translateBrowsePathsToNodeIds_async(client, paths, ids,
 		pathSize, translateCalled, NULL, &reqId);
+
 	}
 
 	/*process high-level requests*/
 	for (int i = 0; i < 10; i++)
-		UA_Client_run_iterate(client, 10);
+		UA_Client_run_iterate(client, true, &retval);
 
 	UA_Variant_delete(myVariant);
 	UA_Client_disconnect(client);

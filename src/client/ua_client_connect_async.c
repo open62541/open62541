@@ -24,6 +24,7 @@ requestSession(UA_Client *client, UA_UInt32 *requestId);
 static UA_StatusCode
 requestGetEndpoints(UA_Client *client, UA_UInt32 *requestId);
 
+/*receives hello ack, opens secure channel*/
 static UA_StatusCode processACKResponse(void *application,
 		UA_Connection *connection, UA_ByteString *chunk) {
 	UA_Client *client = (UA_Client*) application;
@@ -39,6 +40,7 @@ static UA_StatusCode processACKResponse(void *application,
 	if (retval != UA_STATUSCODE_GOOD) {
 		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
 				"Decoding ACK message failed");
+		client->connectStatus = retval;
 		return retval;
 	}
 
@@ -66,8 +68,8 @@ static UA_StatusCode processACKResponse(void *application,
 	/* Open a SecureChannel. TODO: Select with endpoint  */
 	client->channel.connection = &client->connection;
 	retval = openSecureChannel(client, false);
-
-	return UA_STATUSCODE_GOOD;
+	client->connectStatus = retval;
+	return retval;
 }
 
 static UA_StatusCode sendHELMessage(UA_Client *client) {
@@ -76,6 +78,7 @@ static UA_StatusCode sendHELMessage(UA_Client *client) {
 	UA_Connection *conn = &client->connection;
 	UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE,
 			&message);
+	client->connectStatus = retval;
 	if (retval != UA_STATUSCODE_GOOD)
 		return retval;
 
@@ -110,6 +113,7 @@ static UA_StatusCode sendHELMessage(UA_Client *client) {
 	/* Send the HEL message */
 	message.length = messageHeader.messageSize;
 	retval = conn->send(conn, &message);
+	client->connectStatus = retval;
 	if (retval != UA_STATUSCODE_GOOD) {
 		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
 				"Sending HEL failed");
@@ -117,10 +121,6 @@ static UA_StatusCode sendHELMessage(UA_Client *client) {
 	}
 	UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
 			"Sent HEL message");
-
-	if (retval != UA_STATUSCODE_GOOD)
-		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
-				"Receiving ACK message failed");
 	return retval;
 }
 
@@ -182,6 +182,7 @@ static UA_StatusCode processOPNResponse(void *application,
 	UA_Client *client = (UA_Client*) application;
 	UA_StatusCode retval = UA_SecureChannel_processChunk(&client->channel,
 			chunk, processDecodedOPNResponse, client);
+	client->connectStatus = retval;
 	if (retval != UA_STATUSCODE_GOOD) {
 		return retval;
 	}
@@ -193,6 +194,7 @@ static UA_StatusCode processOPNResponse(void *application,
 	else
 		retval = requestSession(client, &reqId);
 
+	client->connectStatus = retval;
 	return retval;
 
 }
@@ -243,7 +245,10 @@ static UA_StatusCode openSecureChannel(UA_Client *client, UA_Boolean renew) {
 	UA_StatusCode retval = UA_SecureChannel_sendAsymmetricOPNMessage(
 			&client->channel, requestId, &opnSecRq,
 			&UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST]);
+	client->connectStatus = retval;
+
 	if (retval != UA_STATUSCODE_GOOD) {
+		client->connectStatus = retval;
 		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
 				"Sending OPN message failed with error %s",
 				UA_StatusCode_name(retval));
@@ -264,38 +269,7 @@ static UA_StatusCode openSecureChannel(UA_Client *client, UA_Boolean renew) {
 	return retval;
 }
 
-/* Gets a list of endpoints. Memory is allocated for endpointDescription array */
-//UA_StatusCode UA_Client_getEndpointsInternal(UA_Client *client,
-//		size_t* endpointDescriptionsSize,
-//		UA_EndpointDescription** endpointDescriptions) {
-//	UA_GetEndpointsRequest request;
-//	UA_GetEndpointsRequest_init(&request);
-//	request.requestHeader.timestamp = UA_DateTime_now();
-//	request.requestHeader.timeoutHint = 10000;
-//	// assume the endpointurl outlives the service call
-//	request.endpointUrl = client->endpointUrl;
-//
-//	UA_GetEndpointsResponse response;
-//	UA_GetEndpointsResponse_init(&response);
-//	__UA_Client_Service(client, &request,
-//			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], &response,
-//			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
-//
-//	if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-//		UA_StatusCode retval = response.responseHeader.serviceResult;
-//		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-//				"GetEndpointRequest failed with error code %s",
-//				UA_StatusCode_name(retval));
-//		UA_GetEndpointsResponse_deleteMembers(&response);
-//		return retval;
-//	}
-//	*endpointDescriptions = response.endpoints;
-//	*endpointDescriptionsSize = response.endpointsSize;
-//	response.endpoints = NULL;
-//	response.endpointsSize = 0;
-//	UA_GetEndpointsResponse_deleteMembers(&response);
-//	return UA_STATUSCODE_GOOD;
-//}
+
 /*functions for async connection, connected with callback*/
 
 static void responseActivateSession(UA_Client *client, void *userdata,
@@ -351,6 +325,7 @@ static UA_StatusCode requestActivateSession(UA_Client *client,
 			(UA_ClientAsyncServiceCallback) responseActivateSession,
 			&UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE], NULL, requestId);
 	UA_ActivateSessionRequest_deleteMembers(&request);
+	client->connectStatus = retval;
 	return retval;
 }
 
@@ -374,8 +349,7 @@ static void responseGetEndpoints(UA_Client *client, void *userdata,
 	endpointArraySize = resp->endpointsSize;
 	resp->endpoints = NULL;
 	resp->endpointsSize = 0;
-	//UA_GetEndpointsResponse_deleteMembers(response);
-	/*blabla*/
+
 	UA_Boolean endpointFound = false;
 	UA_Boolean tokenFound = false;
 	UA_String securityNone = UA_STRING(
@@ -430,11 +404,11 @@ static void responseGetEndpoints(UA_Client *client, void *userdata,
 	if (!endpointFound) {
 		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
 				"No suitable endpoint found");
-		//retval = UA_STATUSCODE_BADINTERNALERROR;
+		client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
 	} else if (!tokenFound) {
 		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
 				"No suitable UserTokenPolicy found for the possible endpoints");
-		//retval = UA_STATUSCODE_BADINTERNALERROR;
+		client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
 	}
 	requestSession(client, &requestId);
 }
@@ -453,6 +427,7 @@ static UA_StatusCode requestGetEndpoints(UA_Client *client,
 			(UA_ClientAsyncServiceCallback) responseGetEndpoints,
 			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, requestId);
 	UA_GetEndpointsRequest_deleteMembers(&request);
+	client->connectStatus = retval;
 	return retval;
 
 }
@@ -482,6 +457,7 @@ static UA_StatusCode requestSession(UA_Client *client, UA_UInt32 *requestId) {
 			(UA_ClientAsyncServiceCallback) responseSessionCallback,
 			&UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, requestId);
 	UA_CreateSessionRequest_deleteMembers(&request);
+	client->connectStatus = retval;
 	return retval;
 }
 
@@ -532,11 +508,19 @@ UA_StatusCode UA_Client_connectInternalAsync(UA_Client *client,
 	cleanup: UA_Client_disconnect(client);
 	return retval;
 }
-void UA_Client_connect_iterate(UA_Client *client) {
+
+UA_StatusCode UA_Client_connect_iterate(UA_Client *client) {
 	if (client->connection.state == UA_CONNECTION_ESTABLISHED
 			&& client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
-		sendHELMessage(client);
+		return sendHELMessage(client);
 	}
+	if(client->connection.state == UA_CONNECTION_CLOSED){
+		client->connectStatus = UA_STATUSCODE_BADSERVERNOTCONNECTED;
+		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK, "No connection to server.");
+	}
+
+	//TODO: error handling
+	return client->connectStatus;
 }
 UA_StatusCode UA_Client_connect_async(UA_Client *client,
 		const char *endpointUrl, UA_ClientAsyncServiceCallback callback,

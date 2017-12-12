@@ -289,7 +289,7 @@ UA_ServerConfig_delete(UA_ServerConfig *config) {
 /***************************/
 
 const UA_ClientConfig UA_ClientConfig_default = {
-    100000, /* .timeout, 100 seconds */
+    10000, /* .timeout, 100 seconds */
     10 * 60 * 1000, /* .secureChannelLifeTime, 10 minutes */
     UA_Log_Stdout, /* .logger */
     /* .localConnectionConfig */

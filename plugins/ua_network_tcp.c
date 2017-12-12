@@ -717,7 +717,7 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 		// connection timeout
 		ClientNetworkLayerTCP_close(connection);
 		UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-				"Trying to connect to timed out");
+				"Trying to connect...");
 		return UA_STATUSCODE_BADDISCONNECT;
 
 	}

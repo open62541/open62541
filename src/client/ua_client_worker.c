@@ -271,7 +271,7 @@ processDelayedCallback(A_Client *client, WorkerCallback *dc) {
  * Stop: Stop workers, finish all callbacks, stop the network layer,
  *       clean up */
 
-UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal) {
+UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_StatusCode *retval) {
 
 	/* Process repeated work */
 	UA_DateTime now = UA_DateTime_nowMonotonic();
@@ -285,7 +285,7 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal) {
 	if (waitInternal)
 		timeout = (UA_UInt16) ((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 	UA_ClientState cs = UA_Client_getState(client);
-	UA_Client_connect_iterate(client);
+	*retval = UA_Client_connect_iterate(client);
 	if (cs == UA_CLIENTSTATE_SECURECHANNEL || cs == UA_CLIENTSTATE_SESSION) {
 		/* check for new data */
 		receiveServiceResponse_async(client, NULL, NULL);
@@ -330,6 +330,6 @@ UA_StatusCode UA_Client_run_shutdown(UA_Client *client) {
 UA_StatusCode UA_Client_run(UA_Client *client, volatile UA_Boolean *running) {
 
 	while (*running)
-		UA_Client_run_iterate(client, true);
+		UA_Client_run_iterate(client, true, UA_STATUSCODE_GOOD);
 	return UA_Client_run_shutdown(client);
 }

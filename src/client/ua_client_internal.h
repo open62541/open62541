@@ -92,6 +92,8 @@ struct UA_Client {
 	/* State */
 	UA_ClientState state;
 	UA_ClientConfig config;
+	UA_StatusCode connectStatus;
+
 	/* Connection */
 	UA_Connection connection;
 	UA_String endpointUrl;
@@ -168,5 +170,5 @@ UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
 UA_StatusCode
 UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
 		void *data);
-void UA_Client_connect_iterate(UA_Client *client);
+UA_StatusCode UA_Client_connect_iterate(UA_Client *client);
 #endif /* UA_CLIENT_INTERNAL_H_ */

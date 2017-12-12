@@ -446,7 +446,7 @@ UA_StatusCode UA_EXPORT
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
 UA_UInt16 UA_EXPORT
-UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal);
+UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_StatusCode *retval);
 
 UA_StatusCode
 UA_Client_run_shutdown(UA_Client *client);
