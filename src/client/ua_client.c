@@ -14,14 +14,24 @@
  /* Client Lifecycle */
  /********************/
 
-static void
-UA_Client_init(UA_Client* client, UA_ClientConfig config) {
-    memset(client, 0, sizeof(UA_Client));
-    /* TODO: Select policy according to the endpoint */
-    UA_SecurityPolicy_None(&client->securityPolicy, UA_BYTESTRING_NULL, config.logger);
-    client->channel.securityPolicy = &client->securityPolicy;
-    client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
-    client->config = config;
+static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
+	memset(client, 0, sizeof(UA_Client));
+	/* TODO: Select policy according to the endpoint */
+	UA_SecurityPolicy_None(&client->securityPolicy, UA_BYTESTRING_NULL,
+			config.logger);
+	client->channel.securityPolicy = &client->securityPolicy;
+	client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+	client->config = config;
+
+	/*needed by async client*/
+	UA_Timer_init(&client->timer);
+	/* Retrieve complete chunks */
+	client->reply = UA_BYTESTRING_NULL;
+	client->realloced = false;
+
+#ifndef UA_ENABLE_MULTITHREADING
+	SLIST_INIT(&client->delayedCallbacks);
+#endif
 }
 
 UA_Client *
@@ -299,6 +309,24 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
     return retval;
 }
 
+UA_StatusCode receiveServiceResponse_async(UA_Client *client, void *response,
+		const UA_DataType *responseType) {
+	SyncResponseDescription rd = { client, false, 0, response, responseType };
+
+	UA_StatusCode retval;
+
+	retval = UA_Connection_receiveChunksNonBlocking(&client->connection, &rd,
+			client_processChunk);
+	if (retval != UA_STATUSCODE_GOOD) {
+		if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+			client->state = UA_CLIENTSTATE_DISCONNECTED;
+		else
+			UA_Client_disconnect(client);
+	}
+	return retval;
+}
+
+
 void
 __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
@@ -331,32 +359,58 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
-UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         const UA_DataType *responseType,
-                         void *userdata, UA_UInt32 *requestId) {
-    /* Prepare the entry for the linked list */
-    AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
-    if(!ac)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    ac->callback = callback;
-    ac->responseType = responseType;
-    ac->userdata = userdata;
 
-    /* Call the service and set the requestId */
-    UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(ac);
-        return retval;
-    }
+UA_StatusCode receivePacket_async(UA_Client *client) {
+	UA_StatusCode retval;
+	if (UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED) {
+		retval = UA_Connection_receiveChunksNonBlocking(&client->connection,
+				client, client->ackResponseCallback);
+	} else if (UA_Client_getState(client) == UA_CLIENTSTATE_CONNECTED) {
+		retval = UA_Connection_receiveChunksNonBlocking(&client->connection,
+				client, client->openSecureChannelResponseCallback);
+	}
+	if (retval != UA_STATUSCODE_GOOD) {
+		if (retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+			client->state = UA_CLIENTSTATE_DISCONNECTED;
+		else
+			UA_Client_disconnect(client);
+	}
+	return retval;
+}
 
-    /* Store the entry for async processing */
-    LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
-    if(requestId)
-        *requestId = ac->requestId;
-    return UA_STATUSCODE_GOOD;
+
+UA_StatusCode __UA_Client_AsyncService(UA_Client *client, const void *request,
+		const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
+		const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId) {
+	/* Prepare the entry for the linked list */
+	AsyncServiceCall *ac = (AsyncServiceCall*) UA_malloc(
+			sizeof(AsyncServiceCall));
+	if (!ac)
+		return UA_STATUSCODE_BADOUTOFMEMORY;
+	ac->callback = callback;
+	ac->responseType = responseType;
+	ac->userdata = userdata;
+
+	/* Call the service and set the requestId */
+	UA_StatusCode retval = sendSymmetricServiceRequest(client, request,
+			requestType, &ac->requestId);
+	if (retval != UA_STATUSCODE_GOOD) {
+		UA_free(ac);
+		return retval;
+	}
+
+	/* Store the entry for async processing */
+	LIST_INSERT_HEAD(&client->asyncServiceCalls, ac, pointers);
+	if (requestId)
+		*requestId = ac->requestId;
+	return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
+		const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
+		const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId) {
+	return __UA_Client_AsyncService(client, request, requestType, callback,
+			responseType, userdata, requestId);
 }
 
 UA_StatusCode
@@ -367,4 +421,24 @@ UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;
     return retval;
+}
+
+
+
+UA_StatusCode UA_Client_addRepeatedCallback(UA_Client *Client,
+		UA_ClientCallback callback, void *data, UA_UInt32 interval,
+		UA_UInt64 *callbackId) {
+	return UA_Timer_addRepeatedCallback(&Client->timer,
+			(UA_TimerCallback) callback, data, interval, callbackId);
+}
+
+UA_StatusCode UA_Client_changeRepeatedCallbackInterval(UA_Client *Client,
+		UA_UInt64 callbackId, UA_UInt32 interval) {
+	return UA_Timer_changeRepeatedCallbackInterval(&Client->timer, callbackId,
+			interval);
+}
+
+UA_StatusCode UA_Client_removeRepeatedCallback(UA_Client *Client,
+		UA_UInt64 callbackId) {
+	return UA_Timer_removeRepeatedCallback(&Client->timer, callbackId);
 }

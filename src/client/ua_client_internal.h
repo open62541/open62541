@@ -7,10 +7,10 @@
 
 #include "ua_securechannel.h"
 #include "queue.h"
-
- /**************************/
- /* Subscriptions Handling */
- /**************************/
+#include "ua_timer.h"
+/**************************/
+/* Subscriptions Handling */
+/**************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -55,26 +55,50 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 /**********/
 
 typedef struct AsyncServiceCall {
-    LIST_ENTRY(AsyncServiceCall) pointers;
-    UA_UInt32 requestId;
-    UA_ClientAsyncServiceCallback callback;
-    const UA_DataType *responseType;
-    void *userdata;
+	LIST_ENTRY(AsyncServiceCall)
+	pointers;
+	UA_UInt32 requestId;
+	UA_ClientAsyncServiceCallback callback;
+	const UA_DataType *responseType;
+	void *userdata;
+	void *responsedata;
 } AsyncServiceCall;
 
+typedef struct CustomCallback {
+	LIST_ENTRY(CustomCallback)
+	pointers;
+	//to find the correct callback
+	UA_UInt32 callbackId;
+
+	//passes the attributed to be read as the fourth argument
+	//to avoid type casting multiple definition of asyncservicecallback needed
+	UA_ClientAsyncServiceCallback callback;
+
+	UA_AttributeId attributeId;
+	const UA_DataType *outDataType;
+} CustomCallback;
+
 typedef enum {
-    UA_CLIENTAUTHENTICATION_NONE,
-    UA_CLIENTAUTHENTICATION_USERNAME
+	UA_CHUNK_COMPLETED, UA_CHUNK_NOT_COMPLETED
+} UA_ChunkState;
+
+typedef enum {
+	UA_CLIENTAUTHENTICATION_NONE, 
+	UA_CLIENTAUTHENTICATION_USERNAME
 } UA_Client_Authentication;
 
 struct UA_Client {
     /* State */
     UA_ClientState state;
     UA_ClientConfig config;
-
     /* Connection */
     UA_Connection connection;
     UA_String endpointUrl;
+
+    /* chunking */
+    UA_ByteString reply;
+    UA_Boolean realloced;
+    UA_Int32 chunkState;
 
     /* SecureChannel */
     UA_SecurityPolicy securityPolicy;
@@ -87,13 +111,25 @@ struct UA_Client {
     UA_String username;
     UA_String password;
 
-    /* Session */
-    UA_UserTokenPolicy token;
-    UA_NodeId authenticationToken;
-    UA_UInt32 requestHandle;
+	/* Session */
+	UA_UserTokenPolicy token;
+	UA_NodeId authenticationToken;
+	UA_UInt32 requestHandle;
+	/* Connection Establishment (async) */
+	UA_Connection_processChunk ackResponseCallback;
+	UA_Connection_processChunk openSecureChannelResponseCallback;
+	UA_Boolean endpointsHandshake;
 
-    /* Async Service */
-    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
+	/* Async Service */
+	AsyncServiceCall asyncConnectCall;
+	LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
+
+	UA_UInt32 customCallbackId;LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
+	/* Callbacks with a repetition interval */
+	UA_Timer timer;
+
+	/* Delayed callbacks */
+	SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -108,13 +144,28 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
 
 UA_StatusCode
+UA_Client_connectInternalAsync(UA_Client *client, const char *endpointUrl,
+		UA_ClientAsyncServiceCallback callback, void *userdata,
+		UA_Boolean endpointsHandshake, UA_Boolean createNewSession);
+
+UA_StatusCode
 UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSize,
                                UA_EndpointDescription** endpointDescriptions);
 
-/* Receive and process messages until a synchronous message arrives or the
- * timout finishes */
+UA_StatusCode receivePacket_async(UA_Client *client);
+
 UA_StatusCode
 receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *responseType,
-                       UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
+UA_DateTime maxDate, UA_UInt32 *synchronousRequestId);
 
+UA_StatusCode
+receiveServiceResponse_async(UA_Client *client, void *response,
+		const UA_DataType *responseType);
+void
+UA_Client_workerCallback(UA_Client *client, UA_ClientCallback callback,
+		void *data);
+UA_StatusCode
+UA_Client_delayedCallback(UA_Client *client, UA_ClientCallback callback,
+		void *data);
+void UA_Client_connect_iterate(UA_Client *client);
 #endif /* UA_CLIENT_INTERNAL_H_ */

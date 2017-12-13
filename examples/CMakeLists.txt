@@ -56,6 +56,8 @@ add_example(server server.c)
 
 add_example(client client.c)
 
+add_example(client_async client_async.c)
+
 add_example(client_connect_loop client_connect_loop.c)
 
 ####################

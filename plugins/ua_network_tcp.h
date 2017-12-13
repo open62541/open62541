@@ -17,6 +17,9 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port);
 UA_Connection UA_EXPORT
 UA_ClientConnectionTCP(UA_ConnectionConfig conf, const char *endpointUrl, const UA_UInt32 timeout);
 
+UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data);
+UA_Connection UA_EXPORT UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
+		const char *endpointUrl, const UA_UInt32 timeout);
 #ifdef __cplusplus
 } // extern "C"
 #endif
