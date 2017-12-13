@@ -73,7 +73,7 @@ Session
   in cleartext. Currently defined authentication mechanisms are anonymous login,
   username/password, Kerberos and x509 certificates. The latter requires that
   the request message is accompanied by a signature to prove that the sender is
-  in posession of the private key with which the certificate was created.
+  in possession of the private key with which the certificate was created.
 
   There are two message exchanges required to establish a session:
   *CreateSession* and *ActicateSession*. The ActivateSession service can be used

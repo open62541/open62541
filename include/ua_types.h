@@ -659,7 +659,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  *
  * ExtensionObjects may contain scalars of any data type. Even those that are
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
- * are described. If the received data type is unkown, the encoded string and
+ * are described. If the received data type is unknown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
 typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
@@ -762,7 +762,7 @@ typedef struct {
                                      types */
     UA_Byte   padding;            /* How much padding is there before this
                                      member element? For arrays this is the
-                                     padding before the size_t lenght member.
+                                     padding before the size_t length member.
                                      (No padding between size_t and the
                                      following ptr.) */
     UA_Boolean namespaceZero : 1; /* The type of the member is defined in

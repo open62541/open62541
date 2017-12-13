@@ -340,7 +340,7 @@
   </UAReferenceType>
   <UAReferenceType NodeId="i=40" BrowseName="HasTypeDefinition">
     <DisplayName>HasTypeDefinition</DisplayName>
-    <Description>The type for references from a instance node its type defintion node.</Description>
+    <Description>The type for references from a instance node its type definition node.</Description>
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
     </References>
