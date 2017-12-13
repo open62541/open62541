@@ -465,8 +465,23 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
+    # remove opaque type
+    l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
 
+def iter_opaque_types(v):
+    l = None
+    if sys.version_info[0] < 3:
+        l = list(v.itervalues())
+    else:
+        l = list(v.values())
+    if len(selected_types) > 0:
+        l = list(filter(lambda t: t.name in selected_types, l))
+    if args.no_builtin:
+        l = list(filter(lambda t: type(t) != BuiltinType, l))
+    # only opaque type
+    l = list(filter(lambda t: t.name in opaque_type_mapping, l))
+    return l
 ################
 # Print Header #
 ################
@@ -486,18 +501,13 @@ extern "C" {
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
 filtered_types = iter_types(types)
-
-# count number of dataType (exclude opaque DataType)
-count = 0
-for t in filtered_types:
-    if t.name not in opaque_type_mapping:
-        count += 1
+filtered_opaque_types = iter_opaque_types(types)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
  * These descriptions are used during type handling (copying, deletion,
  * binary encoding, ...). */''')
-printh("#define " + outname.upper() + "_COUNT %s" % (str(count)))
+printh("#define " + outname.upper() + "_COUNT %s" % (str(len(filtered_types))))
 printh("extern UA_EXPORT const UA_DataType " + outname.upper() + "[" + outname.upper() + "_COUNT];")
 
 i = 0
@@ -510,12 +520,20 @@ for t in filtered_types:
         printh(" * " + t.description + " */")
     if type(t) != BuiltinType:
         printh(t.typedef_h() + "\n")
-    if t.name not in opaque_type_mapping:
-        printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
-        i += 1
+    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + str(i))
+    i += 1
+
+# Generate alias for opaque types
+for t in filtered_opaque_types:
+    printh("\n/**\n * " +  t.name)
+    printh(" * " + "^" * len(t.name))
+    if t.description == "":
+        printh(" */")
     else:
-        # define alias for opaque dataType
-        printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
+        printh(" * " + t.description + " */")
+    if type(t) != BuiltinType:
+        printh(t.typedef_h() + "\n")
+    printh("#define " + outname.upper() + "_" + t.name.upper() + " " + outname.upper() + "_" + get_base_type_for_opaque(t.name)['name'].upper())
 
 printh('''
 #ifdef __cplusplus
@@ -547,11 +565,9 @@ extern "C" {
 #endif
 ''')
 
-# do not generate for opaque dataType
 for t in filtered_types:
-    if t.name not in opaque_type_mapping:
-        printf("\n/* " + t.name + " */")
-        printf(t.functions_c())
+    printf("\n/* " + t.name + " */")
+    printf(t.functions_c())
 
 printf('''
 #if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
@@ -573,20 +589,16 @@ printc('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 
 #include "''' + outname + '''_generated.h"''')
 
-# do not generate for opaque dataType
 for t in filtered_types:
-    if t.name not in opaque_type_mapping:
-        printc("")
-        printc("/* " + t.name + " */")
-        printc(t.members_c())
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.members_c())
 
 printc("const UA_DataType %s[%s_COUNT] = {" % (outname.upper(), outname.upper()))
-# do not generate for opaque dataType
 for t in filtered_types:
-    if t.name not in opaque_type_mapping:
-        printc("")
-        printc("/* " + t.name + " */")
-        printc(t.datatype_c() + ",")
+    printc("")
+    printc("/* " + t.name + " */")
+    printc(t.datatype_c() + ",")
 printc("};\n")
 
 ##################
@@ -600,11 +612,9 @@ printe('''/* Generated from ''' + inname + ''' with script ''' + sys.argv[0] + '
 #include "ua_types_encoding_binary.h"
 #include "''' + outname + '''_generated.h"''')
 
-# do not generate for opaque dataType
 for t in filtered_types:
-    if t.name not in opaque_type_mapping:
-        printe("\n/* " + t.name + " */")
-        printe(t.encoding_h())
+    printe("\n/* " + t.name + " */")
+    printe(t.encoding_h())
 
 fh.close()
 ff.close()
