@@ -320,7 +320,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     retval |= UA_NodeId_decodeBinary(msg, &offset, &requestType);
     retval |= UA_OpenSecureChannelRequest_decodeBinary(msg, &offset, &openSecureChannelRequest);
 
-    /* Error occured */
+    /* Error occurred */
     if(retval != UA_STATUSCODE_GOOD ||
        requestType.identifier.numeric != UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId) {
         UA_NodeId_deleteMembers(&requestType);

@@ -59,7 +59,7 @@ struct UA_SecureChannel {
 
     /* Asymmetric encryption info */
     UA_ByteString remoteCertificate;
-    UA_Byte remoteCertificateThumbprint[20]; /* The thumprint of the remote certificate */
+    UA_Byte remoteCertificateThumbprint[20]; /* The thumbprint of the remote certificate */
 
     /* Symmetric encryption info */
     UA_ByteString remoteNonce;
@@ -118,10 +118,10 @@ typedef UA_StatusCode
  * callback function is called with the complete message body if the message is
  * complete.
  *
- * Symmetric calback is ERR, MSG, CLO only
+ * Symmetric callback is ERR, MSG, CLO only
  * Asymmetric callback is OPN only
  *
- * @param channel the channel the chunks were recieved on.
+ * @param channel the channel the chunks were received on.
  * @param chunks the memory region where the chunks are stored.
  * @param callback the callback function that gets called with the complete
  *                 message body, once a final chunk is processed.

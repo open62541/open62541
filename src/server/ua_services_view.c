@@ -249,7 +249,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
 
     UA_Nodestore_release(server, node);
 
-    /* Exit early if an error occured */
+    /* Exit early if an error occurred */
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
