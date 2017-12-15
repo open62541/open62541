@@ -513,7 +513,7 @@ UA_Client_disconnect(UA_Client *client) {
         sendCloseSecureChannel(client);
 
     /* Close the TCP connection */
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+    if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
     client->state = UA_CLIENTSTATE_DISCONNECTED;
@@ -528,7 +528,7 @@ UA_Client_close(UA_Client *client) {
         UA_SecureChannel_deleteMembersCleanup(&client->channel);
 
     /* Close the TCP connection */
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+    if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
     client->state = UA_CLIENTSTATE_DISCONNECTED;
