@@ -655,7 +655,6 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ConnectionEntry *e, *e_tmp;
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
         LIST_REMOVE(e, pointers);
-        ServerNetworkLayerTCP_close(&e->connection);
         CLOSESOCKET(e->connection.sockfd);
         UA_free(e);
     }
@@ -872,7 +871,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
     if(!connected) {
         /* connection timeout */
-        ClientNetworkLayerTCP_close(&connection);
+        if (connection.state != UA_CONNECTION_CLOSED)
+            ClientNetworkLayerTCP_close(&connection);
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %s timed out",
                        endpointUrl);
