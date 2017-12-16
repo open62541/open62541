@@ -8,10 +8,10 @@
 /* async connection callback, it only gets called after the completion of the whole
  * connection process*/
 static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
-		void *response) {
+		void *status) {
 	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
 		*(UA_Boolean *) connected = true;
-	printf("%s\n", "Client is connected!");
+	printf("Async connect returned with status code %s\n", UA_StatusCode_name(*(UA_StatusCode *) status));
 }
 
 /*raw service callbacks*/
@@ -99,18 +99,6 @@ static void translateCalled(UA_Client *client, void *userdata,
 	}
 }
 
-//getEndpoints also works as highlevel func
-//static void testCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-//		void *response) {
-//	UA_GetEndpointsResponse resp = *(UA_GetEndpointsResponse*) response;
-//
-//	for (size_t i = 0; i < resp.endpointsSize; i++) {
-//		printf("URL of endpoint %i is %.*s\n", (int) i,
-//				(int) resp.endpoints[i].endpointUrl.length,
-//				resp.endpoints[i].endpointUrl.data);
-//	}
-//}
-
 int main(int argc, char *argv[]) {
 	UA_Client *client = UA_Client_new(UA_ClientConfig_default);
 	UA_UInt32 reqId = 0;
@@ -156,7 +144,7 @@ int main(int argc, char *argv[]) {
 	UA_StatusCode retval;
 	/*Demo: raw services*/
 
-	/*this request is not sent*/
+	/*what happens if client tries to send request before connected?*/
 	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed,
 						&userdata, &reqId);
 	do {
@@ -216,11 +204,12 @@ int main(int argc, char *argv[]) {
 	}
 
 	/*process high-level requests*/
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 20; i++)
 		UA_Client_run_iterate(client, true, &retval);
 
 	UA_Variant_delete(myVariant);
-	UA_Client_disconnect(client);
+	/*async disconnect kills unprocessed requests*/
+	UA_Client_disconnect_async(client, &reqId);
 	UA_Client_delete(client);
 	return (int) UA_STATUSCODE_GOOD;
 }

@@ -286,6 +286,11 @@ UA_UInt16 UA_Client_run_iterate(UA_Client *client, UA_Boolean waitInternal, UA_S
 		timeout = (UA_UInt16) ((nextRepeated - now) / UA_MSEC_TO_DATETIME);
 	UA_ClientState cs = UA_Client_getState(client);
 	*retval = UA_Client_connect_iterate(client);
+
+	/*connection failed, drop the rest*/
+	if(*retval != UA_STATUSCODE_GOOD)
+		return 0;
+
 	if (cs == UA_CLIENTSTATE_SECURECHANNEL || cs == UA_CLIENTSTATE_SESSION) {
 		/* check for new data */
 		receiveServiceResponse_async(client, NULL, NULL);

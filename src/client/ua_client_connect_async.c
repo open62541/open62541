@@ -31,17 +31,15 @@ static UA_StatusCode processACKResponse(void *application,
 
 	/* Decode the message */
 	size_t offset = 0;
-	UA_StatusCode retval;
 	UA_TcpMessageHeader messageHeader;
 	UA_TcpAcknowledgeMessage ackMessage;
-	retval = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
-	retval |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset,
+	client->connectStatus = UA_TcpMessageHeader_decodeBinary(chunk, &offset, &messageHeader);
+	client->connectStatus |= UA_TcpAcknowledgeMessage_decodeBinary(chunk, &offset,
 			&ackMessage);
-	if (retval != UA_STATUSCODE_GOOD) {
+	if (client->connectStatus != UA_STATUSCODE_GOOD) {
 		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
 				"Decoding ACK message failed");
-		client->connectStatus = retval;
-		return retval;
+		return client->connectStatus;
 	}
 
 	/* Store remote connection settings and adjust local configuration to not
@@ -67,20 +65,19 @@ static UA_StatusCode processACKResponse(void *application,
 
 	/* Open a SecureChannel. TODO: Select with endpoint  */
 	client->channel.connection = &client->connection;
-	retval = openSecureChannel(client, false);
-	client->connectStatus = retval;
-	return retval;
+	client->connectStatus = openSecureChannel(client, false);
+	return client->connectStatus;
 }
 
 static UA_StatusCode sendHELMessage(UA_Client *client) {
 	/* Get a buffer */
 	UA_ByteString message;
 	UA_Connection *conn = &client->connection;
-	UA_StatusCode retval = conn->getSendBuffer(conn, UA_MINMESSAGESIZE,
+	client->connectStatus = conn->getSendBuffer(conn, UA_MINMESSAGESIZE,
 			&message);
-	client->connectStatus = retval;
-	if (retval != UA_STATUSCODE_GOOD)
-		return retval;
+
+	if (client->connectStatus != UA_STATUSCODE_GOOD)
+		return client->connectStatus;
 
 	/* Prepare the HEL message and encode at offset 8 */
 	UA_TcpHelloMessage hello;
@@ -93,7 +90,7 @@ static UA_StatusCode sendHELMessage(UA_Client *client) {
 
 	UA_Byte *bufPos = &message.data[8]; /* skip the header */
 	const UA_Byte *bufEnd = &message.data[message.length];
-	retval = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, &bufEnd);
+	client->connectStatus = UA_TcpHelloMessage_encodeBinary(&hello, &bufPos, &bufEnd);
 	UA_TcpHelloMessage_deleteMembers(&hello);
 
 	/* Encode the message header at offset 0 */
@@ -103,25 +100,25 @@ static UA_StatusCode sendHELMessage(UA_Client *client) {
 	messageHeader.messageSize = (UA_UInt32) ((uintptr_t) bufPos
 			- (uintptr_t) message.data);
 	bufPos = message.data;
-	retval |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos,
+	client->connectStatus |= UA_TcpMessageHeader_encodeBinary(&messageHeader, &bufPos,
 			&bufEnd);
-	if (retval != UA_STATUSCODE_GOOD) {
+	if (client->connectStatus != UA_STATUSCODE_GOOD) {
 		conn->releaseSendBuffer(conn, &message);
-		return retval;
+		return client->connectStatus;
 	}
 
 	/* Send the HEL message */
 	message.length = messageHeader.messageSize;
-	retval = conn->send(conn, &message);
-	client->connectStatus = retval;
-	if (retval != UA_STATUSCODE_GOOD) {
+	client->connectStatus = conn->send(conn, &message);
+
+	if (client->connectStatus != UA_STATUSCODE_GOOD) {
 		UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
 				"Sending HEL failed");
-		return retval;
+		return client->connectStatus;
 	}
 	UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_NETWORK,
 			"Sent HEL message");
-	return retval;
+	return client->connectStatus;
 }
 
 static UA_StatusCode processDecodedOPNResponse(void *application,
@@ -270,7 +267,7 @@ static UA_StatusCode openSecureChannel(UA_Client *client, UA_Boolean renew) {
 }
 
 
-/*functions for async connection, connected with callback*/
+/*functions for async connection, connected by callbacks*/
 
 static void responseActivateSession(UA_Client *client, void *userdata,
 		UA_UInt32 requestId, void *response) {
@@ -284,10 +281,10 @@ static void responseActivateSession(UA_Client *client, void *userdata,
 	}
 	client->connection.state = UA_CONNECTION_ESTABLISHED;
 	client->state = UA_CLIENTSTATE_SESSION;
-	//call connect request
+	//call onConnect (client_async.c) callback
 	AsyncServiceCall ac = client->asyncConnectCall;
 
-	ac.callback(client, ac.userdata, requestId + 1, NULL);
+	ac.callback(client, ac.userdata, requestId + 1, &activateResponse->responseHeader.serviceResult);
 }
 
 static UA_StatusCode requestActivateSession(UA_Client *client,
@@ -338,10 +335,10 @@ static void responseGetEndpoints(UA_Client *client, void *userdata,
 	resp = (UA_GetEndpointsResponse*) response;
 
 	if (resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-		UA_StatusCode retval = resp->responseHeader.serviceResult;
+		client->connectStatus = resp->responseHeader.serviceResult;
 		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
 				"GetEndpointRequest failed with error code %s",
-				UA_StatusCode_name(retval));
+				UA_StatusCode_name(client->connectStatus));
 		UA_GetEndpointsResponse_deleteMembers(resp);
 		return;
 	}
@@ -422,13 +419,12 @@ static UA_StatusCode requestGetEndpoints(UA_Client *client,
 	// assume the endpointurl outlives the service call
 	request.endpointUrl = client->endpointUrl;
 
-	UA_StatusCode retval = UA_Client_sendAsyncRequest(client, &request,
+	client->connectStatus = UA_Client_sendAsyncRequest(client, &request,
 			&UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
 			(UA_ClientAsyncServiceCallback) responseGetEndpoints,
 			&UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, requestId);
 	UA_GetEndpointsRequest_deleteMembers(&request);
-	client->connectStatus = retval;
-	return retval;
+	return client->connectStatus;
 
 }
 
@@ -452,13 +448,13 @@ static UA_StatusCode requestSession(UA_Client *client, UA_UInt32 *requestId) {
 	request.maxResponseMessageSize = UA_INT32_MAX;
 	UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
-	UA_StatusCode retval = UA_Client_sendAsyncRequest(client, &request,
+	client->connectStatus = UA_Client_sendAsyncRequest(client, &request,
 			&UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
 			(UA_ClientAsyncServiceCallback) responseSessionCallback,
 			&UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, requestId);
 	UA_CreateSessionRequest_deleteMembers(&request);
-	client->connectStatus = retval;
-	return retval;
+
+	return client->connectStatus;
 }
 
 UA_StatusCode UA_Client_connectInternalAsync(UA_Client *client,
@@ -514,12 +510,13 @@ UA_StatusCode UA_Client_connect_iterate(UA_Client *client) {
 			&& client->state < UA_CLIENTSTATE_WAITING_FOR_ACK) {
 		return sendHELMessage(client);
 	}
+
+	/*if server is not connected*/
 	if(client->connection.state == UA_CONNECTION_CLOSED){
 		client->connectStatus = UA_STATUSCODE_BADSERVERNOTCONNECTED;
 		UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_NETWORK, "No connection to server.");
 	}
 
-	//TODO: error handling
 	return client->connectStatus;
 }
 UA_StatusCode UA_Client_connect_async(UA_Client *client,
@@ -527,4 +524,60 @@ UA_StatusCode UA_Client_connect_async(UA_Client *client,
 		void *connected) {
 	return UA_Client_connectInternalAsync(client, endpointUrl, callback,
 			connected, UA_TRUE, UA_TRUE);
+}
+
+/*async disconnection*/
+
+static void
+sendCloseSecureChannel(UA_Client *client, void *userdata,
+		UA_UInt32 requestId, void *response) {
+    UA_NodeId_deleteMembers(&client->authenticationToken);
+    client->requestHandle = 0;
+
+    UA_SecureChannel *channel = &client->channel;
+    UA_CloseSecureChannelRequest request;
+    UA_CloseSecureChannelRequest_init(&request);
+    request.requestHeader.requestHandle = ++client->requestHandle;
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    request.requestHeader.authenticationToken = client->authenticationToken;
+    UA_SecureChannel_sendSymmetricMessage(channel, ++client->requestId,
+                                          UA_MESSAGETYPE_CLO, &request,
+                                          &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
+    UA_SecureChannel_deleteMembersCleanup(&client->channel);
+}
+
+
+static void
+sendCloseSession(UA_Client *client, UA_UInt32 *requestId) {
+    UA_CloseSessionRequest request;
+    UA_CloseSessionRequest_init(&request);
+
+    request.requestHeader.timestamp = UA_DateTime_now();
+    request.requestHeader.timeoutHint = 10000;
+    request.deleteSubscriptions = true;
+
+	UA_Client_sendAsyncRequest(client, &request,
+			&UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+			(UA_ClientAsyncServiceCallback) sendCloseSecureChannel,
+			&UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE], NULL, requestId);
+
+}
+
+
+UA_StatusCode
+UA_Client_disconnect_async(UA_Client *client, UA_UInt32 *requestId) {
+    /* Is a session established? */
+    if(client->state == UA_CLIENTSTATE_SESSION){
+        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
+        sendCloseSession(client, requestId);
+    }
+
+    /* Close the TCP connection
+     * shutdown and close (in tcp.c) are already async*/
+    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+        client->connection.close(&client->connection);
+
+    client->state = UA_CLIENTSTATE_DISCONNECTED;
+    return UA_STATUSCODE_GOOD;
 }

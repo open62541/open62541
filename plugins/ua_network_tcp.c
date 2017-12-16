@@ -13,7 +13,7 @@
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
-
+ #define _GNU_SOURCE
 /* Disable some security warnings on MSVC */
 #ifdef _MSC_VER
 # define _CRT_SECURE_NO_WARNINGS
@@ -73,6 +73,7 @@
 # include <sys/ioctl.h>
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
+
 # include <netdb.h>
 # ifdef __QNX__
 #  include <sys/socket.h>
@@ -692,6 +693,7 @@ typedef struct TCPClientConnection {
 /* Client NetworkLayer TCP */
 /***************************/
 
+
 static void
 ClientNetworkLayerTCP_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
@@ -888,6 +890,22 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
 #endif
 	int error = getaddrinfo(hostname, portStr, &tcpClientConnection->hints,
 			&tcpClientConnection->server);
+
+//	struct gaicb *host[1];
+//	struct sigevent sig;
+//
+//	host[0] = (struct gaicb *) malloc(sizeof(struct gaicb));
+//	host[0]->ar_name = hostname;
+//	host[0]->ar_service = portStr;
+//	host[0]->ar_request = &tcpClientConnection->hints;
+//	host[0]->ar_result = tcpClientConnection->server;
+//
+//    sig.sigev_notify = SIGEV_SIGNAL;
+//    sig.sigev_value.sival_ptr = host;
+//    sig.sigev_signo = SIGRTMIN;
+
+//	int error = getaddrinfo_a(GAI_NOWAIT, host, 1, &sig);
+
 	if (error != 0 || !tcpClientConnection->server) {
 		UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
 				"DNS lookup of %s failed with error %s", hostname,
