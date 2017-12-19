@@ -144,6 +144,8 @@ connection_releaserecvbuffer(UA_Connection *connection,
 
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     /* Prevent OS signals when sending to a closed socket */
     int flags = 0;
 #ifdef MSG_NOSIGNAL
@@ -176,6 +178,8 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
                 UA_UInt32 timeout) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
     /* Listen on the socket for the given timeout until a message arrives */
     if(timeout > 0) {
         fd_set fdset;
@@ -292,6 +296,8 @@ ServerNetworkLayerTCP_freeConnection(UA_Connection *connection) {
  * socket is returned from select. */
 static void
 ServerNetworkLayerTCP_close(UA_Connection *connection) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return;
     shutdown((SOCKET)connection->sockfd, 2);
     connection->state = UA_CONNECTION_CLOSED;
 }
@@ -649,7 +655,6 @@ ServerNetworkLayerTCP_deleteMembers(UA_ServerNetworkLayer *nl) {
     ConnectionEntry *e, *e_tmp;
     LIST_FOREACH_SAFE(e, &layer->connections, pointers, e_tmp) {
         LIST_REMOVE(e, pointers);
-        ServerNetworkLayerTCP_close(&e->connection);
         CLOSESOCKET(e->connection.sockfd);
         UA_free(e);
     }
@@ -684,6 +689,8 @@ UA_ServerNetworkLayerTCP(UA_ConnectionConfig conf, UA_UInt16 port) {
 
 static void
 ClientNetworkLayerTCP_close(UA_Connection *connection) {
+    if (connection->state == UA_CONNECTION_CLOSED)
+        return;
     shutdown((SOCKET)connection->sockfd, 2);
     CLOSESOCKET(connection->sockfd);
     connection->state = UA_CONNECTION_CLOSED;
@@ -864,7 +871,8 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 
     if(!connected) {
         /* connection timeout */
-        ClientNetworkLayerTCP_close(&connection);
+        if (connection.state != UA_CONNECTION_CLOSED)
+            ClientNetworkLayerTCP_close(&connection);
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
                        "Trying to connect to %s timed out",
                        endpointUrl);
