@@ -52,7 +52,7 @@ static void teardown(void) {
 
 UA_Boolean notificationReceived;
 
-static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
+static void monitoredItemHandler(UA_UInt32 subId, UA_UInt32 monId, UA_DataValue *value, void *context) {
     notificationReceived = true;
 }
 
