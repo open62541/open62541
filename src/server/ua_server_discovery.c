@@ -99,7 +99,6 @@ register_server_with_discovery_server(UA_Server *server,
 
     // First try with RegisterServer2, if that isn't implemented, use RegisterServer
     UA_RegisterServer2Response response;
-    UA_RegisterServer2Response_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
                         &response, &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE]);
 
@@ -117,7 +116,6 @@ register_server_with_discovery_server(UA_Server *server,
         request_fallback.server = request.server;
 
         UA_RegisterServerResponse response_fallback;
-        UA_RegisterServerResponse_init(&response_fallback);
 
         __UA_Client_Service(client, &request_fallback,
                             &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],

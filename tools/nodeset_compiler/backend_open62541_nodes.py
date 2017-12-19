@@ -246,7 +246,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, recursionDepth=0, 
     code.append(
         "if(UA_ByteString_allocBuffer(&" + instanceName + "->content.encoded.body, 65000) != UA_STATUSCODE_GOOD) {}")
 
-    # Encode each value as a bytestring seperately.
+    # Encode each value as a bytestring separately.
     code.append("UA_Byte *pos" + instanceName + " = " + instanceName + "->content.encoded.body.data;")
     code.append("const UA_Byte *end" + instanceName + " = &" + instanceName + "->content.encoded.body.data[65000];")
     encFieldIdx = 0
@@ -453,9 +453,9 @@ def generateSubtypeOfDefinitionCode(node):
             return generateNodeIdCode(ref.target)
     return "UA_NODEID_NULL"
 
-def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
+def generateNodeCode(node, suppressGenerationOfAttribute, generate_ns0, parentrefs, nodeset, max_string_length):
     code = []
-    code.append("{")
+    code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
 
     codeCleanup = []
 
@@ -519,5 +519,5 @@ def generateNodeCode(node, supressGenerationOfAttribute, generate_ns0, parentref
     else:
         code.append("NULL, NULL);")
     code.extend(codeCleanup)
-    code.append("}\n")
+    
     return "\n".join(code)

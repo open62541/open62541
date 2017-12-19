@@ -18,6 +18,7 @@ UA_Subscription_new(UA_Session *session, UA_UInt32 subscriptionID) {
     /* Remaining members are covered by calloc zeroing out the memory */
     newItem->session = session;
     newItem->subscriptionID = subscriptionID;
+    newItem->numMonitoredItems = 0;
     newItem->state = UA_SUBSCRIPTIONSTATE_NORMAL; /* The first publish response is sent immediately */
     TAILQ_INIT(&newItem->retransmissionQueue);
     return newItem;
@@ -72,7 +73,19 @@ UA_Subscription_deleteMonitoredItem(UA_Server *server, UA_Subscription *sub,
     /* Remove the MonitoredItem */
     LIST_REMOVE(mon, listEntry);
     MonitoredItem_delete(server, mon);
+    sub->numMonitoredItems--;
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_Subscription_addMonitoredItem(UA_Subscription *sub, UA_MonitoredItem *newMon) {
+    sub->numMonitoredItems++;
+    LIST_INSERT_HEAD(&sub->monitoredItems, newMon, listEntry);
+}
+
+UA_UInt32
+UA_Subscription_getNumMonitoredItems(UA_Subscription *sub) {
+    return sub->numMonitoredItems;
 }
 
 static size_t
@@ -250,7 +263,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
         return;
 
     /* Dequeue a response */
-    UA_PublishResponseEntry *pre = SIMPLEQ_FIRST(&sub->session->responseQueue);
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(sub->session);
 
     /* Cannot publish without a response */
     if(!pre) {
@@ -302,7 +315,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     /* <-- The point of no return --> */
 
     /* Remove the response from the response queue */
-    SIMPLEQ_REMOVE_HEAD(&sub->session->responseQueue, listEntry);
+    UA_Session_removePublishReq(sub->session, pre);
 
     /* Set up the response */
     response->responseHeader.timestamp = UA_DateTime_now();
@@ -367,6 +380,53 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
+UA_Boolean
+UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) {
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Reached number of publish request limit");
+
+
+    /* Dequeue a response */
+    UA_PublishResponseEntry *pre = UA_Session_getPublishReq(session);
+
+    /* Cannot publish without a response */
+    if(!pre) {
+        UA_LOG_FATAL_SESSION(server->config.logger, session, "No publish requests available");
+        return false;
+    }
+
+    UA_PublishResponse *response = &pre->response;
+    UA_NotificationMessage *message = &response->notificationMessage;
+
+    /* <-- The point of no return --> */
+
+    /* Remove the response from the response queue */
+    UA_Session_removePublishReq(session, pre);
+
+    /* Set up the response. Note that this response has no related subscription id */
+    response->responseHeader.timestamp = UA_DateTime_now();
+    response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
+    response->subscriptionId = 0;
+    response->moreNotifications = false;
+    message->publishTime = response->responseHeader.timestamp;
+    message->sequenceNumber = 0;
+    response->availableSequenceNumbersSize = 0;
+
+    /* Send the response */
+    UA_LOG_DEBUG_SESSION(server->config.logger, session,
+                         "Sending out a publish response triggered by too many publish requests");
+    UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+                                          UA_MESSAGETYPE_MSG, response,
+                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+    /* Free the response */
+    UA_Array_delete(response->results, response->resultsSize,
+                    &UA_TYPES[UA_TYPES_UINT32]);
+    UA_free(pre); /* no need for UA_PublishResponse_deleteMembers */
+
+    return true;
+}
+
 UA_StatusCode
 Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
@@ -417,8 +477,8 @@ UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
 
     /* Send a response for every queued request */
     UA_PublishResponseEntry *pre;
-    while((pre = SIMPLEQ_FIRST(&session->responseQueue))) {
-        SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+    while((pre = UA_Session_getPublishReq(session))) {
+        UA_Session_removePublishReq(session, pre);
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         response->responseHeader.timestamp = UA_DateTime_now();

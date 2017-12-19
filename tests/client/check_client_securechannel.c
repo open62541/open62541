@@ -10,6 +10,7 @@
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -84,11 +85,6 @@ START_TEST(SecureChannel_timeout_fail) {
 }
 END_TEST
 
-static void
-read_cb(UA_Client *client, void *userdata,
-        UA_UInt32 requestId, const void *response) {
-}
-
 /* Send an async message and receive the response when the securechannel timed out */
 START_TEST(SecureChannel_networkfail) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
@@ -104,15 +100,16 @@ START_TEST(SecureChannel_networkfail) {
     rq.nodesToRead = &rvi;
     rq.nodesToReadSize = 1;
 
-    UA_UInt32 rqId;
-    __UA_Client_AsyncService(client, &rq, &UA_TYPES[UA_TYPES_READREQUEST],
-                             read_cb, &UA_TYPES[UA_TYPES_READRESPONSE], NULL, &rqId);
+    /* Forward the clock after recv in the client */
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+    UA_Client_recvSleepDuration = UA_ClientConfig_default.secureChannelLifeTime+1;
 
-    UA_fakeSleep(UA_ClientConfig_default.secureChannelLifeTime+1);
-    UA_realSleep(100); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
-
-    retval = UA_Client_runAsync(client, 50);
-    ck_assert_msg(retval != UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_msg(retval == UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -139,6 +136,36 @@ START_TEST(SecureChannel_reconnect) {
 }
 END_TEST
 
+START_TEST(SecureChannel_cableunplugged) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    UA_Variant_init(&val);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+    ck_assert_msg(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
+
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
@@ -146,6 +173,7 @@ int main(void) {
     tcase_add_test(tc_sc, SecureChannel_timeout_fail);
     tcase_add_test(tc_sc, SecureChannel_networkfail);
     tcase_add_test(tc_sc, SecureChannel_reconnect);
+    tcase_add_test(tc_sc, SecureChannel_cableunplugged);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);

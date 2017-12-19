@@ -1,6 +1,7 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include "ua_types.h"
 #include "ua_securitypolicy_none.h"
 #include "ua_types_generated_handling.h"
 
@@ -64,11 +65,15 @@ generateKey_none(const UA_SecurityPolicy *securityPolicy,
 static UA_StatusCode
 generateNonce_none(const UA_SecurityPolicy *securityPolicy,
                    UA_ByteString *out) {
-    out->data = UA_Byte_new();
-    if(!out->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    out->length = 1;
-    out->data[0] = 'a';
+    if(securityPolicy == NULL || out == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(out->length != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(out->data != NULL)
+        UA_ByteString_deleteMembers(out);
+
+    out->data = (UA_Byte *) UA_EMPTY_ARRAY_SENTINEL;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -114,7 +119,7 @@ policy_deletemembers_none(UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                        UA_Logger logger) {
-    policy->policyContext = (void*)(uintptr_t)logger;
+    policy->policyContext = (void *) (uintptr_t) logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);

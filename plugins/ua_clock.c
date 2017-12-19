@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /* Enable POSIX features */
-#ifndef _XOPEN_SOURCE
+#if !defined(_XOPEN_SOURCE) && !defined(_WRS_KERNEL)
 # define _XOPEN_SOURCE 600
 #endif
 #ifndef _DEFAULT_SOURCE
@@ -54,8 +54,30 @@ UA_DateTime UA_DateTime_now(void) {
 #else
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    return (tv.tv_sec * UA_SEC_TO_DATETIME) + (tv.tv_usec * UA_USEC_TO_DATETIME) + UA_DATETIME_UNIX_EPOCH;
+    return (tv.tv_sec * UA_DATETIME_SEC) + (tv.tv_usec * UA_DATETIME_USEC) + UA_DATETIME_UNIX_EPOCH;
 #endif
+}
+
+/* Credit to https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
+UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
+    time_t gmt, rawtime = time(NULL);
+
+#ifdef _WIN32
+    struct tm ptm;
+    gmtime_s(&ptm, &rawtime);
+    // Request that mktime() looksup dst in timezone database
+    ptm.tm_isdst = -1;
+    gmt = mktime(&ptm);
+#else
+    struct tm *ptm;
+    struct tm gbuf;
+    ptm = gmtime_r(&rawtime, &gbuf);
+    // Request that mktime() looksup dst in timezone database
+    ptm->tm_isdst = -1;
+    gmt = mktime(ptm);
+#endif
+
+    return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
@@ -63,7 +85,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     LARGE_INTEGER freq, ticks;
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&ticks);
-    UA_Double ticks2dt = UA_SEC_TO_DATETIME / (UA_Double)freq.QuadPart;
+    UA_Double ticks2dt = UA_DATETIME_SEC / (UA_Double)freq.QuadPart;
     return (UA_DateTime)(ticks.QuadPart * ticks2dt);
 #elif defined(__APPLE__) || defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
@@ -72,14 +94,14 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_SEC_TO_DATETIME) + (mts.tv_nsec / 100);
+    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * UA_SEC_TO_DATETIME) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
 #endif
 }

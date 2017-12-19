@@ -156,7 +156,7 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
     request.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse response = UA_Client_Service_createMonitoredItems(client, request);
 
-    // slight misuse of retval here to check if the deletion was successfull.
+    // slight misuse of retval here to check if the deletion was successful.
     UA_StatusCode retval;
     if(response.resultsSize == 0)
         retval = response.responseHeader.serviceResult;
@@ -230,7 +230,7 @@ UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscripti
     request.itemsToCreateSize = 1;
     UA_CreateMonitoredItemsResponse response = UA_Client_Service_createMonitoredItems(client, request);
 
-    // slight misuse of retval here to check if the addition was successfull.
+    // slight misuse of retval here to check if the addition was successful.
     UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD) {
         if(response.resultsSize == 1)
@@ -406,7 +406,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_MSEC_TO_DATETIME);
+    UA_DateTime maxDate = now + (UA_DateTime)(client->config.timeout * UA_DATETIME_MSEC);
 
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {

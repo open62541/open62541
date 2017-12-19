@@ -23,15 +23,16 @@ if [ -d "$BUILD_DIR_CORPUS/corpus" ]; then
     rm -rf "$BUILD_DIR_CORPUS/corpus"
 fi
 
-if [ $TRAVIS = true ]; then
-	export CC=clang-3.9
-	export CXX=clang++-3.9
-else
+if [ -z ${TRAVIS+x} ]; then
 	export CC=clang-5.0
 	export CXX=clang++-5.0
+else
+	# Travis needs an older clang
+	export CC=clang-3.9
+	export CXX=clang++-3.9
 fi
 # First build and run the unit tests without any specific fuzz settings
-cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON ..
+cmake -DUA_BUILD_FUZZING_CORPUS=ON -DUA_BUILD_UNIT_TESTS=ON -DUA_ENABLE_DISCOVERY_MULTICAST=ON ..
 make -j && make test ARGS="-V"
 if [ $? -ne 0 ] ; then exit 1 ; fi
 # Run our special generator
@@ -51,7 +52,7 @@ merge_corpus() {
 
 
     if [ -d "$corpus_existing" ]; then
-        echo "Merging ${corpus_existing} into ${corpus_new}"
+        echo "Merging ${corpus_new} into ${corpus_existing}"
         "$fuzzer" -merge=1 "$corpus_existing" "${corpus_new}"
     else
         echo "Copying ${corpus_new} into ${corpus_existing}"
@@ -60,5 +61,61 @@ merge_corpus() {
 }
 
 
-merge_corpus $BUILD_DIR_FUZZ_MODE/bin/fuzz_binary_message $BASE_DIR/tests/fuzz/fuzz_binary_message_corpus/generated $BUILD_DIR_CORPUS/corpus
+# Iterate over all files and combine single message files to a full interaction, i.e.,
+# After running the corpus generator, the output directory contains single files for each
+# message (HEL, OPN, MSG..., CLO). Fuzzer needs these files to be combined into one single file
+
+
+
+
+
+CORPUS_SINGLE=$BUILD_DIR_CORPUS/corpus
+CORPUS_COMBINED=$BUILD_DIR_CORPUS/corpus_combined
+
+if [ -d  $CORPUS_COMBINED ]; then
+	rm -r $CORPUS_COMBINED
+fi
+mkdir $CORPUS_COMBINED
+
+
+
+
+
+# iterate over all the subdirectories
+subDirs=$(find $CORPUS_SINGLE -maxdepth 1 -mindepth 1 -type d)
+for dirPath in $subDirs; do
+	# if empty, skip
+	if ! [ -n "$(ls -A $dirPath)" ]; then
+		#echo "Skipping empty $dirPath"
+		continue
+	fi
+
+	dir=$(basename $dirPath)
+	dirPathTmp=$CORPUS_COMBINED/${dir}
+	if [ -d  $dirPathTmp ]; then
+		rm -r $dirPathTmp
+	fi
+	mkdir $dirPathTmp
+
+	# The files are ordered by interaction. So we start with the first file
+	# and combine all of them until we get the CLO file.
+	# Then we start a new file and combine them again.
+
+	currCount=1
+
+	for binFile in `ls $dirPath/*.bin | sort -V`; do
+
+		#echo "Combining $binFile to $dirPathTmp/msg_${currCount}.bin"
+		cat $binFile >> $dirPathTmp/${dir}_msg_${currCount}.bin
+
+		# if it is a close message, start new message
+		if [[ "$binFile" == *clo.bin ]]; then
+			currCount=$((currCount+1))
+		fi
+	done
+done
+
+
+
+merge_corpus $BUILD_DIR_FUZZ_MODE/bin/fuzz_binary_message $BASE_DIR/tests/fuzz/fuzz_binary_message_corpus/generated $CORPUS_COMBINED
 if [ $? -ne 0 ] ; then exit 1 ; fi

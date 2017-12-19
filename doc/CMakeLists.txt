@@ -57,10 +57,10 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
   COMMENT "Building LaTeX sources for documentation with Sphinx")
 add_dependencies(doc_latex open62541)
 
-add_custom_target(doc_pdf ${PDFLATEX_COMPILER} --quiet "open62541.tex"
+add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
   WORKING_DIRECTORY ${DOC_LATEX_DIR}
   # compile it twice so that the contents pages are correct
-  COMMAND ${PDFLATEX_COMPILER} --quiet "open62541.tex"
+  COMMAND ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
   DEPENDS ${PDFLATEX_COMPILER}
   COMMENT "Generating PDF documentation from LaTeX sources")
 add_dependencies(doc_pdf doc_latex)

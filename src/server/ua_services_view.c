@@ -72,8 +72,17 @@ browseReferences(UA_Server *server, const UA_Node *node,
 
     /* How many references can we return at most? */
     size_t maxrefs = cp->maxReferences;
-    if(maxrefs == 0)
-        maxrefs = UA_INT32_MAX;
+    if(maxrefs == 0) {
+        if(server->config.maxReferencesPerNode != 0) {
+            maxrefs = server->config.maxReferencesPerNode;
+        } else {
+            maxrefs = UA_INT32_MAX;
+        }
+    } else {
+        if(server->config.maxReferencesPerNode != 0 && maxrefs > server->config.maxReferencesPerNode) {
+            maxrefs = server->config.maxReferencesPerNode;
+        }
+    }
 
     /* Allocate the results array */
     size_t refs_size = 2; /* True size of the array */
@@ -127,6 +136,8 @@ browseReferences(UA_Server *server, const UA_Node *node,
             /* Make enough space in the array */
             if(result->referencesSize >= refs_size) {
                 refs_size *= 2;
+                if(refs_size > maxrefs)
+                    refs_size = maxrefs;
                 UA_ReferenceDescription *rd = (UA_ReferenceDescription*)
                     UA_realloc(result->references, sizeof(UA_ReferenceDescription) * refs_size);
                 if(!rd) {
@@ -238,7 +249,7 @@ Service_Browse_single(UA_Server *server, UA_Session *session,
 
     UA_Nodestore_release(server, node);
 
-    /* Exit early if an error occured */
+    /* Exit early if an error occurred */
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
 
@@ -293,6 +304,12 @@ void Service_Browse(UA_Server *server, UA_Session *session,
 
     if(request->nodesToBrowseSize <= 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+        return;
+    }
+
+    if(server->config.maxNodesPerBrowse != 0 &&
+       request->nodesToBrowseSize > server->config.maxNodesPerBrowse) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
 
@@ -679,6 +696,13 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
+
+    if(server->config.maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
+       request->browsePathsSize > server->config.maxNodesPerTranslateBrowsePathsToNodeIds) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult = 
         UA_Server_processServiceOperations(server, session,
                   (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
@@ -698,6 +722,12 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
         return;
     }
 
+    if(server->config.maxNodesPerRegisterNodes != 0 &&
+       request->nodesToRegisterSize > server->config.maxNodesPerRegisterNodes) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
     response->responseHeader.serviceResult =
         UA_Array_copy(request->nodesToRegister, request->nodesToRegisterSize,
                       (void**)&response->registeredNodeIds, &UA_TYPES[UA_TYPES_NODEID]);
@@ -714,4 +744,10 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
     //TODO: remove the nodeids from the session if really needed
     if(request->nodesToUnregisterSize == 0)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
+
+    if(server->config.maxNodesPerRegisterNodes != 0 &&
+       request->nodesToUnregisterSize > server->config.maxNodesPerRegisterNodes) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
 }

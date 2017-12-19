@@ -1412,7 +1412,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type) {
                 ptr -= member->padding + memSize; /* encode the same member in the next iteration */
                 if(ret == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED || g_pos + memSize > g_end) {
                     /* the send buffer is too small to encode the member, even after exchangeBuffer */
-                    return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+                    return UA_STATUSCODE_BADRESPONSETOOLARGE;
                 }
                 --i;
             }

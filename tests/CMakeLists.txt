@@ -39,7 +39,9 @@ set(test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
                         ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
+                        ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
+                        ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
@@ -103,6 +105,10 @@ add_executable(check_utils check_utils.c $<TARGET_OBJECTS:open62541-object> $<TA
 target_link_libraries(check_utils ${LIBS})
 add_test_valgrind(utils ${TESTS_BINARY_DIR}/check_utils)
 
+add_executable(check_securechannel check_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_securechannel ${LIBS})
+add_test_valgrind(securechannel ${TESTS_BINARY_DIR}/check_securechannel)
+
 # Test Server
 
 add_executable(check_accesscontrol server/check_accesscontrol.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -151,7 +157,6 @@ if(UA_ENABLE_DISCOVERY)
     add_test_valgrind(discovery ${TESTS_BINARY_DIR}/check_discovery)
 endif()
 
-# Readspeed server
 add_executable(check_server_readspeed server/check_server_readspeed.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_server_readspeed ${LIBS})
 add_test_valgrind(server_readspeed ${TESTS_BINARY_DIR}/check_server_readspeed)

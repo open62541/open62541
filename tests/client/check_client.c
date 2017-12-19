@@ -7,11 +7,14 @@
 
 #include "ua_types.h"
 #include "ua_server.h"
+#include "ua_server_internal.h"
 #include "ua_client.h"
+#include "client/ua_client_internal.h"
 #include "ua_config_default.h"
 #include "ua_client_highlevel.h"
 #include "ua_network_tcp.h"
 #include "testing_clock.h"
+#include "testing_networklayers.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -121,34 +124,115 @@ START_TEST(Client_renewSecureChannel) {
 } END_TEST
 
 START_TEST(Client_reconnect) {
-        UA_ClientConfig clientConfig = UA_ClientConfig_default;
-        clientConfig.timeout = 100;
-        UA_Client *client = UA_Client_new(clientConfig);
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    clientConfig.timeout = 100;
+    UA_Client *client = UA_Client_new(clientConfig);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Variant val;
-        UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
-        retval = UA_Client_readValueAttribute(client, nodeId, &val);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Variant_deleteMembers(&val);
+    UA_Variant val;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
 
-        // restart server to test reconnect
-        teardown();
-        setup();
+    // restart server to test reconnect
+    teardown();
+    setup();
 
-        retval = UA_Client_readValueAttribute(client, nodeId, &val);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
-        retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, UA_StatusCode_name(retval));
 
-        retval = UA_Client_readValueAttribute(client, nodeId, &val);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_Variant_deleteMembers(&val);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_activateSessionClose) {
+    // restart server
+    teardown();
+    setup();
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 0);
+
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    UA_Client *client = UA_Client_new(clientConfig);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);
+
+    UA_Variant val;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_close(client);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);
+
+    nodeId = UA_NODEID_STRING(1, "my.variable");
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 0);
+}
+END_TEST
+
+START_TEST(Client_activateSessionTimeout) {
+    // restart server
+    teardown();
+    setup();
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 0);
+
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+    UA_Variant_init(&val);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+
+    ck_assert_msg(UA_Client_getState(client) == UA_CLIENTSTATE_DISCONNECTED);
+
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 1);
+
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_deleteMembers(&val);
+
+    UA_Client_delete(client);
+
+    ck_assert_uint_eq(server->sessionManager.currentSessionCount, 0);
 }
 END_TEST
 
@@ -163,6 +247,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
     tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);
     tcase_add_test(tc_client_reconnect, Client_reconnect);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
+    tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }

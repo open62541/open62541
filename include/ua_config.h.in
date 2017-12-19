@@ -53,6 +53,9 @@ extern "C" {
 #if !defined(_MSC_VER) || _MSC_VER >= 1600
 # include <stdint.h>
 # include <stdbool.h> /* C99 Boolean */
+# if defined(_WRS_KERNEL)
+# define UINT32_C(x) ((x) + (UINT32_MAX - UINT32_MAX)) 
+# endif
 #else
 # include "ms_stdint.h"
 # if !defined(__bool_true_false_are_defined)
@@ -208,21 +211,15 @@ extern "C" {
  * ^^^^^^^^^^^^^^^^^^
  * The definition ``UA_BINARY_OVERLAYABLE_INTEGER`` is true when the integer
  * representation of the target architecture is little-endian. */
-#if defined(_WIN32) || (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
-                        (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+#if defined(_WIN32)
 # define UA_BINARY_OVERLAYABLE_INTEGER 1
-#elif defined(__ANDROID__) /* Andoid */
+#elif (defined(__BYTE_ORDER__) && defined(__ORDER_LITTLE_ENDIAN__) && \
+      (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__))
+# define UA_BINARY_OVERLAYABLE_INTEGER 1
+#elif defined(__linux__) /* Linux (including Android) */
 # include <endian.h>
 # if __BYTE_ORDER == __LITTLE_ENDIAN
 #  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-#elif defined(__linux__) /* Linux */
-# include <endian.h>
-# if __BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_INTEGER 1
-# endif
-# if __FLOAT_BYTE_ORDER == __LITTLE_ENDIAN
-#  define UA_BINARY_OVERLAYABLE_FLOAT 1
 # endif
 #elif defined(__OpenBSD__) /* OpenBSD */
 # include <sys/endian.h>
@@ -265,6 +262,11 @@ extern "C" {
 #elif defined(__FLOAT_WORD_ORDER) && defined(__LITTLE_ENDIAN) && \
     (__FLOAT_WORD_ORDER == __LITTLE_ENDIAN) /* Defined only in GCC */
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
+#elif defined(__linux__) /* Linux (including Android) */
+# include <endian.h>
+# if __FLOAT_WORD_ORDER == __LITTLE_ENDIAN
+#  define UA_BINARY_OVERLAYABLE_FLOAT 1
+# endif
 #elif defined(_WRS_KERNEL)
 # define UA_BINARY_OVERLAYABLE_FLOAT 1
 #endif

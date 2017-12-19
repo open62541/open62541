@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2013-12-02T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+<UANodeSet xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" LastModified="2016-12-31T00:00:00Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
   <Models>
-    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.03" PublicationDate="2013-12-02T00:00:00Z" />
+    <Model ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2016-12-31T00:00:00Z" />
   </Models>
   <Aliases>
     <Alias Alias="Boolean">i=1</Alias>
@@ -255,16 +255,16 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=24</Reference>
     </References>
   </UADataType>
-  <UADataType NodeId="i=30" BrowseName="Image">
+  <UADataType NodeId="i=30" BrowseName="Image" IsAbstract="true">
     <DisplayName>Image</DisplayName>
     <Description>Describes a value that is an image encoded as a string of bytes.</Description>
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=15</Reference>
     </References>
   </UADataType>
-  <UADataType NodeId="i=121" BrowseName="Decimal128">
-    <DisplayName>Decimal128</DisplayName>
-    <Description>Describes a 128-bit decimal value.</Description>
+  <UADataType NodeId="i=50" BrowseName="Decimal">
+    <DisplayName>Decimal</DisplayName>
+    <Description>Describes an arbitrary precision decimal value.</Description>
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=26</Reference>
     </References>
@@ -290,7 +290,7 @@
     </References>
     <InverseName>HierarchicalReferences</InverseName>
   </UAReferenceType>
-  <UAReferenceType NodeId="i=34" BrowseName="HasChild">
+  <UAReferenceType NodeId="i=34" BrowseName="HasChild" IsAbstract="true">
     <DisplayName>HasChild</DisplayName>
     <Description>The abstract base type for all non-looping hierarchical references.</Description>
     <References>
@@ -340,7 +340,7 @@
   </UAReferenceType>
   <UAReferenceType NodeId="i=40" BrowseName="HasTypeDefinition">
     <DisplayName>HasTypeDefinition</DisplayName>
-    <Description>The type for references from a instance node its type defintion node.</Description>
+    <Description>The type for references from a instance node its type definition node.</Description>
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
     </References>
@@ -352,9 +352,9 @@
     <References>
       <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
     </References>
-    <InverseName>GeneratesEvent</InverseName>
+    <InverseName>GeneratedBy</InverseName>
   </UAReferenceType>
-  <UAReferenceType NodeId="i=44" BrowseName="Aggregates">
+  <UAReferenceType NodeId="i=44" BrowseName="Aggregates" IsAbstract="true">
     <DisplayName>Aggregates</DisplayName>
     <Description>The type for non-looping hierarchical references that are used to aggregate nodes into complex types.</Description>
     <References>
@@ -777,6 +777,15 @@
       <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
     </References>
   </UAObjectType>
+  <UAObject NodeId="i=11551" BrowseName="OperationLimits" ParentNodeId="i=2013">
+    <DisplayName>OperationLimits</DisplayName>
+    <Description>Defines the limits supported by the server for different operations.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=11564</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2013</Reference>
+    </References>
+  </UAObject>
   <UAObjectType NodeId="i=2020" BrowseName="ServerDiagnosticsType">
     <DisplayName>ServerDiagnosticsType</DisplayName>
     <Description>The diagnostics information for a server.</Description>
@@ -799,6 +808,93 @@
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=2034</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="i=11564" BrowseName="OperationLimitsType">
+    <DisplayName>OperationLimitsType</DisplayName>
+    <Description>Identifies the operation limits imposed by the server.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11565</Reference>
+      <Reference ReferenceType="HasProperty">i=11567</Reference>
+      <Reference ReferenceType="HasProperty">i=11569</Reference>
+      <Reference ReferenceType="HasProperty">i=11570</Reference>
+      <Reference ReferenceType="HasProperty">i=11571</Reference>
+      <Reference ReferenceType="HasProperty">i=11572</Reference>
+      <Reference ReferenceType="HasProperty">i=11573</Reference>
+      <Reference ReferenceType="HasProperty">i=11574</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=61</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="i=11565" BrowseName="MaxNodesPerRead" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerRead</DisplayName>
+    <Description>The maximum number of operations in a single Read request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11567" BrowseName="MaxNodesPerWrite" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerWrite</DisplayName>
+    <Description>The maximum number of operations in a single Write request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11569" BrowseName="MaxNodesPerMethodCall" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerMethodCall</DisplayName>
+    <Description>The maximum number of operations in a single Call request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11570" BrowseName="MaxNodesPerBrowse" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerBrowse</DisplayName>
+    <Description>The maximum number of operations in a single Browse request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11571" BrowseName="MaxNodesPerRegisterNodes" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerRegisterNodes</DisplayName>
+    <Description>The maximum number of operations in a single RegisterNodes request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11572" BrowseName="MaxNodesPerTranslateBrowsePathsToNodeIds" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerTranslateBrowsePathsToNodeIds</DisplayName>
+    <Description>The maximum number of operations in a single TranslateBrowsePathsToNodeIds request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11573" BrowseName="MaxNodesPerNodeManagement" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxNodesPerNodeManagement</DisplayName>
+    <Description>The maximum number of operations in a single AddNodes, AddReferences, DeleteNodes or DeleteReferences request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11574" BrowseName="MaxMonitoredItemsPerCall" ParentNodeId="i=11564" DataType="UInt32">
+    <DisplayName>MaxMonitoredItemsPerCall</DisplayName>
+    <Description>The maximum number of operations in a single MonitoredItem related request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
     </References>
   </UAVariable>
   <UAVariableType NodeId="i=2138" BrowseName="ServerStatusType" DataType="i=862">
@@ -1138,6 +1234,86 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=11704" BrowseName="OperationLimits" ParentNodeId="i=2268">
+    <DisplayName>OperationLimits</DisplayName>
+    <Description>Defines the limits supported by the server for different operations.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty">i=11705</Reference>
+      <Reference ReferenceType="HasProperty">i=11707</Reference>
+      <Reference ReferenceType="HasProperty">i=11709</Reference>
+      <Reference ReferenceType="HasProperty">i=11710</Reference>
+      <Reference ReferenceType="HasProperty">i=11711</Reference>
+      <Reference ReferenceType="HasProperty">i=11712</Reference>
+      <Reference ReferenceType="HasProperty">i=11713</Reference>
+      <Reference ReferenceType="HasProperty">i=11714</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11564</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2268</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=11705" BrowseName="MaxNodesPerRead" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerRead</DisplayName>
+    <Description>The maximum number of operations in a single Read request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11707" BrowseName="MaxNodesPerWrite" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerWrite</DisplayName>
+    <Description>The maximum number of operations in a single Write request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11709" BrowseName="MaxNodesPerMethodCall" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerMethodCall</DisplayName>
+    <Description>The maximum number of operations in a single Call request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11710" BrowseName="MaxNodesPerBrowse" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerBrowse</DisplayName>
+    <Description>The maximum number of operations in a single Browse request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11711" BrowseName="MaxNodesPerRegisterNodes" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerRegisterNodes</DisplayName>
+    <Description>The maximum number of operations in a single RegisterNodes request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11712" BrowseName="MaxNodesPerTranslateBrowsePathsToNodeIds" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerTranslateBrowsePathsToNodeIds</DisplayName>
+    <Description>The maximum number of operations in a single TranslateBrowsePathsToNodeIds request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11713" BrowseName="MaxNodesPerNodeManagement" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxNodesPerNodeManagement</DisplayName>
+    <Description>The maximum number of operations in a single AddNodes, AddReferences, DeleteNodes or DeleteReferences request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=11714" BrowseName="MaxMonitoredItemsPerCall" ParentNodeId="i=11704" DataType="UInt32">
+    <DisplayName>MaxMonitoredItemsPerCall</DisplayName>
+    <Description>The maximum number of operations in a single MonitoredItem related request.</Description>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
   <UAObject NodeId="i=2274" BrowseName="ServerDiagnostics" ParentNodeId="i=2253">
     <DisplayName>ServerDiagnostics</DisplayName>
     <Description>Reports diagnostics about the server.</Description>
@@ -1252,7 +1428,7 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=2275</Reference>
     </References>
   </UAVariable>
-  <UAVariable NodeId="i=2294" BrowseName="EnabledFlag" ParentNodeId="i=2274" DataType="Boolean" AccessLevel="3" UserAccessLevel="3">
+  <UAVariable NodeId="i=2294" BrowseName="EnabledFlag" ParentNodeId="i=2274" DataType="Boolean" AccessLevel="3">
     <DisplayName>EnabledFlag</DisplayName>
     <Description>If TRUE the diagnostics collection is enabled.</Description>
     <References>

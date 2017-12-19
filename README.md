@@ -33,12 +33,20 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
 - Code-Generation
   - Support for generating data types from standard XML definitions
   - Support for generating server-side information models (nodesets) from standard XML definitions
-
-Features still missing in the 0.2 release are:
-- Encryption
-- Access control for individual nodes
-- Events (notifications emitted by objects, data change notifications are implemented)
-- Event-loop (background tasks) and asynchronous service requests in the client
+- Code quality checks
+  - Every commit checked with continuous integration and unit tests (code coverage > 80%)
+  - Memory leak detection using Valgrind (Linux) and DrMemory (Windows)
+  - Static code analysis with cpp-check and clang static code analysis
+  - Fuzz testing with [oss-fuzz](https://github.com/google/oss-fuzz)
+  
+Features currently being implemented:
+- Target 0.3 release (to be released in the coming weeks):
+  - Encryption (#1282)
+  - Access control for individual nodes (Done)
+- Target 0.4 release:
+  - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
+  - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
+  - Publish/Subscribe based on UDP (Specification Part 14), WIP by @jpfr
 
 ### Using open62541
 
@@ -63,7 +71,7 @@ Besides the general open62541 community, a group of core maintainers jointly ste
 As an open source project, we encourage new contributors to help improve open62541. There are ways to begin contributing without deep knowledge of the OPC UA standard:
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
-- Work on issues marked as "[easy hacks](https://github.com/open62541/open62541/labels/easy%20hack)"
+- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
 ### Example Server Implementation
 Compile the examples with the single-file distribution `open62541.h/.c` header and source file.

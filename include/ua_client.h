@@ -105,9 +105,13 @@ UA_StatusCode UA_EXPORT
 UA_Client_connect_username(UA_Client *client, const char *endpointUrl,
                            const char *username, const char *password);
 
-/* Close a connection to the selected server */
+/* Disconnect and close a connection to the selected server */
 UA_StatusCode UA_EXPORT
 UA_Client_disconnect(UA_Client *client);
+
+/* Close a connection to the selected server */
+UA_StatusCode UA_EXPORT
+UA_Client_close(UA_Client *client);
 
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT
