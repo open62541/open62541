@@ -587,7 +587,8 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
-typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 subId,
+                                                  const UA_UInt32 monId,
                                                   const size_t nEventFields,
                                                   const UA_Variant *eventFields,
                                                   void *context);
@@ -602,7 +603,8 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 sub
                                           const UA_MonitoredEventHandlingFunction hf,
                                           void *hfContext, UA_UInt32 *newMonitoredItemId);
 
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
+typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 subId,
+                                                 UA_UInt32 monId,
                                                  UA_DataValue *value,
                                                  void *context);
 
