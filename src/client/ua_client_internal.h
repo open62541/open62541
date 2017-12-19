@@ -29,9 +29,9 @@ typedef struct UA_Client_MonitoredItem {
     UA_Double samplingInterval;
     UA_UInt32 queueSize;
     UA_Boolean discardOldest;
-    void(*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
+    void(*handler)(UA_UInt32 subId, UA_UInt32 monId, UA_DataValue *value, void *context);
     void *handlerContext;
-    void(*handlerEvents)(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
+    void(*handlerEvents)(const UA_UInt32 subId, const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
     void *handlerEventsContext;
 } UA_Client_MonitoredItem;
 
