@@ -12,6 +12,20 @@
 
 #define UA_MINMESSAGESIZE 8192
 
+
+ /********************/
+ /* Set client state */
+ /********************/
+static void
+setClientState(UA_Client *client, UA_ClientState state)
+{
+    client->state = state;
+    if (client->state != client->lastSendState){
+        if (client->config.stateCallback)
+            client->config.stateCallback(client, client->state);
+        client->lastSendState = client->state;
+    }
+}
  /***********************/
  /* Open the Connection */
  /***********************/
@@ -390,14 +404,14 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     retval = HelAckHandshake(client);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_CONNECTED;
+    setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_SECURECHANNEL;
+    setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
     /* Try to activate an existing Session for this SecureChannel */
     if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
@@ -408,7 +422,7 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         }else{
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
-            client->state = UA_CLIENTSTATE_SESSION;
+            setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
             return retval;
         }
     }else{
@@ -427,12 +441,16 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         retval = createSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* A new session has been created. We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
         retval = activateSession(client);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        setClientState(client, UA_CLIENTSTATE_SESSION);
     }
 
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    client->state = UA_CLIENTSTATE_SESSION;
     return retval;
 
 cleanup:
@@ -501,22 +519,24 @@ sendCloseSecureChannel(UA_Client *client) {
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     /* Is a session established? */
-    if(client->state == UA_CLIENTSTATE_SESSION){
-        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
+    if(client->state >= UA_CLIENTSTATE_SESSION){
+        client->state = UA_CLIENTSTATE_SECURECHANNEL;
         sendCloseSession(client);
     }
     UA_NodeId_deleteMembers(&client->authenticationToken);
     client->requestHandle = 0;
 
     /* Is a secure channel established? */
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL){
+        client->state = UA_CLIENTSTATE_CONNECTED;
         sendCloseSecureChannel(client);
+    }
 
     /* Close the TCP connection */
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
-    client->state = UA_CLIENTSTATE_DISCONNECTED;
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -531,6 +551,6 @@ UA_Client_close(UA_Client *client) {
     if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
-    client->state = UA_CLIENTSTATE_DISCONNECTED;
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }

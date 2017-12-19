@@ -497,4 +497,17 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     return retval;
 }
 
+void
+UA_Client_Subscriptions_clean(UA_Client *client){
+    UA_Client_NotificationsAckNumber *n, *tmp;
+    LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
+        LIST_REMOVE(n, listEntry);
+        UA_free(n);
+    }
+
+    UA_Client_Subscription *sub, *tmps;
+    LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
+        UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
+}
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

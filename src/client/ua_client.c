@@ -22,6 +22,8 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
+    if (client->config.stateCallback)
+        client->config.stateCallback(client, client->state);
 }
 
 UA_Client *
@@ -57,14 +59,7 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_NotificationsAckNumber *n, *tmp;
-    LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
-        LIST_REMOVE(n, listEntry);
-        UA_free(n);
-    }
-    UA_Client_Subscription *sub, *tmps;
-    LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
-        UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
+    UA_Client_Subscriptions_clean(client);
 #endif
 }
 
