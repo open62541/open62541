@@ -314,7 +314,7 @@ const UA_SubscriptionSettings UA_SubscriptionSettings_default = {
     500.0, /* .requestedPublishingInterval */
     10000, /* .requestedLifetimeCount */
     1, /* .requestedMaxKeepAliveCount */
-    10, /* .maxNotificationsPerPublish */
+    0, /* .maxNotificationsPerPublish */
     true, /* .publishingEnabled */
     0 /* .priority */
 };
