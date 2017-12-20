@@ -48,7 +48,7 @@ typedef struct UA_Client UA_Client;
 
 /**
  * Client Lifecycle callback
- * -------------------- */
+ * ------------------------- */
 
 typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
 
