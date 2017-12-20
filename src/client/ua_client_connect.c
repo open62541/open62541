@@ -19,11 +19,10 @@
 static void
 setClientState(UA_Client *client, UA_ClientState state)
 {
-    client->state = state;
-    if (client->state != client->lastSendState){
+    if (client->state != state){
+        client->state = state;
         if (client->config.stateCallback)
             client->config.stateCallback(client, client->state);
-        client->lastSendState = client->state;
     }
 }
  /***********************/

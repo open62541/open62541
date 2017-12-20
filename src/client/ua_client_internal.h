@@ -77,9 +77,6 @@ struct UA_Client {
     /* State */
     UA_ClientState state;
 
-    /* Last state sended to callback function */
-    UA_ClientState lastSendState;
-
     UA_ClientConfig config;
 
     /* Connection */
