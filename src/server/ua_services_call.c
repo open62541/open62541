@@ -172,4 +172,13 @@ void Service_Call(UA_Server *server, UA_Session *session,
     }
 }
 
+UA_CallMethodResult UA_EXPORT
+UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    Service_Call_single(server, &adminSession,
+                        request, &result);
+    return result;
+}
+
 #endif /* UA_ENABLE_METHODCALLS */
