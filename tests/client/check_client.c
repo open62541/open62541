@@ -86,6 +86,33 @@ START_TEST(Client_connect) {
 }
 END_TEST
 
+START_TEST(Client_connect_username) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+    UA_StatusCode retval = UA_Client_connect_username(client, "opc.tcp://localhost:4840", "user1", "password");
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_endpoints) {
+    UA_Client *client = UA_Client_new(UA_ClientConfig_default);
+
+    UA_EndpointDescription* endpointArray = NULL;
+    size_t endpointArraySize = 0;
+    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
+                                                  &endpointArraySize, &endpointArray);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_msg(endpointArraySize > 0);
+
+    UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_read) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -241,6 +268,8 @@ static Suite* testSuite_Client(void) {
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_connect);
+    tcase_add_test(tc_client, Client_connect_username);
+    tcase_add_test(tc_client, Client_endpoints);
     tcase_add_test(tc_client, Client_read);
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
