@@ -40,6 +40,10 @@
 
 #include "ua_types.h"
 
+#if defined(UA_FREERTOS)
+#include <task.h>
+#endif
+
 UA_DateTime UA_DateTime_now(void) {
 #if defined(_WIN32)
     /* Windows filetime has the same definition as UA_DateTime */
@@ -96,9 +100,19 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     mach_port_deallocate(mach_task_self(), cclock);
     return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
 #elif !defined(CLOCK_MONOTONIC_RAW)
+# if defined(UA_FREERTOS)
+    portTickType TaskTime = xTaskGetTickCount();
+    UA_DateTimeStruct UATime;
+    UATime.milliSec = (UA_UInt16) TaskTime;
+    struct timespec ts;
+    ts.tv_sec = UATime.milliSec/1000;
+    ts.tv_nsec = (UATime.milliSec % 1000)* 1000000;
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+# endif
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);

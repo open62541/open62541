@@ -12,7 +12,7 @@ extern "C" {
 #include "ua_util.h"
 #include "ua_server.h"
 #include "ua_securechannel.h"
-#include "queue.h"
+#include "../../deps/queue.h"
 
 typedef struct channel_list_entry {
     UA_SecureChannel channel;

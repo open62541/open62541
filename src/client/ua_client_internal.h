@@ -7,7 +7,7 @@
 
 #include "ua_securechannel.h"
 #include "ua_client_highlevel.h"
-#include "queue.h"
+#include "../../deps/queue.h"
 
  /**************************/
  /* Subscriptions Handling */

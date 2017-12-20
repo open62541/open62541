@@ -13,17 +13,23 @@
 # include <errno.h> // errno, EINTR
 # include <fcntl.h> // fcntl
 # include <strings.h> //bzero
+
+#if defined(UA_FREERTOS)
+ # include <lwip/udp.h>
+ # include <lwip/tcpip.h>
+#else
 # ifndef _WRS_KERNEL
 #  include <sys/select.h>
 # else
-# include <selectLib.h>
+#  include <selectLib.h>
 # endif
-# include <netinet/in.h>
-# include <netinet/tcp.h>
-# include <sys/socketvar.h>
-# include <sys/ioctl.h>
-# include <unistd.h> // read, write, close
-# include <arpa/inet.h>
+#  include <netinet/in.h>
+#  include <netinet/tcp.h>
+#  include <sys/socketvar.h>
+#  include <sys/ioctl.h>
+#  include <unistd.h> // read, write, close
+#  include <arpa/inet.h>
+#endif
 #ifdef __QNX__
 #include <sys/socket.h>
 #endif

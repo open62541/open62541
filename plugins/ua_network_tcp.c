@@ -31,11 +31,19 @@
 
 #include "ua_network_tcp.h"
 #include "ua_log_stdout.h"
-#include "queue.h"
+#include "../deps/queue.h"
 
 #include <stdio.h> // snprintf
 #include <string.h> // memset
-#include <errno.h>
+
+#if !defined(UA_FREERTOS)
+# include <errno.h>
+#else
+# define AI_PASSIVE 0x01
+# define TRUE 1
+# define FALSE 0
+# define ioctl ioctlsocket
+#endif
 
 #ifdef _WIN32
 # include <winsock2.h>
@@ -46,45 +54,68 @@
 # define OPTVAL_TYPE char
 # define ERR_CONNECTION_PROGRESS WSAEWOULDBLOCK
 # define UA_sleep_ms(X) Sleep(X)
-#else
-# define CLOSESOCKET(S) close(S)
+#else /* _WIN32 */
+# if defined(UA_FREERTOS)
+#  define UA_FREERTOS_HOSTNAME "10.200.4.114"
+static inline int gethostname_freertos(char* name, size_t len){
+  if(strlen(UA_FREERTOS_HOSTNAME) > (len))
+    return -1;
+  strcpy(name, UA_FREERTOS_HOSTNAME);
+  return 0;
+}
+#define gethostname gethostname_freertos
+#  include <lwip/tcpip.h>
+#  include <lwip/netdb.h>
+#  define CLOSESOCKET(S) lwip_close(S)
+#  define sockaddr_storage sockaddr
+#  ifdef BYTE_ORDER
+#   undef BYTE_ORDER
+#  endif
+#  define UA_sleep_ms(X) vTaskDelay(pdMS_TO_TICKS(X))
+# else /* Not freeRTOS */
+#  define CLOSESOCKET(S) close(S)
+#  include <arpa/inet.h>
+#  include <netinet/in.h>
+#  include <netdb.h>
+#  include <sys/ioctl.h>
+#  if defined(_WRS_KERNEL)
+#   include <hostLib.h>
+#   include <selectLib.h>
+#   define UA_sleep_ms(X)                            \
+    {                                                \
+    struct timespec timeToSleep;                     \
+      timeToSleep.tv_sec = X / 1000;                 \
+      timeToSleep.tv_nsec = 1000000 * (X % 1000);    \
+      nanosleep(&timeToSleep, NULL);                 \
+    }
+#  else /* defined(_WRS_KERNEL) */
+#   include <sys/select.h>
+#   define UA_sleep_ms(X) usleep(X * 1000)
+#  endif /* defined(_WRS_KERNEL) */
+# endif /* Not freeRTOS */
+
 # define SOCKET int
 # define WIN32_INT
 # define OPTVAL_TYPE int
 # define ERR_CONNECTION_PROGRESS EINPROGRESS
-# include <arpa/inet.h>
-# include <netinet/in.h>
-# ifndef _WRS_KERNEL
-#  include <sys/select.h>
-#  define UA_sleep_ms(X) usleep(X * 1000)
-# else
-#  include <hostLib.h>
-#  include <selectLib.h>
-#  define UA_sleep_ms(X)                           \
-   {                                               \
-   struct timespec timeToSleep;                    \
-   timeToSleep.tv_sec = X / 1000;                  \
-   timeToSleep.tv_nsec = 1000000 * (X % 1000);     \
-   nanosleep(&timeToSleep, NULL);                  \
-   }
-# endif
-# include <sys/ioctl.h>
+
+
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
-# include <netdb.h>
+
 # ifdef __QNX__
 #  include <sys/socket.h>
 # endif
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-# include <sys/param.h>
-# if defined(BSD)
-#  include<sys/socket.h>
+# if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+#  include <sys/param.h>
+#  if defined(BSD)
+#   include<sys/socket.h>
+#  endif
 # endif
-#endif
-# ifndef __CYGWIN__
+# if !defined(__CYGWIN__) && !defined(UA_FREERTOS)
 #  include <netinet/tcp.h>
 # endif
-#endif
+#endif /* _WIN32 */
 
 /* unsigned int for windows and workaround to a glibc bug */
 /* Additionally if GNU_LIBRARY is not defined, it may be using
@@ -241,7 +272,7 @@ socket_set_nonblocking(SOCKET sockfd) {
     u_long iMode = 1;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
         return UA_STATUSCODE_BADINTERNALERROR;
-#elif defined(_WRS_KERNEL)
+#elif defined(_WRS_KERNEL) || defined(UA_FREERTOS)
     int on = TRUE;
     if(ioctl(sockfd, FIONBIO, &on) < 0)
       return UA_STATUSCODE_BADINTERNALERROR;
@@ -259,7 +290,7 @@ socket_set_blocking(SOCKET sockfd) {
     u_long iMode = 0;
     if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
         return UA_STATUSCODE_BADINTERNALERROR;
-#elif defined(_WRS_KERNEL)
+#elif defined(_WRS_KERNEL) || defined(UA_FREERTOS)
     int on = FALSE;
     if(ioctl(sockfd, FIONBIO, &on) < 0)
       return UA_STATUSCODE_BADINTERNALERROR;
@@ -325,6 +356,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
 
+#if !defined(UA_FREERTOS)
     /* Get the peer name for logging */
     char remote_name[100];
     int res = getnameinfo((struct sockaddr*)remote,
@@ -341,7 +373,7 @@ ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_Int32 newsockfd,
                                                         "getnameinfo failed with error: %s",
                                                 (int)newsockfd, errno_str));
     }
-
+#endif
     /* Allocate and initialize the connection */
     ConnectionEntry *e = (ConnectionEntry*)UA_malloc(sizeof(ConnectionEntry));
     if(!e){
@@ -387,7 +419,9 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
+
     int optval = 1;
+#if !defined(UA_FREERTOS)
     if(ai->ai_family == AF_INET6 &&
        setsockopt(newsock, IPPROTO_IPV6, IPV6_V6ONLY,
                   (const char*)&optval, sizeof(optval)) == -1) {
@@ -396,7 +430,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         CLOSESOCKET(newsock);
         return;
     }
-
+#endif
     if(setsockopt(newsock, SOL_SOCKET, SO_REUSEADDR,
                   (const char *)&optval, sizeof(optval)) == -1) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -404,6 +438,7 @@ addServerSocket(ServerNetworkLayerTCP *layer, struct addrinfo *ai) {
         CLOSESOCKET(newsock);
         return;
     }
+
 
     if(socket_set_nonblocking(newsock) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
@@ -461,7 +496,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                         layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
-    }else{    
+    }else{
         char hostname[256];
         if(gethostname(hostname, 255) == 0) {
             char discoveryUrl[256];
@@ -490,7 +525,13 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+#if defined(UA_FREERTOS)
+    hints.ai_protocol = IPPROTO_TCP;
+    char hostname[] = UA_FREERTOS_HOSTNAME;
+    if(getaddrinfo(hostname, portno, &hints, &res) != 0)
+#else
     if(getaddrinfo(NULL, portno, &hints, &res) != 0)
+#endif
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* There might be serveral addrinfos (for different network cards,
@@ -752,6 +793,9 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
+#if defined(UA_FREERTOS)
+    hints.ai_protocol = IPPROTO_TCP;
+#endif
     char portStr[6];
 #ifndef _MSC_VER
     snprintf(portStr, 6, "%d", port);
@@ -760,9 +804,16 @@ UA_ClientConnectionTCP(UA_ConnectionConfig conf,
 #endif
     int error = getaddrinfo(hostname, portStr, &hints, &server);
     if(error != 0 || !server) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+#if !defined(UA_FREERTOS)
+      UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+
                        "DNS lookup of %s failed with error %s",
                        hostname, gai_strerror(error));
+#else
+      UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                        "DNS lookup of %s failed with error",
+                        hostname);
+#endif
         return connection;
     }
 
