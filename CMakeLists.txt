@@ -188,7 +188,7 @@ endif(UA_ENABLE_MULTITHREADING)
 
 if(NOT UA_COMPILE_AS_CXX AND (CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang"))
     # Compiler
-    add_definitions(-std=c99 -pipe
+    add_definitions(-std=c99 -pipe 
                     -Wall -Wextra -Werror -Wpedantic
                     -Wno-static-in-inline # clang doesn't like the use of static inline methods inside static inline methods
                     -Wno-overlength-strings # may happen in the nodeset compiler when complex values are directly encoded
@@ -668,7 +668,7 @@ add_custom_target(lint ${CLANG_TIDY_PROGRAM}
                   -checks=cert-*,performance-*,readability-*,-readability-braces-around-statements
                   -warnings-as-errors=cert-*,performance-*,readability-*,-readability-braces-around-statements
                   --
-                  -std=c99
+                  -std=c99 
                   -I${PROJECT_SOURCE_DIR}/include
                   -I${PROJECT_SOURCE_DIR}/plugins
                   -I${PROJECT_SOURCE_DIR}/deps

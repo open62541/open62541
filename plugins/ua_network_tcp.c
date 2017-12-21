@@ -120,7 +120,7 @@
 #endif
 
 #include "ua_log_socket_error.h"
-
+#include "ares.h"
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -891,20 +891,6 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
 	int error = getaddrinfo(hostname, portStr, &tcpClientConnection->hints,
 			&tcpClientConnection->server);
 
-//	struct gaicb *host[1];
-//	struct sigevent sig;
-//
-//	host[0] = (struct gaicb *) malloc(sizeof(struct gaicb));
-//	host[0]->ar_name = hostname;
-//	host[0]->ar_service = portStr;
-//	host[0]->ar_request = &tcpClientConnection->hints;
-//	host[0]->ar_result = tcpClientConnection->server;
-//
-//    sig.sigev_notify = SIGEV_SIGNAL;
-//    sig.sigev_value.sival_ptr = host;
-//    sig.sigev_signo = SIGRTMIN;
-
-//	int error = getaddrinfo_a(GAI_NOWAIT, host, 1, &sig);
 
 	if (error != 0 || !tcpClientConnection->server) {
 		UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
