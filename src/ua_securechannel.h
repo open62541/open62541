@@ -18,6 +18,7 @@ extern "C" {
 #include "ua_util.h"
 
 #define UA_SECURE_CONVERSATION_MESSAGE_HEADER_LENGTH 12
+#define UA_SECURE_MESSAGE_HEADER_LENGTH 24
 
 #ifdef UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
 extern UA_THREAD_LOCAL UA_StatusCode decrypt_verifySignatureFailure;
@@ -97,17 +98,62 @@ UA_StatusCode UA_SecureChannel_generateNonce(const UA_SecureChannel *const chann
 void UA_SecureChannel_attachSession(UA_SecureChannel *channel, UA_Session *session);
 void UA_SecureChannel_detachSession(UA_SecureChannel *channel, UA_Session *session);
 UA_Session * UA_SecureChannel_getSession(UA_SecureChannel *channel, UA_NodeId *token);
-
 UA_StatusCode UA_SecureChannel_revolveTokens(UA_SecureChannel *channel);
+
+/**
+ * Sending Messages
+ * ---------------- */
 
 UA_StatusCode
 UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, const void *content,
-                                      const UA_DataType *contentType);
+                                      UA_MessageType messageType, void *payload,
+                                      const UA_DataType *payloadType);
+
+typedef struct {
+    UA_SecureChannel *channel;
+    UA_UInt32 requestId;
+    UA_UInt32 messageType;
+
+    UA_UInt16 chunksSoFar;
+    size_t messageSizeSoFar;
+
+    UA_ByteString messageBuffer;
+    UA_Byte *buf_pos;
+    const UA_Byte *buf_end;
+
+    UA_Boolean final;
+} UA_MessageContext;
+
+/* Start the context of a new symmetric message. */
+UA_StatusCode
+UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
+                        UA_UInt32 requestId, UA_MessageType messageType);
+
+/* Encode the content and send out full chunks. If the return code is good, then
+ * the ChunkInfo contains encoded content that has not been sent. If the return
+ * code is bad, then the ChunkInfo has been cleaned up internally. */
+UA_StatusCode
+UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
+                         const UA_DataType *contentType);
+
+/* Sends a symmetric message already encoded in the context. The context is
+ * cleaned up, also in case of errors. */
+UA_StatusCode
+UA_MessageContext_finish(UA_MessageContext *mc);
+
+/* To be used when a failure occures when a MessageContext is open. Note that
+ * the _encode and _finish methods will clean up internally. _abort can be run
+ * on a MessageContext that has already been cleaned up before. */
+void
+UA_MessageContext_abort(UA_MessageContext *mc);
 
 UA_StatusCode
 UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
                                           const void *content, const UA_DataType *contentType);
+
+/**
+ * Process Received Chunks
+ * ----------------------- */
 
 typedef UA_StatusCode
 (UA_ProcessMessageCallback)(void *application, UA_SecureChannel *channel,
