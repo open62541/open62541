@@ -639,6 +639,18 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 typedef struct {
     /* Copies the data from the source into the provided value.
      *
+     * !! ZERO-COPY OPERATIONS POSSIBLE !!
+     * It is not required to return a copy of the actual content data. You can
+     * return a pointer to memory owned by the user. Memory can be reused
+     * between read callbacks of a DataSource, as the result is already encoded
+     * on the network buffer between each read operation.
+     *
+     * To use zero-copy reads, set the value of the `value->value` Variant
+     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
+     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
+     * memory being cleaned up. Don't forget to also set `value->hasValue` to
+     * true to indicate the presence of a value.
+     *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
      * @param nodeid Id of the read node
@@ -659,8 +671,8 @@ typedef struct {
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
                           const UA_NumericRange *range, UA_DataValue *value);
 
-    /* Write into a data source. The write member of UA_DataSource can be empty
-     * if the operation is unsupported.
+    /* Write into a data source. This method pointer can be NULL if the
+     * operation is unsupported.
      *
      * @param handle An optional pointer to user-defined data for the
      *        specific data source
