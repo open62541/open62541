@@ -11,12 +11,15 @@
 extern "C" {
 #endif
 
-/** @brief Create the TCP networklayer and listen to the specified port
+/**
+ * Create the TCP networklayer and listen to the specified port
  *
- * @param verificationBuffer the send function will write the data that is sent to this buffer, so that it is
- *                           possible to check what the send function received.
- */
-UA_Connection createDummyConnection(UA_ByteString *verificationBuffer);
+ * @param sendBufferSize The send buffer is reused. This is the max chunk size
+ * @param verificationBuffer the send function will copy the data that is sent
+ *        to this buffer, so that it is possible to check what the send function
+ *        received. */
+UA_Connection createDummyConnection(size_t sendBufferSize,
+                                    UA_ByteString *verificationBuffer);
 
 /**
  * Simulate network timing conditions

@@ -14,8 +14,7 @@
 */
 extern "C" int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-    UA_ByteString sentData = UA_BYTESTRING_NULL;
-    UA_Connection c = createDummyConnection(&sentData);
+    UA_Connection c = createDummyConnection(65535, NULL);
     UA_ServerConfig *config = UA_ServerConfig_new_default();
     UA_Server *server = UA_Server_new(config);
 
