@@ -285,7 +285,7 @@ void Service_Browse_single(UA_Server *server, UA_Session *session,
 UA_DataValue
 UA_Server_readWithSession(UA_Server *server, UA_Session *session,
                           const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestamps);
+                          UA_TimestampsToReturn timestampsToReturn);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
