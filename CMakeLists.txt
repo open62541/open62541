@@ -15,7 +15,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-set(LIB_INSTALL_DIR /usr/lib CACHE PATH "Installation path of libraries")
+set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib CACHE PATH "Installation path of libraries")
 
 ###########
 # Version #
@@ -680,7 +680,7 @@ add_dependencies(lint open62541)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake3)
+set(cmake_configfile_install ${LIB_INSTALL_DIR}/cmake)
 set(target_install_dest_name "${cmake_configfile_install}/open62541Targets.cmake")
 set(open62541_tools_dir share/open62541/tools)
 set(open62541_deps_dir include/open62541/deps)
