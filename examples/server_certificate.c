@@ -29,7 +29,7 @@ static UA_ByteString loadCertificate(void) {
     certificate.data = (UA_Byte *)UA_malloc(certificate.length*sizeof(UA_Byte));
     if(!certificate.data){
         fclose(fp);
-        return NULL;
+        return UA_STRING_NULL;
     }
 
     fseek(fp, 0, SEEK_SET);
