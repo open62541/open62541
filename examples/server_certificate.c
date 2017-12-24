@@ -27,8 +27,10 @@ static UA_ByteString loadCertificate(void) {
     fseek(fp, 0, SEEK_END);
     certificate.length = (size_t)ftell(fp);
     certificate.data = (UA_Byte *)UA_malloc(certificate.length*sizeof(UA_Byte));
-    if(!certificate.data)
-        return certificate;
+    if(!certificate.data){
+        fclose(fp);
+        return NULL;
+    }
 
     fseek(fp, 0, SEEK_SET);
     if(fread(certificate.data, sizeof(UA_Byte), certificate.length, fp) < (size_t)certificate.length)
