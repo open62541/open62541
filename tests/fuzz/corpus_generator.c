@@ -360,7 +360,7 @@ translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
 
 
 static void
-monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
+monitoredItemHandler(UA_DataValue *value, void *context) {
 
 }
 

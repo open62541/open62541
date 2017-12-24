@@ -6,7 +6,7 @@
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
-handler_TheAnswerChanged(UA_UInt32 monId, UA_DataValue *value, void *context) {
+handler_TheAnswerChanged(UA_DataValue *value, void *context) {
     printf("The Answer has changed!\n");
 }
 #endif

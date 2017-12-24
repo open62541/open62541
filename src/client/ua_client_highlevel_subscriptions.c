@@ -351,7 +351,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                 UA_Client_MonitoredItem *mon;
                 LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
                     if(mon->clientHandle == mitemNot->clientHandle) {
-                        mon->handler(mon->monitoredItemId, &mitemNot->value, mon->handlerContext);
+                        mon->handler(&mitemNot->value, mon->handlerContext);
                         break;
                     }
                 }
@@ -368,7 +368,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                 UA_Client_MonitoredItem *mon;
                 LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
                     if(mon->clientHandle == eventFieldList->clientHandle) {
-                        mon->handlerEvents(mon->monitoredItemId, eventFieldList->eventFieldsSize,
+                        mon->handlerEvents(eventFieldList->eventFieldsSize,
                                            eventFieldList->eventFields, mon->handlerContext);
                         break;
                     }
