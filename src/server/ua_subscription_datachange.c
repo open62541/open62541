@@ -242,6 +242,13 @@ UA_MoniteredItem_SampleCallback(UA_Server *server,
             UA_ByteString_deleteMembers(&valueEncoding);
         UA_DataValue_deleteMembers(&value);
     }
+    else if(value.hasValue && value.value.storageType == UA_VARIANT_DATA_NODELETE)
+    {
+        /* If the storage type of the variant of the data value is NODELETE the
+         * new notification has done a deep copy of the data value.
+         * Free the data value retrieved from the variable node. */
+        UA_DataValue_deleteMembers(&value);
+    }
 }
 
 UA_StatusCode
