@@ -17,7 +17,7 @@ static const key_sizes *keySizes;
 
 static UA_StatusCode
 verify_testing(const UA_SecurityPolicy *securityPolicy,
-               const void *channelContext,
+               void *channelContext,
                const UA_ByteString *message,
                const UA_ByteString *signature) {
     return UA_STATUSCODE_GOOD;
@@ -25,7 +25,7 @@ verify_testing(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
-                  const void *channelContext,
+                  void *channelContext,
                   const UA_ByteString *message,
                   UA_ByteString *signature) {
     SET_CALLED(asym_sign);
@@ -45,7 +45,7 @@ asym_sign_testing(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 sym_sign_testing(const UA_SecurityPolicy *securityPolicy,
-                 const void *channelContext,
+                 void *channelContext,
                  const UA_ByteString *message,
                  UA_ByteString *signature) {
     SET_CALLED(sym_sign);
@@ -118,7 +118,7 @@ sym_getRemoteEncryptionKeyLength_testing(const UA_SecurityPolicy *securityPolicy
 
 static UA_StatusCode
 sym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
-                    const void *channelContext,
+                    void *channelContext,
                     UA_ByteString *data) {
     SET_CALLED(sym_enc);
     ck_assert(securityPolicy != NULL);
@@ -129,7 +129,7 @@ sym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
-                     const void *channelContext,
+                     void *channelContext,
                      UA_ByteString *data) {
     SET_CALLED(asym_enc);
     ck_assert(securityPolicy != NULL);
@@ -152,7 +152,7 @@ asym_encrypt_testing(const UA_SecurityPolicy *securityPolicy,
 
 static UA_StatusCode
 decrypt_testing(const UA_SecurityPolicy *securityPolicy,
-                const void *channelContext,
+                void *channelContext,
                 UA_ByteString *data) {
     return UA_STATUSCODE_GOOD;
 }
