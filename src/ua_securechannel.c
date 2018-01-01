@@ -664,7 +664,8 @@ UA_MessageContext_finish(UA_MessageContext *mc) {
 
 void
 UA_MessageContext_abort(UA_MessageContext *mc) {
-    UA_ByteString_deleteMembers(&mc->messageBuffer);
+    UA_Connection *connection = mc->channel->connection;
+    connection->releaseSendBuffer(connection, &mc->messageBuffer);
 }
 
 UA_StatusCode
