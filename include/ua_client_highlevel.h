@@ -587,37 +587,53 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
-typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
-                                                  const size_t nEventFields,
-                                                  const UA_Variant *eventFields,
-                                                  void *context);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, const UA_UInt32 subscriptionId,
-                                          const UA_NodeId nodeId, const UA_UInt32 attributeID,
-                                          UA_SimpleAttributeOperand *selectClause,
-                                          const size_t nSelectClauses,
-                                          UA_ContentFilterElement *whereClause,
-                                          const size_t nWhereClauses,
-                                          const UA_MonitoredEventHandlingFunction hf,
-                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
-
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId,
-                                                 UA_DataValue *value,
+/* Addition of monitored DataChanges */
+/* TODO for v0.4: Rename method to _DataChange. */
+typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
                                                  void *context);
 
 UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredItem(UA_Client *client,
-                                         UA_UInt32 subscriptionId,
+UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
+                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize,
+                                          UA_MonitoredItemHandlingFunction **hfs,
+                                          void **hfContexts, UA_StatusCode *itemResults,
+                                          UA_UInt32 *newMonitoredItemIds);
+
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                          UA_NodeId nodeId, UA_UInt32 attributeID,
                                          UA_MonitoredItemHandlingFunction hf,
                                          void *hfContext,
                                          UA_UInt32 *newMonitoredItemId,
                                          UA_Double samplingInterval);
 
+/* Monitored Events have different payloads from DataChanges. So they use a
+ * different callback method signature. */
+typedef void (*UA_MonitoredEventHandlingFunction)(const UA_UInt32 monId,
+                                                  const size_t nEventFields,
+                                                  const UA_Variant *eventFields,
+                                                  void *context);
+
 UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client,
-                                            UA_UInt32 subscriptionId,
+UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
+                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize,
+                                           UA_MonitoredEventHandlingFunction **hfs,
+                                           void **hfContexts, UA_StatusCode *itemResults,
+                                           UA_UInt32 *newMonitoredItemIds);
+
+/* TODO for 0.4: attribute is fix for events. */
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
+                                          const UA_NodeId nodeId, UA_UInt32 attributeID,
+                                          const UA_SimpleAttributeOperand *selectClauses,
+                                          size_t selectClausesSize,
+                                          const UA_ContentFilterElement *whereClauses,
+                                          size_t whereClausesSize,
+                                          const UA_MonitoredEventHandlingFunction hf,
+                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
                                             UA_UInt32 monitoredItemId);
 
 #endif

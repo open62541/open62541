@@ -6,6 +6,7 @@
 #define UA_CLIENT_INTERNAL_H_
 
 #include "ua_securechannel.h"
+#include "ua_client_highlevel.h"
 #include "queue.h"
 
  /**************************/
@@ -29,10 +30,13 @@ typedef struct UA_Client_MonitoredItem {
     UA_Double samplingInterval;
     UA_UInt32 queueSize;
     UA_Boolean discardOldest;
-    void(*handler)(UA_UInt32 monId, UA_DataValue *value, void *context);
+
+    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+    union {
+        UA_MonitoredItemHandlingFunction dataChangeHandler;
+        UA_MonitoredEventHandlingFunction eventHandler;
+    } handler;
     void *handlerContext;
-    void(*handlerEvents)(const UA_UInt32 monId, const size_t nEventFields, const UA_Variant *eventFields, void *context);
-    void *handlerEventsContext;
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription {
