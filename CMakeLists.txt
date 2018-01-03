@@ -691,7 +691,7 @@ install(TARGETS open62541
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}
-        INCLUDES DESTINATION ${INCLUDE_INSTALL_DIR}/open62541 ${open62541_deps_dir})
+        INCLUDES DESTINATION include/open62541 ${open62541_deps_dir})
 
 include(CMakePackageConfigHelpers)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541-config.cmake.in"
