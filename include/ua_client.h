@@ -32,6 +32,27 @@ extern "C" {
  * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
  * <client-subscriptions>`.
  *
+ * Client Lifecycle
+ * ---------------- */
+
+typedef enum {
+    UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
+    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
+    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
+    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
+    UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
+} UA_ClientState;
+
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
+/**
+ * Client Lifecycle callback
+ * ------------------------- */
+
+typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
+
+/**
  * Client Configuration
  * -------------------- */
 
@@ -46,25 +67,11 @@ typedef struct UA_ClientConfig {
     /* Custom DataTypes */
     size_t customDataTypesSize;
     const UA_DataType *customDataTypes;
+
+    /* Callback function */
+    UA_ClientStateCallback stateCallback;
 } UA_ClientConfig;
 
-/**
- * Client Lifecycle
- * ---------------- */
-
-typedef enum {
-    UA_CLIENTSTATE_DISCONNECTED,        /* The client is not connected */
-    UA_CLIENTSTATE_CONNECTED,           /* A TCP connection to the server is open */
-    UA_CLIENTSTATE_SECURECHANNEL,       /* A SecureChannel to the server is open */
-    UA_CLIENTSTATE_SESSION,             /* A session with the server is open */
-    UA_CLIENTSTATE_SESSION_DISCONNECTED /* A session with the server is open.
-                                         * But the SecureChannel was lost. Try
-                                         * to establish a new SecureChannel and
-                                         * reattach the existing session. */
-} UA_ClientState;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
 
 /* Create a new client */
 UA_Client UA_EXPORT *

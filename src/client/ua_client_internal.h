@@ -52,6 +52,8 @@ typedef struct UA_Client_Subscription {
 
 void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub);
 
+void UA_Client_Subscriptions_clean(UA_Client *client);
+
 #endif
 
 /**********/
@@ -74,6 +76,7 @@ typedef enum {
 struct UA_Client {
     /* State */
     UA_ClientState state;
+
     UA_ClientConfig config;
 
     /* Connection */

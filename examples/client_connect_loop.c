@@ -82,7 +82,7 @@ int main(void) {
             UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
             UA_DateTime raw_date = *(UA_DateTime *) value.data;
             UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u",
+            UA_LOG_INFO(logger, UA_LOGCATEGORY_USERLAND, "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
                         dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }
         UA_Variant_deleteMembers(&value);
