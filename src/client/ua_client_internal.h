@@ -107,6 +107,9 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
+    UA_PublishRequest backgroundPublishRequest;
+    UA_Boolean backgroundWaitingPublishResponse;
+    UA_DateTime backgroundDateTimeSendingRequest;
 #endif
 };
 

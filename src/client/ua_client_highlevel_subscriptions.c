@@ -533,6 +533,68 @@ UA_Client_Subscriptions_clean(UA_Client *client){
     UA_Client_Subscription *sub, *tmps;
     LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
         UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
+
+    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
+    client->backgroundWaitingPublishResponse = UA_FALSE;
+}
+
+static
+void UA_Client_AsyncService_publishResponse(UA_Client *client, void *userdata,
+                    UA_UInt32 requestId, void *response){
+
+    UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "async response");
+    UA_Client_processPublishResponse(client, &client->backgroundPublishRequest, (UA_PublishResponse*)response);
+    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
+    client->backgroundWaitingPublishResponse = UA_FALSE;
+}
+
+UA_StatusCode
+UA_Client_AsyncService_backgoundPublish(UA_Client *client, UA_UInt32 timeout) {
+    if(client->state < UA_CLIENTSTATE_SESSION)
+        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    if (client->backgroundWaitingPublishResponse){
+        UA_DateTime maxDate = client->backgroundDateTimeSendingRequest +
+                              (timeout * UA_DATETIME_MSEC);
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        if (now > maxDate){
+            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "backgoundPublish timeout");
+            UA_Client_close(client);
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_PublishRequest_init(&client->backgroundPublishRequest);
+    client->backgroundPublishRequest.subscriptionAcknowledgementsSize = 0;
+
+    UA_Client_NotificationsAckNumber *ack;
+    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
+        ++client->backgroundPublishRequest.subscriptionAcknowledgementsSize;
+    if(client->backgroundPublishRequest.subscriptionAcknowledgementsSize > 0) {
+        client->backgroundPublishRequest.subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+            UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * client->backgroundPublishRequest.subscriptionAcknowledgementsSize);
+        if(!client->backgroundPublishRequest.subscriptionAcknowledgements)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    int i = 0;
+    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
+        client->backgroundPublishRequest.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
+        client->backgroundPublishRequest.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
+        ++i;
+    }
+
+    UA_UInt32 requestId;
+
+    client->backgroundWaitingPublishResponse = UA_TRUE;
+    client->backgroundDateTimeSendingRequest = UA_DateTime_nowMonotonic();
+    return __UA_Client_AsyncService(client, &client->backgroundPublishRequest,
+                        &UA_TYPES[UA_TYPES_PUBLISHREQUEST], UA_Client_AsyncService_publishResponse,
+                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL,
+                        &requestId);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

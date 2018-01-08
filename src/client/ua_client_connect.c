@@ -391,6 +391,11 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    client->backgroundWaitingPublishResponse = UA_FALSE;
+    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
+#endif
+
     UA_String_deleteMembers(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(!client->endpointUrl.data) {
