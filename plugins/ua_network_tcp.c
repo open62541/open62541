@@ -194,6 +194,12 @@ connection_recv(UA_Connection *connection, UA_ByteString *response,
         /* No result */
         if(resultsize == 0)
             return UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+
+        /* Error occurred */
+        if (resultsize == -1) {
+            connection->close(connection);
+            return UA_STATUSCODE_BADCONNECTIONCLOSED;
+        }
     }
 
     response->data = (UA_Byte*)
