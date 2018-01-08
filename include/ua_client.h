@@ -427,7 +427,7 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 
 typedef void
 (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, const void *response);
+                                 UA_UInt32 requestId, void *response);
 
 /* Don't use this function. Use the type versions below instead. */
 UA_StatusCode UA_EXPORT

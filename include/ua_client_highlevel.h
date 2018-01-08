@@ -587,6 +587,9 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
+UA_StatusCode UA_EXPORT
+UA_Client_AsyncService_backgoundPublish(UA_Client *client, UA_UInt32 timeout);
+
 /* Addition of monitored DataChanges */
 /* TODO for v0.4: Rename method to _DataChange. */
 typedef void (*UA_MonitoredItemHandlingFunction)(UA_UInt32 monId, UA_DataValue *value,
