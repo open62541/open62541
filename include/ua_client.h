@@ -70,6 +70,10 @@ typedef struct UA_ClientConfig {
 
     /* Callback function */
     UA_ClientStateCallback stateCallback;
+
+    /* PublishResponse Timeout for background async process in ms */
+    /* 0 = background task disabled                              */
+    UA_UInt32 backgroundPublishResponseTimeout;
 } UA_ClientConfig;
 
 

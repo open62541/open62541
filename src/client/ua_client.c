@@ -356,6 +356,11 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_StatusCode retvalPublish = UA_Client_AsyncService_backgroundPublish(client);
+    if (retvalPublish != UA_STATUSCODE_GOOD)
+        return retvalPublish;
+#endif
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
     UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)

@@ -470,7 +470,7 @@ UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
 UA_StatusCode
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
+    if (client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -516,7 +516,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         UA_PublishRequest_deleteMembers(&request);
     }
     
-    if(client->state < UA_CLIENTSTATE_SESSION)
+    if (client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     return retval;
@@ -542,25 +542,26 @@ static
 void UA_Client_AsyncService_publishResponse(UA_Client *client, void *userdata,
                     UA_UInt32 requestId, void *response){
 
-    UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                   "async response");
     UA_Client_processPublishResponse(client, &client->backgroundPublishRequest, (UA_PublishResponse*)response);
     UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
     client->backgroundWaitingPublishResponse = UA_FALSE;
 }
 
 UA_StatusCode
-UA_Client_AsyncService_backgoundPublish(UA_Client *client, UA_UInt32 timeout) {
-    if(client->state < UA_CLIENTSTATE_SESSION)
+UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
+    if (client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
+
+    if (client->config.backgroundPublishResponseTimeout == 0)
+        return UA_STATUSCODE_GOOD;
 
     if (client->backgroundWaitingPublishResponse){
         UA_DateTime maxDate = client->backgroundDateTimeSendingRequest +
-                              (timeout * UA_DATETIME_MSEC);
+                              (client->config.backgroundPublishResponseTimeout * UA_DATETIME_MSEC);
         UA_DateTime now = UA_DateTime_nowMonotonic();
         if (now > maxDate){
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "backgoundPublish timeout");
+                         "backgroundPublish timeout");
             UA_Client_close(client);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }

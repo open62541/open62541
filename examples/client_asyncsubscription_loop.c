@@ -100,9 +100,13 @@ int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
     /* Set stateCallback */
     config.stateCallback = stateCallback;
+
+    /* Activate background publish request */
+    config.backgroundPublishResponseTimeout = 20000;
+
     UA_Client *client = UA_Client_new(config);
 
-    /* Endless loop SendPublishRequest */
+    /* Endless loop runAsync */
     while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
@@ -116,7 +120,6 @@ int main(void) {
             continue;
         }
 
-        UA_Client_AsyncService_backgoundPublish(client, 20000);
         UA_Client_runAsync(client, 1000);
     };
 
