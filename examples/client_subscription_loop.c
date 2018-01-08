@@ -100,10 +100,11 @@ int main(void) {
     UA_ClientConfig config = UA_ClientConfig_default;
     /* Set stateCallback */
     config.stateCallback = stateCallback;
+
     UA_Client *client = UA_Client_new(config);
 
-    /* Endless loop SendPublishRequest */
-    while(running) {
+    /* Endless loop runAsync */
+    while (running) {
         /* if already connected, this will return GOOD and do nothing */
         /* if the connection is closed/errored, the connection will be reset and then reconnected */
         /* Alternatively you can also use UA_Client_getState to get the current state */
@@ -116,8 +117,7 @@ int main(void) {
             continue;
         }
 
-        UA_Client_Subscriptions_manuallySendPublishRequest(client);
-        UA_sleep_ms(1000);
+        UA_Client_runAsync(client, 1000);
     };
 
     /* Clean up */

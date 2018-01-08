@@ -592,7 +592,10 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
 
-UA_StatusCode UA_EXPORT
+/* Send a publish request and wait until a response to the request is processed.
+ * Note that other publish responses may be processed in the background until
+ * then. */
+UA_DEPRECATED UA_StatusCode UA_EXPORT
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
 
 /* Addition of monitored DataChanges */

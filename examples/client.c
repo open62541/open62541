@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
     if(monId)
         printf("Monitoring 'the.answer', id %u\n", monId);
     /* The first publish request should return the initial value of the variable */
-    UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    UA_Client_runAsync(client, 1000);
 #endif
 
     /* Read attribute */
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Take another look at the.answer */
-    UA_Client_Subscriptions_manuallySendPublishRequest(client);
+    UA_Client_runAsync(client, 100);
     /* Delete the subscription */
     if(!UA_Client_Subscriptions_remove(client, subId))
         printf("Subscription removed\n");
