@@ -54,6 +54,9 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 
 void UA_Client_Subscriptions_clean(UA_Client *client);
 
+UA_StatusCode
+UA_Client_AsyncService_backgroundPublish(UA_Client *client);
+
 #endif
 
 /**********/

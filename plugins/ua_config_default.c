@@ -301,8 +301,9 @@ const UA_ClientConfig UA_ClientConfig_default = {
     UA_ClientConnectionTCP, /* .connectionFunc */
 
     0, /* .customDataTypesSize */
-    NULL, /*.customDataTypes */
-    NULL /*.stateCallback */
+    NULL, /* .customDataTypes */
+    NULL, /* .stateCallback */
+    0 /* .backgroundPublishResponseTimeout */
 };
 
 /****************************************/
