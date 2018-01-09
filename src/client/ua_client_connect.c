@@ -391,10 +391,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    client->backgroundWaitingPublishResponse = UA_FALSE;
-    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
-#endif
 
     UA_String_deleteMembers(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
@@ -416,6 +412,21 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
+
+
+    /* Delete async service calls except PublishRequest */
+    AsyncServiceCall *ac, *ac_tmp;
+    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+        if (ac->requestType != &UA_TYPES[UA_TYPES_PUBLISHREQUEST]){
+            LIST_REMOVE(ac, pointers);
+            UA_delete(ac->request, ac->requestType);
+            UA_free(ac);
+        }
+    }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    client->lastSentPublishRequest = UA_DateTime_nowMonotonic();
+#endif
 
     /* Try to activate an existing Session for this SecureChannel */
     if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
@@ -448,7 +459,15 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         /* A new session has been created. We need to clean up the subscriptions */
         UA_Client_Subscriptions_clean(client);
+        client->currentlyOutStandingPublishRequests = 0;
 #endif
+        /* Delete async service calls */
+        LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+            LIST_REMOVE(ac, pointers);
+            UA_delete(ac->request, ac->requestType);
+            UA_free(ac);
+        }
+
         retval = activateSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;

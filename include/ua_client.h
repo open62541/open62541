@@ -72,8 +72,12 @@ typedef struct UA_ClientConfig {
     UA_ClientStateCallback stateCallback;
 
     /* PublishResponse Timeout for background async process in ms */
-    /* 0 = background task disabled                              */
+    /* 0 = time out disabled                                      */
     UA_UInt32 backgroundPublishResponseTimeout;
+
+    /* number of PublishResponse standing in the sever */
+    /* 0 = background task disabled                    */
+    UA_UInt16 outStandingPublishRequests;
 } UA_ClientConfig;
 
 
@@ -430,12 +434,14 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * different ordering. */
 
 typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response);
+(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata, 
+                                 UA_UInt32 requestId,
+                                 void *request, const UA_DataType *requestType,
+                                 void *response, const UA_DataType *responseType);
 
 /* Don't use this function. Use the type versions below instead. */
 UA_StatusCode UA_EXPORT
-__UA_Client_AsyncService(UA_Client *client, const void *request,
+__UA_Client_AsyncService(UA_Client *client, void *request,
                          const UA_DataType *requestType,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
