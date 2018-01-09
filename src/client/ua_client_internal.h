@@ -68,6 +68,8 @@ typedef struct AsyncServiceCall {
     UA_UInt32 requestId;
     UA_ClientAsyncServiceCallback callback;
     const UA_DataType *responseType;
+    const UA_DataType *requestType;
+    void *request;
     void *userdata;
 } AsyncServiceCall;
 
@@ -110,9 +112,8 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
-    UA_PublishRequest backgroundPublishRequest;
-    UA_Boolean backgroundWaitingPublishResponse;
-    UA_DateTime backgroundDateTimeSendingRequest;
+    UA_UInt16 currentlyOutStandingPublishRequests;
+    UA_DateTime lastSentPublishRequest;
 #endif
 };
 

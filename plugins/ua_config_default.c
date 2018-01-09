@@ -459,7 +459,8 @@ const UA_ClientConfig UA_ClientConfig_default = {
     0, /* .customDataTypesSize */
     NULL, /* .customDataTypes */
     NULL, /* .stateCallback */
-    0 /* .backgroundPublishResponseTimeout */
+    0, /* .backgroundPublishResponseTimeout */
+    0 /* .outStandingPublishRequests */
 };
 
 /****************************************/

@@ -351,8 +351,15 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
 }
 
 static void
-UA_Client_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
-                                 UA_PublishResponse *response) {
+UA_Client_processPublishResponse(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, UA_PublishRequest *request,
+                                 const UA_DataType *requestType, UA_PublishResponse *response,
+                                 const UA_DataType *responseType) {
+
+    UA_UInt16 *currentlyOutStandingPublishRequests = (UA_UInt16*) userdata;
+    if (currentlyOutStandingPublishRequests)
+        (*currentlyOutStandingPublishRequests)--;
+
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
@@ -502,7 +509,8 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         }
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
-        UA_Client_processPublishResponse(client, &request, &response);
+        UA_Client_processPublishResponse(client, NULL, 0, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                                         &response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         
         now = UA_DateTime_nowMonotonic();
         if (now > maxDate){
@@ -533,18 +541,6 @@ UA_Client_Subscriptions_clean(UA_Client *client){
     UA_Client_Subscription *sub, *tmps;
     LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
         UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
-
-    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
-    client->backgroundWaitingPublishResponse = UA_FALSE;
-}
-
-static
-void UA_Client_AsyncService_publishResponse(UA_Client *client, void *userdata,
-                    UA_UInt32 requestId, void *response){
-
-    UA_Client_processPublishResponse(client, &client->backgroundPublishRequest, (UA_PublishResponse*)response);
-    UA_PublishRequest_deleteMembers(&client->backgroundPublishRequest);
-    client->backgroundWaitingPublishResponse = UA_FALSE;
 }
 
 UA_StatusCode
@@ -552,11 +548,52 @@ UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
     if (client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
-    if (client->config.backgroundPublishResponseTimeout == 0)
+    if (client->config.outStandingPublishRequests == 0)
         return UA_STATUSCODE_GOOD;
 
-    if (client->backgroundWaitingPublishResponse){
-        UA_DateTime maxDate = client->backgroundDateTimeSendingRequest +
+    while (client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests){
+        UA_PublishRequest *request = UA_PublishRequest_new();
+        if (!request)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+    
+        UA_PublishRequest_init(request);
+        request->subscriptionAcknowledgementsSize = 0;
+
+        UA_Client_NotificationsAckNumber *ack;
+        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
+            ++request->subscriptionAcknowledgementsSize;
+        if(request->subscriptionAcknowledgementsSize > 0) {
+            request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request->subscriptionAcknowledgementsSize);
+            if(!request->subscriptionAcknowledgements){
+                UA_PublishRequest_delete(request);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+        }
+
+        int i = 0;
+        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
+            request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
+            request->subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
+            ++i;
+        }
+
+        UA_UInt32 requestId;
+
+        client->currentlyOutStandingPublishRequests++;
+        client->lastSentPublishRequest = UA_DateTime_nowMonotonic();
+        UA_StatusCode retval = __UA_Client_AsyncService(client, request,
+                                     &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                                     (UA_ClientAsyncServiceCallback)UA_Client_processPublishResponse,
+                                     &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                                     (void*)&client->currentlyOutStandingPublishRequests,
+                                     &requestId);
+        if (retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    if (client->currentlyOutStandingPublishRequests && client->config.outStandingPublishRequests){
+        UA_DateTime maxDate = client->lastSentPublishRequest +
                               (client->config.backgroundPublishResponseTimeout * UA_DATETIME_MSEC);
         UA_DateTime now = UA_DateTime_nowMonotonic();
         if (now > maxDate){
@@ -565,37 +602,9 @@ UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
             UA_Client_close(client);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }
-        return UA_STATUSCODE_GOOD;
     }
 
-    UA_PublishRequest_init(&client->backgroundPublishRequest);
-    client->backgroundPublishRequest.subscriptionAcknowledgementsSize = 0;
-
-    UA_Client_NotificationsAckNumber *ack;
-    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
-        ++client->backgroundPublishRequest.subscriptionAcknowledgementsSize;
-    if(client->backgroundPublishRequest.subscriptionAcknowledgementsSize > 0) {
-        client->backgroundPublishRequest.subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
-            UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * client->backgroundPublishRequest.subscriptionAcknowledgementsSize);
-        if(!client->backgroundPublishRequest.subscriptionAcknowledgements)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    int i = 0;
-    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-        client->backgroundPublishRequest.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
-        client->backgroundPublishRequest.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-        ++i;
-    }
-
-    UA_UInt32 requestId;
-
-    client->backgroundWaitingPublishResponse = UA_TRUE;
-    client->backgroundDateTimeSendingRequest = UA_DateTime_nowMonotonic();
-    return __UA_Client_AsyncService(client, &client->backgroundPublishRequest,
-                        &UA_TYPES[UA_TYPES_PUBLISHREQUEST], UA_Client_AsyncService_publishResponse,
-                        &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL,
-                        &requestId);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

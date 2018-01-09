@@ -54,6 +54,7 @@ UA_Client_deleteMembers(UA_Client* client) {
     AsyncServiceCall *ac, *ac_tmp;
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
+        UA_delete(ac->request, ac->requestType);
         UA_free(ac);
     }
 
@@ -145,7 +146,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
 
     /* Call the callback */
     if(retval == UA_STATUSCODE_GOOD) {
-        ac->callback(client, ac->userdata, requestId, response);
+        ac->callback(client, ac->userdata, requestId, ac->request, ac->requestType, response, ac->responseType);
         UA_deleteMembers(response, ac->responseType);
     } else {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -154,6 +155,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
 
     /* Remove the callback */
     LIST_REMOVE(ac, pointers);
+    UA_delete(ac->request, ac->requestType);
     UA_free(ac);
     return retval;
 }
@@ -326,7 +328,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, const void *request,
+__UA_Client_AsyncService(UA_Client *client, void *request,
                          const UA_DataType *requestType,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
@@ -338,10 +340,13 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     ac->callback = callback;
     ac->responseType = responseType;
     ac->userdata = userdata;
+    ac->requestType = requestType;
+    ac->request = request;
 
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_delete(request, requestType);
         UA_free(ac);
         return retval;
     }

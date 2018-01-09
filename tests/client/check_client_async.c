@@ -62,20 +62,20 @@ START_TEST(Client_read_async) {
 
     UA_UInt16 asyncCounter = 0;
 
-    UA_ReadRequest rr;
-    UA_ReadRequest_init(&rr);
-
-    UA_ReadValueId rvid;
-    UA_ReadValueId_init(&rvid);
-    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
-    rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-
-    rr.nodesToRead = &rvid;
-    rr.nodesToReadSize = 1;
-
     /* Send 100 requests */
     for(size_t i = 0; i < 100; i++) {
-        retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+        UA_ReadRequest *rr = UA_ReadRequest_new();
+        UA_ReadRequest_init(rr);
+
+        UA_ReadValueId *rvid = UA_ReadValueId_new();
+        UA_ReadValueId_init(rvid);
+        rvid->attributeId = UA_ATTRIBUTEID_VALUE;
+        rvid->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+
+        rr->nodesToRead = rvid;
+        rr->nodesToReadSize = 1;
+
+        retval = __UA_Client_AsyncService(client, rr, &UA_TYPES[UA_TYPES_READREQUEST],
                                           (UA_ClientAsyncServiceCallback)asyncReadCallback,
                                           &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
