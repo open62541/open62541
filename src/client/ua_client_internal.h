@@ -47,6 +47,7 @@ typedef struct UA_Client_Subscription {
     UA_UInt32 subscriptionID;
     UA_UInt32 notificationsPerPublish;
     UA_UInt32 priority;
+    UA_UInt32 sequenceNumber;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
