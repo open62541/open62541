@@ -321,7 +321,7 @@ UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscr
         }
         UA_Client_MonitoredItem *mon;
         LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->monitoredItemId == monitoredItemId[i]){
+            if(mon->monitoredItemId == monitoredItemId[i]) {
                 LIST_REMOVE(mon, listEntry);
                 UA_NodeId_deleteMembers(&mon->monitoredNodeId);
                 UA_free(mon);
@@ -352,7 +352,7 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
 }
 
 static UA_StatusCode
-UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request){
+UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
     UA_PublishRequest_init(request);
     request->subscriptionAcknowledgementsSize = 0;
 
@@ -362,7 +362,7 @@ UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request){
     if(request->subscriptionAcknowledgementsSize > 0) {
         request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
             UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request->subscriptionAcknowledgementsSize);
-        if(!request->subscriptionAcknowledgements){
+        if(!request->subscriptionAcknowledgements) {
             UA_PublishRequest_deleteMembers(request);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
@@ -383,9 +383,9 @@ UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request){
 /* According to OPC Unified Architecture, Part 4 5.13.1.1 i) */
 /* The value 0 is never used for the sequence number         */
 static UA_UInt32
-UA_Client_Subscriptions_nextSequenceNumber(UA_UInt32 sequenceNumber){
+UA_Client_Subscriptions_nextSequenceNumber(UA_UInt32 sequenceNumber) {
     UA_UInt32 nextSequenceNumber = sequenceNumber + 1;
-    if (nextSequenceNumber == 0)
+    if(nextSequenceNumber == 0)
         nextSequenceNumber = 1;
     return nextSequenceNumber;
 }
@@ -464,9 +464,8 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
 }
 
 static void
-processPublishResponse(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                       UA_PublishResponse *response, const UA_DataType *responseType) {
-    UA_PublishRequest *request = (UA_PublishRequest*)userdata;
+processPublishResponse(UA_Client *client, UA_PublishRequest *request,
+                       UA_PublishResponse *response) {
     UA_NotificationMessage *msg = &response->notificationMessage;
 
     /* Handle outstanding requests. TODO: If the server cannot handle so many
@@ -519,6 +518,15 @@ processPublishResponse(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_Client_Subscriptions_backgroundPublish(client);
 }
 
+static void
+processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                            void *response, const UA_DataType *responseType) {
+    UA_PublishRequest *req = (UA_PublishRequest*)userdata;
+    UA_PublishResponse *res = (UA_PublishResponse*)response;
+    processPublishResponse(client, req, res);
+    UA_PublishRequest_delete(req);
+}
+
 UA_StatusCode
 UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     if(client->state < UA_CLIENTSTATE_SESSION)
@@ -538,7 +546,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
             return retval;
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
-        processPublishResponse(client, &request, 0, &response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        processPublishResponse(client, &request, &response);
         
         now = UA_DateTime_nowMonotonic();
         if(now > maxDate) {
@@ -559,7 +567,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
 }
 
 void
-UA_Client_Subscriptions_clean(UA_Client *client){
+UA_Client_Subscriptions_clean(UA_Client *client) {
     UA_Client_NotificationsAckNumber *n, *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
         LIST_REMOVE(n, listEntry);
@@ -573,20 +581,20 @@ UA_Client_Subscriptions_clean(UA_Client *client){
 
 UA_StatusCode
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
-    if (client->state < UA_CLIENTSTATE_SESSION)
+    if(client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     /* The session must have at least one subscription */
     if(!LIST_FIRST(&client->subscriptions))
         return UA_STATUSCODE_GOOD;
 
-    while (client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests){
+    while(client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests) {
         UA_PublishRequest *request = UA_PublishRequest_new();
         if (!request)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         UA_StatusCode retval = UA_Client_preparePublishRequest(client, request);
-        if(retval != UA_STATUSCODE_GOOD){
+        if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
             return retval;
         }
@@ -594,7 +602,7 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
         UA_UInt32 requestId;
         client->currentlyOutStandingPublishRequests++;
         retval = __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                                          (UA_ClientAsyncServiceCallback)processPublishResponse,
+                                          processPublishResponseAsync,
                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
                                           (void*)request, &requestId);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -605,9 +613,9 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
 
     /* Check subscriptions inactivity */
     UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry){
-        if (((UA_DateTime)(sub->publishingInterval * sub->keepAliveCount + client->config.timeout) * 
-             UA_DATETIME_MSEC + sub->lastActivity) < UA_DateTime_nowMonotonic()){
+    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
+        if(((UA_DateTime)(sub->publishingInterval * sub->keepAliveCount + client->config.timeout) * 
+             UA_DATETIME_MSEC + sub->lastActivity) < UA_DateTime_nowMonotonic()) {
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Inactivity for Subscription %d. Closing the connection.",
                          sub->subscriptionID);
