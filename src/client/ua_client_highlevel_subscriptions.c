@@ -285,44 +285,69 @@ UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscript
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
-                                            UA_UInt32 monitoredItemId) {
+UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscriptionId,
+                                            UA_UInt32 *monitoredItemId, size_t itemsSize,
+                                            UA_StatusCode *itemResults) {
     UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-
-    UA_Client_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
-    if(!mon)
-        return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 
     /* remove the monitoreditem remotely */
     UA_DeleteMonitoredItemsRequest request;
     UA_DeleteMonitoredItemsRequest_init(&request);
     request.subscriptionId = sub->subscriptionID;
-    request.monitoredItemIdsSize = 1;
-    request.monitoredItemIds = &mon->monitoredItemId;
+    request.monitoredItemIdsSize = itemsSize;
+    request.monitoredItemIds = monitoredItemId;
     UA_DeleteMonitoredItemsResponse response = UA_Client_Service_deleteMonitoredItems(client, request);
 
     UA_StatusCode retval = response.responseHeader.serviceResult;
-    if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 1)
-        retval = response.results[0];
-    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
-    if(retval != UA_STATUSCODE_GOOD &&
-       retval != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
-        UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Could not remove monitoreditem %u with error code %s",
-                    monitoredItemId, UA_StatusCode_name(retval));
-        return retval;
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    if(response.resultsSize != itemsSize) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
     }
 
-    LIST_REMOVE(mon, listEntry);
-    UA_NodeId_deleteMembers(&mon->monitoredNodeId);
-    UA_free(mon);
-    return UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < itemsSize; i++) {
+        itemResults[i] = response.results[i];
+        if(response.results[i] != UA_STATUSCODE_GOOD &&
+           response.results[i] != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
+            UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Could not remove monitoreditem %u with error code %s",
+                        monitoredItemId[i], UA_StatusCode_name(response.results[i]));
+            continue;
+        }
+        UA_Client_MonitoredItem *mon;
+        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+            if(mon->monitoredItemId == monitoredItemId[i]){
+                LIST_REMOVE(mon, listEntry);
+                UA_NodeId_deleteMembers(&mon->monitoredNodeId);
+                UA_free(mon);
+                break;
+            }
+        }
+    }
+
+ cleanup:
+    /* Remove for _deleteMembers */
+    request.monitoredItemIdsSize = 0;
+    request.monitoredItemIds = NULL;
+
+    UA_DeleteMonitoredItemsRequest_deleteMembers(&request);
+    UA_DeleteMonitoredItemsResponse_deleteMembers(&response);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
+                                            UA_UInt32 monitoredItemId) {
+    UA_StatusCode retval_item = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = UA_Client_Subscriptions_removeMonitoredItems(client, subscriptionId,
+                                                                        &monitoredItemId, 1,
+                                                                        &retval_item);
+    return retval | retval_item;
 }
 
 static void
