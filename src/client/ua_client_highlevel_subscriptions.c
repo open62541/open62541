@@ -545,6 +545,13 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
+        /* Manually increase the number of sent publish requests. Otherwise we
+         * send out one too many when we process async responses when we wait
+         * for the correct publish response. The
+         * currentlyOutStandingPublishRequests will be reduced during processing
+         * of the response. */
+        client->currentlyOutStandingPublishRequests++;
+
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         processPublishResponse(client, &request, &response);
         
