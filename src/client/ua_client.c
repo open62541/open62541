@@ -362,7 +362,7 @@ UA_StatusCode
 UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
     /* TODO: Call repeated jobs that are scheduled */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_StatusCode retvalPublish = UA_Client_AsyncService_backgroundPublish(client);
+    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
     if (retvalPublish != UA_STATUSCODE_GOOD)
         return retvalPublish;
 #endif
