@@ -48,6 +48,7 @@ typedef struct UA_Client_Subscription {
     UA_UInt32 notificationsPerPublish;
     UA_UInt32 priority;
     UA_UInt32 sequenceNumber;
+    UA_DateTime lastActivity;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
@@ -56,7 +57,7 @@ void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscripti
 void UA_Client_Subscriptions_clean(UA_Client *client);
 
 UA_StatusCode
-UA_Client_AsyncService_backgroundPublish(UA_Client *client);
+UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 #endif
 
@@ -114,7 +115,6 @@ struct UA_Client {
     LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
     UA_UInt16 currentlyOutStandingPublishRequests;
-    UA_DateTime lastSentPublishRequest;
 #endif
 };
 

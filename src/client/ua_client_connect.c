@@ -423,7 +423,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    client->lastSentPublishRequest = UA_DateTime_nowMonotonic();
     client->currentlyOutStandingPublishRequests = 0;
 #endif
 

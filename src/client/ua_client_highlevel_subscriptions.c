@@ -35,6 +35,7 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
 
     LIST_INIT(&newSub->monitoredItems);
     newSub->sequenceNumber = 0;
+    newSub->lastActivity = UA_DateTime_nowMonotonic();
     newSub->lifeTime = response.revisedLifetimeCount;
     newSub->keepAliveCount = response.revisedMaxKeepAliveCount;
     newSub->publishingInterval = response.revisedPublishingInterval;
@@ -408,6 +409,10 @@ UA_Client_processPublishResponse(UA_Client *client, void *userdata,
     if(!sub)
         return;
 
+    /* backgroundPublish if userdata(currentlyOutStandingPublishRequests) is non NULL */
+    if (currentlyOutStandingPublishRequests)
+        sub->lastActivity = UA_DateTime_nowMonotonic();
+
     /* Process the notification messages */
     UA_NotificationMessage *msg = &response->notificationMessage;
     for(size_t k = 0; k < msg->notificationDataSize; ++k) {
@@ -493,22 +498,21 @@ UA_Client_processPublishResponse(UA_Client *client, void *userdata,
 
     /* Add to the list of pending acks */
     for(size_t i = 0; i < response->availableSequenceNumbersSize; i++) {
-        UA_Client_NotificationsAckNumber *tmpAck =
-            (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
-        if(!tmpAck) {
-            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                           "Not enough memory to store the acknowledgement for a publish "
-                           "message on subscription %u", sub->subscriptionID);
-            return;
-        }   
-        tmpAck->subAck.sequenceNumber = response->availableSequenceNumbers[i];
-        tmpAck->subAck.subscriptionId = sub->subscriptionID;
-        LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
-    }
-
-    /* backgroundPublish if userdata(currentlyOutStandingPublishRequests) is non NULL */
-    if (currentlyOutStandingPublishRequests)
-        UA_Client_AsyncService_backgroundPublish(client);
+        if (response->availableSequenceNumbers[i] == msg->sequenceNumber){
+            UA_Client_NotificationsAckNumber *tmpAck =
+                (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+            if(!tmpAck) {
+                UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                               "Not enough memory to store the acknowledgement for a publish "
+                               "message on subscription %u", sub->subscriptionID);
+                return;
+            }   
+            tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
+            tmpAck->subAck.subscriptionId = sub->subscriptionID;
+            LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
+            break;
+        }
+    } 
 }
 
 UA_StatusCode
@@ -565,7 +569,7 @@ UA_Client_Subscriptions_clean(UA_Client *client){
 }
 
 UA_StatusCode
-UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
+UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
     if (client->state < UA_CLIENTSTATE_SESSION)
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
@@ -585,7 +589,6 @@ UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
     
         UA_UInt32 requestId;
         client->currentlyOutStandingPublishRequests++;
-        client->lastSentPublishRequest = UA_DateTime_nowMonotonic();
         retval = __UA_Client_AsyncService(client, request,
                             &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
                             (UA_ClientAsyncServiceCallback)UA_Client_processPublishResponse,
@@ -596,13 +599,14 @@ UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
             return retval;
     }
 
-    if (client->currentlyOutStandingPublishRequests && client->config.outStandingPublishRequests){
-        UA_DateTime maxDate = client->lastSentPublishRequest +
-                              (client->config.backgroundPublishResponseTimeout * UA_DATETIME_MSEC);
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        if (now > maxDate){
+    /* Check subscriptions inactivity */
+    UA_Client_Subscription *sub;
+    LIST_FOREACH(sub, &client->subscriptions, listEntry){
+        if (((UA_DateTime)(sub->publishingInterval * sub->keepAliveCount + client->config.timeout) * 
+             UA_DATETIME_MSEC + sub->lastActivity) < UA_DateTime_nowMonotonic()){
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "backgroundPublish timeout");
+                         "Inactivity for Subscription %d. Closing the connection.",
+                         sub->subscriptionID);
             UA_Client_close(client);
             return UA_STATUSCODE_BADCONNECTIONCLOSED;
         }

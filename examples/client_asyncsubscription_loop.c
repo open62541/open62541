@@ -103,7 +103,6 @@ int main(void) {
 
     /* Activate background publish request */
     config.outStandingPublishRequests = 10;
-    config.backgroundPublishResponseTimeout = 20000;
 
     UA_Client *client = UA_Client_new(config);
 
