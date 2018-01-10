@@ -351,11 +351,9 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     return retval | retval_item;
 }
 
+/* Assume the request is already initialized */
 static UA_StatusCode
 UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
-    UA_PublishRequest_init(request);
-    request->subscriptionAcknowledgementsSize = 0;
-
     UA_Client_NotificationsAckNumber *ack;
     LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
         ++request->subscriptionAcknowledgementsSize;
@@ -540,7 +538,7 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {
         UA_PublishRequest request;
-
+        UA_PublishRequest_init(&request);
         retval = UA_Client_preparePublishRequest(client, &request);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
