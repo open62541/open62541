@@ -34,6 +34,7 @@ UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
     }
 
     LIST_INIT(&newSub->monitoredItems);
+    newSub->sequenceNumber = 0;
     newSub->lifeTime = response.revisedLifetimeCount;
     newSub->keepAliveCount = response.revisedMaxKeepAliveCount;
     newSub->publishingInterval = response.revisedPublishingInterval;
@@ -350,6 +351,45 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
     return retval | retval_item;
 }
 
+static UA_StatusCode
+UA_Client_processPublishRequest(UA_Client *client, UA_PublishRequest *request){
+    UA_PublishRequest_init(request);
+    request->subscriptionAcknowledgementsSize = 0;
+
+    UA_Client_NotificationsAckNumber *ack;
+    LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
+        ++request->subscriptionAcknowledgementsSize;
+    if(request->subscriptionAcknowledgementsSize > 0) {
+        request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+            UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request->subscriptionAcknowledgementsSize);
+        if(!request->subscriptionAcknowledgements){
+            UA_PublishRequest_deleteMembers(request);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    int i = 0;
+    UA_Client_NotificationsAckNumber *ack_tmp;
+    LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, ack_tmp) {
+        request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
+        request->subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
+        ++i;
+        LIST_REMOVE(ack, listEntry);
+        UA_free(ack);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* According to OPC Unified Architecture, Part 4 5.13.1.1 i) */
+/* The value 0 is never used for the sequence number         */
+static UA_UInt32
+UA_Client_Subscriptions_nextSequenceNumber(UA_UInt32 sequenceNumber){
+    UA_UInt32 nextSequenceNumber = sequenceNumber + 1;
+    if (nextSequenceNumber == 0)
+        nextSequenceNumber = 1;
+    return nextSequenceNumber;
+}
+
 static void
 UA_Client_processPublishResponse(UA_Client *client, void *userdata,
                                  UA_UInt32 requestId, UA_PublishRequest *request,
@@ -357,6 +397,7 @@ UA_Client_processPublishResponse(UA_Client *client, void *userdata,
                                  const UA_DataType *responseType) {
 
     UA_UInt16 *currentlyOutStandingPublishRequests = (UA_UInt16*) userdata;
+    /* backgroundPublish if userdata(currentlyOutStandingPublishRequests) is non NULL */
     if (currentlyOutStandingPublishRequests)
         (*currentlyOutStandingPublishRequests)--;
 
@@ -366,27 +407,6 @@ UA_Client_processPublishResponse(UA_Client *client, void *userdata,
     UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         return;
-
-    /* Check if the server has acknowledged any of the sent ACKs */
-    for(size_t i = 0; i < response->resultsSize && i < request->subscriptionAcknowledgementsSize; ++i) {
-        /* remove also acks that are unknown to the server */
-        if(response->results[i] != UA_STATUSCODE_GOOD &&
-           response->results[i] != UA_STATUSCODE_BADSEQUENCENUMBERUNKNOWN)
-            continue;
-
-        /* Remove the ack from the list */
-        UA_SubscriptionAcknowledgement *orig_ack = &request->subscriptionAcknowledgements[i];
-        UA_Client_NotificationsAckNumber *ack;
-        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-            if(ack->subAck.subscriptionId == orig_ack->subscriptionId &&
-               ack->subAck.sequenceNumber == orig_ack->sequenceNumber) {
-                LIST_REMOVE(ack, listEntry);
-                UA_free(ack);
-                UA_assert(ack != LIST_FIRST(&client->pendingNotificationsAcks));
-                break;
-            }
-        }
-    }
 
     /* Process the notification messages */
     UA_NotificationMessage *msg = &response->notificationMessage;
@@ -461,18 +481,34 @@ UA_Client_processPublishResponse(UA_Client *client, void *userdata,
         }
     }
 
-    /* Add to the list of pending acks */
-    UA_Client_NotificationsAckNumber *tmpAck =
-        (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
-    if(!tmpAck) {
-        UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Not enough memory to store the acknowledgement for a publish "
-                       "message on subscription %u", sub->subscriptionID);
+    /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
+    if ((sub->sequenceNumber != msg->sequenceNumber) &&
+        (UA_Client_Subscriptions_nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber)){
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Invalid subscritpion sequenceNumber");
+        UA_Client_close(client);
         return;
     }
-    tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
-    tmpAck->subAck.subscriptionId = sub->subscriptionID;
-    LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
+    sub->sequenceNumber = msg->sequenceNumber;
+
+    /* Add to the list of pending acks */
+    for(size_t i = 0; i < response->availableSequenceNumbersSize; i++) {
+        UA_Client_NotificationsAckNumber *tmpAck =
+            (UA_Client_NotificationsAckNumber*)UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
+        if(!tmpAck) {
+            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Not enough memory to store the acknowledgement for a publish "
+                           "message on subscription %u", sub->subscriptionID);
+            return;
+        }   
+        tmpAck->subAck.sequenceNumber = response->availableSequenceNumbers[i];
+        tmpAck->subAck.subscriptionId = sub->subscriptionID;
+        LIST_INSERT_HEAD(&client->pendingNotificationsAcks, tmpAck, listEntry);
+    }
+
+    /* backgroundPublish if userdata(currentlyOutStandingPublishRequests) is non NULL */
+    if (currentlyOutStandingPublishRequests)
+        UA_Client_AsyncService_backgroundPublish(client);
 }
 
 UA_StatusCode
@@ -488,25 +524,10 @@ UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client) {
     UA_Boolean moreNotifications = true;
     while(moreNotifications) {
         UA_PublishRequest request;
-        UA_PublishRequest_init(&request);
-        request.subscriptionAcknowledgementsSize = 0;
 
-        UA_Client_NotificationsAckNumber *ack;
-        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
-            ++request.subscriptionAcknowledgementsSize;
-        if(request.subscriptionAcknowledgementsSize > 0) {
-            request.subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
-                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request.subscriptionAcknowledgementsSize);
-            if(!request.subscriptionAcknowledgements)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-
-        int i = 0;
-        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-            request.subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
-            request.subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-            ++i;
-        }
+        retval = UA_Client_processPublishRequest(client, &request);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
 
         UA_PublishResponse response = UA_Client_Service_publish(client, request);
         UA_Client_processPublishResponse(client, NULL, 0, &request, &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
@@ -555,39 +576,22 @@ UA_Client_AsyncService_backgroundPublish(UA_Client *client) {
         UA_PublishRequest *request = UA_PublishRequest_new();
         if (!request)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_StatusCode retval = UA_Client_processPublishRequest(client, request);
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_PublishRequest_delete(request);
+            return retval;
+        }
     
-        UA_PublishRequest_init(request);
-        request->subscriptionAcknowledgementsSize = 0;
-
-        UA_Client_NotificationsAckNumber *ack;
-        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
-            ++request->subscriptionAcknowledgementsSize;
-        if(request->subscriptionAcknowledgementsSize > 0) {
-            request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
-                UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request->subscriptionAcknowledgementsSize);
-            if(!request->subscriptionAcknowledgements){
-                UA_PublishRequest_delete(request);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        }
-
-        int i = 0;
-        LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry) {
-            request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
-            request->subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-            ++i;
-        }
-
         UA_UInt32 requestId;
-
         client->currentlyOutStandingPublishRequests++;
         client->lastSentPublishRequest = UA_DateTime_nowMonotonic();
-        UA_StatusCode retval = __UA_Client_AsyncService(client, request,
-                                     &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
-                                     (UA_ClientAsyncServiceCallback)UA_Client_processPublishResponse,
-                                     &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
-                                     (void*)&client->currentlyOutStandingPublishRequests,
-                                     &requestId);
+        retval = __UA_Client_AsyncService(client, request,
+                            &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
+                            (UA_ClientAsyncServiceCallback)UA_Client_processPublishResponse,
+                            &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
+                            (void*)&client->currentlyOutStandingPublishRequests,
+                            &requestId);
         if (retval != UA_STATUSCODE_GOOD)
             return retval;
     }
