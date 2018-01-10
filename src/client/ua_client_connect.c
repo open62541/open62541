@@ -391,7 +391,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
         goto cleanup;
     }
 
-
     UA_String_deleteMembers(&client->endpointUrl);
     client->endpointUrl = UA_STRING_ALLOC(endpointUrl);
     if(!client->endpointUrl.data) {
@@ -414,13 +413,8 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
 
-    /* Delete async service */
-    AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        LIST_REMOVE(ac, pointers);
-        UA_delete(ac->request, ac->requestType);
-        UA_free(ac);
-    }
+    /* Delete async service. TODO: Move this from connect to the disconnect/cleanup phase */
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     client->currentlyOutStandingPublishRequests = 0;

@@ -429,22 +429,76 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * be made without waiting for a response first. Responess may come in a
  * different ordering. */
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata, 
-                                 UA_UInt32 requestId,
-                                 void *request, const UA_DataType *requestType,
-                                 void *response, const UA_DataType *responseType);
-
-/* Don't use this function. Use the type versions below instead. */
+/* Listen on the network and process arriving asynchronous responses in the
+ * background. Internal housekeeping and subscription management is done as
+ * well. */
 UA_StatusCode UA_EXPORT
-__UA_Client_AsyncService(UA_Client *client, void *request,
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
+
+typedef void
+(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, void *response,
+                                 const UA_DataType *responseType);
+
+/* Use the type versions of this method. See below. However, the general
+ * mechanism of async service calls is explained here.
+ *
+ * We say that an async service call has been dispatched once this method
+ * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
+ * been dispatched, the callback is called with an "empty" response where the
+ * statusCode has been set accordingly. This is also done if the client is
+ * shutting down and the list of dispatched async services is emptied.
+ *
+ * The statusCode received when the client is shutting down is
+ * UA_STATUSCODE_BADSHUTDOWN.
+ *
+ * The userdata and requestId arguments can be NULL. */
+UA_StatusCode UA_EXPORT
+__UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_read(UA_Client *client, const UA_ReadRequest *request,
+                            UA_ClientAsyncServiceCallback callback,
+                            void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_READREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_READRESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_write(UA_Client *client, const UA_WriteRequest *request,
+                             UA_ClientAsyncServiceCallback callback,
+                             void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback, 
+                                    &UA_TYPES[UA_TYPES_WRITERESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_call(UA_Client *client, const UA_CallRequest *request,
+                            UA_ClientAsyncServiceCallback callback,
+                            void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_CALLRESPONSE],
+                                    userdata, requestId);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request,
+                              UA_ClientAsyncServiceCallback callback,
+                              void *userdata, UA_UInt32 *requestId) {
+    return __UA_Client_AsyncService(client, (const void*)request,
+                                    &UA_TYPES[UA_TYPES_BROWSEREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE],
+                                    userdata, requestId);
+}
 
 /**
  * .. toctree::
