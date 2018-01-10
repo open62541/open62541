@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
     }
 
     while (running)
-        UA_Client_Subscriptions_manuallySendPublishRequest(client);
+        UA_Client_runAsync(client, 100);
 
     /* Delete the subscription */
  cleanup:
