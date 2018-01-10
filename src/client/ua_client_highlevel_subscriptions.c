@@ -354,16 +354,18 @@ UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscri
 /* Assume the request is already initialized */
 static UA_StatusCode
 UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
+    /* Count acks */
     UA_Client_NotificationsAckNumber *ack;
     LIST_FOREACH(ack, &client->pendingNotificationsAcks, listEntry)
         ++request->subscriptionAcknowledgementsSize;
-    if(request->subscriptionAcknowledgementsSize > 0) {
-        request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
-            UA_malloc(sizeof(UA_SubscriptionAcknowledgement) * request->subscriptionAcknowledgementsSize);
-        if(!request->subscriptionAcknowledgements) {
-            UA_PublishRequest_deleteMembers(request);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
+
+    /* Create the array. Returns a sentinel pointer if the length is zero. */
+    request->subscriptionAcknowledgements = (UA_SubscriptionAcknowledgement*)
+        UA_Array_new(request->subscriptionAcknowledgementsSize,
+                     &UA_TYPES[UA_TYPES_SUBSCRIPTIONACKNOWLEDGEMENT]);
+    if(!request->subscriptionAcknowledgements) {
+        request->subscriptionAcknowledgementsSize = 0;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     size_t i = 0;
