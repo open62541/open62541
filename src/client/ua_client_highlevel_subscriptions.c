@@ -368,7 +368,7 @@ UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
         }
     }
 
-    int i = 0;
+    size_t i = 0;
     UA_Client_NotificationsAckNumber *ack_tmp;
     LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, ack_tmp) {
         request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
