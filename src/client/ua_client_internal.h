@@ -70,10 +70,13 @@ typedef struct AsyncServiceCall {
     UA_UInt32 requestId;
     UA_ClientAsyncServiceCallback callback;
     const UA_DataType *responseType;
-    const UA_DataType *requestType;
-    void *request;
     void *userdata;
 } AsyncServiceCall;
+
+void UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                                   UA_StatusCode statusCode);
+
+void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode);
 
 typedef enum {
     UA_CLIENTAUTHENTICATION_NONE,

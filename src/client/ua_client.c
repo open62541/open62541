@@ -51,12 +51,7 @@ UA_Client_deleteMembers(UA_Client* client) {
         UA_String_deleteMembers(&client->password);
 
     /* Delete the async service calls */
-    AsyncServiceCall *ac, *ac_tmp;
-    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
-        LIST_REMOVE(ac, pointers);
-        UA_delete(ac->request, ac->requestType);
-        UA_free(ac);
-    }
+    UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -146,7 +141,7 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
 
     /* Call the callback */
     if(retval == UA_STATUSCODE_GOOD) {
-        ac->callback(client, ac->userdata, requestId, ac->request, ac->requestType, response, ac->responseType);
+        ac->callback(client, ac->userdata, requestId, response, ac->responseType);
         UA_deleteMembers(response, ac->responseType);
     } else {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -155,7 +150,6 @@ processAsyncResponse(UA_Client *client, UA_UInt32 requestId, UA_NodeId *response
 
     /* Remove the callback */
     LIST_REMOVE(ac, pointers);
-    UA_delete(ac->request, ac->requestType);
     UA_free(ac);
     return retval;
 }
@@ -327,8 +321,31 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
+void
+UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
+                              UA_StatusCode statusCode) {
+    /* Create an empty response with the statuscode */
+    void *resp = UA_alloca(ac->responseType->memSize);
+    UA_init(resp, ac->responseType);
+    ((UA_ResponseHeader*)resp)->serviceResult = statusCode;
+
+    ac->callback(client, ac->userdata, ac->requestId, resp, ac->responseType);
+
+    /* Clean up the response. Users might move data into it. For whatever reasons. */
+    UA_deleteMembers(resp, ac->responseType);
+}
+
+void UA_Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
+    AsyncServiceCall *ac, *ac_tmp;
+    LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
+        LIST_REMOVE(ac, pointers);
+        UA_Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADSHUTDOWN);
+        UA_free(ac);
+    }
+}
+
 UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, void *request,
+__UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *requestType,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
@@ -340,13 +357,10 @@ __UA_Client_AsyncService(UA_Client *client, void *request,
     ac->callback = callback;
     ac->responseType = responseType;
     ac->userdata = userdata;
-    ac->requestType = requestType;
-    ac->request = request;
 
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &ac->requestId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_delete(request, requestType);
         UA_free(ac);
         return retval;
     }
