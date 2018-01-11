@@ -50,12 +50,18 @@ static void teardown(void) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-UA_Boolean notificationReceived;
+UA_Boolean notificationReceived = false;
 UA_UInt32 countNotificationReceived = 0;
 
 static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *context) {
     notificationReceived = true;
     countNotificationReceived++;
+}
+
+static void monitoredItemHandlerSubSleep(UA_UInt32 monId, UA_DataValue *value, void *context) {
+    notificationReceived = true;
+    countNotificationReceived++;
+    UA_fakeSleep((UA_UInt32)(UA_SubscriptionSettings_default.requestedPublishingInterval + 2));
 }
 
 START_TEST(Client_subscription) {
@@ -165,11 +171,12 @@ START_TEST(Client_subscription_addMonitoredItems) {
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
 
-    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, newMonitoredItemIds[0]);
+    retval = UA_Client_Subscriptions_removeMonitoredItems(client, subId, newMonitoredItemIds,
+                                                          3, itemResults);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, newMonitoredItemIds[1]);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[0], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[1], UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(itemResults[2], UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
 
     retval = UA_Client_Subscriptions_remove(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -255,6 +262,85 @@ START_TEST(Client_subscription_without_notification) {
 }
 END_TEST
 
+static UA_ClientState callbackClientState;
+
+static void
+stateCallback (UA_Client *client, UA_ClientState clientState){
+    callbackClientState = clientState;
+
+    if (clientState == UA_CLIENTSTATE_SESSION){
+        /* A new session was created. We need to create the subscription. */
+        /* Create a subscription */
+        UA_UInt32 subId = 0;
+        UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+        ck_assert_uint_ne(subId, 0);
+
+        /* Add a MonitoredItem */
+        UA_UInt32 monId = 0;
+        UA_NodeId monitorThis = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_Client_Subscriptions_addMonitoredItem(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE,
+                                                 &monitoredItemHandlerSubSleep, NULL, &monId, 250);
+        ck_assert_uint_ne(monId, 0);
+    }
+}
+
+START_TEST(Client_subscription_async_sub) {
+    UA_ClientConfig clientConfig = UA_ClientConfig_default;
+    /* Set stateCallback */
+    clientConfig.stateCallback = stateCallback;
+
+    /* Activate background publish request */
+    clientConfig.outStandingPublishRequests = 10;
+
+    UA_Client *client = UA_Client_new(clientConfig);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_DISCONNECTED);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    countNotificationReceived = 0;
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 2);
+
+    UA_Client_recv = client->connection.recv;
+    client->connection.recv = UA_Client_recvTesting;
+
+    notificationReceived = false;
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Client_runAsync(client, (UA_UInt16)clientConfig.timeout);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
+
+    /* Simulate network cable unplugged (no response from server) */
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    UA_Client_runAsync(client, (UA_UInt16)clientConfig.timeout);
+    ck_assert_uint_eq(notificationReceived, false);
+    ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_DISCONNECTED);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_default);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -315,6 +401,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_connectionClose);
     tcase_add_test(tc_client, Client_subscription_addMonitoredItems);
     tcase_add_test(tc_client, Client_subscription_without_notification);
+    tcase_add_test(tc_client, Client_subscription_async_sub);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
     TCase *tc_client2 = tcase_create("Client Subscription + Method Call of GetMonitoredItmes");
