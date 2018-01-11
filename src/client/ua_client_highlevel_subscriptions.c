@@ -171,6 +171,7 @@ addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
 
         itemResults[i] = result->statusCode;
         if(result->statusCode != UA_STATUSCODE_GOOD) {
+            newMonitoredItemIds[i] = 0;
             UA_free(newMon);
             continue;
         }
@@ -574,6 +575,10 @@ UA_Client_Subscriptions_backgroundPublish(UA_Client *client) {
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
 
     if (client->config.outStandingPublishRequests == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* The session must have at least one subscription */
+    if(!LIST_FIRST(&client->subscriptions))
         return UA_STATUSCODE_GOOD;
 
     while (client->currentlyOutStandingPublishRequests < client->config.outStandingPublishRequests){
