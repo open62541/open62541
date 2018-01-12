@@ -76,11 +76,15 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
             return retval;
     }
 
+    /* remove the subscription locally */
+    UA_UInt32 subscriptionID = sub->subscriptionID;
+    UA_Client_Subscriptions_forceDelete(client, sub);
+
     /* remove the subscription remotely */
     UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIdsSize = 1;
-    request.subscriptionIds = &sub->subscriptionID;
+    request.subscriptionIds = &subscriptionID;
     UA_DeleteSubscriptionsResponse response = UA_Client_Service_deleteSubscriptions(client, request);
     retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 0)
@@ -90,11 +94,10 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not remove subscription %u with error code %s",
-                    sub->subscriptionID, UA_StatusCode_name(retval));
+                    subscriptionID, UA_StatusCode_name(retval));
         return retval;
     }
 
-    UA_Client_Subscriptions_forceDelete(client, sub);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -485,9 +488,10 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION){
-        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "No subscription we remove all subscriptions");
-        UA_Client_Subscriptions_clean(client);
+       if(LIST_FIRST(&client->subscriptions)){
+            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "PublishRequest error : No subscription");
+        }
         goto cleanup;
     }
 
