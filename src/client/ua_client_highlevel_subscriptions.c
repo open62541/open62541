@@ -474,13 +474,20 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         if(client->config.outStandingPublishRequests > 1){
             client->config.outStandingPublishRequests--;
             UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                          "UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS reduce outStandingPublishRequests to %d",
+                          "Too many publishrequest, we reduce outStandingPublishRequests to %d",
                            client->config.outStandingPublishRequests);
         }else{
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS when outStandingPublishRequests = 1");
+                         "Too many publishrequest when outStandingPublishRequests = 1");
             UA_Client_close(client);
         }
+        goto cleanup;
+    }
+
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION){
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "No subscription we remove all subscriptions");
+        UA_Client_Subscriptions_clean(client);
         goto cleanup;
     }
 

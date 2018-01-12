@@ -316,25 +316,35 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 4);
 
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 5);
 
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 6);
+
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
