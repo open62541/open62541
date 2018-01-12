@@ -49,6 +49,7 @@ else()
 endif()
 list(APPEND LIBS "${open62541_LIBRARIES}")
 
+add_definitions(-Wno-deprecated-declarations)
 
 # Use different plugins for testing
 set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
