@@ -468,14 +468,27 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                        UA_PublishResponse *response) {
     UA_NotificationMessage *msg = &response->notificationMessage;
 
-    /* Handle outstanding requests. TODO: If the server cannot handle so many
-     * publish requests, reduce the maximum number. */
     client->currentlyOutStandingPublishRequests--;
+
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS){
+        if(client->config.outStandingPublishRequests > 1){
+            client->config.outStandingPublishRequests--;
+            UA_LOG_WARNING(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                          "UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS reduce outStandingPublishRequests to %d",
+                           client->config.outStandingPublishRequests);
+        }else{
+            UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS when outStandingPublishRequests = 1");
+            UA_Client_close(client);
+        }
+        goto cleanup;
+    }
 
     UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         goto cleanup;
     sub->lastActivity = UA_DateTime_nowMonotonic();
+
 
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -514,8 +527,6 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
  cleanup:
     UA_PublishRequest_deleteMembers(request);
-    /* Fill up the outstanding publish requests */
-    UA_Client_Subscriptions_backgroundPublish(client);
 }
 
 static void
@@ -525,6 +536,8 @@ processPublishResponseAsync(UA_Client *client, void *userdata, UA_UInt32 request
     UA_PublishResponse *res = (UA_PublishResponse*)response;
     processPublishResponse(client, req, res);
     UA_PublishRequest_delete(req);
+    /* Fill up the outstanding publish requests */
+    UA_Client_Subscriptions_backgroundPublish(client);
 }
 
 UA_StatusCode

@@ -34,6 +34,7 @@ static void setup(void) {
     running = UA_Boolean_new();
     *running = true;
     config = UA_ServerConfig_new_default();
+    config->maxPublishReqPerSession = 8;
     server = UA_Server_new(config);
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -314,6 +315,33 @@ START_TEST(Client_subscription_async_sub) {
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 3);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 4);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 5);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 6);
+
+    notificationReceived = false;
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 7);
+
+    ck_assert_uint_eq(client->config.outStandingPublishRequests, 8);
 
     UA_Client_recv = client->connection.recv;
     client->connection.recv = UA_Client_recvTesting;
