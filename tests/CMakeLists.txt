@@ -47,7 +47,7 @@ add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 
-if(NOT WIN32)
+if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
 # Workaround some clang warnings in the uni tests
