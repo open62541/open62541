@@ -11,7 +11,7 @@
  */
 
 #ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_manuallySendPublishRequest': was declared deprecated
 #endif
 
 #ifndef UA_DEBUG_DUMP_PKGS_FILE

@@ -6,7 +6,7 @@ include_directories(${PROJECT_SOURCE_DIR}/plugins)
 include_directories(${PROJECT_SOURCE_DIR}/tests/testing-plugins)
 include_directories(${PROJECT_BINARY_DIR}/src_generated)
 
-if(NOT WIN32)
+if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
 

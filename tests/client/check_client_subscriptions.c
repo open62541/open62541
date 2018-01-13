@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef _MSC_VER
-#define _CRT_SECURE_NO_WARNINGS
+#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_manuallySendPublishRequest': was declared deprecated
 #endif
 
 #include <stdio.h>
@@ -20,7 +20,6 @@
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
-
 
 UA_Server *server;
 UA_ServerConfig *config;
