@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "ua_types.h"
@@ -309,28 +313,20 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
-
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
-
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
-
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 4);
-
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
 
     notificationReceived = false;
     UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));

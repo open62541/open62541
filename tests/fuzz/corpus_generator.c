@@ -10,6 +10,10 @@
  * corpus to the repository.
  */
 
+#ifdef _MSC_VER
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #ifndef UA_DEBUG_DUMP_PKGS_FILE
 #error UA_DEBUG_DUMP_PKGS_FILE must be defined
 #endif
