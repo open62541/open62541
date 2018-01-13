@@ -67,36 +67,39 @@ UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId) {
     if(!sub)
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Client_MonitoredItem *mon, *tmpmon;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmpmon) {
-        retval = UA_Client_Subscriptions_removeMonitoredItem(client, sub->subscriptionID,
-                                                             mon->monitoredItemId);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-
-    /* remove the subscription locally */
-    UA_UInt32 subscriptionID = sub->subscriptionID;
-    UA_Client_Subscriptions_forceDelete(client, sub);
+    /* remove the subscription from the list    */
+    /* will be reinserted after if error occurs */
+    LIST_REMOVE(sub, listEntry);
 
     /* remove the subscription remotely */
     UA_DeleteSubscriptionsRequest request;
     UA_DeleteSubscriptionsRequest_init(&request);
     request.subscriptionIdsSize = 1;
-    request.subscriptionIds = &subscriptionID;
+    request.subscriptionIds = &sub->subscriptionID;
     UA_DeleteSubscriptionsResponse response = UA_Client_Service_deleteSubscriptions(client, request);
-    retval = response.responseHeader.serviceResult;
+
+    UA_StatusCode retval = response.responseHeader.serviceResult;
     if(retval == UA_STATUSCODE_GOOD && response.resultsSize > 0)
         retval = response.results[0];
     UA_DeleteSubscriptionsResponse_deleteMembers(&response);
 
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID) {
+        /* error occurs re-insert the subscription in the list */
+        LIST_INSERT_HEAD(&client->subscriptions, sub, listEntry);
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "Could not remove subscription %u with error code %s",
-                    subscriptionID, UA_StatusCode_name(retval));
+                    sub->subscriptionID, UA_StatusCode_name(retval));
         return retval;
     }
+
+    /* remove the monitored items locally */
+    UA_Client_MonitoredItem *mon, *tmpmon;
+    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmpmon) {
+        UA_NodeId_deleteMembers(&mon->monitoredNodeId);
+        LIST_REMOVE(mon, listEntry);
+        UA_free(mon);
+    }
+    UA_free(sub);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -489,6 +492,7 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION){
        if(LIST_FIRST(&client->subscriptions)){
+            UA_Client_close(client);
             UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "PublishRequest error : No subscription");
         }
