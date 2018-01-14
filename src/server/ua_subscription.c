@@ -237,6 +237,16 @@ prepareNotificationMessage(UA_Subscription *sub,
     return UA_STATUSCODE_GOOD;
 }
 
+/* According to OPC Unified Architecture, Part 4 5.13.1.1 i) The value 0 is
+ * never used for the sequence number */
+static UA_UInt32
+UA_Subscription_nextSequenceNumber(UA_UInt32 sequenceNumber) {
+    UA_UInt32 nextSequenceNumber = sequenceNumber + 1;
+    if(nextSequenceNumber == 0)
+        nextSequenceNumber = 1;
+    return nextSequenceNumber;
+}
+
 void
 UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SESSION(server->config.logger, sub->session,
@@ -322,12 +332,14 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     response->subscriptionId = sub->subscriptionID;
     response->moreNotifications = moreNotifications;
     message->publishTime = response->responseHeader.timestamp;
-    if(notifications == 0) {
-        /* Send sequence number for the next notification */
-        message->sequenceNumber = sub->sequenceNumber + 1;
-    } else {
-        /* Increase the sequence number */
-        message->sequenceNumber = ++sub->sequenceNumber;
+
+    /* Set the sequence number. The sequence number will be reused if there are
+     * no notifications (and this is a keepalive message). */
+    message->sequenceNumber = UA_Subscription_nextSequenceNumber(sub->sequenceNumber);
+
+    if(notifications != 0) {
+        /* There are notifications. So we can't reuse the sequence number. */
+        sub->sequenceNumber = message->sequenceNumber;
 
         /* Put the notification message into the retransmission queue. This
          * needs to be done here, so that the message itself is included in the
