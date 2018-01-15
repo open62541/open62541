@@ -12,11 +12,11 @@ if [ -z "$GITAUTH" ]; then
     exit 0
 fi
 
-git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
-cd open62541-www
-
-cd releases
 if [ ! -e "$TAG.zip" ]; then
+    git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
+    cd open62541-www
+
+    cd releases
     #add the first line
     echo "<tr><td><a href='./$TAG.zip'>$TAG</a></td><td>$BRANCH</td><td>$DATE</td><td>$COMMENT</td></tr>" | cat - rawtable.txt > temp && mv temp rawtable.txt
 
@@ -44,14 +44,17 @@ if [ ! -e "$TAG.zip" ]; then
 
     #remove obsolete zips from list
     head "-$TAGSTOSAVE" raw.txt > temp && mv temp raw.txt
+
+    # quit releases
+    cd ..
+
+    git config --global user.email "open62541-travis-ci@users.noreply.github.com"
+    git config --global user.name "Open62541 travis-ci"
+    git config --global push.default simple
+    git commit --allow-empty -am "added release files and updated releases webpage by travis-ci [ci skip]"
+    git pull && git push https://$GITAUTH@github.com/open62541/open62541-www
+
+    #quit open62541-www
+    cd ..
+    rm -rf open62541-www
 fi
-cd ..
-
-git config --global user.email "open62541-travis-ci@users.noreply.github.com"
-git config --global user.name "Open62541 travis-ci"
-git config --global push.default simple
-git commit --allow-empty -am "added release files and updated releases webpage by travis-ci [ci skip]"
-git pull && git push https://$GITAUTH@github.com/open62541/open62541-www
-
-cd ..
-rm -rf open62541-www
