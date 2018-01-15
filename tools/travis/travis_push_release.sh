@@ -50,7 +50,7 @@ cd ..
 git config --global user.email "open62541-travis-ci@users.noreply.github.com"
 git config --global user.name "Open62541 travis-ci"
 git config --global push.default simple
-git commit -am "added release files and updated releases webpage by travis-ci [ci skip]"
+git commit --allow-empty -am "added release files and updated releases webpage by travis-ci [ci skip]"
 git pull && git push https://$GITAUTH@github.com/open62541/open62541-www
 
 cd ..
