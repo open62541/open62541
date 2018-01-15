@@ -25,15 +25,13 @@ extern "C" {
  * convenience, some functionality has been wrapped in :ref:`high-level
  * abstractions <client-highlevel>`.
  *
- * **However**: At this time, the client does not yet contain its own thread or
- * event-driven main-loop. So the client will not perform any actions
- * automatically in the background. This is especially relevant for
- * subscriptions. The user will have to periodically call
- * `UA_Client_Subscriptions_manuallySendPublishRequest`. See also :ref:`here
- * <client-subscriptions>`.
- *
- * Client Lifecycle
- * ---------------- */
+ * Client Configuration
+ * --------------------
+ * Configurations are provided by "plugins" that can parse from a config file or
+ * set up a config with default settings. */
+
+struct UA_Client;
+typedef struct UA_Client UA_Client;
 
 typedef enum {
     UA_CLIENTSTATE_DISCONNECTED,        /* The client is disconnected */
@@ -43,18 +41,8 @@ typedef enum {
     UA_CLIENTSTATE_SESSION_RENEWED      /* A session with the server is open (renewed) */
 } UA_ClientState;
 
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
- * Client Lifecycle callback
- * ------------------------- */
-
+/* Called when the state changes */
 typedef void (*UA_ClientStateCallback)(UA_Client *client, UA_ClientState clientState);
-
-/**
- * Client Configuration
- * -------------------- */
 
 typedef struct UA_ClientConfig {
     UA_UInt32 timeout;               /* Sync response timeout in ms */
@@ -76,6 +64,9 @@ typedef struct UA_ClientConfig {
     UA_UInt16 outStandingPublishRequests;
 } UA_ClientConfig;
 
+/**
+ * Client Lifecycle
+ * ---------------- */
 
 /* Create a new client */
 UA_Client UA_EXPORT *
@@ -84,6 +75,37 @@ UA_Client_new(UA_ClientConfig config);
 /* Get the client connection status */
 UA_ClientState UA_EXPORT
 UA_Client_getState(UA_Client *client);
+
+/* Execute the client's main loop: processes arriving async responses and call
+ * repeated callbacks that have timed out.
+ *
+ * The return value for the next timeout (in ms) until the next call to ``run``
+ * is in order. If there are async responses outstanding, then the returned
+ * value is zero.
+ *
+ * Reported statuscodes mean that it was not possible to keep a connection open
+ * or recover it.
+ *
+ * @param client The client object.
+ * @param timeout After which time (in ms) is the control flow returned? A
+ *        timeout of zero means that only messages that have already arrived are
+ *        processed.
+ * @param nextTimeout Returns how long we can wait until the next scheduled
+ *        iteration (in ms). Can be NULL and won't be set in that case.
+ * @return Unrecoverable error code that occured. */
+UA_StatusCode UA_EXPORT
+UA_Client_run(UA_Client *client, UA_UInt16 timeout, UA_UInt16 *nextTimeout);
+
+static UA_INLINE UA_StatusCode
+UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
+    return UA_Client_run(client, timeout, NULL);
+}
+
+/* Same as ``UA_Client_run`` but don't take in network messages (and hence no
+ * timeout). Note that it is possible to manually drive the network connection
+ * with ``UA_Client_processBinaryMessage``. */
+UA_StatusCode UA_EXPORT
+UA_Client_run_iterate(UA_Client *client, UA_UInt16 *nextTimeout);
 
 /* Reset a client */
 void UA_EXPORT
@@ -127,6 +149,21 @@ UA_Client_close(UA_Client *client);
 /* Renew the underlying secure channel */
 UA_StatusCode UA_EXPORT
 UA_Client_manuallyRenewSecureChannel(UA_Client *client);
+
+/**
+ * Manully driving a connection
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+/* Get the client connection. Note that the connection is only valid while the
+ * client is active. So veryify the client state. */
+UA_EXPORT UA_Connection *
+UA_Client_getConnection(UA_Client *client);
+
+/* Process a message received via the connection attached to the client. This
+ * may yield a callback for an asynchronous response. The message string is not
+ * touched and needs to be freed with the connection's mechanism. */
+UA_EXPORT void
+UA_Client_processBinaryMessage(UA_Client *server, const UA_ByteString *message);
 
 /**
  * Discovery
@@ -421,6 +458,39 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
 #endif
 
 /**
+ * Repeated Callbacks
+ * ------------------ */
+typedef void (*UA_ClientCallback)(UA_Client *client, void *data);
+
+/* Add a callback for cyclic repetition to the client.
+ *
+ * @param client The client object.
+ * @param callback The callback that shall be added.
+ * @param interval The callback shall be repeatedly executed with the given interval
+ *        (in ms). The interval must be larger than 5ms. The first execution
+ *        occurs at now() + interval at the latest.
+ * @param callbackId Set to the identifier of the repeated callback . This can be used to cancel
+ *        the callback later on. If the pointer is null, the identifier is not set.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned.
+ *         An error code otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
+                              void *data, UA_UInt32 interval, UA_UInt64 *callbackId);
+
+UA_StatusCode UA_EXPORT
+UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
+                                         UA_UInt32 interval);
+
+/* Remove a repeated callback.
+ *
+ * @param client The client object.
+ * @param callbackId The id of the callback that shall be removed.
+ * @return Upon success, UA_STATUSCODE_GOOD is returned.
+ *         An error code otherwise. */
+UA_StatusCode UA_EXPORT
+UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId);
+
+/**
  * .. _client-async-services:
  *
  * Asynchronous Services
@@ -428,12 +498,6 @@ UA_Client_Service_publish(UA_Client *client, const UA_PublishRequest request) {
  * All OPC UA services are asynchronous in nature. So several service calls can
  * be made without waiting for a response first. Responess may come in a
  * different ordering. */
-
-/* Listen on the network and process arriving asynchronous responses in the
- * background. Internal housekeeping and subscription management is done as
- * well. */
-UA_StatusCode UA_EXPORT
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout);
 
 typedef void
 (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,

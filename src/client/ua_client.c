@@ -10,6 +10,8 @@
 #include "ua_util.h"
 #include "ua_securitypolicy_none.h"
 
+#define UA_MAXTIMEOUT 1000 /* Internal maintenance at least once a second */
+
  /********************/
  /* Client Lifecycle */
  /********************/
@@ -22,6 +24,7 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
+    UA_Timer_init(&client->timer);
     if (client->config.stateCallback)
         client->config.stateCallback(client, client->state);
 }
@@ -53,6 +56,9 @@ UA_Client_deleteMembers(UA_Client* client) {
     /* Delete the async service calls */
     UA_Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSHUTDOWN);
 
+    /* Deleted timed (repeated) callbacks */
+    UA_Timer_deleteMembers(&client->timer);
+
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Client_Subscriptions_clean(client);
@@ -74,6 +80,28 @@ UA_Client_delete(UA_Client* client) {
 UA_ClientState
 UA_Client_getState(UA_Client *client) {
     return client->state;
+}
+
+/**********************/
+/* Repeated Callbacks */
+/**********************/
+
+UA_StatusCode
+UA_Client_addRepeatedCallback(UA_Client *client, UA_ClientCallback callback,
+                              void *data, UA_UInt32 interval, UA_UInt64 *callbackId) {
+    return UA_Timer_addRepeatedCallback(&client->timer, (UA_TimerCallback)callback,
+                                        data, interval, callbackId);
+}
+
+UA_StatusCode
+UA_Client_changeRepeatedCallbackInterval(UA_Client *client, UA_UInt64 callbackId,
+                                         UA_UInt32 interval) {
+    return UA_Timer_changeRepeatedCallbackInterval(&client->timer, callbackId, interval);
+}
+
+UA_StatusCode
+UA_Client_removeRepeatedCallback(UA_Client *client, UA_UInt64 callbackId) {
+    return UA_Timer_removeRepeatedCallback(&client->timer, callbackId);
 }
 
 /****************/
@@ -248,8 +276,7 @@ static UA_StatusCode
 client_processChunk(void *application, UA_Connection *connection, UA_ByteString *chunk) {
     SyncResponseDescription *rd = (SyncResponseDescription*)application;
     return UA_SecureChannel_processChunk(&rd->client->channel, chunk,
-                                         processServiceResponse,
-                                         rd);
+                                         processServiceResponse, rd);
 }
 
 /* Receive and process messages until a synchronous message arrives or the
@@ -321,6 +348,27 @@ __UA_Client_Service(UA_Client *client, const void *request,
         respHeader->serviceResult = retval;
 }
 
+/******************/
+/* Raw Connection */
+/******************/
+
+UA_Connection *
+UA_Client_getConnection(UA_Client *client) {
+    return &client->connection;
+}
+
+void
+UA_Client_processBinaryMessage(UA_Client *client, const UA_ByteString *message) {
+    /* Prepare the response and the structure we give into processServiceResponse */
+    SyncResponseDescription rd = { client, false, 0, NULL, NULL};
+    UA_Connection_processChunks(&client->connection, &rd,
+                                client_processChunk, message);
+}
+
+/*****************/
+/* Async Service */
+/*****************/
+
 void
 UA_Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
                               UA_StatusCode statusCode) {
@@ -373,16 +421,78 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
 }
 
 UA_StatusCode
-UA_Client_runAsync(UA_Client *client, UA_UInt16 timeout) {
-    /* TODO: Call repeated jobs that are scheduled */
+UA_Client_run(UA_Client *client, UA_UInt16 timeout, UA_UInt16 *nextTimeout) {
+    UA_DateTime nextCall = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = nextCall + (timeout * UA_DATETIME_MSEC);
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    while(UA_DateTime_nowMonotonic() < maxDate) {
+        /* Call internal callbacks */
+        UA_UInt16 afterIterateTimeout = 0;
+        retval = UA_Client_run_iterate(client, &afterIterateTimeout);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        nextCall = UA_DateTime_nowMonotonic() + (afterIterateTimeout * UA_DATETIME_MSEC);
+
+        /* TODO: Call repeated jobs that are scheduled */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_StatusCode retvalPublish = UA_Client_Subscriptions_backgroundPublish(client);
-    if (retvalPublish != UA_STATUSCODE_GOOD)
-        return retvalPublish;
+        retval = UA_Client_Subscriptions_backgroundPublish(client);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
 #endif
-    UA_DateTime maxDate = UA_DateTime_nowMonotonic() + (timeout * UA_DATETIME_MSEC);
-    UA_StatusCode retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
-    if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
-        retval = UA_STATUSCODE_GOOD;
+
+        /* Process responses */
+        retval = receiveServiceResponse(client, NULL, NULL, maxDate, NULL);
+        if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
+            return UA_STATUSCODE_GOOD;
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    /* Compute the interval */
+    if(nextTimeout) {
+        UA_DateTime now = UA_DateTime_nowMonotonic();
+        if(now > nextCall || !LIST_EMPTY(&client->asyncServiceCalls)) {
+            *nextTimeout = 0;
+        } else {
+            nextCall -= now;
+            nextCall = nextCall / UA_DATETIME_MSEC;
+            if(nextCall > UA_MAXTIMEOUT)
+                *nextTimeout = UA_MAXTIMEOUT;
+            else
+                *nextTimeout = (UA_UInt16)nextCall;
+        }
+    }
+
     return retval;
+}
+
+/* A worker thread could be spliced into here... */
+static void
+executeRepeatedCallback(UA_Client *server, UA_ClientCallback callback, void *data) {
+    callback(server, data);
+}
+
+UA_StatusCode
+UA_Client_run_iterate(UA_Client *client, UA_UInt16 *nextTimeout) {
+    /* Process repeated work */
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime nextRepeated = UA_Timer_process(&client->timer, now,
+                                                (UA_TimerDispatchCallback)executeRepeatedCallback,
+                                                client);
+    /* Interval to the next iteration */
+    if(nextTimeout) {
+        if(!LIST_EMPTY(&client->asyncServiceCalls)) {
+            *nextTimeout = 0;
+        } else {
+            UA_DateTime latest = now + (UA_MAXTIMEOUT * UA_DATETIME_MSEC);
+            if(nextRepeated > latest)
+                nextRepeated = latest;
+            if(nextRepeated > now)
+                *nextTimeout = (UA_UInt16)((nextRepeated - now) / UA_DATETIME_MSEC);
+            else
+                *nextTimeout = 0;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
 }
