@@ -499,6 +499,13 @@ processPublishResponse(UA_Client *client, UA_PublishRequest *request,
         goto cleanup;
     }
 
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID){
+        UA_Client_close(client);
+        UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Received BadSessionIdInvalid");
+        goto cleanup;
+    }
+
     UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub)
         goto cleanup;
