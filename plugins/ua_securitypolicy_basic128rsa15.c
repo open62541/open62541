@@ -2,18 +2,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <mbedtls/aes.h>
+#include <mbedtls/md.h>
+#include <mbedtls/sha1.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/ctr_drbg.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/entropy_poll.h>
+#include <mbedtls/error.h>
+
 #include "ua_securitypolicy_basic128rsa15.h"
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
-
-#include "mbedtls/aes.h"
-#include "mbedtls/md.h"
-#include "mbedtls/sha1.h"
-#include "mbedtls/x509_crt.h"
-#include "mbedtls/ctr_drbg.h"
-#include "mbedtls/entropy.h"
-#include "mbedtls/entropy_poll.h"
-#include "mbedtls/error.h"
 
 /* Notes:
  * mbedTLS' AES allows in-place encryption and decryption. Sow we don't have to

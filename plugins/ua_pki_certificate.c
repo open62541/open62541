@@ -4,8 +4,8 @@
 #include "ua_pki_certificate.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
-#include "mbedtls/x509.h"
-#include "mbedtls/x509_crt.h"
+#include <mbedtls/x509.h>
+#include <mbedtls/x509_crt.h>
 #endif
 
 /************/
