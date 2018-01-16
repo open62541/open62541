@@ -12,10 +12,10 @@ if [ -z "$GITAUTH" ]; then
     exit 0
 fi
 
-if [ ! -e "$TAG.zip" ]; then
-    git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
-    cd open62541-www
+git clone --depth=5 -b gh-pages https://$GITAUTH@github.com/open62541/open62541-www
+cd open62541-www
 
+if [ ! -e "releases/$TAG.zip" ]; then
     cd releases
     #add the first line
     echo "<tr><td><a href='./$TAG.zip'>$TAG</a></td><td>$BRANCH</td><td>$DATE</td><td>$COMMENT</td></tr>" | cat - rawtable.txt > temp && mv temp rawtable.txt
@@ -53,8 +53,8 @@ if [ ! -e "$TAG.zip" ]; then
     git config --global push.default simple
     git commit --allow-empty -am "added release files and updated releases webpage by travis-ci [ci skip]"
     git pull && git push https://$GITAUTH@github.com/open62541/open62541-www
-
-    #quit open62541-www
-    cd ..
-    rm -rf open62541-www
 fi
+
+#quit open62541-www
+cd ..
+rm -rf open62541-www
