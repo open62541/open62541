@@ -124,13 +124,13 @@ static void
 processDecodedOPNResponse(UA_Client *client, UA_OpenSecureChannelResponse *response) {
     /* Replace the token */
     UA_ChannelSecurityToken_deleteMembers(&client->channel.securityToken);
-    client->channel.securityToken = response->securityToken;
-    UA_ChannelSecurityToken_init(&response->securityToken);
+    UA_ChannelSecurityToken_copy(&response->securityToken, &client->channel.securityToken);
+    UA_ChannelSecurityToken_deleteMembers(&response->securityToken);
 
     /* Replace the nonce */
     UA_ByteString_deleteMembers(&client->channel.remoteNonce);
-    client->channel.remoteNonce = response->serverNonce;
-    UA_ByteString_init(&response->serverNonce);
+    UA_ByteString_copy(&response->serverNonce, &client->channel.remoteNonce);
+    UA_ByteString_deleteMembers(&response->serverNonce);
 
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
         UA_LOG_DEBUG(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
