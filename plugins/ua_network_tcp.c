@@ -13,7 +13,7 @@
 #ifndef _BSD_SOURCE
 # define _BSD_SOURCE
 #endif
- #define _GNU_SOURCE
+
 /* Disable some security warnings on MSVC */
 #ifdef _MSC_VER
 # define _CRT_SECURE_NO_WARNINGS
@@ -73,7 +73,6 @@
 # include <sys/ioctl.h>
 # include <fcntl.h>
 # include <unistd.h> // read, write, close
-
 # include <netdb.h>
 # ifdef __QNX__
 #  include <sys/socket.h>
@@ -120,7 +119,7 @@
 #endif
 
 #include "ua_log_socket_error.h"
-#include "ares.h"
+
 /****************************/
 /* Generic Socket Functions */
 /****************************/
@@ -453,7 +452,7 @@ ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, const UA_String *customHo
                                         layer->port);
 #endif
         du.data = (UA_Byte*)discoveryUrl;
-    }else{    
+    }else{
         char hostname[256];
         if(gethostname(hostname, 255) == 0) {
             char discoveryUrl[256];
@@ -693,7 +692,6 @@ typedef struct TCPClientConnection {
 /* Client NetworkLayer TCP */
 /***************************/
 
-
 static void
 ClientNetworkLayerTCP_close(UA_Connection *connection) {
     shutdown((SOCKET)connection->sockfd, 2);
@@ -719,7 +717,7 @@ UA_StatusCode UA_ClientConnectionTCPPoll(UA_Client *client, void *data) {
 		// connection timeout
 		ClientNetworkLayerTCP_close(connection);
 		UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
-				"Trying to connect...");
+				"Trying to connect to timed out");
 		return UA_STATUSCODE_BADDISCONNECT;
 
 	}
@@ -890,8 +888,6 @@ UA_Connection UA_ClientConnectionTCP_init(UA_ConnectionConfig conf,
 #endif
 	int error = getaddrinfo(hostname, portStr, &tcpClientConnection->hints,
 			&tcpClientConnection->server);
-
-
 	if (error != 0 || !tcpClientConnection->server) {
 		UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
 				"DNS lookup of %s failed with error %s", hostname,

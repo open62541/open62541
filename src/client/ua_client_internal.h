@@ -89,54 +89,50 @@ typedef enum {
 } UA_Client_Authentication;
 
 struct UA_Client {
-	/* State */
-	UA_ClientState state;
-	UA_ClientConfig config;
-	UA_StatusCode connectStatus;
+    /* State */
+    UA_ClientState state;
+    UA_ClientConfig config;
+    UA_Timer timer;
+    UA_StatusCode connectStatus;
 
-	/* Connection */
-	UA_Connection connection;
-	UA_String endpointUrl;
+    /* Connection */
+    UA_Connection connection;
+    UA_String endpointUrl;
 
-	/* chunking */
-	UA_ByteString reply;
-	UA_Boolean realloced;
-	UA_Int32 chunkState;
+    /* SecureChannel */
+    UA_SecurityPolicy securityPolicy;
+    UA_SecureChannel channel;
+    UA_UInt32 requestId;
+    UA_DateTime nextChannelRenewal;
 
-	/* SecureChannel */
-	UA_SecurityPolicy securityPolicy;
-	UA_SecureChannel channel;
-	UA_UInt32 requestId;
-	UA_DateTime nextChannelRenewal;
+    /* Authentication */
+    UA_Client_Authentication authenticationMethod;
+    UA_String username;
+    UA_String password;
 
-	/* Authentication */
-	UA_Client_Authentication authenticationMethod;
-	UA_String username;
-	UA_String password;
-
-	/* Session */
-	UA_UserTokenPolicy token;
-	UA_NodeId authenticationToken;
-	UA_UInt32 requestHandle;
+    /* Session */
+    UA_UserTokenPolicy token;
+    UA_NodeId authenticationToken;
+    UA_UInt32 requestHandle;
 	/* Connection Establishment (async) */
 	UA_Connection_processChunk ackResponseCallback;
 	UA_Connection_processChunk openSecureChannelResponseCallback;
 	UA_Boolean endpointsHandshake;
 
-	/* Async Service */
-	AsyncServiceCall asyncConnectCall;LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
-
-	/*When using highlevel functions these are the callbacks that can be accessed by the user*/
+    /* Async Service */
+	AsyncServiceCall asyncConnectCall;
+    LIST_HEAD(ListOfAsyncServiceCall, AsyncServiceCall) asyncServiceCalls;
+    /*When using highlevel functions these are the callbacks that can be accessed by the user*/
 	LIST_HEAD(ListOfCustomCallback, CustomCallback) customCallbacks;
-	/* Callbacks with a repetition interval */
-	UA_Timer timer;
 
 	/* Delayed callbacks */
 	SLIST_HEAD(DelayedCallbacksList, UA_DelayedCallback) delayedCallbacks;
-
-	/* Subscriptions */
+    /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-	UA_UInt32 monitoredItemHandles;LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
+    UA_UInt32 monitoredItemHandles;
+    LIST_HEAD(ListOfUnacknowledgedNotifications, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
+    LIST_HEAD(ListOfClientSubscriptionItems, UA_Client_Subscription) subscriptions;
+    UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
 };
 

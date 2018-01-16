@@ -28,9 +28,6 @@ static void UA_Client_init(UA_Client* client, UA_ClientConfig config) {
 
 	/*needed by async client*/
 	UA_Timer_init(&client->timer);
-	/* Retrieve complete chunks */
-	client->reply = UA_BYTESTRING_NULL;
-	client->realloced = false;
 
 #ifndef UA_ENABLE_MULTITHREADING
 	SLIST_INIT(&client->delayedCallbacks);

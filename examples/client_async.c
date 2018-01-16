@@ -11,7 +11,8 @@ static void onConnect(UA_Client *client, void *connected, UA_UInt32 requestId,
 		void *status) {
 	if (UA_Client_getState(client) == UA_CLIENTSTATE_SESSION)
 		*(UA_Boolean *) connected = true;
-	printf("Async connect returned with status code %s\n", UA_StatusCode_name(*(UA_StatusCode *) status));
+	printf("Async connect returned with status code %s\n",
+			UA_StatusCode_name(*(UA_StatusCode *) status));
 }
 
 /*raw service callbacks*/
@@ -145,8 +146,8 @@ int main(int argc, char *argv[]) {
 	/*Demo: raw services*/
 
 	/*what happens if client tries to send request before connected?*/
-	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed,
-						&userdata, &reqId);
+	UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata,
+			&reqId);
 	do {
 		if (connected) {
 			/*if not connected requests are not sent*/
