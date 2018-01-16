@@ -64,8 +64,6 @@ option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 # Encryption Options
 option(UA_ENABLE_ENCRYPTION "Enable encryption support (uses mbedTLS)" OFF)
 
-set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
-
 if(UA_ENABLE_COVERAGE)
   set(CMAKE_BUILD_TYPE DEBUG)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-arcs -ftest-coverage")
@@ -112,6 +110,9 @@ mark_as_advanced(UA_ENABLE_NONSTANDARD_UDP)
 option(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS
        "Add hooks to force failure modes for additional unit tests. Not for production use!" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TEST_FAILURE_HOOKS)
+
+set(UA_VXWORKS_WRS_KERNEL OFF CACHE BOOL "Enable if you want to compile for VxWorks as kernel Module")
+mark_as_advanced(UA_VXWORKS_WRS_KERNEL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
