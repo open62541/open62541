@@ -535,7 +535,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Assert's required for clang-analyzer */
     UA_assert(mc.buf_pos == &mc.messageBuffer.data[UA_SECURE_MESSAGE_HEADER_LENGTH]);
-    UA_assert(mc.buf_end == &mc.messageBuffer.data[mc.messageBuffer.length]);
+    UA_assert(mc.buf_end <= &mc.messageBuffer.data[mc.messageBuffer.length]);
 
     retval = UA_MessageContext_encode(&mc, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(retval != UA_STATUSCODE_GOOD)

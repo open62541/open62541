@@ -23,10 +23,6 @@ hideErrors(UA_TcpErrorMessage *const error) {
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
-    case UA_STATUSCODE_BADCERTIFICATEREVOKED:
-        error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        error->reason = UA_STRING_NULL;
-        break;
         // TODO: Check if these are all cases that need to be covered.
     default:
         break;
