@@ -416,7 +416,6 @@ outname = args.outfile.split("/")[-1]
 inname = ', '.join(list(map(lambda x:x.name.split("/")[-1], args.type_bsd)))
 
 
-
 ################
 # Create Types #
 ################
