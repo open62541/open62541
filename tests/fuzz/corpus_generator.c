@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <ua_client_highlevel.h>
+#include <ua_client_subscriptions.h>
 
 #include "ua_config_default.h"
 
@@ -364,26 +365,30 @@ translateBrowsePathsToNodeIdsRequest(UA_Client *client) {
 
 
 static void
-monitoredItemHandler(UA_Client *client, UA_UInt32 monId, UA_DataValue *value, void *context) {
-
+monitoredItemHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
+                     UA_UInt32 monId, void *monContext, UA_DataValue *value) {
 }
 
 static UA_StatusCode
 subscriptionRequests(UA_Client *client) {
     UA_UInt32 subId;
     // createSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId));
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
 
+    ASSERT_GOOD(response.responseHeader.serviceResult);
+    subId = response.subscriptionId;
 
     // modifySubscription
     UA_ModifySubscriptionRequest modifySubscriptionRequest;
     UA_ModifySubscriptionRequest_init(&modifySubscriptionRequest);
     modifySubscriptionRequest.subscriptionId = subId;
-    modifySubscriptionRequest.maxNotificationsPerPublish = UA_SubscriptionSettings_default.maxNotificationsPerPublish;
-    modifySubscriptionRequest.priority = UA_SubscriptionSettings_default.priority;
-    modifySubscriptionRequest.requestedLifetimeCount = UA_SubscriptionSettings_default.requestedLifetimeCount;
-    modifySubscriptionRequest.requestedMaxKeepAliveCount = UA_SubscriptionSettings_default.requestedMaxKeepAliveCount;
-    modifySubscriptionRequest.requestedPublishingInterval = UA_SubscriptionSettings_default.requestedPublishingInterval;
+    modifySubscriptionRequest.maxNotificationsPerPublish = request.maxNotificationsPerPublish;
+    modifySubscriptionRequest.priority = request.priority;
+    modifySubscriptionRequest.requestedLifetimeCount = request.requestedLifetimeCount;
+    modifySubscriptionRequest.requestedMaxKeepAliveCount = request.requestedMaxKeepAliveCount;
+    modifySubscriptionRequest.requestedPublishingInterval = request.requestedPublishingInterval;
     UA_ModifySubscriptionResponse modifySubscriptionResponse;
     __UA_Client_Service(client, &modifySubscriptionRequest, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
                         &modifySubscriptionResponse, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
@@ -408,9 +413,16 @@ subscriptionRequests(UA_Client *client) {
 
     // createMonitoredItemsRequest
     UA_UInt32 monId;
-    ASSERT_GOOD(UA_Client_Subscriptions_addMonitoredItem(client, subId, UA_NODEID_NUMERIC(0, 2259),
-                                                      UA_ATTRIBUTEID_VALUE, monitoredItemHandler,
-                                                      NULL, &monId, 250));
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
+    UA_MonitoredItemCreateResult monResponse =
+        UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
+                                                  UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, monitoredItemHandler, NULL);
+
+    ASSERT_GOOD(monResponse.statusCode);
+    monId = monResponse.monitoredItemId;
 
     // publishRequest
     ASSERT_GOOD(UA_Client_Subscriptions_manuallySendPublishRequest(client));
@@ -459,11 +471,11 @@ subscriptionRequests(UA_Client *client) {
     UA_SetMonitoringModeResponse_deleteMembers(&setMonitoringModeResponse);
 
     // deleteMonitoredItemsRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId));
+    ASSERT_GOOD(UA_Client_MonitoredItems_deleteSingle(client, subId, monId));
 
 
     // deleteSubscriptionRequest
-    ASSERT_GOOD(UA_Client_Subscriptions_remove(client, subId));
+    ASSERT_GOOD(UA_Client_Subscriptions_deleteSingle(client, subId));
 
     return UA_STATUSCODE_GOOD;
 }

@@ -37,14 +37,11 @@ extern UA_THREAD_LOCAL UA_StatusCode processSym_seqNumberFailure;
  * the interface that will be used by the SecureChannel. The lifecycle of
  * Sessions is independent of the underlying SecureChannel. But every Session
  * can be attached to only one SecureChannel. */
-struct UA_SessionHeader;
-typedef struct UA_SessionHeader UA_SessionHeader;
-
-struct UA_SessionHeader {
+typedef struct UA_SessionHeader {
     LIST_ENTRY(UA_SessionHeader) pointers;
     UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
-};
+} UA_SessionHeader;
 
 /* For chunked requests */
 struct ChunkEntry {

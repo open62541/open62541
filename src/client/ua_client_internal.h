@@ -15,11 +15,12 @@
 
 #include "ua_securechannel.h"
 #include "ua_client_highlevel.h"
+#include "ua_client_subscriptions.h"
 #include "../../deps/queue.h"
 
- /**************************/
- /* Subscriptions Handling */
- /**************************/
+/**************************/
+/* Subscriptions Handling */
+/**************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -29,45 +30,53 @@ typedef struct UA_Client_NotificationsAckNumber {
 } UA_Client_NotificationsAckNumber;
 
 typedef struct UA_Client_MonitoredItem {
-    LIST_ENTRY(UA_Client_MonitoredItem)  listEntry;
+    LIST_ENTRY(UA_Client_MonitoredItem) listEntry;
     UA_UInt32 monitoredItemId;
-    UA_UInt32 monitoringMode;
-    UA_NodeId monitoredNodeId;
-    UA_UInt32 attributeID;
     UA_UInt32 clientHandle;
-    UA_Double samplingInterval;
-    UA_UInt32 queueSize;
-    UA_Boolean discardOldest;
-
-    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+    void *context;
+    UA_Client_DeleteMonitoredItemCallback deleteCallback;
     union {
-        UA_MonitoredItemHandlingFunction dataChangeHandler;
-        UA_MonitoredEventHandlingFunction eventHandler;
+        UA_Client_DataChangeNotificationCallback dataChangeCallback;
+        UA_Client_EventNotificationCallback eventCallback;
     } handler;
-    void *handlerContext;
+    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
 } UA_Client_MonitoredItem;
 
 typedef struct UA_Client_Subscription {
     LIST_ENTRY(UA_Client_Subscription) listEntry;
-    UA_UInt32 lifeTime;
-    UA_UInt32 keepAliveCount;
+    UA_UInt32 subscriptionId;
+    void *context;
     UA_Double publishingInterval;
-    UA_UInt32 subscriptionID;
-    UA_UInt32 notificationsPerPublish;
-    UA_UInt32 priority;
+    UA_UInt32 maxKeepAliveCount;
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback;
+    UA_Client_DeleteSubscriptionCallback deleteCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
     LIST_HEAD(UA_ListOfClientMonitoredItems, UA_Client_MonitoredItem) monitoredItems;
 } UA_Client_Subscription;
 
-void UA_Client_Subscriptions_forceDelete(UA_Client *client, UA_Client_Subscription *sub);
+void
+UA_Client_Subscriptions_clean(UA_Client *client);
 
-void UA_Client_Subscriptions_clean(UA_Client *client);
+void
+UA_Client_MonitoredItem_remove(UA_Client *client, UA_Client_Subscription *sub,
+                               UA_Client_MonitoredItem *mon);
+
+void
+UA_Client_Subscriptions_processPublishResponse(UA_Client *client,
+                                               UA_PublishRequest *request,
+                                               UA_PublishResponse *response);
+
+UA_StatusCode
+UA_Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request);
 
 UA_StatusCode
 UA_Client_Subscriptions_backgroundPublish(UA_Client *client);
 
-#endif
+void
+UA_Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /**********/
 /* Client */
@@ -102,7 +111,7 @@ struct UA_Client {
     UA_String endpointUrl;
 
     /* SecureChannel */
-    UA_SecurityPolicy securityPolicy;
+    UA_SecurityPolicy securityPolicy; /* TODO: Move supported policies to the config */
     UA_SecureChannel channel;
     UA_UInt32 requestId;
     UA_DateTime nextChannelRenewal;

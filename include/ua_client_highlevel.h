@@ -563,98 +563,6 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 }
 
 /**
- * .. _client-subscriptions:
- *
- * Subscriptions Handling
- * ^^^^^^^^^^^^^^^^^^^^^^
- * At this time, the client does not yet contain its own thread or event-driven
- * main-loop. So the client will not perform any actions automatically in the
- * background. This is especially relevant for subscriptions. The user will have
- * to periodically call `UA_Client_Subscriptions_manuallySendPublishRequest`.
- * See also :ref:`here <client-subscriptions>`. */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-typedef struct {
-    UA_Double requestedPublishingInterval;
-    UA_UInt32 requestedLifetimeCount;
-    UA_UInt32 requestedMaxKeepAliveCount;
-    UA_UInt32 maxNotificationsPerPublish;
-    UA_Boolean publishingEnabled;
-    UA_Byte priority;
-} UA_SubscriptionSettings;
-
-extern const UA_EXPORT UA_SubscriptionSettings UA_SubscriptionSettings_default;
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_new(UA_Client *client, UA_SubscriptionSettings settings,
-                            UA_UInt32 *newSubscriptionId);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_remove(UA_Client *client, UA_UInt32 subscriptionId);
-
-/* Send a publish request and wait until a response to the request is processed.
- * Note that other publish responses may be processed in the background until
- * then. */
-UA_DEPRECATED UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_manuallySendPublishRequest(UA_Client *client);
-
-/* Addition of monitored DataChanges */
-/* TODO for v0.4: Rename method to _DataChange. */
-typedef void (*UA_MonitoredItemHandlingFunction)(UA_Client *client, UA_UInt32 monId,
-                                                 UA_DataValue *value, void *context);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredItems(UA_Client *client, const UA_UInt32 subscriptionId,
-                                          UA_MonitoredItemCreateRequest *items, size_t itemsSize,
-                                          UA_MonitoredItemHandlingFunction *hfs,
-                                          void **hfContexts, UA_StatusCode *itemResults,
-                                          UA_UInt32 *newMonitoredItemIds);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
-                                         UA_NodeId nodeId, UA_UInt32 attributeID,
-                                         UA_MonitoredItemHandlingFunction hf,
-                                         void *hfContext,
-                                         UA_UInt32 *newMonitoredItemId,
-                                         UA_Double samplingInterval);
-
-/* Monitored Events have different payloads from DataChanges. So they use a
- * different callback method signature. */
-typedef void (*UA_MonitoredEventHandlingFunction)(UA_Client *client,
-                                                  const UA_UInt32 monId,
-                                                  const size_t nEventFields,
-                                                  const UA_Variant *eventFields,
-                                                  void *context);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredEvents(UA_Client *client, const UA_UInt32 subscriptionId,
-                                           UA_MonitoredItemCreateRequest *items, size_t itemsSize,
-                                           UA_MonitoredEventHandlingFunction *hfs,
-                                           void **hfContexts, UA_StatusCode *itemResults,
-                                           UA_UInt32 *newMonitoredItemIds);
-
-/* TODO for 0.4: attribute is fix for events. */
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_addMonitoredEvent(UA_Client *client, UA_UInt32 subscriptionId,
-                                          const UA_NodeId nodeId, UA_UInt32 attributeID,
-                                          const UA_SimpleAttributeOperand *selectClauses,
-                                          size_t selectClausesSize,
-                                          const UA_ContentFilterElement *whereClauses,
-                                          size_t whereClausesSize,
-                                          const UA_MonitoredEventHandlingFunction hf,
-                                          void *hfContext, UA_UInt32 *newMonitoredItemId);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_removeMonitoredItem(UA_Client *client, UA_UInt32 subscriptionId,
-                                            UA_UInt32 monitoredItemId);
-
-UA_StatusCode UA_EXPORT
-UA_Client_Subscriptions_removeMonitoredItems(UA_Client *client, UA_UInt32 subscriptionId,
-                                             UA_UInt32 *monitoredItemId, size_t itemsSize,
-                                             UA_StatusCode *itemResults);
-#endif
-
-/**
  * Misc Highlevel Functionality
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 /* Get the namespace-index of a namespace-URI
@@ -672,10 +580,8 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
 #define HAVE_NODEITER_CALLBACK
 /* Iterate over all nodes referenced by parentNodeId by calling the callback
    function for each child node */
-typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId,
-                                                 UA_Boolean isInverse,
-                                                 UA_NodeId referenceTypeId,
-                                                 void *handle);
+typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean isInverse,
+                                                 UA_NodeId referenceTypeId, void *handle);
 #endif
 
 UA_StatusCode UA_EXPORT
