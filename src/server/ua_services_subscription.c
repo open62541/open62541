@@ -451,7 +451,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Return an error if the session has no subscription */
     if(LIST_EMPTY(&session->serverSubscriptions)) {
-        subscriptionSendError(session->channel, request->requestHeader.requestHandle,
+        subscriptionSendError(session->header.channel, request->requestHeader.requestHandle,
                               requestId, UA_STATUSCODE_BADNOSUBSCRIPTION);
         return;
     }
@@ -462,17 +462,17 @@ Service_Publish(UA_Server *server, UA_Session *session,
     if((server->config.maxPublishReqPerSession != 0 ) &&
        (UA_Session_getNumPublishReq(session) >= server->config.maxPublishReqPerSession)){
         if(!UA_Subscription_reachedPublishReqLimit(server,session)) {
-            subscriptionSendError(session->channel, requestId,
+            subscriptionSendError(session->header.channel, requestId,
                                   request->requestHeader.requestHandle,
                                   UA_STATUSCODE_BADINTERNALERROR);
             return;
         }
     }
 
-    UA_PublishResponseEntry *entry =
-        (UA_PublishResponseEntry*)UA_malloc(sizeof(UA_PublishResponseEntry));
+    UA_PublishResponseEntry *entry = (UA_PublishResponseEntry*)
+        UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        subscriptionSendError(session->channel, requestId,
+        subscriptionSendError(session->header.channel, requestId,
                               request->requestHeader.requestHandle,
                               UA_STATUSCODE_BADOUTOFMEMORY);
         return;
@@ -489,7 +489,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            subscriptionSendError(session->channel, requestId,
+            subscriptionSendError(session->header.channel, requestId,
                                   request->requestHeader.requestHandle,
                                   UA_STATUSCODE_BADOUTOFMEMORY);
             return;
