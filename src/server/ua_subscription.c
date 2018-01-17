@@ -268,7 +268,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Check if the securechannel is valid */
-    UA_SecureChannel *channel = sub->session->channel;
+    UA_SecureChannel *channel = sub->session->header.channel;
     if(!channel)
         return;
 
@@ -367,7 +367,7 @@ UA_Subscription_publishCallback(UA_Server *server, UA_Subscription *sub) {
                          "Subscription %u | Sending out a publish response "
                          "with %u notifications", sub->subscriptionID,
                          (UA_UInt32)notifications);
-    UA_SecureChannel_sendSymmetricMessage(sub->session->channel, pre->requestId,
+    UA_SecureChannel_sendSymmetricMessage(sub->session->header.channel, pre->requestId,
                                           UA_MESSAGETYPE_MSG, response,
                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -427,7 +427,7 @@ UA_Subscription_reachedPublishReqLimit(UA_Server *server,  UA_Session *session) 
     /* Send the response */
     UA_LOG_DEBUG_SESSION(server->config.logger, session,
                          "Sending out a publish response triggered by too many publish requests");
-    UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+    UA_SecureChannel_sendSymmetricMessage(session->header.channel, pre->requestId,
                                           UA_MESSAGETYPE_MSG, response,
                                           &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
@@ -494,7 +494,7 @@ UA_Subscription_answerPublishRequestsNoSubscription(UA_Server *server,
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         response->responseHeader.timestamp = UA_DateTime_now();
-        UA_SecureChannel_sendSymmetricMessage(session->channel, pre->requestId,
+        UA_SecureChannel_sendSymmetricMessage(session->header.channel, pre->requestId,
                                               UA_MESSAGETYPE_MSG, response,
                                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_deleteMembers(response);
