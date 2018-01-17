@@ -14,7 +14,7 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   assign_source_group(${EXAMPLE_SOURCE})
   add_dependencies(${EXAMPLE_NAME} open62541-amalgamation-header open62541-amalgamation-source)
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
-  set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/examples")
+  set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
   if(UA_COMPILE_AS_CXX)
     set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
   endif()
@@ -58,6 +58,10 @@ add_example(client client.c)
 
 add_example(client_connect_loop client_connect_loop.c)
 
+if(UA_ENABLE_SUBSCRIPTIONS)
+add_example(client_subscription_loop client_subscription_loop.c)
+endif()
+
 ####################
 # Feature Examples #
 ####################
@@ -69,6 +73,10 @@ add_example(server_instantiation server_instantiation.c)
 add_example(server_repeated_job server_repeated_job.c)
 
 add_example(server_inheritance server_inheritance.c)
+
+if(UA_ENABLE_ENCRYPTION)
+    add_example(server_basic128rsa15 encryption/server_basic128rsa15.c)
+endif()
 
 add_example(custom_datatype_client custom_datatype/client_types_custom.c)
 add_example(custom_datatype_server custom_datatype/server_types_custom.c)

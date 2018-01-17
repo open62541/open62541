@@ -56,7 +56,7 @@ if [ $ANALYZE = "true" ]; then
             --suppress=duplicateBranch \
             --suppress=incorrectStringBooleanError \
             --suppress=invalidscanf --inline-suppr \
-            -I include src plugins 2> cppcheck.txt
+            -I include src plugins examples 2> cppcheck.txt
         if [ -s cppcheck.txt ]; then
             echo "====== CPPCHECK Static Analysis Errors ======"
             cat cppcheck.txt

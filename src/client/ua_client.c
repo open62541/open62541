@@ -22,6 +22,8 @@ UA_Client_init(UA_Client* client, UA_ClientConfig config) {
     client->channel.securityPolicy = &client->securityPolicy;
     client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
     client->config = config;
+    if (client->config.stateCallback)
+        client->config.stateCallback(client, client->state);
 }
 
 UA_Client *
@@ -57,14 +59,7 @@ UA_Client_deleteMembers(UA_Client* client) {
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_Client_NotificationsAckNumber *n, *tmp;
-    LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
-        LIST_REMOVE(n, listEntry);
-        UA_free(n);
-    }
-    UA_Client_Subscription *sub, *tmps;
-    LIST_FOREACH_SAFE(sub, &client->subscriptions, listEntry, tmps)
-        UA_Client_Subscriptions_forceDelete(client, sub); /* force local removal */
+    UA_Client_Subscriptions_clean(client);
 #endif
 }
 
@@ -291,8 +286,7 @@ receiveServiceResponse(UA_Client *client, void *response, const UA_DataType *res
         if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) {
             if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
                 client->state = UA_CLIENTSTATE_DISCONNECTED;
-            else
-                UA_Client_disconnect(client);
+            UA_Client_close(client);
             break;
         }
     } while(!rd.received);
@@ -314,7 +308,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
             respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
         else
             respHeader->serviceResult = retval;
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return;
     }
 
@@ -324,7 +318,7 @@ __UA_Client_Service(UA_Client *client, const void *request,
     retval = receiveServiceResponse(client, response, responseType, maxDate, &requestId);
     if (retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT){
         /* In synchronous service, if we have don't have a reply we need to close the connection */
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
     if(retval != UA_STATUSCODE_GOOD)

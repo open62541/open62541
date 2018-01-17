@@ -12,6 +12,19 @@
 
 #define UA_MINMESSAGESIZE 8192
 
+
+ /********************/
+ /* Set client state */
+ /********************/
+static void
+setClientState(UA_Client *client, UA_ClientState state)
+{
+    if (client->state != state){
+        client->state = state;
+        if (client->config.stateCallback)
+            client->config.stateCallback(client, client->state);
+    }
+}
  /***********************/
  /* Open the Connection */
  /***********************/
@@ -97,9 +110,13 @@ HelAckHandshake(UA_Client *client) {
     /* Loop until we have a complete chunk */
     retval = UA_Connection_receiveChunksBlocking(conn, client, processACKResponse,
                                                  client->config.timeout);
-    if(retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD){
         UA_LOG_INFO(client->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Receiving ACK message failed");
+        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
+            client->state = UA_CLIENTSTATE_DISCONNECTED;
+        UA_Client_close(client);
+    }
     return retval;
 }
 
@@ -166,7 +183,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Sending OPN message failed with error %s", UA_StatusCode_name(retval));
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return retval;
     }
 
@@ -182,7 +199,7 @@ openSecureChannel(UA_Client *client, UA_Boolean renew) {
                                     &requestId);
                                     
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
+        UA_Client_close(client);
         return retval;
     }
 
@@ -246,7 +263,6 @@ UA_Client_getEndpointsInternal(UA_Client *client, size_t* endpointDescriptionsSi
     request.endpointUrl = client->endpointUrl;
 
     UA_GetEndpointsResponse response;
-    UA_GetEndpointsResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]);
 
@@ -347,7 +363,6 @@ createSession(UA_Client *client) {
     UA_String_copy(&client->endpointUrl, &request.endpointUrl);
 
     UA_CreateSessionResponse response;
-    UA_CreateSessionResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
 
@@ -364,7 +379,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
                           UA_Boolean endpointsHandshake, UA_Boolean createNewSession) {
     if(client->state >= UA_CLIENTSTATE_CONNECTED)
         return UA_STATUSCODE_GOOD;
-
     UA_ChannelSecurityToken_init(&client->channel.securityToken);
     client->channel.state = UA_SECURECHANNELSTATE_FRESH;
 
@@ -389,49 +403,57 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
     retval = HelAckHandshake(client);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_CONNECTED;
+    setClientState(client, UA_CLIENTSTATE_CONNECTED);
 
     /* Open a SecureChannel. TODO: Select with endpoint  */
     client->channel.connection = &client->connection;
     retval = openSecureChannel(client, false);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    client->state = UA_CLIENTSTATE_SECURECHANNEL;
+    setClientState(client, UA_CLIENTSTATE_SECURECHANNEL);
 
-    /* There is no session to recover and we want to have a session */
-    if(createNewSession && UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
-        /* Get Endpoints */
-        if(endpointsHandshake) {
-            retval = getEndpoints(client);
+    /* Try to activate an existing Session for this SecureChannel */
+    if((!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) && (createNewSession)) {
+        retval = activateSession(client);
+        if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
+            /* Could not recover an old session. Remove authenticationToken */
+            UA_NodeId_deleteMembers(&client->authenticationToken);
+        }else{
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
+            setClientState(client, UA_CLIENTSTATE_SESSION_RENEWED);
+            return retval;
         }
-        /* Create a Session */
+    }else{
+        UA_NodeId_deleteMembers(&client->authenticationToken);
+    }
+
+    /* Get Endpoints */
+    if(endpointsHandshake) {
+        retval = getEndpoints(client);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Create the Session for this SecureChannel */
+    if(createNewSession) {
         retval = createSession(client);
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-    }
-
-    /* Activate the Session for this SecureChannel */
-    if(!UA_NodeId_equal(&client->authenticationToken, &UA_NODEID_NULL)) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+        /* A new session has been created. We need to clean up the subscriptions */
+        UA_Client_Subscriptions_clean(client);
+#endif
         retval = activateSession(client);
-
-        /* Could not recover an old session. Create a new one */
-        if(retval == UA_STATUSCODE_BADSESSIONIDINVALID) {
-            retval = createSession(client);
-            if(retval != UA_STATUSCODE_GOOD)
-                goto cleanup;
-            retval = activateSession(client);
-        }
-
         if(retval != UA_STATUSCODE_GOOD)
             goto cleanup;
-        client->state = UA_CLIENTSTATE_SESSION;
+        setClientState(client, UA_CLIENTSTATE_SESSION);
     }
+
     return retval;
 
 cleanup:
-    UA_Client_disconnect(client);
+    UA_Client_close(client);
     return retval;
 }
 
@@ -453,7 +475,8 @@ UA_StatusCode
 UA_Client_manuallyRenewSecureChannel(UA_Client *client) {
     UA_StatusCode retval = openSecureChannel(client, true);
     if(retval != UA_STATUSCODE_GOOD)
-        client->state = UA_CLIENTSTATE_DISCONNECTED;
+        UA_Client_close(client);
+
     return retval;
 }
 
@@ -488,27 +511,45 @@ sendCloseSecureChannel(UA_Client *client) {
     UA_SecureChannel_sendSymmetricMessage(channel, ++client->requestId,
                                           UA_MESSAGETYPE_CLO, &request,
                                           &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
+    UA_CloseSecureChannelRequest_deleteMembers(&request);
     UA_SecureChannel_deleteMembersCleanup(&client->channel);
 }
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
     /* Is a session established? */
-    if(client->state == UA_CLIENTSTATE_SESSION){
-        client->state = UA_CLIENTSTATE_SESSION_DISCONNECTED;
+    if(client->state >= UA_CLIENTSTATE_SESSION){
+        client->state = UA_CLIENTSTATE_SECURECHANNEL;
         sendCloseSession(client);
     }
     UA_NodeId_deleteMembers(&client->authenticationToken);
     client->requestHandle = 0;
 
     /* Is a secure channel established? */
-    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+    if(client->state >= UA_CLIENTSTATE_SECURECHANNEL){
+        client->state = UA_CLIENTSTATE_CONNECTED;
         sendCloseSecureChannel(client);
+    }
 
     /* Close the TCP connection */
-    if(client->state >= UA_CLIENTSTATE_CONNECTED)
+    if(client->connection.state != UA_CONNECTION_CLOSED)
         client->connection.close(&client->connection);
 
-    client->state = UA_CLIENTSTATE_DISCONNECTED;
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_close(UA_Client *client) {
+    client->requestHandle = 0;
+
+    if (client->state >= UA_CLIENTSTATE_SECURECHANNEL)
+        UA_SecureChannel_deleteMembersCleanup(&client->channel);
+
+    /* Close the TCP connection */
+    if(client->connection.state != UA_CONNECTION_CLOSED)
+        client->connection.close(&client->connection);
+
+    setClientState(client, UA_CLIENTSTATE_DISCONNECTED);
     return UA_STATUSCODE_GOOD;
 }

@@ -48,7 +48,7 @@ MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem) {
 }
 
 static void
-ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
+ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon, MonitoredItem_queuedValue *newQueueItem) {
     /* Enough space, nothing to do here */
     if(mon->currentQueueSize < mon->maxQueueSize)
         return;
@@ -66,6 +66,11 @@ ensureSpaceInMonitoredItemQueue(UA_MonitoredItem *mon) {
     UA_DataValue_deleteMembers(&queueItem->value);
     UA_free(queueItem);
     --mon->currentQueueSize;
+
+    if(mon->maxQueueSize > 1){
+        newQueueItem->value.hasStatus = true;
+        newQueueItem->value.status = UA_STATUSCODE_INFOTYPE_DATAVALUE | UA_STATUSCODE_INFOBITS_OVERFLOW;
+    }
 }
 
 /* Errors are returned as no change detected */
@@ -196,7 +201,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     monitoredItem->lastSampledValue = *valueEncoding;
 
     /* Add the sample to the queue for publication */
-    ensureSpaceInMonitoredItemQueue(monitoredItem);
+    ensureSpaceInMonitoredItemQueue(monitoredItem, newQueueItem);
     TAILQ_INSERT_TAIL(&monitoredItem->queue, newQueueItem, listEntry);
     ++monitoredItem->currentQueueSize;
     return true;;

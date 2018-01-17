@@ -58,6 +58,7 @@ set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_network_tcp.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_default.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
+        ${PROJECT_SOURCE_DIR}/plugins/ua_pki_certificate.c
         ${PROJECT_SOURCE_DIR}/plugins/ua_securitypolicy_none.c)
 
 add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
@@ -82,16 +83,12 @@ add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 
-set(CORPUS_CMDS)
-
 SET(CORPUS_CMDS "")
 FOREACH(f ${CORPUS_FILES})
     LIST(APPEND CORPUS_CMDS COMMAND ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/fuzz_binary_message "${f}")
 ENDFOREACH(f)
 
-add_custom_target(
-        run_fuzzer
-        ${CORPUS_CMDS}
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        DEPENDS ${FUZZER_TARGETS}
-        ${MAYBE_USES_TERMINAL})
+add_custom_target(run_fuzzer ${CORPUS_CMDS}
+                  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                  DEPENDS ${FUZZER_TARGETS}
+                  ${MAYBE_USES_TERMINAL})

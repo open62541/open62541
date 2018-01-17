@@ -58,7 +58,6 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersResponse response;
-    UA_FindServersResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSRESPONSE]);
 
@@ -109,7 +108,6 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
 
     /* Send the request */
     UA_FindServersOnNetworkResponse response;
-    UA_FindServersOnNetworkResponse_init(&response);
     __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKREQUEST],
                         &response, &UA_TYPES[UA_TYPES_FINDSERVERSONNETWORKRESPONSE]);
 

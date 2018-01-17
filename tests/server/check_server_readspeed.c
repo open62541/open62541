@@ -6,16 +6,47 @@
 
 #include <time.h>
 #include <stdio.h>
+#include <check.h>
 
 #include "ua_server.h"
 #include "ua_config_default.h"
 #include "server/ua_services.h"
 #include "ua_types_encoding_binary.h"
 
-int main(int argc, char** argv) {
-    UA_ServerConfig *config = UA_ServerConfig_new_default();
-    UA_Server *server = UA_Server_new(config);
+#include "testing_networklayers.h"
+#include "testing_policy.h"
 
+static UA_SecureChannel testChannel;
+static UA_SecurityPolicy dummyPolicy;
+static UA_Connection testingConnection;
+static funcs_called funcsCalled;
+static key_sizes keySizes;
+
+static UA_ServerConfig *config;
+static UA_Server *server;
+
+static void setup(void) {
+    config = UA_ServerConfig_new_default();
+    server = UA_Server_new(config);
+
+    TestingPolicy(&dummyPolicy, UA_BYTESTRING_NULL, &funcsCalled, &keySizes);
+    UA_SecureChannel_init(&testChannel, &dummyPolicy, &UA_BYTESTRING_NULL);
+
+    testingConnection = createDummyConnection(65535, NULL);
+    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
+    testChannel.connection = &testingConnection;
+}
+
+static void teardown(void) {
+    UA_SecureChannel_deleteMembersCleanup(&testChannel);
+    dummyPolicy.deleteMembers(&dummyPolicy);
+    testingConnection.close(&testingConnection);
+
+    UA_Server_delete(server);
+    UA_ServerConfig_delete(config);
+}
+
+START_TEST(readSpeed) {
     /* add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 42;
@@ -52,11 +83,11 @@ int main(int argc, char** argv) {
     retval |= UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
     UA_assert(retval == UA_STATUSCODE_GOOD);
 
-    UA_Byte *resp_pos = response_msg.data;
-    const UA_Byte *resp_end = &response_msg.data[response_msg.length];
-
     UA_ReadRequest rq;
-    UA_ReadResponse rr;
+    UA_MessageContext mc;
+
+    UA_ResponseHeader rh;
+    UA_ResponseHeader_init(&rh);
 
     clock_t begin, finish;
     begin = clock();
@@ -64,27 +95,44 @@ int main(int argc, char** argv) {
     for(int i = 0; i < 1000000; i++) {
         size_t offset = 0;
         retval |= UA_decodeBinary(&request_msg, &offset, &rq, &UA_TYPES[UA_TYPES_READREQUEST], 0, NULL);
-        UA_assert(retval == UA_STATUSCODE_GOOD);
 
-        UA_ReadResponse_init(&rr);
-        Service_Read(server, &adminSession, &rq, &rr);
-
-        resp_pos = response_msg.data;
-        retval |= UA_encodeBinary(&rr, &UA_TYPES[UA_TYPES_READRESPONSE], &resp_pos, &resp_end, NULL, NULL);
-        UA_assert(retval == UA_STATUSCODE_GOOD);
+        UA_MessageContext_begin(&mc, &testChannel, 0, UA_MESSAGETYPE_MSG);
+        retval |= Service_Read(server, &adminSession, &mc, &rq, &rh);
+        UA_MessageContext_finish(&mc);
 
         UA_ReadRequest_deleteMembers(&rq);
-        UA_ReadResponse_deleteMembers(&rr);
     }
 
     finish = clock();
+
+    UA_assert(retval == UA_STATUSCODE_GOOD);
     double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
     printf("duration was %f s\n", time_spent);
     printf("retval is %s\n", UA_StatusCode_name(retval));
 
     UA_ByteString_deleteMembers(&request_msg);
     UA_ByteString_deleteMembers(&response_msg);
-    UA_Server_delete(server);
-    UA_ServerConfig_delete(config);
-    return (int)retval;
+}
+END_TEST
+
+static Suite * service_speed_suite (void) {
+    Suite *s = suite_create ("Service Speed");
+
+    TCase* tc_read = tcase_create ("Read");
+    tcase_add_checked_fixture(tc_read, setup, teardown);
+    tcase_add_test (tc_read, readSpeed);
+    suite_add_tcase (s, tc_read);
+
+    return s;
+}
+
+int main (void) {
+    int number_failed = 0;
+    Suite *s = service_speed_suite();
+    SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr,CK_NOFORK);
+    srunner_run_all(sr, CK_NORMAL);
+    number_failed += srunner_ntests_failed (sr);
+    srunner_free(sr);
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
