@@ -85,9 +85,18 @@ UA_NumericRange_parseFromString(UA_NumericRange *range, const UA_String *str) {
 /* Information Model Operations */
 /********************************/
 
-UA_Boolean
-isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
-             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+/**
+ * Keeps track of already visited nodes to detect circular references
+ */
+struct ref_history {
+    struct ref_history *parent; // the previous element
+    const UA_NodeId *id; // the id of the node at this depth
+};
+
+static UA_Boolean
+isNodeInTreeNoCircular(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+                       struct ref_history *visitedRefs, const UA_NodeId *referenceTypeIds,
+                       size_t referenceTypeIdsSize) {
     if(UA_NodeId_equal(nodeToFind, leafNode))
         return true;
 
@@ -114,7 +123,30 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
         /* Match the targets or recurse */
         for(size_t j = 0; j < refs->targetIdsSize; ++j) {
-            if(isNodeInTree(ns, &refs->targetIds[j].nodeId, nodeToFind,
+            /* check if we already have seen the referenced node and skip to avoid endless recursion */
+
+            struct ref_history *tmp = visitedRefs;
+            struct ref_history *last = visitedRefs;
+            UA_Boolean skip = UA_FALSE;
+            while (!skip && tmp) {
+                if (UA_NodeId_equal(tmp->id, &refs->targetIds[j].nodeId))
+                    skip = UA_TRUE;
+                last = tmp;
+                tmp = tmp->parent;
+            }
+
+            if (skip)
+                continue;
+
+            last->parent = (struct ref_history*)UA_malloc(sizeof(struct ref_history));
+            if (!last->parent) {
+                return false;
+            }
+            last = last->parent;
+            last->parent = NULL;
+            last->id = &refs->targetIds[j].nodeId;
+
+            if(isNodeInTreeNoCircular(ns, &refs->targetIds[j].nodeId, nodeToFind, last,
                             referenceTypeIds, referenceTypeIdsSize)) {
                 ns->releaseNode(ns->context, node);
                 return true;
@@ -124,6 +156,24 @@ isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeT
 
     ns->releaseNode(ns->context, node);
     return false;
+}
+
+UA_Boolean
+isNodeInTree(UA_Nodestore *ns, const UA_NodeId *leafNode, const UA_NodeId *nodeToFind,
+             const UA_NodeId *referenceTypeIds, size_t referenceTypeIdsSize) {
+    struct ref_history visitedRefs = {
+            NULL, leafNode
+    };
+    UA_Boolean retVal = isNodeInTreeNoCircular(ns, leafNode, nodeToFind, &visitedRefs, referenceTypeIds, referenceTypeIdsSize);
+    struct ref_history *tmp = visitedRefs.parent;
+
+    while(tmp) {
+        struct ref_history *deleteMe = tmp;
+        tmp = tmp->parent;
+        UA_free(deleteMe);
+    }
+
+    return retVal;
 }
 
 const UA_Node *
