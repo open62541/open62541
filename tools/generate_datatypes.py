@@ -455,7 +455,7 @@ def printe(string):
 def printc(string):
     print(string, end='\n', file=fc)
 
-def iter_types(v):
+def iter_types(v, opaqueType):
     l = None
     if sys.version_info[0] < 3:
         l = list(v.itervalues())
@@ -465,22 +465,12 @@ def iter_types(v):
         l = list(filter(lambda t: t.name in selected_types, l))
     if args.no_builtin:
         l = list(filter(lambda t: type(t) != BuiltinType, l))
-    # remove opaque type
-    l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
-    return l
-
-def iter_opaque_types(v):
-    l = None
-    if sys.version_info[0] < 3:
-        l = list(v.itervalues())
+    if opaqueType:
+        # only opaque type
+        l = list(filter(lambda t: t.name in opaque_type_mapping, l))
     else:
-        l = list(v.values())
-    if len(selected_types) > 0:
-        l = list(filter(lambda t: t.name in selected_types, l))
-    if args.no_builtin:
-        l = list(filter(lambda t: type(t) != BuiltinType, l))
-    # only opaque type
-    l = list(filter(lambda t: t.name in opaque_type_mapping, l))
+        # remove opaque type
+        l = list(filter(lambda t: t.name not in opaque_type_mapping, l))
     return l
 ################
 # Print Header #
@@ -500,8 +490,8 @@ extern "C" {
 #include "ua_types.h"
 ''' + ('#include "ua_types_generated.h"\n' if outname != "ua_types" else ''))
 
-filtered_types = iter_types(types)
-filtered_opaque_types = iter_opaque_types(types)
+filtered_types = iter_types(types, False)
+filtered_opaque_types = iter_types(types, True)
 
 printh('''/**
  * Every type is assigned an index in an array containing the type descriptions.
