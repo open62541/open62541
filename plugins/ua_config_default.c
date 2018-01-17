@@ -17,7 +17,7 @@
 
 #include "ua_types.h"
 #include "ua_types_generated_handling.h"
-#include "ua_client_highlevel.h"
+#include "ua_client_subscriptions.h"
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
 #define USERNAME_POLICY "open62541-username-policy"
@@ -468,6 +468,15 @@ const UA_ClientConfig UA_ClientConfig_default = {
 /****************************************/
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
+const UA_SubscriptionParameters UA_SubscriptionParameters_default = {
+    500.0, /* .publishingInterval */
+    10000, /* .lifetimeCount */
+    1, /* .maxKeepAliveCount */
+    0, /* .maxNotificationsPerPublish */
+    0, /* .priority */
+    true, /* .publishingEnabled */
+};
 
 const UA_SubscriptionSettings UA_SubscriptionSettings_default = {
     500.0, /* .requestedPublishingInterval */

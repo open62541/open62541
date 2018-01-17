@@ -400,6 +400,16 @@ UA_Client_Service_modifySubscription(UA_Client *client,
     return response;
 }
 
+static UA_INLINE UA_SetPublishingModeResponse
+UA_Client_Service_setPublishingMode(UA_Client *client,
+                                   const UA_SetPublishingModeRequest request) {
+    UA_SetPublishingModeResponse response;
+    __UA_Client_Service(client, &request,
+                        &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST], &response,
+                        &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE]);
+    return response;
+}
+
 static UA_INLINE UA_DeleteSubscriptionsResponse
 UA_Client_Service_deleteSubscriptions(UA_Client *client,
                                   const UA_DeleteSubscriptionsRequest request) {
@@ -503,7 +513,8 @@ UA_Client_AsyncService_browse(UA_Client *client, const UA_BrowseRequest *request
 /**
  * .. toctree::
  *
- *    client_highlevel */
+ *    client_highlevel
+ *    client_subscriptions */
 
 #ifdef __cplusplus
 } // extern "C"

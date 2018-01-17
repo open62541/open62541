@@ -12,22 +12,18 @@
 
 #define UA_MINMESSAGESIZE 8192
 
-
- /********************/
- /* Set client state */
- /********************/
 static void
-setClientState(UA_Client *client, UA_ClientState state)
-{
-    if (client->state != state){
+setClientState(UA_Client *client, UA_ClientState state) {
+    if(client->state != state){
         client->state = state;
         if (client->config.stateCallback)
             client->config.stateCallback(client, client->state);
     }
 }
- /***********************/
- /* Open the Connection */
- /***********************/
+
+/***********************/
+/* Open the Connection */
+/***********************/
 
 static UA_StatusCode
 processACKResponse(void *application, UA_Connection *connection, UA_ByteString *chunk) {
@@ -442,7 +438,6 @@ UA_Client_connectInternal(UA_Client *client, const char *endpointUrl,
 #else
     UA_NodeId_deleteMembers(&client->authenticationToken);
 #endif /* UA_SESSION_RECOVERY */
-
 
     /* Get Endpoints */
     if(endpointsHandshake) {

@@ -10,9 +10,9 @@
 #include "ua_util.h"
 #include "ua_securitypolicy_none.h"
 
- /********************/
- /* Client Lifecycle */
- /********************/
+/********************/
+/* Client Lifecycle */
+/********************/
 
 static void
 UA_Client_init(UA_Client* client, UA_ClientConfig config) {

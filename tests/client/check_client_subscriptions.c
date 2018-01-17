@@ -65,7 +65,7 @@ static void monitoredItemHandler(UA_UInt32 monId, UA_DataValue *value, void *con
 static void monitoredItemHandlerSubSleep(UA_UInt32 monId, UA_DataValue *value, void *context) {
     notificationReceived = true;
     countNotificationReceived++;
-    UA_fakeSleep((UA_UInt32)(UA_SubscriptionSettings_default.requestedPublishingInterval + 2));
+    UA_fakeSleep((UA_UInt32)(UA_SubscriptionParameters_default.publishingInterval + 2));
 }
 
 START_TEST(Client_subscription) {
@@ -74,7 +74,8 @@ START_TEST(Client_subscription) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                           NULL, NULL, NULL, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
@@ -84,7 +85,7 @@ START_TEST(Client_subscription) {
                                                       NULL, &monId, 250);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
@@ -94,7 +95,7 @@ START_TEST(Client_subscription) {
     retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Client_Subscriptions_remove(client, subId);
+    retval = UA_Client_Subscription_delete(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
@@ -108,7 +109,8 @@ START_TEST(Client_subscription_addMonitoredItems) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                           NULL, NULL, NULL, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_MonitoredItemCreateRequest items[3];
@@ -158,7 +160,7 @@ START_TEST(Client_subscription_addMonitoredItems) {
     ck_assert_uint_eq(itemResults[1], UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(itemResults[2], UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     notificationReceived = false;
     countNotificationReceived = 0;
@@ -167,7 +169,7 @@ START_TEST(Client_subscription_addMonitoredItems) {
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
@@ -182,7 +184,7 @@ START_TEST(Client_subscription_addMonitoredItems) {
     ck_assert_uint_eq(itemResults[1], UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(itemResults[2], UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
 
-    retval = UA_Client_Subscriptions_remove(client, subId);
+    retval = UA_Client_Subscription_delete(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
@@ -196,7 +198,8 @@ START_TEST(Client_subscription_connectionClose) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                           NULL, NULL, NULL, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
@@ -206,7 +209,7 @@ START_TEST(Client_subscription_connectionClose) {
                                                       NULL, &monId, 250);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -231,7 +234,8 @@ START_TEST(Client_subscription_without_notification) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                           NULL, NULL, NULL, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
@@ -241,14 +245,14 @@ START_TEST(Client_subscription_without_notification) {
                                                       NULL, &monId, 9999999);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     notificationReceived = false;
     retval = UA_Client_Subscriptions_manuallySendPublishRequest(client);
@@ -258,7 +262,7 @@ START_TEST(Client_subscription_without_notification) {
     retval = UA_Client_Subscriptions_removeMonitoredItem(client, subId, monId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Client_Subscriptions_remove(client, subId);
+    retval = UA_Client_Subscription_delete(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
@@ -276,7 +280,8 @@ stateCallback (UA_Client *client, UA_ClientState clientState){
         /* A new session was created. We need to create the subscription. */
         /* Create a subscription */
         UA_UInt32 subId = 0;
-        UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+        UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                      NULL, NULL, NULL, &subId);
         ck_assert_uint_ne(subId, 0);
 
         /* Add a MonitoredItem */
@@ -303,32 +308,32 @@ START_TEST(Client_subscription_async_sub) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
-    UA_fakeSleep((UA_UInt32)UA_SubscriptionSettings_default.requestedPublishingInterval + 1);
+    UA_fakeSleep((UA_UInt32)UA_SubscriptionParameters_default.publishingInterval + 1);
 
     countNotificationReceived = 0;
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 3);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 4);
 
     notificationReceived = false;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 5);
 
@@ -340,7 +345,7 @@ START_TEST(Client_subscription_async_sub) {
     notificationReceived = false;
     /* Simulate network cable unplugged (no response from server) */
     UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
-    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionSettings_default.requestedPublishingInterval + 1));
+    UA_Client_runAsync(client, (UA_UInt16)(UA_SubscriptionParameters_default.publishingInterval + 1));
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(callbackClientState, UA_CLIENTSTATE_SESSION);
 
@@ -366,7 +371,8 @@ START_TEST(Client_methodcall) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_UInt32 subId;
-    retval = UA_Client_Subscriptions_new(client, UA_SubscriptionSettings_default, &subId);
+    retval = UA_Client_Subscription_create(client, &UA_SubscriptionParameters_default,
+                                           NULL, NULL, NULL, &subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* monitor the server state */
