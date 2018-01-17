@@ -36,12 +36,12 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
   
 Features currently being implemented:
 - Target 0.3 release (to be released in the coming weeks):
-  - Encryption (#1282)
+  - Secure communication with encrypted messages (Done)
   - Access control for individual nodes (Done)
 - Target 0.4 release:
   - Events (notifications emitted by objects, data change notifications are implemented), WIP by @Pro
   - Event-loop (background tasks) and asynchronous service requests in the client, WIP #1117 #1410
-  - Publish/Subscribe based on UDP (Specification Part 14), WIP by @jpfr
+  - Publish/Subscribe based on UDP (Specification Part 14), WIP @ Fraunhofer IOSB
 
 ### Dependencies
 
